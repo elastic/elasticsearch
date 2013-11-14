@@ -44,7 +44,7 @@ import java.io.IOException;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_45;
+    public static final Version VERSION = Version.LUCENE_46;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -59,6 +59,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.6".equals(version)) {
+            return VERSION.LUCENE_46;
         }
         if ("4.5".equals(version)) {
             return VERSION.LUCENE_45;
@@ -115,9 +118,6 @@ public class Lucene {
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
-        if (!(query instanceof ConstantScoreQuery)) {
-            query = new XLuceneConstantScoreQuery(query);
-        }
         searcher.search(query, countCollector);
         return countCollector.getTotalHits();
     }

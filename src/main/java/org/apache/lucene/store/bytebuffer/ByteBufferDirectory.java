@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>If constructed with {@link ByteBufferAllocator}, it allows to control the allocation and release of
  * byte buffer. For example, custom implementations can include caching of byte buffers.
  */
-public class ByteBufferDirectory extends Directory {
+public class ByteBufferDirectory extends BaseDirectory {
 
     protected final Map<String, ByteBufferFile> files = new ConcurrentHashMap<String, ByteBufferFile>();
 

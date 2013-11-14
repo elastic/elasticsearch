@@ -21,8 +21,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
-import org.apache.lucene.codecs.lucene45.Lucene45Codec;
+import org.apache.lucene.codecs.lucene46.Lucene46Codec;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -38,7 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
-public class PerFieldMappingPostingFormatCodec extends Lucene45Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene46Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;

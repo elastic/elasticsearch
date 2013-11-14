@@ -159,7 +159,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
                 TokenFilter filter = new LowerCaseFilter(Version.LUCENE_41, t);
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer(Version.LUCENE_41));
-                    ((SolrSynonymParser) parser).add(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
+                    ((SolrSynonymParser) parser).parse(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
                     filter = new SynonymFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -370,7 +370,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
                 TokenFilter filter = new LowerCaseFilter(Version.LUCENE_41, t);
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer(Version.LUCENE_41));
-                    ((SolrSynonymParser) parser).add(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
+                    ((SolrSynonymParser) parser).parse(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
                     filter = new SynonymFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);

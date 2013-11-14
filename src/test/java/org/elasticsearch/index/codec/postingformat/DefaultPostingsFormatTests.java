@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.postingformat;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene45.Lucene45Codec;
+import org.apache.lucene.codecs.lucene46.Lucene46Codec;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
-    private final class TestCodec extends Lucene45Codec {
+    private final class TestCodec extends Lucene46Codec {
 
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {

@@ -1148,7 +1148,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
-                    SegmentInfoPerCommit info = ((SegmentReader) reader.reader()).getSegmentInfo();
+                    SegmentCommitInfo info = ((SegmentReader) reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
                     Segment segment = new Segment(info.info.name);
                     segment.search = true;
@@ -1170,7 +1170,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // now, correlate or add the committed ones...
             if (lastCommittedSegmentInfos != null) {
                 SegmentInfos infos = lastCommittedSegmentInfos;
-                for (SegmentInfoPerCommit info : infos) {
+                for (SegmentCommitInfo info : infos) {
                     Segment segment = segments.get(info.info.name);
                     if (segment == null) {
                         segment = new Segment(info.info.name);
@@ -1203,7 +1203,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
             for (OnGoingMerge onGoingMerge : onGoingMerges) {
-                for (SegmentInfoPerCommit segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
+                for (SegmentCommitInfo segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
                     for (Segment segment : segmentsArr) {
                         if (segment.getName().equals(segmentInfoPerCommit.info.name)) {
                             segment.mergeId = onGoingMerge.getId();
@@ -1379,7 +1379,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     }
                 }
             });
-            return new XIndexWriter(store.directory(), config);
+            return new IndexWriter(store.directory(), config);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
             logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);

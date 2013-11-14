@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.5.1</lucene.version>
+        <lucene.version>4.6.0</lucene.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>

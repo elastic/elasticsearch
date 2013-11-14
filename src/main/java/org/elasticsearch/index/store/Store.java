@@ -300,7 +300,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
-    public class StoreDirectory extends Directory implements ForceSyncDirectory {
+    public class StoreDirectory extends BaseDirectory implements ForceSyncDirectory {
 
         private final Distributor distributor;
 

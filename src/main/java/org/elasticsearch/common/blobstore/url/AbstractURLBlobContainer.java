@@ -96,20 +96,20 @@ public abstract class AbstractURLBlobContainer extends AbstractBlobContainer {
                 InputStream is = null;
                 try {
                     is = new URL(path, blobName).openStream();
-                } catch (IOException e) {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(e);
-                    return;
-                }
-                try {
                     int bytesRead;
                     while ((bytesRead = is.read(buffer)) != -1) {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
-                    listener.onCompleted();
-                } catch (IOException e) {
+                } catch (Throwable t) {
                     IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(e);
+                    listener.onFailure(t);
+                    return;
+                }
+                try {
+                    IOUtils.closeWhileHandlingException(is);
+                    listener.onCompleted();
+                } catch (Throwable t) {
+                    listener.onFailure(t);
                 }
             }
         });

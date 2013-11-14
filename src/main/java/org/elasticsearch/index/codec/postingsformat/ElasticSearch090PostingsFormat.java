@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.codec.postingsformat;
 
-import java.io.IOException;
-import java.util.Iterator;
-
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -29,26 +26,27 @@ import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.Terms;
+import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
-import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsProducer;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+
+import java.io.IOException;
 
 /**
  * This is the default postings format for ElasticSearch that special cases
  * the <tt>_uid</tt> field to use a bloom filter while all other fields
  * will use a {@link Lucene41PostingsFormat}. This format will reuse the underlying
- * {@link Lucene41PostingsFormat} and it's files also for the <tt>_uid</tt> saving up to 
+ * {@link Lucene41PostingsFormat} and it's files also for the <tt>_uid</tt> saving up to
  * 5 files per segment in the default case.
  */
 public final class ElasticSearch090PostingsFormat extends PostingsFormat {
     private final BloomFilterPostingsFormat bloomPostings;
-    
+
     public ElasticSearch090PostingsFormat() {
         super("es090");
         bloomPostings = new BloomFilterPostingsFormat(new Lucene41PostingsFormat(), BloomFilter.Factory.DEFAULT);
     }
-    
+
     public PostingsFormat getDefaultWrapped() {
         return bloomPostings.getDelegate();
     }
@@ -57,12 +55,12 @@ public final class ElasticSearch090PostingsFormat extends PostingsFormat {
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         final BloomFilteredFieldsConsumer fieldsConsumer = bloomPostings.fieldsConsumer(state);
         return new FieldsConsumer() {
-            
+
             @Override
             public void close() throws IOException {
                 fieldsConsumer.close();
             }
-            
+
             @Override
             public TermsConsumer addField(FieldInfo field) throws IOException {
                 if (UidFieldMapper.NAME.equals(field.name)) {

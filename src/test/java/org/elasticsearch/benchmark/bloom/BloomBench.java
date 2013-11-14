@@ -5,7 +5,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.index.codec.postingsformat.BloomFilter;
+import org.elasticsearch.common.util.BloomFilter;
 
 import java.security.SecureRandom;
 

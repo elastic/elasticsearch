@@ -71,6 +71,8 @@ include::filters/has-parent-filter.asciidoc[]
 
 include::filters/ids-filter.asciidoc[]
 
+include::filters/indices-filter.asciidoc[]
+
 include::filters/limit-filter.asciidoc[]
 
 include::filters/match-all-filter.asciidoc[]

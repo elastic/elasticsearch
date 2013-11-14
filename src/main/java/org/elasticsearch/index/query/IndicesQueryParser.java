@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -59,10 +57,9 @@ public class IndicesQueryParser implements QueryParser {
 
         Query query = null;
         Query noMatchQuery = Queries.newMatchAllQuery();
-        Query chosenQuery = null;
         boolean queryFound = false;
         boolean indicesFound = false;
-        boolean matchesConcreteIndices = false;
+        boolean currentIndexMatchesIndices = false;
         String queryName = null;
 
         String currentFieldName = null;
@@ -72,30 +69,17 @@ public class IndicesQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
+                    //TODO We are able to decide whether to parse the query or not only if indices in the query appears first
                     queryFound = true;
-                    if (indicesFound) {
-                        // Because we know the indices, we can either skip, or parse and use the query
-                        if (matchesConcreteIndices) {
-                            query = parseContext.parseInnerQuery();
-                            chosenQuery = query;
-                        } else {
-                            parseContext.parser().skipChildren(); // skip the query object without parsing it into a Query
-                        }
+                    if (indicesFound && !currentIndexMatchesIndices) {
+                        parseContext.parser().skipChildren(); // skip the query object without parsing it
                     } else {
-                        // We do not know the indices, we must parse the query
                         query = parseContext.parseInnerQuery();
                     }
                 } else if ("no_match_query".equals(currentFieldName)) {
-                    if (indicesFound) {
-                        // Because we know the indices, we can either skip, or parse and use the query
-                        if (!matchesConcreteIndices) {
-                            noMatchQuery = parseContext.parseInnerQuery();
-                            chosenQuery = noMatchQuery;
-                        } else {
-                            parseContext.parser().skipChildren(); // skip the query object without parsing it into a Query
-                        }
+                    if (indicesFound && currentIndexMatchesIndices) {
+                        parseContext.parser().skipChildren(); // skip the query object without parsing it
                     } else {
-                        // We do not know the indices, we must parse the query
                         noMatchQuery = parseContext.parseInnerQuery();
                     }
                 } else {
@@ -104,39 +88,34 @@ public class IndicesQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices already specified");
+                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     Collection<String> indices = new ArrayList<String>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                            throw new QueryParsingException(parseContext.index(), "[indices] no value specified for 'indices' entry");
                         }
                         indices.add(value);
                     }
-                    matchesConcreteIndices = matchesIndices(parseContext, getConcreteIndices(indices));
+                    currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), indices.toArray(new String[indices.size()]));
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices already specified");
+                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
                     }
                     indicesFound = true;
-                    matchesConcreteIndices = matchesIndices(parseContext, getConcreteIndices(Arrays.asList(parser.text())));
+                    currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
                 } else if ("no_match_query".equals(currentFieldName)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
                         noMatchQuery = Queries.newMatchAllQuery();
                     } else if ("none".equals(type)) {
                         noMatchQuery = Queries.newMatchNoDocsQuery();
-                    }
-                    if (indicesFound) {
-                        if (!matchesConcreteIndices) {
-                            chosenQuery = noMatchQuery;
-                        }
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
@@ -149,38 +128,25 @@ public class IndicesQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'query' element");
         }
         if (!indicesFound) {
-            throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' element");
+            throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' or 'index' element");
         }
 
-        if (chosenQuery == null) {
-            // Indices were not provided before we encountered the queries, which we hence parsed
-            // We must now make a choice
-            if (matchesConcreteIndices) {
-                chosenQuery = query;
-            } else {
-                chosenQuery = noMatchQuery;
-            }
+        Query chosenQuery;
+        if (currentIndexMatchesIndices) {
+            chosenQuery = query;
+        } else {
+            chosenQuery = noMatchQuery;
         }
-
-        if (queryName != null && chosenQuery != null) {
+        if (queryName != null) {
             parseContext.addNamedQuery(queryName, chosenQuery);
         }
-
         return chosenQuery;
     }
 
-    protected String[] getConcreteIndices(Collection<String> indices) {
-        String[] concreteIndices = indices.toArray(new String[indices.size()]);
-        if (clusterService != null) {
-            MetaData metaData = clusterService.state().metaData();
-            concreteIndices = metaData.concreteIndices(indices.toArray(new String[indices.size()]), IgnoreIndices.MISSING, true);
-        }
-        return concreteIndices;
-    }
-
-    protected boolean matchesIndices(QueryParseContext parseContext, String[] concreteIndices) {
+    protected boolean matchesIndices(String currentIndex, String... indices) {
+        String[] concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.MISSING, true);
         for (String index : concreteIndices) {
-            if (Regex.simpleMatch(index, parseContext.index().name())) {
+            if (Regex.simpleMatch(index, currentIndex)) {
                 return true;
             }
         }

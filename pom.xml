@@ -988,6 +988,7 @@
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
+                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include> <!-- inner classes -->
                             </includes>
                         </configuration>
                     </execution>

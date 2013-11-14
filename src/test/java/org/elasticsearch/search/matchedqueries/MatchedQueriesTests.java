@@ -24,7 +24,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -38,33 +37,17 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMatchedQueryFromFilteredQuery() throws Exception {
-
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "test1")
-                .field("number", 1)
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("name", "test2")
-                .field("number", 2)
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .field("name", "test3")
-                .field("number", 3)
-                .endObject()).execute().actionGet();
-
+        client().prepareIndex("test", "type1", "1").setSource("name", "test1", "number", 1).get();
+        client().prepareIndex("test", "type1", "2").setSource("name", "test2", "number", 2).get();
+        client().prepareIndex("test", "type1", "3").setSource("name", "test3", "number", 3).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
-                .execute().actionGet();
-
+                .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2")))).get();
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
@@ -78,12 +61,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         }
 
         searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2")))
-                .execute().actionGet();
-
-
+                .setQuery(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))).get();
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
@@ -99,34 +78,20 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMatchedQueryFromTopLevelFilter() throws Exception {
-
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .field("title", "title1")
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .endObject()).execute().actionGet();
-
+        client().prepareIndex("test", "type1", "1").setSource("name", "test", "title", "title1").get();
+        client().prepareIndex("test", "type1", "2").setSource("name", "test").get();
+        client().prepareIndex("test", "type1", "3").setSource("name", "test").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(orFilter(
                         termFilter("name", "test").filterName("name"),
-                        termFilter("title", "title1").filterName("title")))
-                .execute().actionGet();
-
+                        termFilter("title", "title1").filterName("title"))).get();
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -144,11 +109,9 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .setFilter(queryFilter(boolQuery()
                         .should(termQuery("name", "test").queryName("name"))
-                        .should(termQuery("title", "title1").queryName("title"))))
-                .execute().actionGet();
+                        .should(termQuery("title", "title1").queryName("title")))).get();
 
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -165,34 +128,18 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMatchedQueryFromTopLevelFilterAndFilteredQuery() throws Exception {
-
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .field("title", "title1")
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .field("title", "title2")
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .field("name", "test")
-                .field("title", "title3")
-                .endObject()).execute().actionGet();
-
+        client().prepareIndex("test", "type1", "1").setSource("name", "test", "title", "title1").get();
+        client().prepareIndex("test", "type1", "2").setSource("name", "test", "title", "title2").get();
+        client().prepareIndex("test", "type1", "3").setSource("name", "test", "title", "title3").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), termsFilter("title", "title1", "title2", "title3").filterName("title")))
-                        .setFilter(termFilter("name", "test").filterName("name"))
-                        .execute().actionGet();
-
+                        .setFilter(termFilter("name", "test").filterName("name")).get();
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -205,11 +152,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch()
                 .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
-                .setFilter(queryFilter(matchQuery("name", "test").queryName("name")))
-                .execute().actionGet();
-
+                .setFilter(queryFilter(matchQuery("name", "test").queryName("name"))).get();
         assertHitCount(searchResponse, 3l);
-
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));

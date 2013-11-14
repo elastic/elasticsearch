@@ -100,6 +100,6 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(smileFactory.createJsonParser(reader));
+        return new JsonXContentParser(smileFactory.createParser(reader));
     }
 }

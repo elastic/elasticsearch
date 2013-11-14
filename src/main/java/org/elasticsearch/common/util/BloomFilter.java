@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.codec.postingsformat;
+package org.elasticsearch.common.util;
 
 import com.google.common.math.LongMath;
 import com.google.common.primitives.Ints;

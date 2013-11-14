@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.BloomFilter;
 
 /**
  * This class represents the set of Elasticsearch "build-in"

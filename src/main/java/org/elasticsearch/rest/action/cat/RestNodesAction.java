@@ -132,6 +132,7 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("ramPercent", "text-align:right;");
         table.addCell("ramMax", "text-align:right;");
 
+        table.addCell("load", "text-align:right;");
         table.addCell("uptime", "text-align:right;");
         table.addCell("data/client");
         table.addCell("master");
@@ -174,8 +175,9 @@ public class RestNodesAction extends BaseRestHandler {
             table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
             table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f", heapRatio*100.0));
             table.addCell(heapMax < 0 ? null : new ByteSizeValue(heapMax));
-            table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().mem().usedPercent());
-            table.addCell(info == null ? null : info.getOs() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().usedPercent());
+            table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage()[0]);
             table.addCell(stats == null ? null : stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);
             table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : null);

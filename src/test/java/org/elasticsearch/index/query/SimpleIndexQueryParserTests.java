@@ -2268,4 +2268,20 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat((double) (parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
+
+    @Test
+    public void testMultiMatchQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-simple.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+    }
+
+    @Test
+    public void testMultiMatchQueryWithFieldsAsString() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-fields-as-string.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+    }
 }

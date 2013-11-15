@@ -157,20 +157,10 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        long longValue = NumericUtils.doubleToSortableLong(parseValue(value));
+        long longValue = NumericUtils.doubleToSortableLong(parseDoubleValue(value));
         BytesRef bytesRef = new BytesRef();
         NumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
         return bytesRef;
-    }
-
-    private double parseValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        if (value instanceof BytesRef) {
-            return Double.parseDouble(((BytesRef) value).utf8ToString());
-        }
-        return Double.parseDouble(value.toString());
     }
 
     @Override
@@ -185,7 +175,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        double dValue = parseValue(value);
+        double dValue = parseDoubleValue(value);
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 dValue, dValue, true, true);
     }
@@ -193,14 +183,14 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
+                upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        double dValue = parseValue(value);
+        double dValue = parseDoubleValue(value);
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
                 dValue, dValue, true, true);
     }
@@ -208,8 +198,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
+                upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -220,8 +210,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newDoubleRange((IndexNumericFieldData) fieldData.getForField(this),
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
+                upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
     }
 

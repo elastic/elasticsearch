@@ -269,7 +269,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void snapshotFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
 
@@ -322,7 +321,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void dataFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -367,7 +365,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void dataFileFailureDuringRestoreTest() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -415,7 +412,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("snapshots:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void deletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();

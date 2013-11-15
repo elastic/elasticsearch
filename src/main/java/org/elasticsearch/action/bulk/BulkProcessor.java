@@ -198,6 +198,34 @@ public class BulkProcessor {
         if (closed) {
             return;
         }
+        closeInternal();
+    }
+
+    /**
+     * Closes the processor. If flushing by time is enabled, then its shutdown. Any remaining bulk actions are flushed.
+     *
+     * If concurrent requests are not enabled, returns {@code true} immediately.
+     * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true},
+     * If the specified waiting time elapses before all bulk requests complete, {@code false} is returned.
+     *
+     * @param timeout The maximum time to wait for the bulk requests to complete
+     * @param unit The time unit of the {@code timeout} argument
+     * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests completed
+     * @throws InterruptedException If the current thread is interrupted
+     */
+    public synchronized boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        if (closed) {
+            return true;
+        }
+        closeInternal();
+        if (this.concurrentRequests < 1) {
+            return true;
+        }
+        return semaphore.tryAcquire(this.concurrentRequests, timeout, unit);
+    }
+
+    // Must be executed under a lock
+    private void closeInternal() {
         closed = true;
         if (this.scheduledFuture != null) {
             this.scheduledFuture.cancel(false);

@@ -195,7 +195,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test // see #3521 
+    @Test // see #3521
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
@@ -986,6 +986,103 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), idsFilter())
                 ).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+    }
+
+    @Test
+    public void testFieldDataTermsFilter() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type",
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("str").field("type", "string").endObject()
+                        .startObject("lng").field("type", "long").endObject()
+                        .startObject("dbl").field("type", "double").endObject()
+                        .endObject().endObject().endObject()));
+        ensureGreen();
+        client().prepareIndex("test", "type", "1").setSource("str", "1", "lng", 1l, "dbl", 1.0d).execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("str", "2", "lng", 2l, "dbl", 2.0d).execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("str", "3", "lng", 3l, "dbl", 3.0d).execute().actionGet();
+        client().prepareIndex("test", "type", "4").setSource("str", "4", "lng", 4l, "dbl", 4.0d).execute().actionGet();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("str", "1", "4").execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("4")));
+        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("4")));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("lng", new long[] {2, 3}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("2"), equalTo("3")));
+        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("2"), equalTo("3")));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("dbl", new double[] {2, 3}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("2"), equalTo("3")));
+        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("2"), equalTo("3")));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("lng", new int[] {1, 3}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("3")));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("dbl", new float[] {2, 4}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("2"), equalTo("4")));
+        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("2"), equalTo("4")));
+
+        // test partial matching
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("str", "2", "5").execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("dbl", new double[] {2, 5}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("lng", new long[] {2, 5}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+
+        // test valid type, but no matching terms
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("str", "5", "6").execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("dbl", new double[] {5, 6}).execution("fielddata")))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("lng", new long[] {5, 6}).execution("fielddata")))
+                .execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
     }

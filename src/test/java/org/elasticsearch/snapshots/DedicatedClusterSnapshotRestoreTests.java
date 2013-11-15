@@ -80,7 +80,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void snapshotDuringNodeShutdownTest() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = newArrayList();

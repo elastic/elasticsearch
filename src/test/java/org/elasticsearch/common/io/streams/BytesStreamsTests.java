@@ -25,10 +25,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
 
 /**
  *
@@ -48,6 +46,14 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         out.writeVLong(4);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
+        int[] intArray = {1, 2, 3};
+        out.writeGenericValue(intArray);
+        long[] longArray = {1, 2, 3};
+        out.writeGenericValue(longArray);
+        float[] floatArray = {1.1f, 2.2f, 3.3f};
+        out.writeGenericValue(floatArray);
+        double[] doubleArray = {1.1, 2.2, 3.3};
+        out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes(), false);
@@ -60,6 +66,10 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assertThat(in.readVLong(), equalTo((long) 4));
         assertThat((double) in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
+        assertThat(in.readGenericValue(), equalTo((Object)intArray));
+        assertThat(in.readGenericValue(), equalTo((Object)longArray));
+        assertThat(in.readGenericValue(), equalTo((Object)floatArray));
+        assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
     }

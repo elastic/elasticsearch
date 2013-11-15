@@ -408,8 +408,48 @@ public abstract class StreamOutput extends OutputStream {
         } else if (type == Short.class) {
             writeByte((byte) 16);
             writeShort((Short) value);
+        } else if (type == int[].class) {
+            writeByte((byte) 17);
+            writePrimitiveIntArray((int[]) value);
+        } else if (type == long[].class) {
+            writeByte((byte) 18);
+            writePrimitiveLongArray((long[]) value);
+        } else if (type == float[].class) {
+            writeByte((byte) 19);
+            writePrimitiveFloatArray((float[]) value);
+        } else if (type == double[].class) {
+            writeByte((byte) 20);
+            writePrimitiveDoubleArray((double[]) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
+        }
+    }
+
+    private void writePrimitiveIntArray(int[] value) throws IOException {
+        writeVInt(value.length);
+        for (int i=0; i<value.length; i++) {
+            writeInt(value[i]);
+        }
+    }
+    
+    private void writePrimitiveLongArray(long[] value) throws IOException {
+        writeVInt(value.length);
+        for (int i=0; i<value.length; i++) {
+            writeLong(value[i]);
+        }
+    }
+    
+    private void writePrimitiveFloatArray(float[] value) throws IOException {
+        writeVInt(value.length);
+        for (int i=0; i<value.length; i++) {
+            writeFloat(value[i]);
+        }
+    }
+    
+    private void writePrimitiveDoubleArray(double[] value) throws IOException {
+        writeVInt(value.length);
+        for (int i=0; i<value.length; i++) {
+            writeDouble(value[i]);
         }
     }
 

@@ -160,18 +160,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef);  // 0 because of exact match
+        NumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match
         return bytesRef;
-    }
-
-    private long parseValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        if (value instanceof BytesRef) {
-            return Long.parseLong(((BytesRef) value).utf8ToString());
-        }
-        return Long.parseLong(value.toString());
     }
 
     @Override
@@ -191,14 +181,14 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        long iValue = parseValue(value);
+        long iValue = parseLongValue(value);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        long iValue = parseValue(value);
+        long iValue = parseLongValue(value);
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
@@ -206,24 +196,24 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseLongValue(lowerTerm),
+                upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseLongValue(lowerTerm),
+                upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+                lowerTerm == null ? null : parseLongValue(lowerTerm),
+                upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
     }
 

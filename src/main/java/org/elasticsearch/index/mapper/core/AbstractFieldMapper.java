@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Objects;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
@@ -44,8 +45,10 @@ import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -405,6 +408,21 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
         return new TermsFilter(names.indexName(), bytesRefs);
+    }
+
+    /**
+     * A terms filter based on the field data cache
+     */
+    @Override
+    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+        // create with initial size large enough to avoid rehashing
+        ObjectOpenHashSet<BytesRef> terms =
+                new ObjectOpenHashSet<BytesRef>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
+        for (int i = 0, len = values.size(); i < len; i++) {
+            terms.add(indexedValueForSearch(values.get(i)));
+        }
+
+        return FieldDataTermsFilter.newBytes(fieldDataService.getForField(this), terms);
     }
 
     @Override

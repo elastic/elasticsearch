@@ -1,0 +1,48 @@
+[[cat-nodes]]
+== Nodes
+
+The `nodes` command shows the cluster topology.
+
+[source,shell]
+--------------------------------------------------
+% curl 192.168.56.10:9200/_cat/nodes
+SP4H 4727 192.168.56.30 9300 1.0.0.Beta2 1.6.0_27 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
+_uhJ 5134 192.168.56.10 9300 1.0.0.Beta2 1.6.0_27 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
+HfDp 4562 192.168.56.20 9300 1.0.0.Beta2 1.6.0_27 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
+--------------------------------------------------
+
+The first few columns tell you where your nodes live.  For sanity it
+also tells you what version of ES and the JVM each one runs.
+
+[source,shell]
+--------------------------------------------------
+nodeId pid  ip            port es          jdk
+u2PZ   4234 192.168.56.30 9300 1.0.0.Beta1 1.6.0_27
+URzf   5443 192.168.56.10 9300 1.0.0.Beta1 1.6.0_27
+ActN   3806 192.168.56.20 9300 1.0.0.Beta1 1.6.0_27
+--------------------------------------------------
+
+
+The next few give a picture of your heap, memory, and load.
+
+[source,shell]
+--------------------------------------------------
+diskAvail heapPercent heapMax ramPercent  ramMax load
+   72.1gb        31.3  93.9mb         81 239.1mb 0.24
+   72.1gb        19.6  93.9mb         82 239.1mb 0.05
+   72.2gb        64.9  93.9mb         84 239.1mb 0.12
+--------------------------------------------------
+
+The last columns provide ancillary information that can often be
+useful when looking at the cluster as a whole, particularly large
+ones.  How many master-eligible nodes do I have?  How many client
+nodes?  It looks like someone restarted a node recently; which one was
+it?
+
+[source,shell]
+--------------------------------------------------
+uptime data/client master name
+  3.5h d           m      Boneyard
+  3.5h d           *      Athena
+  3.5h d           m      Zarek
+--------------------------------------------------

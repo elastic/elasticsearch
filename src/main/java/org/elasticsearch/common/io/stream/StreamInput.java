@@ -433,9 +433,53 @@ public abstract class StreamInput extends InputStream {
                 return readText();
             case 16:
                 return readShort();
+            case 17:
+                return readPrimitiveIntArray();
+            case 18:
+                return readPrimitiveLongArray();
+            case 19:
+                return readPrimitiveFloatArray();
+            case 20:
+                return readPrimitiveDoubleArray();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
+    }
+
+    private Object readPrimitiveIntArray() throws IOException {
+        int length = readVInt();
+        int[] values = new int[length];
+        for(int i=0; i<length; i++) {
+            values[i] = readInt();
+        }
+        return values;
+    }
+    
+    private Object readPrimitiveLongArray() throws IOException {
+        int length = readVInt();
+        long[] values = new long[length];
+        for(int i=0; i<length; i++) {
+            values[i] = readLong();
+        }
+        return values;
+    }
+    
+    private Object readPrimitiveFloatArray() throws IOException {
+        int length = readVInt();
+        float[] values = new float[length];
+        for(int i=0; i<length; i++) {
+            values[i] = readFloat();
+        }
+        return values;
+    }
+    
+    private Object readPrimitiveDoubleArray() throws IOException {
+        int length = readVInt();
+        double[] values = new double[length];
+        for(int i=0; i<length; i++) {
+            values[i] = readDouble();
+        }
+        return values;
     }
 
     /**

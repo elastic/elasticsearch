@@ -50,7 +50,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 public class TermsFilterParser implements FilterParser {
 
     public static final String NAME = "terms";
-
     private IndicesTermsFilterCache termsFilterCache;
 
     @Inject
@@ -208,6 +207,17 @@ public class TermsFilterParser implements FilterParser {
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
+            } else if ("fielddata".equals(execution)) {
+                // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
+                // no match (but not cached!), since the FieldDataTermsFilter relies on a mapping...
+                if (fieldMapper == null) {
+                    return Queries.MATCH_NO_FILTER;
+                }
+
+                filter = fieldMapper.termsFilter(parseContext.fieldData(), terms, parseContext);
+                if (cache != null && cache) {
+                    filter = parseContext.cacheFilter(filter, cacheKey);
+                }
             } else if ("bool".equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
@@ -305,7 +315,7 @@ public class TermsFilterParser implements FilterParser {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
             } else {
-                throw new QueryParsingException(parseContext.index(), "bool filter execution value [" + execution + "] not supported");
+                throw new QueryParsingException(parseContext.index(), "terms filter execution value [" + execution + "] not supported");
             }
 
             filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

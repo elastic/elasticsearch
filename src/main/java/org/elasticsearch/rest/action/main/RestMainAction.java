@@ -72,7 +72,7 @@ public class RestMainAction extends BaseRestHandler {
                 }
 
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     builder.field("status", status.getStatus());

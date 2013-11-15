@@ -1,0 +1,39 @@
+[[cat-indices]]
+== Indices
+
+The `indices` command provides a cross-section of each index.  This
+information *spans nodes*.
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/indices/twi*?v=true'
+health index    pri rep docs docs/del size/pri size/total
+green  twitter    2   0  627        7      2mb        2mb
+green  twitter2   2   0  628        0    2.5mb      2.5mb
+--------------------------------------------------
+
+We can tell quickly how many shards make up an index, the number of
+docs, deleted docs, primary store size, and total store size (all
+shards including replicas).
+
+[float]
+[[examples]]
+=== Examples
+
+Which indices are yellow?
+
+[source,shell]
+--------------------------------------------------
+% curl localhost:9200/_cat/indices | grep ^yell
+yellow foo          5 1   4 0    17kb    17kb
+--------------------------------------------------
+
+What's my largest index by disk usage not including replicas?
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk7
+green  twitter      2 0 627 7 2123797 2123797
+green  wiki         2 0  59 0  575904  575904
+yellow foo          5 1   4 0   17447   17447
+--------------------------------------------------

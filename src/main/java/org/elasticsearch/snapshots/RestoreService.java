@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
@@ -207,16 +209,16 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         }
                         if (metaData.templates() != null) {
                             // TODO: Should all existing templates be deleted first?
-                            for (IndexTemplateMetaData template : metaData.templates().values()) {
-                                mdBuilder.put(template);
+                            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
+                                mdBuilder.put(cursor.value);
                             }
                         }
                         if (metaData.customs() != null) {
-                            for (ImmutableMap.Entry<String, MetaData.Custom> custom : metaData.customs().entrySet()) {
-                                if (!RepositoriesMetaData.TYPE.equals(custom.getKey())) {
+                            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
+                                if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
                                     // Don't restore repositories while we are working with them
                                     // TODO: Should we restore them at the end?
-                                    mdBuilder.putCustom(custom.getKey(), custom.getValue());
+                                    mdBuilder.putCustom(cursor.key, cursor.value);
                                 }
                             }
                         }

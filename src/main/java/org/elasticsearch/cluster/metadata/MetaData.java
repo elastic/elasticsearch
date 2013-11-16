@@ -324,6 +324,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         return false;
     }
 
+    // TODO: (nopush) I've changed to return type from ImmutableMap to ImmutableOpenMap, however this method is directly
+    // used by the get mapping api. This means this api uses ImmutableOpenMap as well. Do we want to go that way?
+    // This means that Java clients can't iterate the same way over maps than they did before.
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
         assert types != null;
         assert concreteIndices != null;

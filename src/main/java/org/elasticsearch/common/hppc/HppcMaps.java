@@ -61,10 +61,13 @@ public final class HppcMaps {
         };
     }
 
-    // TODO test!
+    /**
+     * @return an intersection view over the two specified containers (which can be KeyContainer or ObjectOpenHashSet).
+     */
     // Hppc has forEach, but this means we need to build an intermediate set, with this method we just iterate
     // over each unique value without creating a third set.
     public static <T> Iterable<T> intersection(ObjectLookupContainer<T> container1, final ObjectLookupContainer<T> container2) {
+        assert container1 != null && container2 != null;
         final Iterator<ObjectCursor<T>> iterator = container1.iterator();
         final Iterator<T> intersection = new Iterator<T>() {
 

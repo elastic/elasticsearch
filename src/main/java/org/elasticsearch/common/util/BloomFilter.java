@@ -26,6 +26,8 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.IOException;
@@ -133,6 +135,18 @@ public class BloomFilter {
      * @param fpp                the desired false positive probability (must be positive and less than 1.0)
      */
     public static BloomFilter create(int expectedInsertions, double fpp) {
+        return create(expectedInsertions, fpp, -1);
+    }
+
+    /**
+     * Creates a bloom filter based on the expected number of insertions, expected false positive probability,
+     * and number of hash functions.
+     *
+     * @param expectedInsertions the number of expected insertions to the constructed
+     * @param fpp                the desired false positive probability (must be positive and less than 1.0)
+     * @param numHashFunctions   the number of hash functions to use (must be less than or equal to 255)
+     */
+    public static BloomFilter create(int expectedInsertions, double fpp, int numHashFunctions) {
         if (expectedInsertions == 0) {
             expectedInsertions = 1;
         }
@@ -143,7 +157,12 @@ public class BloomFilter {
          * which is less that 10kb. Who cares!
          */
         long numBits = optimalNumOfBits(expectedInsertions, fpp);
-        int numHashFunctions = optimalNumOfHashFunctions(expectedInsertions, numBits);
+
+        // calculate the optimal number of hash functions
+        if (numHashFunctions == -1) {
+            numHashFunctions = optimalNumOfHashFunctions(expectedInsertions, numBits);
+        }
+
         try {
             return new BloomFilter(new BitArray(numBits), numHashFunctions);
         } catch (IllegalArgumentException e) {
@@ -179,6 +198,37 @@ public class BloomFilter {
         out.writeInt(filter.numHashFunctions);
 
         out.writeInt(0); // hashType
+    }
+
+    // TODO: don't duplicate serilaize/writeTo and deserialize/readFrom code
+    public static BloomFilter readFrom(StreamInput in) throws IOException {
+        int version = in.readVInt(); // we do nothing with this now..., defaults to 0
+
+        int numLongs = in.readVInt();
+        long[] data = new long[numLongs];
+        for (int i = 0; i < numLongs; i++) {
+            data[i] = in.readLong();
+        }
+
+        int numberOfHashFunctions = in.readVInt();
+
+        int hashType = in.readVInt(); // again, nothing to do now...
+
+        return new BloomFilter(new BitArray(data), numberOfHashFunctions);
+    }
+
+    public static void writeTo(BloomFilter filter, StreamOutput out) throws IOException {
+        out.writeVInt(0); // version
+
+        BitArray bits = filter.bits;
+        out.writeVInt(bits.data.length);
+        for (long l : bits.data) {
+            out.writeLong(l);
+        }
+
+        out.writeVInt(filter.numHashFunctions);
+
+        out.writeVInt(0); // hashType
     }
 
     /**
@@ -240,6 +290,11 @@ public class BloomFilter {
 
     public long getSizeInBytes() {
         return bits.size() + 8;
+    }
+
+    @Override
+    public int hashCode() {
+        return bits.hashCode() + numHashFunctions;
     }
 
     /**

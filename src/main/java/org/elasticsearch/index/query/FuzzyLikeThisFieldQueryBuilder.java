@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -112,7 +113,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         builder.startObject(FuzzyLikeThisFieldQueryParser.NAME);
         builder.startObject(name);
         if (likeText == null) {
-            throw new QueryBuilderException("fuzzyLikeThis requires 'likeText' to be provided");
+            throw new ElasticSearchIllegalArgumentException("fuzzyLikeThis requires 'likeText' to be provided");
         }
         builder.field("like_text", likeText);
         if (maxQueryTerms != null) {

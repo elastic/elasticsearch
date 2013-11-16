@@ -26,17 +26,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilderException;
 
 public class RescoreBuilder implements ToXContent {
 
     private Rescorer rescorer;
     private Integer windowSize;
-    
+
     public static QueryRescorer queryRescorer(QueryBuilder queryBuilder) {
         return new QueryRescorer(queryBuilder);
     }
-    
+
     public RescoreBuilder rescorer(Rescorer rescorer) {
         this.rescorer = rescorer;
         return this;
@@ -61,7 +60,7 @@ public class RescoreBuilder implements ToXContent {
     }
 
     public static abstract class Rescorer implements ToXContent {
-        
+
         private String name;
 
         public Rescorer(String name) {
@@ -76,16 +75,16 @@ public class RescoreBuilder implements ToXContent {
         }
 
         protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-        
+
     }
-    
+
     public static class QueryRescorer extends Rescorer {
         private static final String NAME = "query";
         private QueryBuilder queryBuilder;
         private Float rescoreQueryWeight;
         private Float queryWeight;
         private String scoreMode;
-        
+
         /**
          * Creates a new {@link QueryRescorer} instance
          * @param builder the query builder to build the rescore query from
@@ -101,7 +100,7 @@ public class RescoreBuilder implements ToXContent {
             this.queryWeight = queryWeight;
             return this;
         }
-        
+
         /**
          * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
          */

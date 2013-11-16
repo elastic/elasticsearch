@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -28,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public interface QueryBuilder extends ToXContent {
 
-    BytesReference buildAsBytes() throws QueryBuilderException;
+    BytesReference buildAsBytes() throws ElasticSearchException;
 
-    BytesReference buildAsBytes(XContentType contentType) throws QueryBuilderException;
+    BytesReference buildAsBytes(XContentType contentType) throws ElasticSearchException;
 }

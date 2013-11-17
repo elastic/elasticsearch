@@ -364,33 +364,37 @@ public class PluginsService extends AbstractComponent {
         }
 
         File[] pluginsFiles = pluginsFile.listFiles();
-        for (File pluginFile : pluginsFiles) {
-            if (pluginFile.isDirectory()) {
-                logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
-                try {
-                    // add the root
-                    addURL.invoke(classLoader, pluginFile.toURI().toURL());
-                    // gather files to add
-                    List<File> libFiles = Lists.newArrayList();
-                    if (pluginFile.listFiles() != null) {
-                        libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
-                    }
-                    File libLocation = new File(pluginFile, "lib");
-                    if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
-                        libFiles.addAll(Arrays.asList(libLocation.listFiles()));
-                    }
-
-                    // if there are jars in it, add it as well
-                    for (File libFile : libFiles) {
-                        if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
-                            continue;
+        if (pluginsFile != null) {
+            for (File pluginFile : pluginsFiles) {
+                if (pluginFile.isDirectory()) {
+                    logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
+                    try {
+                        // add the root
+                        addURL.invoke(classLoader, pluginFile.toURI().toURL());
+                        // gather files to add
+                        List<File> libFiles = Lists.newArrayList();
+                        if (pluginFile.listFiles() != null) {
+                            libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
                         }
-                        addURL.invoke(classLoader, libFile.toURI().toURL());
+                        File libLocation = new File(pluginFile, "lib");
+                        if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
+                            libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+                        }
+
+                        // if there are jars in it, add it as well
+                        for (File libFile : libFiles) {
+                            if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
+                                continue;
+                            }
+                            addURL.invoke(classLoader, libFile.toURI().toURL());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("failed to add plugin [" + pluginFile + "]", e);
                     }
-                } catch (Exception e) {
-                    logger.warn("failed to add plugin [" + pluginFile + "]", e);
                 }
             }
+        } else {
+            logger.debug("failed to list plugins from {}. Check your right access.", pluginsFile.getAbsolutePath());
         }
     }
 

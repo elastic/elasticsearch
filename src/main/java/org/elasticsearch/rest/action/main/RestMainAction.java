@@ -54,9 +54,6 @@ public class RestMainAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        if (!request.hasParam("pretty")) {
-            request.params().put("pretty", "true");
-        }
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
@@ -76,6 +73,12 @@ public class RestMainAction extends BaseRestHandler {
 
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+
+                    // Default to pretty printing, but allow ?pretty=false to disable
+                    if (!request.hasParam("pretty")) {
+                        builder.prettyPrint();
+                    }
+
                     builder.startObject();
                     builder.field("ok", true);
                     builder.field("status", status.getStatus());

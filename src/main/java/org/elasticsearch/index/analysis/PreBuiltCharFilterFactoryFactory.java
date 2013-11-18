@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+
+import java.util.Locale;
 
 public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactory {
 
@@ -31,6 +36,11 @@ public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactor
 
     @Override
     public CharFilterFactory create(String name, Settings settings) {
+        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (!Version.CURRENT.equals(indexVersion)) {
+            return PreBuiltCharFilters.valueOf(name.toUpperCase(Locale.ROOT)).getCharFilterFactory(indexVersion);
+        }
+
         return charFilterFactory;
     }
 }

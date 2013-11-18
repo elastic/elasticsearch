@@ -1,6 +1,5 @@
 package org.elasticsearch.examples.nativescript.script;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -9,7 +8,6 @@ import org.elasticsearch.script.AbstractFloatSearchScript;
 import org.elasticsearch.script.AbstractLongSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import sun.security.provider.MD5;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

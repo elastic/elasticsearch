@@ -1,13 +1,17 @@
 package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
+import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.customScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,10 +60,14 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTests {
         }
         node.client().admin().indices().prepareRefresh("test").execute().actionGet();
 
+        Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder()
+                .put("field", "number")
+                .map();
         // Retrieve first 10 hits
         SearchResponse searchResponse = node.client().prepareSearch("test")
-                .setQuery(customScoreQuery(matchQuery("name", "rec"))
-                        .script("popularity").lang("native").param("field", "number"))
+                .setQuery(functionScoreQuery(matchQuery("name", "rec"))
+                        .boostMode(CombineFunction.REPLACE)
+                        .add(ScoreFunctionBuilders.scriptFunction("popularity", "native", params)))
                 .setSize(10)
                 .addField("name")
                 .execute().actionGet();

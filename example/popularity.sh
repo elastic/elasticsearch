@@ -25,16 +25,19 @@ curl -XPOST "http://localhost:9200/test/_refresh"
 echo
 curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
     "query": {
-        "custom_score" : {
+        "function_score" : {
+            "boost_mode": "replace",
             "query": {
                 "match": {
                     "name" : "foo"
                 }
             },
-            "script": "popularity",
-            "lang": "native",
-            "params": {
-                "field": "number"
+            "script_score": {
+                "script" : "popularity",
+                "lang": "native",
+                "params": {
+                    "field": "number"
+                }
             }
         }
     }
@@ -43,15 +46,18 @@ curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
 echo
 curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
     "query": {
-        "custom_score" : {
+        "function_score" : {
+            "boost_mode": "replace",
             "query": {
                 "match": {
                     "name" : "foo"
                 }
             },
-            "script": "_score * (1 + Math.log10(doc[field].value + 1))",
-            "params": {
-                "field": "number"
+            "script_score": {
+                "script": "_score * (1 + Math.log10(doc[field].value + 1))",
+                "params": {
+                    "field": "number"
+                }
             }
         }
     }

@@ -20,14 +20,17 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.util.Map;
@@ -379,4 +382,36 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(0l));
         assertThat(searchResponse2.getHits().hits().length, equalTo(0));
     }
+
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/4156
+    public void testDeepPaginationWithOneDocIndexAndDoNotBlowUp() throws Exception {
+        client().prepareIndex("index", "type", "1")
+                .setSource("field", "value")
+                .setRefresh(true)
+                .execute().get();
+
+        for (SearchType searchType : SearchType.values()) {
+            SearchRequestBuilder builder = client().prepareSearch("index")
+                    .setSearchType(searchType)
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .setSize(Integer.MAX_VALUE);
+
+            if (searchType == SearchType.SCAN || searchType != SearchType.COUNT && randomBoolean()) {
+                builder.setScroll("1m");
+            }
+
+            SearchResponse response = builder.execute().actionGet();
+            try {
+                ElasticsearchAssertions.assertHitCount(response, 1l);
+            } finally {
+                String scrollId = response.getScrollId();
+                if (scrollId != null) {
+                    clearScroll(scrollId);
+                }
+            }
+        }
+
+    }
+
 }

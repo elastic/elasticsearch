@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.indices.analysis;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -36,7 +35,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -105,36 +105,35 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
         assertThatAnalyzersHaveBeenLoaded(loadedAnalyzers);
 
         // check that all of the prebuiltanalyzers are still open
-        for (PreBuiltAnalyzers preBuiltAnalyzer : PreBuiltAnalyzers.values()) {
-            assertLuceneAnalyzerIsNotClosed(preBuiltAnalyzer);
-        }
+        assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
     }
 
     private void assertThatAnalyzersHaveBeenLoaded(Map<PreBuiltAnalyzers, List<Version>> expectedLoadedAnalyzers) {
         for (Map.Entry<PreBuiltAnalyzers, List<Version>> entry : expectedLoadedAnalyzers.entrySet()) {
-            Map<Version, Analyzer> cachedAnalyzers = entry.getKey().getCachedAnalyzers();
-            assertThat(cachedAnalyzers.keySet(), hasItems(entry.getValue().toArray(new Version[]{})));
-            /*for (Version expectedVersion : entry.getValue()) {
-                assertThat(cachedAnalyzers, contains(ex))
+            for (Version version : entry.getValue()) {
+                // if it is not null in the cache, it has been loaded
+                assertThat(entry.getKey().getCache().get(version), is(notNullValue()));
             }
-            */
         }
     }
 
     // the close() method of a lucene analyzer sets the storedValue field to null
     // we simply check this via reflection - ugly but works
-    private void assertLuceneAnalyzerIsNotClosed(PreBuiltAnalyzers preBuiltAnalyzer) throws IllegalAccessException, NoSuchFieldException {
+    private void assertLuceneAnalyzersAreNotClosed(Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers) throws IllegalAccessException, NoSuchFieldException {
+        for (Map.Entry<PreBuiltAnalyzers, List<Version>> preBuiltAnalyzerEntry : loadedAnalyzers.entrySet()) {
+            PreBuiltAnalyzers preBuiltAnalyzer = preBuiltAnalyzerEntry.getKey();
+            for (Version version : preBuiltAnalyzerEntry.getValue()) {
+                Analyzer analyzer = preBuiltAnalyzerEntry.getKey().getCache().get(version);
 
-        for (Map.Entry<Version, Analyzer> luceneAnalyzerEntry : preBuiltAnalyzer.getCachedAnalyzers().entrySet()) {
-            Field field = getFieldFromClass("storedValue", luceneAnalyzerEntry.getValue());
-            boolean currentAccessible = field.isAccessible();
-            field.setAccessible(true);
-            Object storedValue = field.get(preBuiltAnalyzer.getAnalyzer(luceneAnalyzerEntry.getKey()));
-            field.setAccessible(currentAccessible);
+                Field field = getFieldFromClass("storedValue", analyzer);
+                boolean currentAccessible = field.isAccessible();
+                field.setAccessible(true);
+                Object storedValue = field.get(analyzer);
+                field.setAccessible(currentAccessible);
 
-            assertThat(String.format(Locale.ROOT, "Analyzer %s in version %s seems to be closed", preBuiltAnalyzer.name(), luceneAnalyzerEntry.getKey()), storedValue, is(notNullValue()));
+                assertThat(String.format(Locale.ROOT, "Analyzer %s in version %s seems to be closed", preBuiltAnalyzer.name(), version), storedValue, is(notNullValue()));
+            }
         }
-
     }
 
     /**

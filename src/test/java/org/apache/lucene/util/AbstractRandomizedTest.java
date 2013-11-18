@@ -32,6 +32,8 @@ import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.After;
 import org.junit.Before;
@@ -225,6 +227,11 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
             Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
                     EnumSet.class.getName())));
 
+    private final static Set<Class<?>> TOP_LEVEL_CLASSES =
+            Collections.unmodifiableSet(new HashSet<Class<?>>(Arrays.asList(
+                    AbstractRandomizedTest.class, LuceneTestCase.class,
+                    ElasticsearchIntegrationTest.class, ElasticsearchTestCase.class)));
+
     /**
      * This controls how suite-level rules are nested. It is important that _all_ rules declared
      * in {@link LuceneTestCase} are executed in proper order if they depend on each
@@ -244,7 +251,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
                         return false;
                     }
                     // Don't count references from ourselves, we're top-level.
-                    if (field.getDeclaringClass() == LuceneTestCase.class) {
+                    if (TOP_LEVEL_CLASSES.contains(field.getDeclaringClass())) {
                         return false;
                     }
                     return super.accept(field);

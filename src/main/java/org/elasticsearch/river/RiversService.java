@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexMissingException;
@@ -282,12 +283,16 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                         if (isShardNotAvailableException(failure)) {
                             logger.debug("failed to get _meta from [{}]/[{}], retrying...", e, routing.riverName().type(), routing.riverName().name());
                             final ActionListener<GetResponse> listener = this;
-                            threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
-                                @Override
-                                public void run() {
-                                    client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(listener);
-                                }
-                            });
+                            try {
+                                threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(listener);
+                                    }
+                                });
+                            } catch (EsRejectedExecutionException ex) {
+                                logger.debug("Couldn't schedule river start retry, node might be shutting down", ex);
+                            }
                         } else {
                             logger.warn("failed to get _meta from [{}]/[{}]", e, routing.riverName().type(), routing.riverName().name());
                         }

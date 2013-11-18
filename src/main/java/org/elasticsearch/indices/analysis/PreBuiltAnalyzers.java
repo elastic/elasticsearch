@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -62,12 +60,10 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
-
-import java.util.Map;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 /**
  *
@@ -373,71 +369,30 @@ public enum PreBuiltAnalyzers {
         }
     };
 
-    /**
-     * The strategy of caching the analyzer
-     *
-     * ONE               Exactly one version is stored. Useful for analyzers which do not store version information
-     * LUCENE            Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
-     * ELASTICSEARCH     Exactly one version per elasticsearch version is stored. Useful if you change an analyzer between elasticsearch releases, when the lucene version does not change
-     */
-    private static enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH };
-
-    private CachingStrategy cachingStrategy;
-    protected final Map<Version, Analyzer> cachedAnalyzers = Maps.newHashMapWithExpectedSize(2);
-
-    PreBuiltAnalyzers() {
-        this(CachingStrategy.LUCENE);
-    }
-
-    PreBuiltAnalyzers(CachingStrategy cachingStrategy) {
-        this.cachingStrategy = cachingStrategy;
-    }
-
     abstract protected Analyzer create(Version version);
 
-    public Map<Version, Analyzer> getCachedAnalyzers() {
-        return ImmutableMap.copyOf(cachedAnalyzers);
+    protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
+
+    PreBuiltAnalyzers() {
+        this(PreBuiltCacheFactory.CachingStrategy.LUCENE);
+    }
+
+    PreBuiltAnalyzers(PreBuiltCacheFactory.CachingStrategy cachingStrategy) {
+        cache = PreBuiltCacheFactory.getCache(cachingStrategy);
+    }
+
+    PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
+        return cache;
     }
 
     public synchronized Analyzer getAnalyzer(Version version) {
-        Analyzer analyzer = getCachedAnalyzer(version);
+        Analyzer analyzer = cache.get(version);
         if (analyzer == null) {
             analyzer = this.create(version);
-        }
-
-        if (!cachedAnalyzers.containsKey(version)) {
-            cachedAnalyzers.put(version, analyzer);
+            cache.put(version, analyzer);
         }
 
         return analyzer;
     }
 
-    private Analyzer getCachedAnalyzer(Version version) {
-        switch (this.cachingStrategy) {
-            case ONE:
-                // method to return the first found analyzer in the cache
-                if (cachedAnalyzers.size() > 0) {
-                    return (Analyzer) cachedAnalyzers.values().toArray()[0];
-                }
-                break;
-            case LUCENE:
-                // find already cached analyzers with the same lucene version
-                for (Version elasticsearchVersion : cachedAnalyzers.keySet()) {
-                    if (elasticsearchVersion.luceneVersion.equals(version.luceneVersion)) {
-                        return cachedAnalyzers.get(elasticsearchVersion);
-                    }
-                }
-                break;
-            case ELASTICSEARCH:
-                // check only for the same es version
-                if (cachedAnalyzers.containsKey(version)) {
-                    return cachedAnalyzers.get(version);
-                }
-                break;
-            default:
-                throw new ElasticSearchException("No action configured for caching strategy[" + this.cachingStrategy + "]");
-        }
-
-        return null;
-    }
 }

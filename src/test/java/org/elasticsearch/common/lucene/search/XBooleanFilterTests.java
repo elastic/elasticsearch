@@ -482,7 +482,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
                     rightResult.or(rightIter);
                 }
 
-                assertThat(leftResult.cardinality(), equalTo(leftResult.cardinality()));
+                assertThat(leftResult.cardinality(), equalTo(rightResult.cardinality()));
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     assertThat(errorMsg(clauses, topLevel) + " -- failed at index " + i, leftResult.get(i), equalTo(rightResult.get(i)));
                 }

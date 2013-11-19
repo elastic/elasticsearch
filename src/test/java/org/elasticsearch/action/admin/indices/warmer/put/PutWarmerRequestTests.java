@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,7 +29,10 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class PutWarmerRequestTests extends ElasticsearchTestCase {
 
@@ -72,5 +76,13 @@ public class PutWarmerRequestTests extends ElasticsearchTestCase {
         assertThat(inRequest.name(), equalTo("warmer1"));
         //timeout is default as we don't read it from the received buffer
         assertThat(inRequest.timeout().millis(), equalTo(outRequest.timeout().millis()));
+    }
+
+    @Test // issue 4196
+    public void testThatValidationWithoutSpecifyingSearchRequestFails() {
+        PutWarmerRequest putWarmerRequest = new PutWarmerRequest("foo");
+        ActionRequestValidationException validationException = putWarmerRequest.validate();
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(validationException.getMessage(), containsString("search request is missing"));
     }
 }

@@ -21,14 +21,12 @@ package org.elasticsearch.indices;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
@@ -61,6 +59,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -73,7 +72,6 @@ import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -207,31 +205,14 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
-                CommonStats indexStas = new CommonStats(indexShard, flags);
-                stats.add(indexStas);
+                try {
+                    stats.add(new CommonStats(indexShard, flags));
+                } catch (IllegalIndexShardStateException e) {
+                    // we can safely ignore illegal state on ones that are closing for example
+                }
             }
         }
         return new NodeIndicesStats(stats);
-    }
-
-
-    public ShardStats[] shardStats(CommonStatsFlags flags) {
-        // TODO: Do we want to upgrade this to the IndicesService level
-        List<ShardStats> shardStats = Lists.newArrayList();
-        for (String index : indices()) {
-            IndexService indexService = indexService(index);
-            if (indexService == null) {
-                continue; // something changed, move along
-            }
-            for (int shardId : indexService.shardIds()) {
-                IndexShard indexShard = indexService.shard(shardId);
-                if (indexShard == null) {
-                    continue;
-                }
-                shardStats.add(new ShardStats(indexShard, flags));
-            }
-        }
-        return shardStats.toArray(new ShardStats[shardStats.size()]);
     }
 
     /**

@@ -90,7 +90,7 @@ public class ExistsFilterParser implements FilterParser {
         }
         MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
-        XBooleanFilter boolFilter = new XBooleanFilter();
+        XBooleanFilter boolFilter = XBooleanFilter.booleanFilter();
         for (String field : fields) {
             MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
             if (smartNameFieldMappers != null) {

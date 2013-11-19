@@ -469,7 +469,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
-            XBooleanFilter bool = new XBooleanFilter();
+            XBooleanFilter bool = XBooleanFilter.booleanFilter();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {

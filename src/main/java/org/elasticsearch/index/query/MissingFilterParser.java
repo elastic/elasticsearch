@@ -109,7 +109,7 @@ public class MissingFilterParser implements FilterParser {
         MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
         if (existence) {
-            XBooleanFilter boolFilter = new XBooleanFilter();
+            XBooleanFilter boolFilter = XBooleanFilter.booleanFilter();
             for (String field : fields) {
                 MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
                 if (smartNameFieldMappers != null) {
@@ -149,7 +149,7 @@ public class MissingFilterParser implements FilterParser {
         Filter filter;
         if (nullFilter != null) {
             if (existenceFilter != null) {
-                XBooleanFilter combined = new XBooleanFilter();
+                XBooleanFilter combined = XBooleanFilter.booleanFilter();
                 combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
                 combined.add(nullFilter, BooleanClause.Occur.SHOULD);
                 // cache the not filter as well, so it will be faster

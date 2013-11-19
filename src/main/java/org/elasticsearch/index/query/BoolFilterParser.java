@@ -49,7 +49,7 @@ public class BoolFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XBooleanFilter boolFilter = new XBooleanFilter();
+        XBooleanFilter boolFilter = XBooleanFilter.booleanFilter();
 
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;

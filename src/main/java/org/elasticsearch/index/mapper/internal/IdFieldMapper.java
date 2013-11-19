@@ -224,7 +224,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (queryTypes.size() == 1) {
             return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))));
         }
-        XBooleanFilter filter = new XBooleanFilter();
+        XBooleanFilter filter = XBooleanFilter.booleanFilter();
         for (String queryType : queryTypes) {
             filter.add(new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value)))), BooleanClause.Occur.SHOULD);
         }
@@ -263,7 +263,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (queryTypes.size() == 1) {
             return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
         }
-        XBooleanFilter filter = new XBooleanFilter();
+        XBooleanFilter filter = XBooleanFilter.booleanFilter();
         for (String queryType : queryTypes) {
             filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags), BooleanClause.Occur.SHOULD);
         }

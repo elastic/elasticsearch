@@ -209,7 +209,7 @@ public class TermsFilterParser implements FilterParser {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
             } else if ("bool".equals(execution)) {
-                XBooleanFilter boolFiler = new XBooleanFilter();
+                XBooleanFilter boolFiler = XBooleanFilter.booleanFilter();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
                         boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null), BooleanClause.Occur.SHOULD);
@@ -225,7 +225,7 @@ public class TermsFilterParser implements FilterParser {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
             } else if ("bool_nocache".equals(execution)) {
-                XBooleanFilter boolFiler = new XBooleanFilter();
+                XBooleanFilter boolFiler = XBooleanFilter.booleanFilter();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
                         boolFiler.add(fieldMapper.termFilter(term, parseContext), BooleanClause.Occur.SHOULD);

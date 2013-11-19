@@ -149,7 +149,7 @@ public class HasParentFilterParser implements FilterParser {
             DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
             parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
         } else {
-            XBooleanFilter parentsFilter = new XBooleanFilter();
+            XBooleanFilter parentsFilter = XBooleanFilter.booleanFilter();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
                 Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);

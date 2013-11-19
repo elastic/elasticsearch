@@ -20,7 +20,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
@@ -129,19 +128,19 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testShould() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.SHOULD);
         tstFilterCard("Should retrieves only 1 doc", 1, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getWrappedTermQuery("price", "030"), BooleanClause.Occur.SHOULD);
         tstFilterCard("Should retrieves only 1 doc", 1, booleanFilter);
     }
 
     @Test
     public void testShoulds() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         tstFilterCard("Shoulds are Ored together", 5, booleanFilter);
@@ -149,7 +148,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testShouldsAndMustNot() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("inStock", "N"), BooleanClause.Occur.MUST_NOT);
@@ -159,7 +158,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
         tstFilterCard("Shoulds Ored but AndNots", 3, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getWrappedTermQuery("inStock", "N"), BooleanClause.Occur.MUST_NOT);
@@ -171,14 +170,14 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testShouldsAndMust() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard("Shoulds Ored but MUST", 3, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getWrappedTermQuery("accessRights", "admin"), BooleanClause.Occur.MUST);
@@ -187,7 +186,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testShouldsAndMusts() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "010", "020"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getRangeFilter("price", "020", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
@@ -197,7 +196,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testShouldsAndMustsAndMustNot() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "030", "040"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         booleanFilter.add(getRangeFilter("date", "20050101", "20051231"), BooleanClause.Occur.MUST);
@@ -205,7 +204,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
         tstFilterCard("Shoulds Ored but MUSTs ANDED and MustNot", 0, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getRangeFilter("price", "030", "040"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getWrappedTermQuery("accessRights", "admin"), BooleanClause.Occur.MUST);
         booleanFilter.add(getRangeFilter("date", "20050101", "20051231"), BooleanClause.Occur.MUST);
@@ -215,37 +214,37 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testJustMust() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard("MUST", 3, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getWrappedTermQuery("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard("MUST", 3, booleanFilter);
     }
 
     @Test
     public void testJustMustNot() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("inStock", "N"), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("MUST_NOT", 4, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getWrappedTermQuery("inStock", "N"), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("MUST_NOT", 4, booleanFilter);
     }
 
     @Test
     public void testMustAndMustNot() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("inStock", "N"), BooleanClause.Occur.MUST);
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("MUST_NOT wins over MUST for same docs", 0, booleanFilter);
 
         // same with a real DISI (no OpenBitSetIterator)
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getWrappedTermQuery("inStock", "N"), BooleanClause.Occur.MUST);
         booleanFilter.add(getWrappedTermQuery("price", "030"), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("MUST_NOT wins over MUST for same docs", 0, booleanFilter);
@@ -253,38 +252,38 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testEmpty() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         tstFilterCard("empty XBooleanFilter returns no results", 0, booleanFilter);
     }
 
     @Test
     public void testCombinedNullDocIdSets() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.MUST);
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.MUST);
         tstFilterCard("A MUST filter that returns a null DIS should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.MUST);
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.MUST);
         tstFilterCard("A MUST filter that returns a null DISI should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.SHOULD);
         tstFilterCard("A SHOULD filter that returns a null DIS should be invisible", 1, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.SHOULD);
         tstFilterCard("A SHOULD filter that returns a null DISI should be invisible", 1, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.MUST);
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("A MUST_NOT filter that returns a null DIS should be invisible", 1, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("price", "030"), BooleanClause.Occur.MUST);
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("A MUST_NOT filter that returns a null DISI should be invisible", 1, booleanFilter);
@@ -292,44 +291,44 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testJustNullDocIdSets() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.MUST);
         tstFilterCard("A MUST filter that returns a null DIS should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.MUST);
         tstFilterCard("A MUST filter that returns a null DISI should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.SHOULD);
         tstFilterCard("A single SHOULD filter that returns a null DIS should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.SHOULD);
         tstFilterCard("A single SHOULD filter that returns a null DISI should never return documents", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("A single MUST_NOT filter that returns a null DIS should be invisible", 5, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.MUST_NOT);
         tstFilterCard("A single MUST_NOT filter that returns a null DIS should be invisible", 5, booleanFilter);
     }
 
     @Test
     public void testNonMatchingShouldsAndMusts() throws Exception {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getEmptyFilter(), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard(">0 shoulds with no matches should return no docs", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISFilter(), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard(">0 shoulds with no matches should return no docs", 0, booleanFilter);
 
-        booleanFilter = new XBooleanFilter();
+        booleanFilter = booleanFilter();
         booleanFilter.add(getNullDISIFilter(), BooleanClause.Occur.SHOULD);
         booleanFilter.add(getTermsFilter("accessRights", "admin"), BooleanClause.Occur.MUST);
         tstFilterCard(">0 shoulds with no matches should return no docs", 0, booleanFilter);
@@ -337,36 +336,40 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testToStringOfBooleanFilterContainingTermsFilter() {
-        XBooleanFilter booleanFilter = new XBooleanFilter();
+        XBooleanFilter booleanFilter = booleanFilter();
         booleanFilter.add(getTermsFilter("inStock", "N"), BooleanClause.Occur.MUST);
         booleanFilter.add(getTermsFilter("isFragile", "Y"), BooleanClause.Occur.MUST);
 
-        assertThat("BooleanFilter(+inStock:N +isFragile:Y)", equalTo(booleanFilter.toString()));
+        assertThat("BooleanFilter(+inStock:N +isFragile:Y)~1", equalTo(booleanFilter.toString()));
     }
 
     @Test
     public void testToStringOfWrappedBooleanFilters() {
-        XBooleanFilter orFilter = new XBooleanFilter();
+        XBooleanFilter orFilter = booleanFilter();
 
-        XBooleanFilter stockFilter = new XBooleanFilter();
+        XBooleanFilter stockFilter = booleanFilter();
         stockFilter.add(new FilterClause(getTermsFilter("inStock", "Y"), BooleanClause.Occur.MUST));
         stockFilter.add(new FilterClause(getTermsFilter("barCode", "12345678"), BooleanClause.Occur.MUST));
 
         orFilter.add(new FilterClause(stockFilter, BooleanClause.Occur.SHOULD));
 
-        XBooleanFilter productPropertyFilter = new XBooleanFilter();
+        XBooleanFilter productPropertyFilter = booleanFilter();
         productPropertyFilter.add(new FilterClause(getTermsFilter("isHeavy", "N"), BooleanClause.Occur.MUST));
         productPropertyFilter.add(new FilterClause(getTermsFilter("isDamaged", "Y"), BooleanClause.Occur.MUST));
 
         orFilter.add(new FilterClause(productPropertyFilter, BooleanClause.Occur.SHOULD));
 
-        XBooleanFilter composedFilter = new XBooleanFilter();
+        XBooleanFilter composedFilter = booleanFilter();
         composedFilter.add(new FilterClause(orFilter, BooleanClause.Occur.MUST));
 
         assertThat(
-                "BooleanFilter(+BooleanFilter(BooleanFilter(+inStock:Y +barCode:12345678) BooleanFilter(+isHeavy:N +isDamaged:Y)))",
+                "BooleanFilter(+BooleanFilter(BooleanFilter(+inStock:Y +barCode:12345678)~1 BooleanFilter(+isHeavy:N +isDamaged:Y)~1)~1)~1",
                 equalTo(composedFilter.toString())
         );
+    }
+    
+    private static XBooleanFilter booleanFilter() {
+        return XBooleanFilter.booleanFilter();
     }
 
 }

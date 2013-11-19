@@ -29,11 +29,11 @@ curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
             "boost_mode": "replace",
             "query": {
                 "match": {
-                    "name" : "foo"
+                    "name": "foo"
                 }
             },
             "script_score": {
-                "script" : "popularity",
+                "script": "popularity",
                 "lang": "native",
                 "params": {
                     "field": "number"
@@ -50,7 +50,7 @@ curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
             "boost_mode": "replace",
             "query": {
                 "match": {
-                    "name" : "foo"
+                    "name": "foo"
                 }
             },
             "script_score": {

@@ -27,6 +27,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.List;
 
 /**
  *

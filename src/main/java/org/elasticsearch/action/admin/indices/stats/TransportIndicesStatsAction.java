@@ -188,8 +188,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             flags.completionDataFields(request.request.completionFields());
         }
 
-        ShardStats stats = new ShardStats(indexShard, flags);
-        return stats;
+        return new ShardStats(indexShard, flags);
     }
 
     public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {

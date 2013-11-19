@@ -178,7 +178,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    protected final FormatDateTimeFormatter dateTimeFormatter;
+    protected FormatDateTimeFormatter dateTimeFormatter;
 
     // Triggers rounding up of the upper bound for range queries and filters if
     // set to true.
@@ -440,6 +440,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((DateFieldMapper) mergeWith).nullValue;
+            this.dateTimeFormatter = ((DateFieldMapper) mergeWith).dateTimeFormatter;
         }
     }
 

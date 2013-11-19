@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -40,12 +41,9 @@ import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleDateMappingTests extends ElasticsearchTestCase {
@@ -288,5 +286,51 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(MapperParsingException.class));
         }
+    }
+
+    @Test
+    public void testThatMergingWorks() throws Exception {
+        String initialMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field").field("type", "date")
+                        .field("format", "EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy")
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field")
+                        .field("type", "date")
+                        .field("format", "EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy||yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = mapper(initialMapping);
+        DocumentMapper mergeMapper = mapper(updatedMapping);
+
+        assertThat(defaultMapper.mappers().name("field").mapper(), is(instanceOf(DateFieldMapper.class)));
+        DateFieldMapper initialDateFieldMapper = (DateFieldMapper) defaultMapper.mappers().name("field").mapper();
+        Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
+        assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
+
+        DocumentMapper.MergeResult mergeResult = defaultMapper.merge(mergeMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+
+        assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.conflicts()), mergeResult.hasConflicts(), is(false));
+        assertThat(defaultMapper.mappers().name("field").mapper(), is(instanceOf(DateFieldMapper.class)));
+
+        DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().name("field").mapper();
+        Map<String, String> mergedConfig = getConfigurationViaXContent(mergedFieldMapper);
+        assertThat(mergedConfig.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy||yyyy-MM-dd'T'HH:mm:ss.SSSZZ"));
+    }
+
+    private Map<String, String> getConfigurationViaXContent(DateFieldMapper dateFieldMapper) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        dateFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        Map<String, Object> dateFieldMapperMap = JsonXContent.jsonXContent.createParser(builder.string()).mapAndClose();
+        assertThat(dateFieldMapperMap, hasKey("field"));
+        assertThat(dateFieldMapperMap.get("field"), is(instanceOf(Map.class)));
+        return (Map<String, String>) dateFieldMapperMap.get("field");
     }
 }

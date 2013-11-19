@@ -237,5 +237,6 @@ plugin --remove head --silent
 * https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
 * http://tlrx.github.com/elasticsearch-view-plugin[ElasticSearch View Plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
+* https://github.com/johtani/elasticsearch-extended-analyze[Extended Analyze Plugin] (by Jun Ohtani)
 
 

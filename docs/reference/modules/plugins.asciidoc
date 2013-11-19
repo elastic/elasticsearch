@@ -230,6 +230,7 @@ plugin --remove head --silent
 .Supported by the community
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)
 * https://github.com/derryx/elasticsearch-changes-plugin[ElasticSearch Changes Plugin] (by Thomas Peuss)
+* https://github.com/johtani/elasticsearch-extended-analyze[Extended Analyze Plugin] (by Jun Ohtani)
 * https://github.com/spinscale/elasticsearch-graphite-plugin[ElasticSearch Graphite Plugin] (by Alexander Reelsen)
 * https://github.com/mattweber/elasticsearch-mocksolrplugin[ElasticSearch Mock Solr Plugin] (by Matt Weber)
 * https://github.com/viniciusccarvalho/elasticsearch-newrelic[ElasticSearch New Relic Plugin] (by Vinicius Carvalho)

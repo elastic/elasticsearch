@@ -45,7 +45,7 @@ public class MockRamIndexStore extends AbstractIndexStore{
 
     @Override
     public Class<? extends DirectoryService> shardDirectory() {
-        return MockRamDirecorySerivce.class;
+        return MockRamDirectoryService.class;
     }
 
     @Override

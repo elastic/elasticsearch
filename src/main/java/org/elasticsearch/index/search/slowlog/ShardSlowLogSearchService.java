@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.search.slowlog;
 
-import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -126,15 +125,15 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
 
         this.reformat = componentSettings.getAsBoolean("reformat", true);
 
-        this.queryWarnThreshold = parseTimeSetting("threshold.query.warn", -1);
-        this.queryInfoThreshold = parseTimeSetting("threshold.query.info", -1);
-        this.queryDebugThreshold = parseTimeSetting("threshold.query.debug", -1);
-        this.queryTraceThreshold = parseTimeSetting("threshold.query.trace", -1);
+        this.queryWarnThreshold = componentSettings.getAsTime("threshold.query.warn", TimeValue.timeValueNanos(-1)).nanos();
+        this.queryInfoThreshold = componentSettings.getAsTime("threshold.query.info", TimeValue.timeValueNanos(-1)).nanos();
+        this.queryDebugThreshold = componentSettings.getAsTime("threshold.query.debug", TimeValue.timeValueNanos(-1)).nanos();
+        this.queryTraceThreshold = componentSettings.getAsTime("threshold.query.trace", TimeValue.timeValueNanos(-1)).nanos();
 
-        this.fetchWarnThreshold = parseTimeSetting("threshold.fetch.warn", -1);
-        this.fetchInfoThreshold = parseTimeSetting("threshold.fetch.info", -1);
-        this.fetchDebugThreshold = parseTimeSetting("threshold.fetch.debug", -1);
-        this.fetchTraceThreshold = parseTimeSetting("threshold.fetch.trace", -1);
+        this.fetchWarnThreshold = componentSettings.getAsTime("threshold.fetch.warn", TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchInfoThreshold = componentSettings.getAsTime("threshold.fetch.info", TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchDebugThreshold = componentSettings.getAsTime("threshold.fetch.debug", TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchTraceThreshold = componentSettings.getAsTime("threshold.fetch.trace", TimeValue.timeValueNanos(-1)).nanos();
 
         this.level = componentSettings.get("level", "TRACE").toUpperCase(Locale.ROOT);
 
@@ -145,15 +144,6 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         fetchLogger.setLevel(level);
 
         indexSettingsService.addListener(new ApplySettings());
-    }
-
-    private long parseTimeSetting(String name, long defaultNanos) {
-        try {
-            return componentSettings.getAsTime(name, TimeValue.timeValueNanos(defaultNanos)).nanos();
-        } catch (ElasticSearchParseException e) {
-            logger.error("Could not parse setting for [{}], disabling", name);
-            return -1;
-        }
     }
 
     public void onQueryPhase(SearchContext context, long tookInNanos) {

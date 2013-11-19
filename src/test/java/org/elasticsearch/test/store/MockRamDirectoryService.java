@@ -29,13 +29,13 @@ import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
 
-public class MockRamDirecorySerivce extends AbstractIndexShardComponent implements DirectoryService {
+public class MockRamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
     private final MockDirectoryHelper helper;
     private final DirectoryService delegateService;
 
     @Inject
-    public MockRamDirecorySerivce(ShardId shardId, Settings indexSettings, ByteBufferCache byteBufferCache) {
+    public MockRamDirectoryService(ShardId shardId, Settings indexSettings, ByteBufferCache byteBufferCache) {
         super(shardId, indexSettings);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger);
         delegateService = helper.randomRamDirecoryService(byteBufferCache);

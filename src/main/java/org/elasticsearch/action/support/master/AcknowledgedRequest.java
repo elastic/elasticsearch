@@ -70,12 +70,26 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
     }
 
     /**
+     * Reads the timeout value
+     */
+    protected void readTimeout(StreamInput in) throws IOException {
+        readTimeout(in, null);
+    }
+
+    /**
      * Reads the timeout value if on or after the specified min version or if the version is <code>null</code>.
      */
     protected void readTimeout(StreamInput in, Version minVersion) throws IOException {
         if (minVersion == null || in.getVersion().onOrAfter(minVersion)) {
             timeout = readTimeValue(in);
         }
+    }
+
+    /**
+     * writes the timeout value
+     */
+    protected void writeTimeout(StreamOutput out) throws IOException {
+        writeTimeout(out, null);
     }
 
     /**

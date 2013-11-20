@@ -70,13 +70,13 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();
-        readTimeout(in, null);
+        readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        writeTimeout(out, null);
+        writeTimeout(out);
     }
 }

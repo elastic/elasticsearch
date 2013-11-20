@@ -50,12 +50,26 @@ public abstract class AcknowledgedResponse extends ActionResponse {
     }
 
     /**
+     * Reads the timeout value
+     */
+    protected void readAcknowledged(StreamInput in) throws IOException {
+        readAcknowledged(in, null);
+    }
+
+    /**
      * Reads the timeout value if on or after the specified min version or if the version is <code>null</code>.
      */
     protected void readAcknowledged(StreamInput in, Version minVersion) throws IOException {
         if (minVersion == null || in.getVersion().onOrAfter(minVersion)) {
             acknowledged = in.readBoolean();
         }
+    }
+
+    /**
+     * Writes the timeout value
+     */
+    protected void writeAcknowledged(StreamOutput out) throws IOException {
+        writeAcknowledged(out, null);
     }
 
     /**

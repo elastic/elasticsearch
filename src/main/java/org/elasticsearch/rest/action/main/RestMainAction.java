@@ -76,7 +76,7 @@ public class RestMainAction extends BaseRestHandler {
 
                     // Default to pretty printing, but allow ?pretty=false to disable
                     if (!request.hasParam("pretty")) {
-                        builder.prettyPrint();
+                        builder.prettyPrint().lfAtEnd();
                     }
 
                     builder.startObject();

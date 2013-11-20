@@ -39,9 +39,6 @@ See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client]
 * http://github.com/karmi/tire[Tire]:
   Ruby API & DSL, with ActiveRecord/ActiveModel integration.
 
-* http://github.com/grantr/rubberband[rubberband]:
-  Ruby client.
-
 * https://github.com/PoseBiz/stretcher[stretcher]:
   Ruby client.
 

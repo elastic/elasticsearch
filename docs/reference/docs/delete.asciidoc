@@ -121,3 +121,21 @@ relevant shard after the delete operation has occurred and make it
 searchable. Setting it to `true` should be done after careful thought
 and verification that this does not cause a heavy load on the system
 (and slows down indexing).
+
+[float]
+[[timeout]]
+=== Timeout
+
+The primary shard assigned to perform the delete operation might not be
+available when the delete operation is executed. Some reasons for this
+might be that the primary shard is currently recovering from a gateway
+or undergoing relocation. By default, the delete operation will wait on
+the primary shard to become available for up to 1 minute before failing
+and responding with an error. The `timeout` parameter can be used to
+explicitly specify how long it waits. Here is an example of setting it
+to 5 minutes:
+
+[source,js]
+--------------------------------------------------
+$ curl -XDELETE 'http://localhost:9200/twitter/tweet/1?timeout=5m'
+--------------------------------------------------

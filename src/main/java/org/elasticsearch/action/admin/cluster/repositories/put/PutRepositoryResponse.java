@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,13 +40,13 @@ public class PutRepositoryResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in, null);
+        readAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out, null);
+        writeAcknowledged(out);
     }
 
 }

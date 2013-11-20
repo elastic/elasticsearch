@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -268,7 +267,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         name = in.readString();
         type = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in, null);
+        readTimeout(in);
     }
 
     @Override
@@ -277,6 +276,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(name);
         out.writeString(type);
         writeSettingsToStream(settings, out);
-        writeTimeout(out, null);
+        writeTimeout(out);
     }
 }

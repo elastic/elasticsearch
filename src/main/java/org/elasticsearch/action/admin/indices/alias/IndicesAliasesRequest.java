@@ -167,7 +167,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         for (int i = 0; i < size; i++) {
             aliasActions.add(readAliasAction(in));
         }
-        readTimeout(in, null);
+        readTimeout(in);
     }
 
     @Override
@@ -177,6 +177,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         for (AliasAction aliasAction : aliasActions) {
             aliasAction.writeTo(out);
         }
-        writeTimeout(out, null);
+        writeTimeout(out);
     }
 }

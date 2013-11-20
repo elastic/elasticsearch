@@ -96,7 +96,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        readTimeout(in, null);
+        readTimeout(in);
         ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 
@@ -104,7 +104,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        writeTimeout(out, null);
+        writeTimeout(out);
         out.writeByte(ignoreIndices.id());
     }
 }

@@ -18,25 +18,14 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to close one or more indices
  */
-public class CloseIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
-
-    private String[] indices;
+public class CloseIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
 
     CloseIndexClusterStateUpdateRequest() {
 
-    }
-
-    public String[] indices() {
-        return indices;
-    }
-
-    public CloseIndexClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
     }
 }

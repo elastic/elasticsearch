@@ -19,33 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to delete a mapping
  */
-public class DeleteMappingClusterStateUpdateRequest extends ClusterStateUpdateRequest<DeleteMappingClusterStateUpdateRequest> {
+public class DeleteMappingClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteMappingClusterStateUpdateRequest> {
 
-    private String[] indices;
     private String type;
 
     DeleteMappingClusterStateUpdateRequest() {
 
-    }
-
-    /**
-     * Returns the indices the operation needs to be executed on
-     */
-    public String[] indices() {
-        return indices;
-    }
-
-    /**
-     * Sets the indices the operation needs to be executed on
-     */
-    public DeleteMappingClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
     }
 
     /**

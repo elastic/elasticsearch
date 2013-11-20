@@ -16,16 +16,28 @@
  * the License.
  */
 
-package org.elasticsearch.action.admin.indices.open;
-
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+package org.elasticsearch.cluster.ack;
 
 /**
- * Cluster state update request that allows to open one or more indices
+ * Base cluster state update request that allows to execute update against multiple indices
  */
-public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
+public abstract class IndicesClusterStateUpdateRequest<T extends IndicesClusterStateUpdateRequest<T>> extends ClusterStateUpdateRequest<T> {
 
-    OpenIndexClusterStateUpdateRequest() {
+    private String[] indices;
 
+    /**
+     * Returns the indices the operation needs to be executed on
+     */
+    public String[] indices() {
+        return indices;
+    }
+
+    /**
+     * Sets the indices the operation needs to be executed on
+     */
+    @SuppressWarnings("unchecked")
+    public T indices(String[] indices) {
+        this.indices = indices;
+        return (T)this;
     }
 }

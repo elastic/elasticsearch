@@ -494,8 +494,8 @@ Elasticsearch has several builtin formats:
 
 `bloom_default`::
         A postings format that uses a bloom filter to
-        improve term lookup performance. This is useful for primarily keys or
-        fields that are used as a delete key.
+        improve term lookup performance. This is useful for primary keys or
+        fields that are used as a delete key. 
 
 `bloom_pulsing`::
         A postings format that combines the advantages of

@@ -432,7 +432,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.1</version>
+                <version>2.2</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -442,7 +442,9 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <shadeTestJar>true</shadeTestJar>
                     <minimizeJar>true</minimizeJar>
+                    <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                     <artifactSet>
                         <includes>
                             <include>com.google.guava:guava</include>
@@ -987,6 +989,7 @@
                 <version>2.3.2</version>
                 <executions>
                     <execution>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>test-jar</goal>
                         </goals>

@@ -39,9 +39,6 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 * http://github.com/karmi/tire[Tire]:
   Ruby API & DSL, with ActiveRecord/ActiveModel integration.
 
-* http://github.com/grantr/rubberband[rubberband]:
-  Ruby client.
-
 * https://github.com/PoseBiz/stretcher[stretcher]:
   Ruby client.
 
@@ -51,6 +48,8 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 
 [[community-php]]
 === PHP
+
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/current/index.html[offical Elasticsearch Php client
 
 * http://github.com/ruflin/Elastica[Elastica]:
   PHP client.

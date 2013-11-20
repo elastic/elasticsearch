@@ -380,15 +380,9 @@ store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 
 |`index` |Set to `no` if the value should not be indexed. Setting to
-<<<<<<< HEAD
-`no` disables `include_in_all`. If set to `no` the field can be stored
-in `_source`, have `include_in_all` enabled, or `store` should be set to
-`true` for this to be useful.
-=======
 `no` disables `include_in_all`. If set to `no` the field should be either stored
 in `_source`, have `include_in_all` enabled, or `store` be set to
-`yes` for this to be useful.
->>>>>>> Let the sentences make sense
+`true` for this to be useful.
 
 |`boost` |The boost value. Defaults to `1.0`.
 
@@ -493,8 +487,8 @@ Elasticsearch has several builtin formats:
         only be used for primary keys or with fields where each term is
         contained in a very low number of documents.
 
-`pulsing`::
-        A postings format in-lines the posting lists for very low
+`pulsing`:: 
+        A postings format that in-lines the posting lists for very low
         frequent terms in the term dictionary. This is useful to improve lookup
         performance for low-frequent terms.
 

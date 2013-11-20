@@ -75,18 +75,22 @@ public interface IndexFieldDataCache {
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
             cache.removalListener(this);
+            //noinspection unchecked
             this.cache = cache.build();
         }
 
         @Override
         public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-            if (notification.getKey() != null) {
-                long sizeInBytes = notification.getKey().sizeInBytes;
-                if (sizeInBytes == -1 && notification.getValue() != null) {
-                    sizeInBytes = notification.getValue().getMemorySizeInBytes();
-                }
-                notification.getKey().listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, notification.getValue());
+            Key key = notification.getKey();
+            if (key == null || key.listener == null) {
+                return; // we can't do anything here...
             }
+            AtomicFieldData value = notification.getValue();
+            long sizeInBytes = key.sizeInBytes;
+            if (sizeInBytes == -1 && value != null) {
+                sizeInBytes = value.getMemorySizeInBytes();
+            }
+            key.listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, value);
         }
 
         @Override

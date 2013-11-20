@@ -50,6 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -223,9 +224,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
         logger.info("--> Close and open index to trigger percolate queries loading...");
-        client().admin().indices().prepareClose("test").execute().actionGet();
-        ensureGreen();
-        client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen();
 
         logger.info("--> Percolate doc with field1=100");

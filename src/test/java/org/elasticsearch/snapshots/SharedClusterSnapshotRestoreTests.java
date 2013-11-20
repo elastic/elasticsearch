@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -698,6 +697,95 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> execution was blocked on node [{}], moving shards away from this node", blockedNode);
         ImmutableSettings.Builder excludeSettings = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", blockedNode);
         client().admin().indices().prepareUpdateSettings("test-idx").setSettings(excludeSettings).get();
+
+        logger.info("--> unblocking blocked node");
+        unblockNode(blockedNode);
+        logger.info("--> waiting for completion");
+        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
+        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
+        logger.info("--> done");
+
+        ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots();
+
+        assertThat(snapshotInfos.size(), equalTo(1));
+        assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfos.get(0).shardFailures().size(), equalTo(0));
+
+        logger.info("--> delete index");
+        wipeIndices("test-idx");
+
+        logger.info("--> replace mock repository with real one at the same location");
+        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("--> restore index");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        ensureGreen();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+    }
+
+    @Test
+    @TestLogging("cluster.routing.allocation.decider:TRACE")
+    public void deleteRepositoryWhileSnapshottingTest() throws Exception {
+        Client client = client();
+        File repositoryLocation = newTempDir(LifecycleScope.TEST);
+        logger.info("-->  creating repository");
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("location", repositoryLocation)
+                                .put("random", randomAsciiOfLength(10))
+                                .put("wait_after_unblock", 200)
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        // Create index on 2 nodes and make sure each node has a primary by setting no replicas
+        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("number_of_replicas", 0)));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        // Pick one node and block it
+        String blockedNode = blockNodeWithIndex("test-idx");
+
+        logger.info("--> snapshot");
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> waiting for block to kick in");
+        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+
+        logger.info("--> execution was blocked on node [{}], trying to delete repository", blockedNode);
+
+        try {
+            client.admin().cluster().prepareDeleteRepository("test-repo").execute().get();
+            fail("shouldn't be able to delete in-use repository");
+        } catch (Exception ex) {
+            logger.info("--> in-use repository deletion failed");
+        }
+
+        logger.info("--> trying to move repository to another location");
+        try {
+            client.admin().cluster().preparePutRepository("test-repo")
+                    .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", new File(repositoryLocation, "test"))
+            ).get();
+            fail("shouldn't be able to replace in-use repository");
+        } catch (Exception ex) {
+            logger.info("--> in-use repository replacement failed");
+        }
+
+        logger.info("--> trying to create a repository with different name");
+        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", new File(repositoryLocation, "test"))
+        ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> unblocking blocked node");
         unblockNode(blockedNode);

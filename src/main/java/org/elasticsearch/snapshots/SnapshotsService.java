@@ -292,8 +292,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                         }
                     }
                     mdBuilder.putCustom(SnapshotMetaData.TYPE, new SnapshotMetaData(entries.build()));
-                    ClusterState newState = ClusterState.builder(currentState).metaData(mdBuilder).build();
-                    return newState;
+                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
                 }
 
                 @Override
@@ -841,6 +840,25 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
     }
 
     /**
+     * Checks if a repository is currently in use by one of the snapshots
+     * @param clusterState cluster state
+     * @param repository repository id
+     * @return true if repository is currently in use by one of the running snapshots
+     */
+    public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
+        MetaData metaData = clusterState.metaData();
+        SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
+        if (snapshots != null) {
+            for(SnapshotMetaData.Entry snapshot : snapshots.entries()) {
+                if(repository.equals(snapshot.snapshotId().getRepository())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Deletes snapshot from repository
      *
      * @param snapshotId snapshot id
@@ -941,8 +959,6 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         /**
          * Called if delete operation failed
-         *
-         * @param t
          */
         void onFailure(Throwable t);
     }

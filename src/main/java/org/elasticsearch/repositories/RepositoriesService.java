@@ -21,8 +21,6 @@ package org.elasticsearch.repositories;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -47,7 +45,6 @@ import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -133,7 +130,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             @Override
             public TimeValue timeout() {
-                return request.masterNodeTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -425,8 +422,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         Settings settings = EMPTY_SETTINGS;
 
-        TimeValue masterNodeTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
         /**
          * Constructs new register repository request
          *
@@ -448,17 +443,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
          */
         public RegisterRepositoryRequest settings(Settings settings) {
             this.settings = settings;
-            return this;
-        }
-
-        /**
-         * Sets master node operation timeout
-         *
-         * @param masterNodeTimeout master node operation timeout
-         * @return this request
-         */
-        public RegisterRepositoryRequest masterNodeTimeout(TimeValue masterNodeTimeout) {
-            this.masterNodeTimeout = masterNodeTimeout;
             return this;
         }
     }

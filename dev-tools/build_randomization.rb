@@ -48,7 +48,8 @@ def get_env_matrix(data_array)
   [*data_array].map do |x|
     {
       'PATH' => File.join(x,'bin') + ':' + ENV['PATH'],
-      'JAVA_HOME' => x
+      'JAVA_HOME' => x,
+      'BUILD_DESC' => File.basename(x)
     }
   end
 end
@@ -59,13 +60,16 @@ def generate_property_file(directory, data)
   content = data.first.map do |key, value|
     "%s=%s"%[key, value]
   end
-  File.open(File.join(directory,'prop.txt'), 'w') do |file| 
+  file_name = (ENV['BUILD_ID'] + ENV['BUILD_NUMBER']) || 'prop'
+  file_name = file_name.split(File::SEPARATOR).first + '.txt'
+  File.open(File.join(directory, file_name), 'w') do |file| 
               file.write(content.join("\n")) 
   end
 end
 
-jdk_selector = JDKSelector.new('/var/lib/jenkins/tools/hudson.model.JDK')
-path_matrix = get_env_matrix(jdk_selector.get_jdk.select_one)
+# jenkins sets pwd prior to execution
+jdk_selector = JDKSelector.new(File.join(ENV['PWD'],'tools','hudson.model.JDK'))
+environment_matrix = get_env_matrix(jdk_selector.get_jdk.select_one)
 
 working_directory = ENV['WORKSPACE'] || '/var/tmp'
-generate_property_file(working_directory, path_matrix)
+generate_property_file(working_directory, environment_matrix)

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
@@ -38,6 +39,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,6 +90,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryNotInUse(currentState, request.name);
                 // Trying to create the new repository on master to make sure it works
                 if (!registerRepository(newRepositoryMetaData)) {
                     // The new repository has the same settings as the old one - ignore
@@ -172,6 +176,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureRepositoryNotInUse(currentState, request.name);
                 MetaData metaData = currentState.metaData();
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
@@ -260,22 +265,23 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
 
             ImmutableMap.Builder<String, RepositoryHolder> builder = ImmutableMap.builder();
-            // Now go through all repositories and update existing or create missing
-            for (RepositoryMetaData repositoryMetaData : newMetaData.repositories()) {
-                RepositoryHolder holder = survivors.get(repositoryMetaData.name());
-                if (holder != null) {
-                    // Found previous version of this repository
-                    if (!holder.type.equals(repositoryMetaData.type()) || !holder.settings.equals(repositoryMetaData.settings())) {
-                        // Previous version is different from the version in settings
-                        closeRepository(repositoryMetaData.name(), holder);
+            if (newMetaData != null) {
+                // Now go through all repositories and update existing or create missing
+                for (RepositoryMetaData repositoryMetaData : newMetaData.repositories()) {
+                    RepositoryHolder holder = survivors.get(repositoryMetaData.name());
+                    if (holder != null) {
+                        // Found previous version of this repository
+                        if (!holder.type.equals(repositoryMetaData.type()) || !holder.settings.equals(repositoryMetaData.settings())) {
+                            // Previous version is different from the version in settings
+                            closeRepository(repositoryMetaData.name(), holder);
+                            holder = createRepositoryHolder(repositoryMetaData);
+                        }
+                    } else {
                         holder = createRepositoryHolder(repositoryMetaData);
-                        //TODO: Error handling and proper Injector cleanup
                     }
-                } else {
-                    holder = createRepositoryHolder(repositoryMetaData);
-                }
-                if (holder != null) {
-                    builder.put(repositoryMetaData.name(), holder);
+                    if (holder != null) {
+                        builder.put(repositoryMetaData.name(), holder);
+                    }
                 }
             }
             repositories = builder.build();
@@ -386,6 +392,12 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
             logger.warn("failed to create repository [{}][{}]", t, repositoryMetaData.type(), repositoryMetaData.name());
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", t);
+        }
+    }
+
+    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+        if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
+            throw new ElasticSearchIllegalStateException("trying to modify or unregister repository that is currently used ");
         }
     }
 

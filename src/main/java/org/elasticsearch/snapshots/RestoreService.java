@@ -423,6 +423,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    /**
+     * Checks if a repository is currently in use by one of the snapshots
+     * @param clusterState cluster state
+     * @param repository repository id
+     * @return true if repository is currently in use by one of the running snapshots
+     */
+    public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
+        MetaData metaData = clusterState.metaData();
+        RestoreMetaData snapshots = metaData.custom(RestoreMetaData.TYPE);
+        if (snapshots != null) {
+            for(RestoreMetaData.Entry snapshot : snapshots.entries()) {
+                if(repository.equals(snapshot.snapshotId().getRepository())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     /**
      * Restore snapshot request

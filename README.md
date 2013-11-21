@@ -35,7 +35,7 @@ Zips and tar+gzips the build in ./packages. Includes grunt build
 
 ```grunt release```
 
-Uploads archives to download.elasticsearch.org/elasticsearch/marvel/marvel-VERSION.extention. Includes grunt build and grunt package. You will need S3 credentials in .aws-config.json. Format as so:
+Uploads created archives to download.elasticsearch.org/elasticsearch/marvel/marvel-VERSION.extention. You will need S3 credentials in .aws-config.json. Format as so:
 
 ```
 {

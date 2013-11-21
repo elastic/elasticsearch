@@ -63,7 +63,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -278,11 +277,11 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
         return new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
     }
 
-    private class StubIndexService implements IndexService {
+    public static class StubIndexService implements IndexService {
 
         private final MapperService mapperService;
 
-        private StubIndexService(MapperService mapperService) {
+        public StubIndexService(MapperService mapperService) {
             this.mapperService = mapperService;
         }
 

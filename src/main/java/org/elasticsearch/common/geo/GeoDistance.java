@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 
@@ -75,18 +76,7 @@ public enum GeoDistance {
     ARC() {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double a = Math.toRadians(90D - sourceLatitude);
-            double c = Math.toRadians(90D - targetLatitude);
-            double factor = (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
-
-            if (factor < -1D) {
-                return Math.PI * unit.getEarthRadius();
-            } else if (factor >= 1D) {
-                return 0;
-            } else {
-                return Math.acos(factor) * unit.getEarthRadius();
-            }
+            return unit.fromMeters(SloppyMath.haversin(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude) * 1000.0);
         }
 
         @Override
@@ -288,39 +278,21 @@ public enum GeoDistance {
         }
     }
 
-
     public static class ArcFixedSourceDistance implements FixedSourceDistance {
 
         private final double sourceLatitude;
         private final double sourceLongitude;
-        private final double earthRadius;
-
-        private final double a;
-        private final double sinA;
-        private final double cosA;
+        private final DistanceUnit unit;
 
         public ArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             this.sourceLatitude = sourceLatitude;
             this.sourceLongitude = sourceLongitude;
-            this.earthRadius = unit.getEarthRadius();
-            this.a = Math.toRadians(90D - sourceLatitude);
-            this.sinA = Math.sin(a);
-            this.cosA = Math.cos(a);
+            this.unit = unit;
         }
 
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double c = Math.toRadians(90D - targetLatitude);
-            double factor = (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
-
-            if (factor < -1D) {
-                return Math.PI * earthRadius;
-            } else if (factor >= 1D) {
-                return 0;
-            } else {
-                return Math.acos(factor) * earthRadius;
-            }
+            return unit.fromMeters(SloppyMath.haversin(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude) * 1000.0);
         }
     }
 }

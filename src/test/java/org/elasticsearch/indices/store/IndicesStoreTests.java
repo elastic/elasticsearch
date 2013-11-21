@@ -24,9 +24,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class IndicesStoreTests extends AbstractIntegrationTest {
+public class IndicesStoreTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
@@ -58,7 +58,7 @@ public class IndicesStoreTests extends AbstractIntegrationTest {
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
 
-        logger.info("--> making sure that shard and it's replica are allocated on node_1 and node_2");
+        logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
 
@@ -78,7 +78,7 @@ public class IndicesStoreTests extends AbstractIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");
+        logger.info("--> making sure that shard and its replica exist on server1, server2 and server3");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(server2Shard.exists(), equalTo(true));
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
@@ -91,7 +91,7 @@ public class IndicesStoreTests extends AbstractIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
+        logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));

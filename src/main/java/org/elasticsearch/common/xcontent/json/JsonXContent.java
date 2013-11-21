@@ -102,6 +102,6 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(reader));
+        return new JsonXContentParser(jsonFactory.createParser(reader));
     }
 }

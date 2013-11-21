@@ -34,12 +34,11 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -61,11 +60,10 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
+public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiLevelChild() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
@@ -75,14 +73,14 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
         client().admin()
                 .indices()
                 .preparePutMapping("test")
                 .setType("grandchild")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "child").endObject()
+                        jsonBuilder().startObject().startObject("grandchild").startObject("_parent").field("type", "child").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
@@ -145,7 +143,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("test")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "foo").endObject().endObject()
+                        jsonBuilder().startObject().startObject("test").startObject("_parent").field("type", "foo").endObject().endObject()
                                 .endObject()).execute().actionGet();
 
         // index simple data
@@ -171,7 +169,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -291,7 +289,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
 
         // Now add mapping + children
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -337,7 +335,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -381,7 +379,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         Map<String, Set<String>> parentToChildren = newHashMap();
@@ -441,7 +439,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data with flushes, so we have many segments
@@ -549,7 +547,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data with flushes, so we have many segments
@@ -657,7 +655,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -704,7 +702,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -774,7 +772,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -814,7 +812,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -845,7 +843,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         int numberOfParents = 4;
@@ -890,7 +888,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         client().prepareIndex("test", "parent", "1").setSource("p_field", 1).execute().actionGet();
@@ -924,7 +922,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         String parentId = "p1";
@@ -964,7 +962,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         String parentId = "p1";
@@ -1008,11 +1006,11 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .prepareCreate("test")
                 .addMapping(
                         "child",
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject())
                 .addMapping(
                         "child1",
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child1").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
                 .execute().actionGet();
@@ -1116,7 +1114,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
         indexBuilders.add(client().prepareIndex().setType("child").setId("9").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("p")); // why
-                                                                          // "p"????
+        // "p"????
         indexBuilders.add(client().prepareIndex().setType("child").setId("10").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
         indexBuilders.add(client().prepareIndex().setType("child").setId("11").setIndex("test")
@@ -1134,7 +1132,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .setSource("c_field1", 1, "c_field2", 1, "c_field3", 1).setParent("3"));
         indexBuilders.add(client().prepareIndex().setType("child").setId("15").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 2).setParent("3")); // why
-                                                                                         // "p"????
+        // "p"????
         indexBuilders.add(client().prepareIndex().setType("child").setId("16").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 3).setParent("3"));
         indexBuilders.add(client().prepareIndex().setType("child").setId("17").setIndex("test")
@@ -1155,11 +1153,11 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .prepareCreate("test")
                 .addMapping(
                         "child",
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject())
                 .addMapping(
                         "child1",
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child1").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
                 .execute().actionGet();
@@ -1265,20 +1263,20 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject()).setRefresh(true)
                 .execute().actionGet();
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"))).execute().actionGet();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"))).execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).scoreType("max"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).scoreType("max"))
                 .execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).execute().actionGet();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
                 .execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
@@ -1296,7 +1294,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         client().prepareIndex("test", "parent", "1").setSource("p_field", 1).execute().actionGet();
@@ -1333,7 +1331,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -1350,7 +1348,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchType[] searchTypes = new SearchType[] { SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH };
+        SearchType[] searchTypes = new SearchType[]{SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH};
         for (SearchType searchType : searchTypes) {
             SearchResponse searchResponse = client().prepareSearch("test").setSearchType(searchType)
                     .setQuery(hasChildQuery("child", prefixQuery("c_field", "c")).scoreType("max")).addSort("p_field", SortOrder.ASC)
@@ -1401,7 +1399,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -1475,7 +1473,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child")
                 .setSource(
-                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
@@ -1518,7 +1516,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .preparePutMapping("test")
                 .setType("child2")
                 .setSource(
-                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent2").endObject()
+                        jsonBuilder().startObject().startObject("child2").startObject("_parent").field("type", "parent2").endObject()
                                 .endObject().endObject()).execute().actionGet();
 
         // test term filter
@@ -1587,7 +1585,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -1632,7 +1630,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.refresh_interval", "-1")
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -1678,7 +1676,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.refresh_interval", "-1")
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -1734,7 +1732,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.refresh_interval", "-1")
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -1848,7 +1846,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client().admin().indices().preparePutMapping("test").setType("child1").setSource(
-                jsonBuilder().startObject().startObject("type").endObject().endObject()
+                jsonBuilder().startObject().startObject("child1").endObject().endObject()
         ).execute().actionGet();
 
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1", "_parent", "bla").execute().actionGet();
@@ -1883,13 +1881,13 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        Map<String, Object> mapping  = getMappingsResponse.getMappings().get("test").get("child").getSourceAsMap();
+        Map<String, Object> mapping = getMappingsResponse.getMappings().get("test").get("child").getSourceAsMap();
         assertThat(mapping.size(), equalTo(1));
         assertThat(mapping.get("properties"), notNullValue());
 
         try {
             // Adding _parent metadata field to existing mapping is prohibited:
-            client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+            client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                     .startObject("_parent").field("type", "parent").endObject()
                     .endObject().endObject()).execute().actionGet();
             fail();
@@ -1908,7 +1906,7 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
@@ -1955,6 +1953,24 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         if (holder.get() != null) {
             throw holder.get();
         }
+    }
+
+    private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
+        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);
+        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildFilterBuilder;
+    }
+
+    private static HasChildFilterBuilder hasChildFilter(String type, FilterBuilder filterBuilder) {
+        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, filterBuilder);
+        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildFilterBuilder;
+    }
+
+    private static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {
+        HasChildQueryBuilder hasChildQueryBuilder = QueryBuilders.hasChildQuery(type, queryBuilder);
+        hasChildQueryBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildQueryBuilder;
     }
 
 }

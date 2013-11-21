@@ -1,0 +1,57 @@
+[[cat-recovery]]
+== Recovery
+
+`recovery` is a view of shard replication.  It will show information
+anytime data from at least one shard is copying to a different node.
+It can also show up on cluster restarts.  If your recovery process
+seems stuck, try it to see if there's any movement.
+
+As an example, let's enable replicas on a cluster which has two
+indices, three shards each.  Afterward we'll have twelve total shards,
+but before those replica shards are `STARTED`, we'll take a snapshot
+of the recovery:
+
+[source,shell]
+--------------------------------------------------
+% curl -XPUT 192.168.56.30:9200/_settings -d'{"number_of_replicas":1}'
+{"ok":true,"acknowledged":true}
+% curl '192.168.56.30:9200/_cat/recovery?v=true'
+index shard   target recovered     % ip            node 
+wiki1 2     68083830   7865837 11.6% 192.168.56.20 Adam II
+wiki2 1      2542400    444175 17.5% 192.168.56.20 Adam II
+wiki2 2      3242108    329039 10.1% 192.168.56.10 Jarella
+wiki2 0      2614132         0  0.0% 192.168.56.30 Solarr
+wiki1 0     60992898   4719290  7.7% 192.168.56.30 Solarr
+wiki1 1     47630362   6798313 14.3% 192.168.56.10 Jarella
+--------------------------------------------------
+
+We have six total shards in recovery (a replica for each primary), at
+varying points of progress.
+
+Let's restart the cluster and then lose a node.  This output shows us
+what was moving around shortly after the node left the cluster.
+
+[source,shell]
+--------------------------------------------------
+% curl 192.168.56.30:9200/_cat/health; curl 192.168.56.30:9200/_cat/recovery
+1384315040 19:57:20 foo yellow 2 2 8 6 0 4 0
+wiki2 2  1621477        0  0.0% 192.168.56.30 Garrett, Jonathan "John"
+wiki2 0  1307488        0  0.0% 192.168.56.20 Commander Kraken
+wiki1 0 32696794 20984240 64.2% 192.168.56.20 Commander Kraken
+wiki1 1 31123128 21951695 70.5% 192.168.56.30 Garrett, Jonathan "John"
+--------------------------------------------------
+
+[float]
+[[big-percent]]
+=== Why am I seeing recovery percentages greater than 100?
+
+This can happen if a shard copy goes away and comes back while the
+primary was indexing.  The replica shard will catch up with the
+primary by receiving any new segments created during its outage.
+These new segments can contain data from segments it already has
+because they're the result of merging that happened on the primary,
+but now live in different, larger segments.  After the new segments
+are copied over the replica will delete unneeded segments, resulting
+in a dataset that more closely matches the primary (or exactly,
+assuming indexing isn't still happening).
+

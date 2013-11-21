@@ -39,7 +39,8 @@ public class AllocationDeciders extends AllocationDecider {
 
     /**
      * Create a new {@link AllocationDeciders} instance
-     * @param settings  settings to use
+     *
+     * @param settings            settings to use
      * @param nodeSettingsService per-node settings to use
      */
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -55,6 +56,7 @@ public class AllocationDeciders extends AllocationDecider {
                 .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
                 .add(new ShardsLimitAllocationDecider(settings))
                 .add(new DiskThresholdDecider(settings, nodeSettingsService))
+                .add(new SnapshotInProgressAllocationDecider(settings))
                 .build()
         );
     }

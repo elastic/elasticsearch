@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -81,14 +80,18 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> {
         return this;
     }
 
-    @Nullable
     SearchRequest searchRequest() {
         return this.searchRequest;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = searchRequest.validate();
+        ActionRequestValidationException validationException = null;
+        if (searchRequest == null) {
+            validationException = addValidationError("search request is missing", validationException);
+        } else {
+            validationException = searchRequest.validate();
+        }
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
         }

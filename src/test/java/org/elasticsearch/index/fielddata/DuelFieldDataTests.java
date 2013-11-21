@@ -34,6 +34,8 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DuelFieldDataTests extends AbstractFieldDataTests {
 
@@ -253,6 +255,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             ifdService.clear();
             IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey(), true);
+            assertOrder(left.getValue().order(), leftFieldData, context);
+            assertOrder(right.getValue().order(), rightFieldData, context);
             duelFieldDataDouble(random, context, leftFieldData, rightFieldData);
             duelFieldDataDouble(random, context, rightFieldData, leftFieldData);
 
@@ -327,11 +331,18 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             CompositeReaderContext composite = perSegment.getContext();
             List<AtomicReaderContext> leaves = composite.leaves();
             for (AtomicReaderContext atomicReaderContext : leaves) {
+                assertOrder(AtomicFieldData.Order.BYTES, leftFieldData, atomicReaderContext);
+                assertOrder(AtomicFieldData.Order.BYTES, rightFieldData, atomicReaderContext);
                 duelFieldDataBytes(random, atomicReaderContext, leftFieldData, rightFieldData, pre);
             }
             perSegment.close();
         }
 
+    }
+
+    private void assertOrder(AtomicFieldData.Order order, IndexFieldData<?> data, AtomicReaderContext context) throws Exception {
+        AtomicFieldData<?> leftData = randomBoolean() ? data.load(context) : data.loadDirect(context);
+        assertThat(leftData.getBytesValues(randomBoolean()).getOrder(), is(order));
     }
 
     private int[] getNumbers(Random random, int margin) {
@@ -360,11 +371,17 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         for (int i = 0; i < numDocs; i++) {
             int numValues = 0;
             assertThat((numValues = leftBytesValues.setDocument(i)), equalTo(rightBytesValues.setDocument(i)));
+            BytesRef previous = null;
             for (int j = 0; j < numValues; j++) {
+
                 rightSpare.copyBytes(rightBytesValues.nextValue());
                 leftSpare.copyBytes(leftBytesValues.nextValue());
                 assertThat(rightSpare.hashCode(), equalTo(rightBytesValues.currentValueHash()));
                 assertThat(leftSpare.hashCode(), equalTo(leftBytesValues.currentValueHash()));
+                if (previous != null && leftBytesValues.getOrder() == rightBytesValues.getOrder()) { // we can only compare the
+                  assertThat(pre.compare(previous, rightSpare), lessThan(0));
+                }
+                previous = BytesRef.deepCopyOf(rightSpare);
                 pre.toString(rightSpare);
                 pre.toString(leftSpare);
                 assertThat(pre.toString(leftSpare), equalTo(pre.toString(rightSpare)));
@@ -388,8 +405,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         for (int i = 0; i < numDocs; i++) {
             int numValues = 0;
             assertThat((numValues = leftDoubleValues.setDocument(i)), equalTo(rightDoubleValues.setDocument(i)));
+            double previous = 0;
             for (int j = 0; j < numValues; j++) {
-                assertThat(leftDoubleValues.nextValue(), equalTo(rightDoubleValues.nextValue()));
+                double current;
+                assertThat(leftDoubleValues.nextValue(), equalTo(current = rightDoubleValues.nextValue()));
+                if (j > 0) {
+                   assertThat(Double.compare(previous,current), lessThan(0));
+                }
+                previous = current;
             }
         }
     }
@@ -405,9 +428,15 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         LongValues rightLongValues = rightData.getLongValues();
         for (int i = 0; i < numDocs; i++) {
             int numValues = 0;
+            long previous = 0;
             assertThat((numValues = leftLongValues.setDocument(i)), equalTo(rightLongValues.setDocument(i)));
             for (int j = 0; j < numValues; j++) {
-                assertThat(leftLongValues.nextValue(), equalTo(rightLongValues.nextValue()));
+                long current;
+                assertThat(leftLongValues.nextValue(), equalTo(current = rightLongValues.nextValue()));
+                if (j > 0) {
+                    assertThat(previous, lessThan(current));
+                }
+                previous = current;
             }
         }
     }
@@ -418,18 +447,39 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         public String toString(BytesRef ref) {
             return ref.utf8ToString();
         }
+
+        public int compare(BytesRef a, BytesRef b) {
+            return a.compareTo(b);
+        }
     }
 
     private static class ToDoublePreprocessor extends Preprocessor {
+
+        @Override
         public String toString(BytesRef ref) {
             assert ref.length > 0;
             return Double.toString(Double.parseDouble(super.toString(ref)));
+        }
+
+        @Override
+        public int compare(BytesRef a, BytesRef b) {
+            Double _a  = Double.parseDouble(super.toString(a));
+            return _a.compareTo(Double.parseDouble(super.toString(b)));
         }
     }
 
 
     private static enum Type {
-        Float, Double, Integer, Long, Bytes
+        Float(AtomicFieldData.Order.NUMERIC), Double(AtomicFieldData.Order.NUMERIC), Integer(AtomicFieldData.Order.NUMERIC), Long(AtomicFieldData.Order.NUMERIC), Bytes(AtomicFieldData.Order.BYTES);
+
+        private final AtomicFieldData.Order order;
+        Type(AtomicFieldData.Order order) {
+            this.order = order;
+        }
+
+        public AtomicFieldData.Order order() {
+            return order;
+        }
     }
 
 }

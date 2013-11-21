@@ -24,16 +24,16 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope=Scope.TEST)
-public class SimpleTTLTests extends AbstractIntegrationTest {
+public class SimpleTTLTests extends ElasticsearchIntegrationTest {
 
     static private final long PURGE_INTERVAL = 200;
     

@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
         ReproduceInfoPrinter.class
@@ -31,6 +31,11 @@ import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
+
+/**
+ * Basic test case for token streams. the assertion methods in this class will
+ * run basic checks to enforce correct behavior of the token streams.
+ */
 public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
 }

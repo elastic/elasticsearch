@@ -21,5 +21,18 @@ when it is executed on an index that does not match the listed indices.
 }
 --------------------------------------------------
 
+You can use the `index` field to provide a single index.
+
 `no_match_query` can also have "string" value of `none` (to match no
-documents), and `all` (to match all).
+documents), and `all` (to match all). Defaults to `all`.
+
+`query` is mandatory, as well as `indices` (or `index`).
+
+coming[0.90.8]
+[TIP]
+===================================================================
+The fields order is important: if the `indices` are provided before `query`
+or `no_match_query`, the related queries get parsed only against the indices
+that they are going to be executed on. This is useful to avoid parsing queries
+when it is not necessary and prevent potential mapping errors.
+===================================================================

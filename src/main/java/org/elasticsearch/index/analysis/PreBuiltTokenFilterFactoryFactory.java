@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
+
+import java.util.Locale;
 
 public class PreBuiltTokenFilterFactoryFactory implements TokenFilterFactoryFactory {
 
@@ -31,6 +36,10 @@ public class PreBuiltTokenFilterFactoryFactory implements TokenFilterFactoryFact
 
     @Override
     public TokenFilterFactory create(String name, Settings settings) {
+        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (!Version.CURRENT.equals(indexVersion)) {
+            return PreBuiltTokenFilters.valueOf(name.toUpperCase(Locale.ROOT)).getTokenFilterFactory(indexVersion);
+        }
         return tokenFilterFactory;
     }
 }

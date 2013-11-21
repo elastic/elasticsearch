@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.util.BloomFilter;
 
 import java.io.IOException;
 import java.util.*;
@@ -42,7 +43,7 @@ import java.util.Map.Entry;
  * delegate PostingsFormat is used to record all other Postings data.
  * </p>
  * <p>
- * This is a special bloom filter version, based on {@link BloomFilter} and inspired
+ * This is a special bloom filter version, based on {@link org.elasticsearch.common.util.BloomFilter} and inspired
  * by Lucene {@link org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
  * </p>
  */
@@ -104,7 +105,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     public final class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
-        
+
         // for internal use only
         FieldsProducer getDelegate() {
             return delegateFieldsProducer;
@@ -126,7 +127,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // Load the delegate postings format
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(bloomIn
                         .readString());
-                
+
                 this.delegateFieldsProducer = delegatePostingsFormat
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
@@ -186,9 +187,9 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return RamUsageEstimator.sizeOf(this);
         }
 
-      
+
     }
-    
+
     public static final class BloomFilteredTerms extends Terms {
         private Terms delegateTerms;
         private BloomFilter filter;
@@ -280,13 +281,13 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             this.reuse = reuse;
             this.filter = filter;
         }
-        
+
         void reset(Terms others) {
             reuse = this.delegateTermsEnum;
             this.delegateTermsEnum = null;
             this.delegateTerms = others;
         }
-        
+
         private TermsEnum getDelegate() throws IOException {
             if (delegateTermsEnum == null) {
                 /* pull the iterator only if we really need it -
@@ -383,7 +384,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             // this.delegatePostingsFormat=delegatePostingsFormat;
             this.state = state;
         }
-        
+
         // for internal use only
         FieldsConsumer getDelegate() {
             return delegateFieldsConsumer;

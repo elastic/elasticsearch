@@ -1,0 +1,6 @@
+{
+    "multi_match": {
+        "query": "foo bar",
+        "fields": [ "myField", "otherField" ]
+    }
+}

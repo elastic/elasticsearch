@@ -35,7 +35,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -48,19 +48,20 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
-import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class RecoveryPercolatorTests extends AbstractIntegrationTest {
+public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         cluster().startNode(settings);
@@ -69,7 +70,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         ).execute().actionGet();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -106,15 +107,15 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         cluster().startNode(settings);
         client().admin().indices().prepareCreate("test")
-        .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -122,7 +123,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client().prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -140,7 +141,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        assertThat(client().prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(actionGet.isAcknowledged(), equalTo(true));
@@ -149,7 +150,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(client().prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
+        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -160,7 +161,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         assertThat(percolate.getMatches(), emptyArray());
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -168,7 +169,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client().prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -183,7 +184,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
     @Slow
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         logger.info("--> Starting 2 nodes");
@@ -204,7 +205,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject()
                             .field("query", rangeQuery("field1").from(0).to(i))
                                     // The type must be set now, because two fields with the same name exist in different types.
@@ -223,9 +224,8 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
         logger.info("--> Close and open index to trigger percolate queries loading...");
-        client().admin().indices().prepareClose("test").execute().actionGet();
-        ensureGreen();
-        client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen();
 
         logger.info("--> Percolate doc with field1=100");
@@ -278,7 +278,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
         final int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client.prepareIndex("test", "_percolator", Integer.toString(i))
+            client.prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }

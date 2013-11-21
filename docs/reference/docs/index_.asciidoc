@@ -210,7 +210,7 @@ value is provided or extracted.
 [[parent-children]]
 === Parents & Children
 
-A child document can be indexed by specifying it's parent when indexing.
+A child document can be indexed by specifying its parent when indexing.
 For example:
 
 [source,js]
@@ -221,7 +221,7 @@ $ curl -XPUT localhost:9200/blogs/blog_tag/1122?parent=1111 -d '{
 --------------------------------------------------
 
 When indexing a child document, the routing value is automatically set
-to be the same as it's parent, unless the routing value is explicitly
+to be the same as its parent, unless the routing value is explicitly
 specified using the `routing` parameter.
 
 [float]

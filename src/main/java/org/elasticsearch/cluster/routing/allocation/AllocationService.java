@@ -382,8 +382,9 @@ public class AllocationService extends AbstractComponent {
             // this means that after relocation, the state will be started and the currentNodeId will be
             // the node we relocated to
 
-            if (relocatingNodeId == null)
+            if (relocatingNodeId == null) {
                 continue;
+            }
 
             RoutingNode sourceRoutingNode = routingNodes.nodesToShards().get(relocatingNodeId);
             if (sourceRoutingNode != null) {
@@ -408,7 +409,7 @@ public class AllocationService extends AbstractComponent {
      * require relocation.
      */
     private boolean applyFailedShard(RoutingAllocation allocation, ShardRouting failedShard, boolean addToIgnoreList) {
-        // create a copy of the failed shard, since we assume we can change possible refernces to it without
+        // create a copy of the failed shard, since we assume we can change possible references to it without
         // changing the state of failed shard
         failedShard = new ImmutableShardRouting(failedShard);
 
@@ -531,8 +532,8 @@ public class AllocationService extends AbstractComponent {
                             allocation.routingNodes().unassigned().addAll(shardsToMove);
                         }
 
-                        allocation.routingNodes().unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                                null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
+                        allocation.routingNodes().unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(), null,
+                                null, failedShard.restoreSource(), failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
 
                         break;
                     }

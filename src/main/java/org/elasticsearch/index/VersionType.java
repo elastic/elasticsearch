@@ -79,7 +79,7 @@ public enum VersionType {
     public abstract boolean isVersionConflict(long currentVersion, long expectedVersion);
 
     /**
-     * Returns the new version for a document, based on it's current one and the specified in the request
+     * Returns the new version for a document, based on its current one and the specified in the request
      *
      * @return new version
      */

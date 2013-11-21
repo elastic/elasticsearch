@@ -26,9 +26,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(numNodes=0, scope=Scope.TEST)
-public class QuorumLocalGatewayTests extends AbstractIntegrationTest {
+public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow

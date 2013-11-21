@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,7 +43,7 @@ import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -51,7 +52,7 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
+public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTest {
 
     protected static class TestFieldSetting {
         final public String name;
@@ -182,7 +183,7 @@ public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
     }
 
     protected void createIndexBasedOnFieldSettings(TestFieldSetting[] fieldSettings, int number_of_shards) throws IOException {
-        wipeIndex("test");
+        wipeIndices("test");
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("type1").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
@@ -195,7 +196,7 @@ public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
             settings.put("number_of_shards", number_of_shards);
         }
         mappingBuilder.endObject().endObject().endObject();
-        run(prepareCreate("test").addMapping("type1", mappingBuilder).setSettings(settings));
+        prepareCreate("test").addMapping("type1", mappingBuilder).setSettings(settings).get();
 
         ensureYellow();
     }
@@ -291,7 +292,7 @@ public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
                 });
             }
         }
-        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.CURRENT.luceneVersion), mapping);
+        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.CURRENT.luceneVersion, CharArraySet.EMPTY_SET), mapping);
 
         Directory dir = new RAMDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(Version.CURRENT.luceneVersion, wrapper);

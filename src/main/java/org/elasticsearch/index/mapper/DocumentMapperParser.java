@@ -134,8 +134,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public void putRootTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
-            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
-                    .putAll(typeParsers)
+            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>(rootTypeParsers)
                     .put(type, typeParser)
                     .immutableMap();
         }
@@ -249,21 +248,25 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         }
         int size = root.size();
         switch (size) {
-        case 0:
-            // if we don't have any keys throw an exception
-            throw new MapperParsingException("malformed mapping no root object found");
-        case 1:
-            break;
-        default:
-            // we always assume the first and single key is the mapping type root
-            throw new MapperParsingException("mapping must have the `type` as the root object");
+            case 0:
+                // if we don't have any keys throw an exception
+                throw new MapperParsingException("malformed mapping no root object found");
+            case 1:
+                break;
+            default:
+                // we always assume the first and single key is the mapping type root
+                throw new MapperParsingException("mapping must have the `type` as the root object");
 
         }
 
         String rootName = root.keySet().iterator().next();
         if (type == null) {
             type = rootName;
+        } else if (!type.equals(rootName)) {
+            // we always assume the first and single key is the mapping type root
+            throw new MapperParsingException("mapping must have the `type` as the root object. Got [" + rootName + "], expected [" + type + "]");
         }
+
 
         return new Tuple<String, Map<String, Object>>(type, (Map<String, Object>) root.get(rootName));
     }

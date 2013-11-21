@@ -210,7 +210,7 @@ mappings be stored, just set:
                 "store_generic" : {
                     "match" : "*",
                     "mapping" : {
-                        "store" : "yes"
+                        "store" : true
                     }
                 }
             }

@@ -66,11 +66,11 @@ example:
 {
     "person" : {
         "properties" : {
-            "file" : { 
+            "file" : {
                 "type" : "attachment",
                 "fields" : {
                     "file" : {"index" : "no"},
-                    "date" : {"store" : "yes"},
+                    "date" : {"store" : true},
                     "author" : {"analyzer" : "myAnalyzer"}
                 }
             }

@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -27,7 +27,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
-public class UpdateMappingTests extends AbstractIntegrationTest {
+public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void dynamicUpdates() throws Exception {
@@ -285,7 +285,7 @@ public class UpdateMappingTests extends AbstractIntegrationTest {
     @Test
     public void updateMappingConcurrently() throws Throwable {
         // Test that we can concurrently update different indexes and types.
-        int shardNo = Math.max(5, cluster().numNodes());
+        int shardNo = Math.max(5, cluster().size());
 
         prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
         prepareCreate("test2").setSettings("index.number_of_shards", shardNo).execute().actionGet();

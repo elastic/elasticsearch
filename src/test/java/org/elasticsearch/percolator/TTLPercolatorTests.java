@@ -6,9 +6,9 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -19,8 +19,8 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope=Scope.TEST)
-public class TTLPercolatorTests extends AbstractIntegrationTest {
+@ClusterScope(scope = Scope.TEST)
+public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     private static final long PURGE_INTERVAL = 200;
 
@@ -38,21 +38,26 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
         client.admin().indices().prepareDelete().execute().actionGet();
         ensureGreen();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_percolator")
+        String precolatorMapping = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
+                .startObject("_ttl").field("enabled", true).endObject()
+                .startObject("_timestamp").field("enabled", true).endObject()
+                .endObject().endObject().string();
+
+        String typeMapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_ttl").field("enabled", true).endObject()
                 .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
         client.admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("_percolator", mapping)
-                .addMapping("type1", mapping)
+                .addMapping(PercolatorService.TYPE_NAME, precolatorMapping)
+                .addMapping("type1", typeMapping)
                 .execute().actionGet();
         ensureGreen();
 
         long ttl = 1500;
         long now = System.currentTimeMillis();
-        client.prepareIndex("test", "_percolator", "kuku").setSource(jsonBuilder()
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "kuku").setSource(jsonBuilder()
                 .startObject()
                 .startObject("query")
                 .startObject("term")
@@ -70,16 +75,16 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
         PercolateResponse percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .field("field1", "value1")
-                .endObject()
-                .endObject()
-        ).execute().actionGet();
+                        .startObject()
+                        .startObject("doc")
+                        .field("field1", "value1")
+                        .endObject()
+                        .endObject()
+                ).execute().actionGet();
         assertNoFailures(percolateResponse);
         if (percolateResponse.getMatches().length == 0) {
             // OK, ttl + purgeInterval has passed (slow machine or many other tests were running at the same time
-            GetResponse getResponse = client.prepareGet("test", "_percolator", "kuku").execute().actionGet();
+            GetResponse getResponse = client.prepareGet("test", PercolatorService.TYPE_NAME, "kuku").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
             response = client.admin().indices().prepareStats("test")
                     .clear().setIndexing(true)
@@ -105,18 +110,19 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
                     .execute().actionGet();
             // This returns the number of delete operations stats (not Lucene delete count)
             currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
-        } while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
+        }
+        while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
         assertThat(currentDeleteCount, equalTo(2l));
 
         percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .field("field1", "value1")
-                .endObject()
-                .endObject()
-        ).execute().actionGet();
+                        .startObject()
+                        .startObject("doc")
+                        .field("field1", "value1")
+                        .endObject()
+                        .endObject()
+                ).execute().actionGet();
         assertNoFailures(percolateResponse);
         assertThat(percolateResponse.getMatches(), emptyArray());
     }

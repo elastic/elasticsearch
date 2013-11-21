@@ -15,7 +15,7 @@ by a search hit. Defaults to load the internal `_source` field.
 --------------------------------------------------
 
 The fields will automatically load stored fields (`store` mapping set to
-`yes`), or, if not stored, will load the `_source` and extract it from
+`true`), or, if not stored, will load the `_source` and extract it from
 it (allowing to return nested document object).
 
 `*` can be used to load all stored fields from the document.

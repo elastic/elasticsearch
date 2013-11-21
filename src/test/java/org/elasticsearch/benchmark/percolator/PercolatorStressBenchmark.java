@@ -27,6 +27,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -83,7 +84,7 @@ public class PercolatorStressBenchmark {
         // register queries
         int i = 0;
         for (; i < TERM_QUERIES; i++) {
-            client.prepareIndex("test", "_percolator", Integer.toString(i))
+            client.prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject()
                             .field("query", termQuery("name", "value"))
                             .endObject())
@@ -92,7 +93,7 @@ public class PercolatorStressBenchmark {
 
         int[] numbers = new int[RANGE_QUERIES];
         for (; i < QUERIES; i++) {
-            client.prepareIndex("test", "_percolator", Integer.toString(i))
+            client.prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject()
                             .field("query", rangeQuery("numeric1").from(i).to(i))
                             .endObject())

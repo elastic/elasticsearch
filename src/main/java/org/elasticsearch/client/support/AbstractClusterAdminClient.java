@@ -45,6 +45,18 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
@@ -57,6 +69,22 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
@@ -245,5 +273,111 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     @Override
     public void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener) {
         execute(PendingClusterTasksAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<PutRepositoryResponse> putRepository(PutRepositoryRequest request) {
+        return execute(PutRepositoryAction.INSTANCE, request);
+    }
+
+    @Override
+    public void putRepository(PutRepositoryRequest request, ActionListener<PutRepositoryResponse> listener) {
+        execute(PutRepositoryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public PutRepositoryRequestBuilder preparePutRepository(String name) {
+        return new PutRepositoryRequestBuilder(this, name);
+    }
+
+    @Override
+    public ActionFuture<CreateSnapshotResponse> createSnapshot(CreateSnapshotRequest request) {
+        return execute(CreateSnapshotAction.INSTANCE, request);
+    }
+
+    @Override
+    public void createSnapshot(CreateSnapshotRequest request, ActionListener<CreateSnapshotResponse> listener) {
+        execute(CreateSnapshotAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name) {
+        return new CreateSnapshotRequestBuilder(this, repository, name);
+    }
+
+    @Override
+    public ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request) {
+        return execute(GetSnapshotsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener) {
+        execute(GetSnapshotsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetSnapshotsRequestBuilder prepareGetSnapshots(String repository) {
+        return new GetSnapshotsRequestBuilder(this, repository);
+    }
+
+
+    @Override
+    public ActionFuture<DeleteSnapshotResponse> deleteSnapshot(DeleteSnapshotRequest request) {
+        return execute(DeleteSnapshotAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<DeleteSnapshotResponse> listener) {
+        execute(DeleteSnapshotAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String name) {
+        return new DeleteSnapshotRequestBuilder(this, repository, name);
+    }
+
+
+    @Override
+    public ActionFuture<DeleteRepositoryResponse> deleteRepository(DeleteRepositoryRequest request) {
+        return execute(DeleteRepositoryAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deleteRepository(DeleteRepositoryRequest request, ActionListener<DeleteRepositoryResponse> listener) {
+        execute(DeleteRepositoryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public DeleteRepositoryRequestBuilder prepareDeleteRepository(String name) {
+        return new DeleteRepositoryRequestBuilder(this, name);
+    }
+
+    @Override
+    public ActionFuture<GetRepositoriesResponse> getRepositories(GetRepositoriesRequest request) {
+        return execute(GetRepositoriesAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getRepositories(GetRepositoriesRequest request, ActionListener<GetRepositoriesResponse> listener) {
+        execute(GetRepositoriesAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetRepositoriesRequestBuilder prepareGetRepositories(String... name) {
+        return new GetRepositoriesRequestBuilder(this, name);
+    }
+
+    @Override
+    public ActionFuture<RestoreSnapshotResponse> restoreSnapshot(RestoreSnapshotRequest request) {
+        return execute(RestoreSnapshotAction.INSTANCE, request);
+    }
+
+    @Override
+    public void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener) {
+        execute(RestoreSnapshotAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
+        return new RestoreSnapshotRequestBuilder(this, repository, snapshot);
     }
 }

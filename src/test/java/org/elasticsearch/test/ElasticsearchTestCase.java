@@ -29,9 +29,9 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.junit.listeners.LoggingListener;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.engine.MockRobinEngine;
-import org.elasticsearch.test.store.mock.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
@@ -44,6 +44,9 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Base testcase for randomized unit testing with Elasticsearch
+ */
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
@@ -96,9 +99,9 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     
     public static void ensureAllFilesClosed() throws IOException {
         try {
-            for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+            for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 if (w.isOpen()) {
-                    w.close();
+                    w.closeWithRuntimeException();
                 }
             }
         } finally {

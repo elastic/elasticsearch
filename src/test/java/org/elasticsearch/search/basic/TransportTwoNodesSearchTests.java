@@ -38,7 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class TransportTwoNodesSearchTests extends AbstractIntegrationTest {
+public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     private Set<String> prepareData() throws Exception {
         Set<String> fullExpectedIds = Sets.newHashSet();

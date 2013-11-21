@@ -25,8 +25,10 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
- *
+ * @deprecated Use snapshot/restore API instead
  */
+@Deprecated
+
 public class GatewaySnapshotRequestBuilder extends BroadcastOperationRequestBuilder<GatewaySnapshotRequest, GatewaySnapshotResponse, GatewaySnapshotRequestBuilder> {
 
     public GatewaySnapshotRequestBuilder(IndicesAdminClient indicesClient) {

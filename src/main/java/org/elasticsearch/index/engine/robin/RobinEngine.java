@@ -1119,6 +1119,24 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
+    public SegmentsStats segmentsStats() {
+        rwl.readLock().lock();
+        try {
+            ensureOpen();
+            Searcher searcher = acquireSearcher("segments_stats");
+            try {
+                SegmentsStats stats = new SegmentsStats();
+                stats.add(searcher.reader().leaves().size());
+                return stats;
+            } finally {
+                searcher.release();
+            }
+        } finally {
+            rwl.readLock().unlock();
+        }
+    }
+
+    @Override
     public List<Segment> segments() {
         rwl.readLock().lock();
         try {
@@ -1361,7 +1379,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     }
                 }
             });
-            return new IndexWriter(store.directory(), config);
+            return new XIndexWriter(store.directory(), config);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
             logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
@@ -1605,4 +1623,5 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             return ongoingRecoveries;
         }
     }
+
 }

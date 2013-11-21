@@ -23,7 +23,7 @@ should be defined:
 [float]
 ==== store / index
 
-By default the `_ttl` field has `store` set to `yes` and `index` set to
+By default the `_ttl` field has `store` set to `true` and `index` set to
 `not_analyzed`. Note that `index` property has to be set to
 `not_analyzed` in order for the purge process to work.
 

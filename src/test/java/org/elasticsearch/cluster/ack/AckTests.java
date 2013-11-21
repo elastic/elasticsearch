@@ -25,32 +25,38 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.AbstractIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = SUITE)
-public class AckTests extends AbstractIntegrationTest {
+public class AckTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -180,7 +186,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -220,7 +226,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -234,7 +240,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -270,7 +276,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -313,7 +319,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterUpdateSettingsAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -358,7 +364,7 @@ public class AckTests extends AbstractIntegrationTest {
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -382,5 +388,84 @@ public class AckTests extends AbstractIntegrationTest {
 
         //removes the allocation exclude settings
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
+    }
+
+    @Test
+    public void testIndicesAliasesAcknowledgement() {
+        createIndex("test");
+
+        //testing acknowledgement when trying to submit an existing alias too
+        //in that case it would not make any change, but we are sure about the cluster state
+        //as the previous operation was acknowledged
+        for (int i = 0; i < 2; i++) {
+            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
+
+            for (Client client : clients()) {
+                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+                AliasMetaData aliasMetaData = clusterState.metaData().aliases().get("alias").get("test");
+                assertThat(aliasMetaData.alias(), equalTo("alias"));
+            }
+        }
+    }
+
+    @Test
+    public void testIndicesAliasesNoAcknowledgement() {
+        createIndex("test");
+
+        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
+    }
+
+    public void testCloseIndexAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
+            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.CLOSE));
+        }
+    }
+
+    @Test
+    public void testCloseIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse= client().admin().indices().prepareClose("test").setTimeout("0s").get();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
+    public void testOpenIndexAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse= client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
+            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.OPEN));
+        }
+    }
+
+    @Test
+    public void testOpenIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
     }
 }

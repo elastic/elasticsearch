@@ -25,10 +25,7 @@ import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.SynonymMap.Builder;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.analysis.tokenattributes.*;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
@@ -41,6 +38,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase {
 
@@ -143,12 +142,36 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
         suggestTokenStream.close();
 
     }
-    
+
+    @Test
+    public void testSuggestTokenFilterProperlyDelegateInputStream() throws Exception {
+        TokenStream tokenStream = new MockTokenizer(new StringReader("mykeyword"), MockTokenizer.WHITESPACE, true);
+        BytesRef payload = new BytesRef("Surface keyword|friggin payload|10");
+        TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenStream, payload, new CompletionTokenStream.ToFiniteStrings() {
+            @Override
+            public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
+                return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+            }
+        }));
+        TermToBytesRefAttribute termAtt = suggestTokenStream.getAttribute(TermToBytesRefAttribute.class);
+        BytesRef ref = termAtt.getBytesRef();
+        assertNotNull(ref);
+        suggestTokenStream.reset();
+
+        while (suggestTokenStream.incrementToken()) {
+            termAtt.fillBytesRef();
+            assertThat(ref.utf8ToString(), equalTo("mykeyword"));
+        }
+        suggestTokenStream.end();
+        suggestTokenStream.close();
+    }
+
+
     public final static class ByteTermAttrToCharTermAttrFilter extends TokenFilter {
-        private CharTermAttribute attr = addAttribute(CharTermAttribute.class);
         private ByteTermAttribute byteAttr = addAttribute(ByteTermAttribute.class);
         private PayloadAttribute payload = addAttribute(PayloadAttribute.class);
         private TypeAttribute type = addAttribute(TypeAttribute.class);
+        private CharTermAttribute charTermAttribute = addAttribute(CharTermAttribute.class);
         protected ByteTermAttrToCharTermAttrFilter(TokenStream input) {
             super(input);
         }
@@ -157,13 +180,12 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
         public boolean incrementToken() throws IOException {
             if (input.incrementToken()) {
                 BytesRef bytesRef = byteAttr.getBytesRef();
-                attr.append(bytesRef.utf8ToString());
                 // we move them over so we can assert them more easily in the tests
-                type.setType(payload.getPayload().utf8ToString()); 
+                type.setType(payload.getPayload().utf8ToString());
                 return true;
             }
             return false;
         }
-        
+
     }
 }

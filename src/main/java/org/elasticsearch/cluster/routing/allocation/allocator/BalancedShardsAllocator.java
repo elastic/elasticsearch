@@ -544,7 +544,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                     sourceNode.removeShard(shard);
                     final MutableShardRouting initializingShard = new MutableShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
-                            shard.currentNodeId(), shard.primary(), INITIALIZING, shard.version() + 1);
+                            shard.currentNodeId(), shard.restoreSource(), shard.primary(), INITIALIZING, shard.version() + 1);
                     currentNode.addShard(initializingShard, decision);
                     target.add(initializingShard);
                     shard.relocate(target.nodeId()); // set the node to relocate after we added the initializing shard
@@ -647,7 +647,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             node.addShard(shard, Decision.ALWAYS);
                             float currentWeight = weight.weight(Operation.ALLOCATE, this, node, shard.index());
                             /*
-	                         * Remove the shard from the node again this is only a
+                             * Remove the shard from the node again this is only a
 	                         * simulation
 	                         */
                             Decision removed = node.removeShard(shard);
@@ -782,7 +782,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         if (candidate.started()) {
                             RoutingNode lowRoutingNode = allocation.routingNodes().node(minNode.getNodeId());
                             lowRoutingNode.add(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
-                                    .currentNodeId(), candidate.primary(), INITIALIZING, candidate.version() + 1));
+                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1));
                             candidate.relocate(lowRoutingNode.nodeId());
 
                         } else {

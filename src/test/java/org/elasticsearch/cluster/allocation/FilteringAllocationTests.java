@@ -27,16 +27,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class FilteringAllocationTests extends AbstractIntegrationTest {
+public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(FilteringAllocationTests.class);
 
@@ -45,7 +45,7 @@ public class FilteringAllocationTests extends AbstractIntegrationTest {
         logger.info("--> starting 2 nodes");
         final String node_0 = cluster().startNode();
         final String node_1 = cluster().startNode();
-        assertThat(cluster().numNodes(), equalTo(2));
+        assertThat(cluster().size(), equalTo(2));
         
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")
@@ -84,7 +84,7 @@ public class FilteringAllocationTests extends AbstractIntegrationTest {
         logger.info("--> starting 2 nodes");
         final String node_0 = cluster().startNode();
         final String node_1 = cluster().startNode();
-        assertThat(cluster().numNodes(), equalTo(2));
+        assertThat(cluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")

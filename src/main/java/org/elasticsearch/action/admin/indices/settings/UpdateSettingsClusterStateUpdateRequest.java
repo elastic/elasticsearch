@@ -19,33 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.settings;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * Cluster state update request that allows to update settings for some indices
  */
-public class UpdateSettingsClusterStateUpdateRequest extends ClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
+public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
+
     private Settings settings;
-    private String[] indices;
 
     public UpdateSettingsClusterStateUpdateRequest() {
 
-    }
-
-    /**
-     * Returns the indices that needs to be updated
-     */
-    public String[] indices() {
-        return indices;
-    }
-
-    /**
-     * Sets the indices to update
-     */
-    public UpdateSettingsClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
     }
 
     /**

@@ -40,6 +40,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
+@Deprecated
 public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Inject

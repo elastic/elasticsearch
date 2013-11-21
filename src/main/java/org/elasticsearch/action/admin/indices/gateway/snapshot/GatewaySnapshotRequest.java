@@ -29,7 +29,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
  * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(GatewaySnapshotRequest)
  * @see GatewaySnapshotResponse
+ * @deprecated Use snapshot/restore API instead
  */
+@Deprecated
 public class GatewaySnapshotRequest extends BroadcastOperationRequest<GatewaySnapshotRequest> {
 
     GatewaySnapshotRequest() {

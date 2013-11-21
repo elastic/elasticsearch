@@ -591,7 +591,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return;
         }
         int totalSize = context.from() + context.size();
-        int[] docIdsToLoad = new int[context.size()];
+        int[] docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size())];
         int counter = 0;
         for (int i = context.from(); i < totalSize; i++) {
             if (i < topDocs.scoreDocs.length) {

@@ -25,8 +25,12 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
+
+/**
+ * Base testcase for lucene based testing. This class should be used if low level lucene features are tested.
+ */
 @Listeners({
         ReproduceInfoPrinter.class
 })

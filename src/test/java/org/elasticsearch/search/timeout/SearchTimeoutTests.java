@@ -20,8 +20,9 @@
 package org.elasticsearch.search.timeout;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
@@ -31,11 +32,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SearchTimeoutTests extends AbstractIntegrationTest {
+public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
     
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .build();

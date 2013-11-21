@@ -35,7 +35,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchTests extends AbstractIntegrationTest {
+public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test // see #3037
     public void testSuggestModes() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -142,7 +142,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, between(1,5))
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -690,7 +690,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
     public void testShardFailures() throws IOException, InterruptedException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -798,7 +798,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
 
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")

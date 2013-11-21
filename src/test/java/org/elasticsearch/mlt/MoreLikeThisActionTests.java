@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class MoreLikeThisActionTests extends AbstractIntegrationTest {
+public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleMoreLikeThis() throws Exception {
@@ -119,6 +119,12 @@ public class MoreLikeThisActionTests extends AbstractIntegrationTest {
         mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
         assertHitCount(mltResponse, 1l);
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
+
+        logger.info("Running moreLikeThis on alias with node client");
+        mltResponse = cluster().clientNodeClient().moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        assertHitCount(mltResponse, 1l);
+        assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
+
     }
 
     @Test

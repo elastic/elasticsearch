@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
@@ -335,6 +336,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
         modules.add(new PercolatorShardModule());
         modules.add(new ShardTermVectorModule());
+        modules.add(new IndexShardSnapshotModule());
 
         Injector shardInjector;
         try {

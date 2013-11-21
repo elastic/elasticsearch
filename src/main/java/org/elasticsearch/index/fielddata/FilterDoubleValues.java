@@ -40,4 +40,11 @@ public abstract class FilterDoubleValues extends DoubleValues {
     public double nextValue() {
         return delegate.nextValue();
     }
+
+    @Override
+    public AtomicFieldData.Order getOrder() {
+        return delegate.getOrder();
+    }
+
+
 }

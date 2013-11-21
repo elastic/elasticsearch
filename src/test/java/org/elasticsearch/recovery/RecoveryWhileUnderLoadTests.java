@@ -22,7 +22,6 @@ package org.elasticsearch.recovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,8 +33,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.junit.annotations.TestLogging;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -55,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
+public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
@@ -311,7 +310,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
         cluster().ensureAtLeastNumNodes(3);
         logger.info("--> creating test index ...");
         int allowNodes = 2;
-        assertAcked(prepareCreate("test").setSettings(randomSettingsBuilder().put("number_of_shards", numShards).put("number_of_replicas", numReplicas).build()));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_shards", numShards).put("number_of_replicas", numReplicas).build()));
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);

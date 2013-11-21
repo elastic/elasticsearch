@@ -19,5 +19,6 @@
 
 /**
  * GAteway Snapshot Action.
+ * @deprecated Use snapshot/restore API instead
  */
 package org.elasticsearch.action.admin.indices.gateway.snapshot;

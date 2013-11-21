@@ -4,13 +4,14 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.*;
@@ -21,11 +22,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ExtendedFacetsTests extends AbstractIntegrationTest {
+public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", numberOfShards())
                 .put("index.number_of_replicas", 0)
                 .build();

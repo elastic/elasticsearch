@@ -33,7 +33,9 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
@@ -54,6 +56,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     private final InternalIndexShard indexShard;
 
     private final IndexShardGateway shardGateway;
+
+    private final IndexShardSnapshotAndRestoreService snapshotService;
 
 
     private volatile long lastIndexVersion;
@@ -76,14 +80,17 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final ApplySettings applySettings = new ApplySettings();
 
+
     @Inject
     public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
-                                    ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway) {
+                                    ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway, IndexShardSnapshotAndRestoreService snapshotService,
+                                    RepositoriesService repositoriesService) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
+        this.snapshotService = snapshotService;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -156,7 +163,11 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
         try {
-            indexShard.recovering("from gateway");
+            if (indexShard.routingEntry().restoreSource() != null) {
+                indexShard.recovering("from snapshot");
+            } else {
+                indexShard.recovering("from gateway");
+            }
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             listener.onIgnoreRecovery("already in recovering process, " + e.getMessage());
@@ -170,16 +181,26 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
 
                 try {
-                    logger.debug("starting recovery from {} ...", shardGateway);
-                    shardGateway.recover(indexShouldExists, recoveryStatus);
+                    if (indexShard.routingEntry().restoreSource() != null) {
+                        logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
+                        snapshotService.restore(recoveryStatus);
+                    } else {
+                        logger.debug("starting recovery from {} ...", shardGateway);
+                        shardGateway.recover(indexShouldExists, recoveryStatus);
+                    }
 
                     lastIndexVersion = recoveryStatus.index().version();
                     lastTranslogId = -1;
                     lastTranslogLength = 0;
                     lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
 
-                    // start the shard if the gateway has not started it already
-                    if (indexShard.state() != IndexShardState.POST_RECOVERY) {
+                    // start the shard if the gateway has not started it already. Note that if the gateway
+                    // moved shard to POST_RECOVERY, it may have been started as well if:
+                    // 1) master sent a new cluster state indicating shard is initializing
+                    // 2) IndicesClusterStateService#applyInitializingShard will send a shard started event
+                    // 3) Master will mark shard as started and this will be processed locally.
+                    IndexShardState shardState = indexShard.state();
+                    if (shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED) {
                         indexShard.postRecovery("post recovery from gateway");
                     }
                     // refresh the shard

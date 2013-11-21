@@ -24,6 +24,8 @@ import sys
 import argparse
 import hmac
 import urllib
+import fnmatch
+import socket
 from http.client import HTTPConnection
 
 """ 
@@ -45,17 +47,25 @@ from http.client import HTTPConnection
 
 Once it's done it will print all the remaining steps.
 
+ Prerequisites:
+    - Python 3k for script execution
+    - Boto for S3 Upload ($ apt-get install python-boto)
+    - RPM for RPM building ($ apt-get install rpm)
+    - S3 keys exported via ENV Variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
 """
 
-LOG = '/tmp/release.log'
+LOG = '/tmp/elasticsearch_release.log'
 
 def log(msg):
+  log_plain('\n%s' % msg)
+
+def log_plain(msg):
   f = open(LOG, mode='ab')
   f.write(msg.encode('utf-8'))
   f.close()
 
 def run(command, quiet=False):
-  log('\n\n%s: RUN: %s\n' % (datetime.datetime.now(), command))
+  log('%s: RUN: %s\n' % (datetime.datetime.now(), command))
   if os.system('%s >> %s 2>&1' % (command, LOG)):
     msg = '    FAILED: %s [see log %s]' % (command, LOG)
     if not quiet:
@@ -95,42 +105,80 @@ def verify_java_version(version):
   if s.find(' version "%s.' % version) == -1:
     raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
 
+# Verifies the java version. We guarantee that we run with Java 1.6
+# If 1.6 is not available fail the build!
 def verify_mvn_java_version(version, mvn):
   s = os.popen('%s; %s --version 2>&1' % (java_exe(), mvn)).read()
   if s.find('Java version: %s' % version) == -1:
     raise RuntimeError('got wrong java version for %s %s:\n%s' % (mvn, version, s))
 
+# Returns the hash of the current git HEAD revision
 def get_head_hash():
   return os.popen('git rev-parse --verify HEAD 2>&1').read().strip()
 
+# Returns the name of the current branch
 def get_current_branch():
   return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
 
 verify_java_version('1.6') # we require to build with 1.6
 verify_mvn_java_version('1.6', MVN)
 
-def release_branch(release):
-  return 'release_branch_%s' % (release)
+# Utility that returns the name of the release branch for a given version
+def release_branch(version):
+  return 'release_branch_%s' % version
 
+# Creates a new release branch from the given source branch
+# and rebases the source branch from the remote before creating
+# the release branch. Note: This fails if the source branch
+# doesn't exist on the provided remote.
 def create_release_branch(remote, src_branch, release):
-  run('git checkout %s' % (src_branch))
+  run('git checkout %s' % src_branch)
   run('git pull --rebase %s %s' % (remote, src_branch))
   run('git checkout -b %s' % (release_branch(release)))
 
 
+# Reads the given file and applies the
+# callback to it. If the callback changed
+# a line the given file is replaced with
+# the modified input.
 def process_file(file_path, line_callback):
   fh, abs_path = tempfile.mkstemp()
+  modified = False
   with open(abs_path,'w') as new_file:
     with open(file_path) as old_file:
       for line in old_file:
-        new_file.write(line_callback(line))
+        new_line = line_callback(line)
+        modified = modified or (new_line != line)
+        new_file.write(new_line)
   os.close(fh)
-  #Remove original file
-  os.remove(file_path)
-  #Move new file
-  shutil.move(abs_path, file_path)
-  
+  if modified:
+    #Remove original file
+    os.remove(file_path)
+    #Move new file
+    shutil.move(abs_path, file_path)
+    return True
+  else:
+    # nothing to do - just remove the tmp file
+    os.remove(abs_path)
+    return False
 
+# Walks the given directory path (defaults to 'docs')
+# and replaces all 'coming[$version]' tags with
+# 'added[$version]'. This method only accesses asciidoc files.
+def update_reference_docs(release_version, path='docs'):
+  pattern = 'coming[%s' % (release_version)
+  replacement = 'added[%s' % (release_version)
+  pending_files = []
+  def callback(line):
+    return line.replace(pattern, replacement)
+  for root, _, file_names in os.walk(path):
+    for file_name in fnmatch.filter(file_names, '*.asciidoc'):
+      full_path = os.path.join(root, file_name)
+      if process_file(full_path, callback):
+        pending_files.append(os.path.join(root, file_name))
+  return pending_files
+
+# Moves the pom.xml file from a snapshot to a release
 def remove_maven_snapshot(pom, release):
   pattern = '<version>%s-SNAPSHOT</version>' % (release)
   replacement = '<version>%s</version>' % (release)
@@ -138,7 +186,7 @@ def remove_maven_snapshot(pom, release):
     return line.replace(pattern, replacement)
   process_file(pom, callback)
 
-
+# Moves the Version.java file from a snapshot to a release
 def remove_version_snapshot(version_file, release):
   # 1.0.0.Beta1 -> 1_0_0_Beat1
   release = release.replace('.', '_')
@@ -148,10 +196,12 @@ def remove_version_snapshot(version_file, release):
     return line.replace(pattern, replacement)
   process_file(version_file, callback)
 
+# Stages the given files for the next git commit
 def add_pending_files(*files):
   for file in files:
     run('git add %s' % (file))
 
+# Executes a git commit with 'release [version]' as the commit message
 def commit_release(release):
   run('git commit -m "release [%s]"' % release)
 
@@ -161,6 +211,7 @@ def tag_release(release):
 def run_mvn(*cmd):
   for c in cmd:
     run('%s; %s %s' % (java_exe(), MVN, c))
+
 def build_release(run_tests=False, dry_run=True, cpus=1):
   target = 'deploy'
   if dry_run:
@@ -170,34 +221,73 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   run_mvn('clean %s -DskipTests' %(target))
+  success = False
+  try:
+    run_mvn('-DskipTests rpm:rpm')
+    success = True
+  finally:
+    if not success:
+      print("""
+  RPM Bulding failed make sure "rpm" tools are installed.
+  Use on of the following commands to install:
+    $ brew install rpm # on OSX
+    $ apt-get install rpm # on Ubuntu et.al
+  """)
+
 
 
 def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
-  conn = HTTPConnection(host, port, timeout);
   for _ in range(timeout):
+    conn = HTTPConnection(host, port, timeout);
     try:
+      log('Waiting until node becomes available for 1 second')
       time.sleep(1)
+      log('Check if node is available')
       conn.request('GET', '')
       res = conn.getresponse()
       if res.status == 200:
         return True
-    except:
-      pass #that is ok it might not be there yet
+    except socket.error as e:
+      log("Failed while waiting for node - Exception: [%s]" % e)
+      #that is ok it might not be there yet
+    finally:
+      conn.close()
 
   return False
 
+# Checks the pom.xml for the release version.
+# This method fails if the pom file has no SNAPSHOT version set ie.
+# if the version is already on a release version we fail.
+# Returns the next version string ie. 0.90.7
 def find_release_version(src_branch):
-  run('git checkout %s' % (src_branch))
+  run('git checkout %s' % src_branch)
   with open('pom.xml') as file:
     for line in file:
       match = re.search(r'<version>(.+)-SNAPSHOT</version>', line)
       if match:
         return match.group(1)
-    raise RuntimeError('Could not find release version in branch %s' % (src_branch))
+    raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
-def get_artifacts(release, path='target/releases/'):
-  return [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+def get_artifacts(release):
+  common_artifacts = [os.path.join('target/releases/', 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  for f in common_artifacts:
+    if not os.path.isfile(f):
+      raise RuntimeError('Could not find required artifact at %s' % f)
+  rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release)
+  if os.path.isfile(rpm):
+    log('RPM [%s] contains: ' % rpm)
+    run('rpm -pqli %s' % rpm)
+    # this is an oddness of RPM that is attches -1 so we have to rename it
+    renamed_rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s.noarch.rpm' % release)
+    shutil.move(rpm, renamed_rpm)
+    common_artifacts.append(renamed_rpm)
+  else:
+    raise RuntimeError('Could not find required artifact at %s' % rpm)
+  return common_artifacts
 
+# Generates sha1 checsums for all files
+# and returns the checksum files as well
+# as the given files in a list
 def generate_checksums(files):
   res = []
   for release_file in files:
@@ -220,6 +310,7 @@ def smoke_test_release(release, files):
     elif release_file.endswith('zip'):
       run('unzip %s -d %s' % (release_file, tmp_dir)) 
     else:
+      log('Skip SmokeTest for [%s]' % release_file)
       continue # nothing to do here 
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
@@ -313,7 +404,6 @@ POM_FILE = 'pom.xml'
 print_sonartype_notice()
 
 if __name__ == '__main__':
-  release_version = "090.7"
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
   parser.add_argument('--branch', '-b', metavar='master', default=get_current_branch(),
                        help='The branch to release from. Defaults to the current branch.')
@@ -351,12 +441,14 @@ if __name__ == '__main__':
   print('  Created release branch [%s]' % (release_branch(release_version)))
   success = False
   try:
+    pending_files = [POM_FILE, VERSION_FILE]
     remove_maven_snapshot(POM_FILE, release_version)
     remove_version_snapshot(VERSION_FILE, release_version)
+    pending_files = pending_files + update_reference_docs(release_version)
     print('  Done removing snapshot version')
-    add_pending_files(VERSION_FILE, POM_FILE)
+    add_pending_files(*pending_files) # expects var args use * to expand
     commit_release(release_version)
-    print('  Committed release version [%s]' % (release_version))
+    print('  Committed release version [%s]' % release_version)
     print(''.join(['-' for _ in range(80)]))
     print('Building Release candidate')
     input('Press Enter to continue...')
@@ -379,7 +471,6 @@ if __name__ == '__main__':
       * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
          - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
       * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
-      * build and publish the RPMs
       * announce the release on the website / blog post
       * tweet about the release
     """

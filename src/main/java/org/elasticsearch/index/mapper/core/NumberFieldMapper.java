@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.hppc.DoubleOpenHashSet;
+import com.carrotsearch.hppc.LongOpenHashSet;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -36,9 +38,11 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -255,6 +259,63 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * A range filter based on the field data cache.
      */
     public abstract Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+
+    /**
+     * A terms filter based on the field data cache for numeric fields.
+     */
+    @Override
+    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+        IndexNumericFieldData fieldData = fieldDataService.getForField(this);
+        if (fieldData.getNumericType().isFloatingPoint()) {
+            // create with initial size large enough to avoid rehashing
+            DoubleOpenHashSet terms =
+                    new DoubleOpenHashSet((int) (values.size() * (1 + DoubleOpenHashSet.DEFAULT_LOAD_FACTOR)));
+            for (int i = 0, len = values.size(); i < len; i++) {
+                terms.add(parseDoubleValue(values.get(i)));
+            }
+
+            return FieldDataTermsFilter.newDoubles(fieldData, terms);
+        } else {
+            // create with initial size large enough to avoid rehashing
+            LongOpenHashSet terms =
+                    new LongOpenHashSet((int) (values.size() * (1 + LongOpenHashSet.DEFAULT_LOAD_FACTOR)));
+            for (int i = 0, len = values.size(); i < len; i++) {
+                terms.add(parseLongValue(values.get(i)));
+            }
+
+            return FieldDataTermsFilter.newLongs(fieldData, terms);
+        }
+    }
+
+    /**
+     * Converts an object value into a double
+     */
+    public double parseDoubleValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+
+        if (value instanceof BytesRef) {
+            return Double.parseDouble(((BytesRef) value).utf8ToString());
+        }
+
+        return Double.parseDouble(value.toString());
+    }
+
+    /**
+     * Converts an object value into a long
+     */
+    public long parseLongValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+
+        if (value instanceof BytesRef) {
+            return Long.parseLong(((BytesRef) value).utf8ToString());
+        }
+
+        return Long.parseLong(value.toString());
+    }
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).

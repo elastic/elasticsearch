@@ -29,6 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,7 +44,7 @@ import org.elasticsearch.search.facet.terms.TermsFacet.Entry;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -65,12 +66,12 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleFacetsTests extends AbstractIntegrationTest {
+public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     private int numRuns = -1;
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", between(1, 5))
                 .put("index.number_of_replicas", 0)
                 .build();

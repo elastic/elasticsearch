@@ -204,7 +204,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         CompressedString mappingSource = updateTask.mappingSource;
 
                         if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
-                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as it's source is equal to ours", index, updateTask.type);
+                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as its source is equal to ours", index, updateTask.type);
                             continue;
                         }
 
@@ -399,6 +399,10 @@ public class MetaDataMappingService extends AbstractComponent {
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
                         IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
                         indicesToClose.add(indexMetaData.index());
+                        // make sure to add custom default mapping if exists
+                        if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                            indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source().string(), false);
+                        }
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(request.mappingType)) {
                             indexService.mapperService().merge(request.mappingType, indexMetaData.mappings().get(request.mappingType).source().string(), false);
@@ -444,7 +448,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
                         throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                     }
-                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.Constants.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
+                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                         throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
                     }
 
@@ -516,7 +520,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     // TODO: adding one to the version is based on knowledge on how the parent class will increment the version
                     //       move this to the base class or add another callback before publishing the new cluster state so we
-                    //       capture it's version.
+                    //       capture its version.
                     countDownListener = new CountDownListener(counter, currentState.version() + 1, listener);
                     mappingCreatedAction.add(countDownListener, request.timeout);
 

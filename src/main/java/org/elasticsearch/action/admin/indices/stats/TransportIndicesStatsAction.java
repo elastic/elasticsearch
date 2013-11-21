@@ -183,13 +183,15 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.percolate()) {
             flags.set(CommonStatsFlags.Flag.Percolate);
         }
+        if (request.request.segments()) {
+            flags.set(CommonStatsFlags.Flag.Segments);
+        }
         if (request.request.completion()) {
             flags.set(CommonStatsFlags.Flag.Completion);
             flags.completionDataFields(request.request.completionFields());
         }
 
-        ShardStats stats = new ShardStats(indexShard, flags);
-        return stats;
+        return new ShardStats(indexShard, flags);
     }
 
     public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {

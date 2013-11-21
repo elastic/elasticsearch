@@ -78,6 +78,7 @@ import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.river.RiversManager;
@@ -173,6 +174,7 @@ public final class InternalNode implements Node {
         modules.add(new ShapeModule());
         modules.add(new PercolatorModule());
         modules.add(new ResourceWatcherModule());
+        modules.add(new RepositoriesModule());
 
         injector = modules.createInjector();
 

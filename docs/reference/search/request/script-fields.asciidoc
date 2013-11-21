@@ -24,7 +24,7 @@ evaluation>> (based on different fields) for each hit, for example:
 }
 --------------------------------------------------
 
-Script fields can work on fields that are not store (`my_field_name` in
+Script fields can work on fields that are not stored (`my_field_name` in
 the above case), and allow to return custom values to be returned (the
 evaluated value of the script).
 
@@ -40,7 +40,7 @@ type). Here is an example:
         },
         "script_fields" : {
             "test1" : {
-                "script" : "_source.obj1.obj2" 
+                "script" : "_source.obj1.obj2"
             }
         }
     }

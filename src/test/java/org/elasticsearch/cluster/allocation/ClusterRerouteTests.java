@@ -33,9 +33,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class ClusterRerouteTests extends AbstractIntegrationTest {
+public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
 
@@ -126,7 +126,7 @@ public class ClusterRerouteTests extends AbstractIntegrationTest {
         logger.info("--> starting 2 nodes");
         String node_1 = cluster().startNode(commonSettings);
         cluster().startNode(commonSettings);
-        assertThat(cluster().numNodes(), equalTo(2));
+        assertThat(cluster().size(), equalTo(2));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -170,7 +170,7 @@ public class ClusterRerouteTests extends AbstractIntegrationTest {
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
         client().admin().cluster().prepareReroute().get();
-        assertThat(cluster().client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))

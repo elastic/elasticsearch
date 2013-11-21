@@ -26,10 +26,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -47,11 +48,11 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SearchFieldsTests extends AbstractIntegrationTest {
-    
+public class SearchFieldsTests extends ElasticsearchIntegrationTest {
+
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", 1) // why just one?
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -62,7 +63,7 @@ public class SearchFieldsTests extends AbstractIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "no").endObject()
                 .startObject("field3").field("type", "string").field("store", "yes").endObject()
@@ -119,7 +120,7 @@ public class SearchFieldsTests extends AbstractIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num1").field("type", "double").field("store", "yes").endObject()
                 .endObject().endObject().endObject().string();
 
@@ -272,7 +273,7 @@ public class SearchFieldsTests extends AbstractIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("_source").field("enabled", false).endObject()
                 .startObject("byte_field").field("type", "byte").field("store", "yes").endObject()
                 .startObject("short_field").field("type", "short").field("store", "yes").endObject()

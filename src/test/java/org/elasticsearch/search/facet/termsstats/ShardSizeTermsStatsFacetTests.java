@@ -21,9 +21,10 @@ package org.elasticsearch.search.facet.termsstats;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.List;
@@ -32,8 +33,8 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsStatsFacet;
-import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope = Scope.SUITE)
-public class ShardSizeTermsStatsFacetTests extends AbstractIntegrationTest {
+public class ShardSizeTermsStatsFacetTests extends ElasticsearchIntegrationTest {
 
     /**
      * to properly test the effect/functionality of shard_size, we need to force having 2 shards and also
@@ -51,7 +52,7 @@ public class ShardSizeTermsStatsFacetTests extends AbstractIntegrationTest {
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return randomSettingsBuilder()
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .put("cluster.routing.operation.hash.type", "djb")

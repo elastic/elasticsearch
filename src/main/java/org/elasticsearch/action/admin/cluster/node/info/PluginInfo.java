@@ -56,7 +56,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
     }
 
     /**
-     * @return true is it's a site plugin
+     * @return true if it's a site plugin
      */
     public boolean isSite() {
         return site;

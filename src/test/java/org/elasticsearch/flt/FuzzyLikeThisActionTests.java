@@ -21,7 +21,7 @@ package org.elasticsearch.flt;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class FuzzyLikeThisActionTests extends AbstractIntegrationTest {
+public class FuzzyLikeThisActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252

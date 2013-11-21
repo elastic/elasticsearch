@@ -1,0 +1,27 @@
+[[cat-master]]
+== Master
+
+`master` doesn't have any extra options. It simply displays the
+master's node ID, bound IP address, and node name.
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/master?v=true'
+id                     ip            node
+Ntgn2DcuTjGuXlhKDUD4vA 192.168.56.30 Solarr
+--------------------------------------------------
+
+This information is also available via the `nodes` command, but this
+is slightly shorter when all you want to do, for example, is verify
+all nodes agree on the master:
+
+[source,shell]
+--------------------------------------------------
+% pssh -i -h list.of.cluster.hosts curl -s localhost:9200/_cat/master
+[1] 19:16:37 [SUCCESS] es3.vm
+Ntgn2DcuTjGuXlhKDUD4vA 192.168.56.30 Solarr
+[2] 19:16:37 [SUCCESS] es2.vm
+Ntgn2DcuTjGuXlhKDUD4vA 192.168.56.30 Solarr
+[3] 19:16:37 [SUCCESS] es1.vm
+Ntgn2DcuTjGuXlhKDUD4vA 192.168.56.30 Solarr
+--------------------------------------------------

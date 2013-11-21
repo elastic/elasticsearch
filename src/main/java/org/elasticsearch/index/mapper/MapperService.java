@@ -81,7 +81,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String percolatorMappingSource;
+    private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -151,7 +151,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
 
-        String percolatorMappingLocation = componentSettings.get("percolator_mapping_location");
+        String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
         URL percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {
@@ -161,19 +161,20 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 try {
                     percolatorMappingUrl = new File(percolatorMappingLocation).toURI().toURL();
                 } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve percolator mapping location [" + defaultMappingLocation + "]");
+                    throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
                 }
             }
         }
         if (percolatorMappingUrl != null) {
             try {
-                percolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
+                defaultPercolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
             }
         } else {
-            percolatorMappingSource = "{\n" +
-                    "    \"_percolator\":{\n" +
+            defaultPercolatorMappingSource = "{\n" +
+                    //"    \"" + PercolatorService.TYPE_NAME + "\":{\n" +
+                    "    \"" + "_default_" + "\":{\n" +
                     "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
@@ -188,7 +189,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}], default percolator mapping: location[{}], loaded_from[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, percolatorMappingLocation, percolatorMappingUrl);
         } else if (logger.isTraceEnabled()) {
-            logger.trace("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, percolatorMappingSource);
+            logger.trace("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, defaultPercolatorMappingSource);
         }
     }
 
@@ -246,7 +247,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (mapper.type().charAt(0) == '_' && !PercolatorService.Constants.TYPE_NAME.equals(mapper.type())) {
+            if (mapper.type().charAt(0) == '_' && !PercolatorService.TYPE_NAME.equals(mapper.type())) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }
             if (mapper.type().contains("#")) {
@@ -363,8 +364,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
-        if (PercolatorService.Constants.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = percolatorMappingSource;
+        if (PercolatorService.TYPE_NAME.equals(mappingType)) {
+            defaultMappingSource = this.defaultPercolatorMappingSource;
         } else {
             defaultMappingSource = this.defaultMappingSource;
         }
@@ -407,10 +408,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     @Nullable
     public Filter searchFilter(String... types) {
-        boolean filterPercolateType = hasMapping(PercolatorService.Constants.TYPE_NAME);
+        boolean filterPercolateType = hasMapping(PercolatorService.TYPE_NAME);
         if (types != null && filterPercolateType) {
             for (String type : types) {
-                if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
+                if (PercolatorService.TYPE_NAME.equals(type)) {
                     filterPercolateType = false;
                     break;
                 }
@@ -418,7 +419,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
         Filter excludePercolatorType = null;
         if (filterPercolateType) {
-            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.Constants.TYPE_NAME).typeFilter());
+            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.TYPE_NAME).typeFilter());
         }
 
         if (types == null || types.length == 0) {

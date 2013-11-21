@@ -12,7 +12,7 @@ The `_type` field can be stored as well, for example:
 --------------------------------------------------
 {
     "tweet" : {
-        "_type" : {"store" : "yes"}
+        "_type" : {"store" : true}
     }
 }
 --------------------------------------------------

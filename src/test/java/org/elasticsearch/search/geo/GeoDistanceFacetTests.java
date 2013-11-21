@@ -24,7 +24,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacet;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class GeoDistanceFacetTests extends AbstractIntegrationTest {
+public class GeoDistanceFacetTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleGeoFacetTests() throws Exception {

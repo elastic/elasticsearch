@@ -133,14 +133,16 @@ public class Version implements Serializable {
     public static final int V_0_90_5_ID = /*00*/900599;
     public static final Version V_0_90_5 = new Version(V_0_90_5_ID, false, org.apache.lucene.util.Version.LUCENE_44);
     public static final int V_0_90_6_ID = /*00*/900699;
-    public static final Version V_0_90_6 = new Version(V_0_90_6_ID, false, org.apache.lucene.util.Version.LUCENE_44);
+    public static final Version V_0_90_6 = new Version(V_0_90_6_ID, false, org.apache.lucene.util.Version.LUCENE_45);
     public static final int V_0_90_7_ID = /*00*/900799;
     public static final Version V_0_90_7 = new Version(V_0_90_7_ID, false, org.apache.lucene.util.Version.LUCENE_45);
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
-    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, true, org.apache.lucene.util.Version.LUCENE_45);
+    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_45);
+    public static final int V_1_0_0_Beta2_ID = /*00*/1000002;
+    public static final Version V_1_0_0_Beta2 = new Version(V_1_0_0_Beta2_ID, true, org.apache.lucene.util.Version.LUCENE_45);
 
-    public static final Version CURRENT = V_1_0_0_Beta1;
+    public static final Version CURRENT = V_1_0_0_Beta2;
 
     static {
         assert CURRENT.luceneVersion == Lucene.VERSION : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -152,10 +154,10 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_0_0_Beta2_ID:
+                return V_1_0_0_Beta2;
             case V_1_0_0_Beta1_ID:
                 return V_1_0_0_Beta1;
-            case V_0_90_7_ID:
-                return V_0_90_7;
             case V_0_90_6_ID:
                 return V_0_90_6;
             case V_0_90_5_ID:
@@ -334,12 +336,18 @@ public class Version implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Version version = (Version) o;
 
-        if (id != version.id) return false;
+        if (id != version.id) {
+            return false;
+        }
 
         return true;
     }

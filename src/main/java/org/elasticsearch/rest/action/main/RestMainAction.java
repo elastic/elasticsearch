@@ -72,7 +72,13 @@ public class RestMainAction extends BaseRestHandler {
                 }
 
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+
+                    // Default to pretty printing, but allow ?pretty=false to disable
+                    if (!request.hasParam("pretty")) {
+                        builder.prettyPrint();
+                    }
+
                     builder.startObject();
                     builder.field("ok", true);
                     builder.field("status", status.getStatus());

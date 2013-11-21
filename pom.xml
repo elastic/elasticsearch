@@ -35,6 +35,11 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.jvm.option1></tests.jvm.option1>
+        <tests.jvm.option2></tests.jvm.option2>
+        <tests.jvm.option3></tests.jvm.option3>
+        <tests.jvm.option4></tests.jvm.option4>
+
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -366,6 +371,10 @@
                                 <exclude>**/*StressTest.class</exclude>
                             </excludes>
                             <jvmArgs>
+                                <param>${tests.jvm.option1}</param>
+                                <param>${tests.jvm.option2}</param>
+                                <param>${tests.jvm.option3}</param>
+                                <param>${tests.jvm.option4}</param>
                                 <param>-Xmx512m</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>

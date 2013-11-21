@@ -102,6 +102,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
     @AfterClass
     public static void after() throws IOException {
         SearchContext.removeCurrent();
+        contextIndexSearcher = null;
     }
 
     @Test

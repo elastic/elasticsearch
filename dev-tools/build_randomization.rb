@@ -51,16 +51,26 @@ end
 # given a jdk directory selection, generate revelant environment variables
 def get_env_matrix(data_array)
   
+  #refactoring target
+  es_test_jvm_option1 = get_random_one(['-client', '-server'])
+  es_test_jvm_option2 = get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC', 
+                                        '-XX:+UseG1GC'])
+  es_test_jvm_option3 = get_random_one(['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'])
   es_node_mode =  get_random_one(['local', 'network'])
   tests_nightly = get_random_one([true, false])
 
+  #build_desc = "%s,%s,%s%s %s %s"%[File.basename(x), es_node_mode, tests_nightly, es_test_jvm_option1, es_test_jvm_option2, es_test_jvm_option3]
   [*data_array].map do |x|
     {
       'PATH' => File.join(x,'bin') + ':' + ENV['PATH'],
       'JAVA_HOME' => x,
-      'BUILD_DESC' => "%s,%s,nightly=%s"%[File.basename(x), es_node_mode, tests_nightly],
+      'BUILD_DESC' => "%s,%s,%s%s,%s %s"%[File.basename(x), es_node_mode, tests_nightly ? 'nightly,':'',
+                                            es_test_jvm_option1[1..-1], es_test_jvm_option2[4..-1], es_test_jvm_option3[4..-1]],
       'es.node.mode' => es_node_mode,
-      'tests.nightly' => tests_nightly
+      'tests.nightly' => tests_nightly,
+      'ES_TESTS_JVM_OPTION1' => es_test_jvm_option1,
+      'ES_TESTS_JVM_OPTION2' => es_test_jvm_option2,
+      'ES_TESTS_JVM_OPTION3' => es_test_jvm_option3,
     }
   end
 end

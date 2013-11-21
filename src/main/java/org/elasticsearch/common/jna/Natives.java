@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.jna;
 
-import java.util.Locale;
-
 import com.sun.jna.Native;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+
+import java.util.Locale;
 
 /**
  *
@@ -31,13 +31,17 @@ import org.elasticsearch.common.logging.Loggers;
 public class Natives {
 
     private static ESLogger logger = Loggers.getLogger(Natives.class);
+    public static boolean LOCAL_MLOCKALL_CONFIGURED = false;
 
     public static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
         try {
             int result = CLibrary.mlockall(CLibrary.MCL_CURRENT);
-            if (result != 0)
+            if (result != 0) {
                 errno = Native.getLastError();
+            } else {
+                LOCAL_MLOCKALL_CONFIGURED = true;
+            }
         } catch (UnsatisfiedLinkError e) {
             // this will have already been logged by CLibrary, no need to repeat it
             return;

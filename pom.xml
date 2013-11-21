@@ -35,10 +35,10 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
-        <tests.jvm.option1></tests.jvm.option1>
-        <tests.jvm.option2></tests.jvm.option2>
-        <tests.jvm.option3></tests.jvm.option3>
-        <tests.jvm.option4></tests.jvm.option4>
+        <tests.jvm.option1>${env.ES_TESTS_JVM_OPTION1}</tests.jvm.option1>
+        <tests.jvm.option2>${env.ES_TESTS_JVM_OPTION2}</tests.jvm.option2>
+        <tests.jvm.option3>${env.ES_TESTS_JVM_OPTION3}</tests.jvm.option3>
+        <tests.jvm.option4>${env.ES_TESTS_JVM_OPTION4}</tests.jvm.option4>
 
         <es.logger.level>INFO</es.logger.level>
     </properties>

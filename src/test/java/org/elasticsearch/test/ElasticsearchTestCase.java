@@ -99,9 +99,9 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     
     public static void ensureAllFilesClosed() throws IOException {
         try {
-            for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+            for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 if (w.isOpen()) {
-                    w.close();
+                    w.closeWithRuntimeException();
                 }
             }
         } finally {

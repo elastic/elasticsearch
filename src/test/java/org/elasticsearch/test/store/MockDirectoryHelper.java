@@ -38,6 +38,7 @@ import org.elasticsearch.index.store.memory.ByteBufferDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.io.IOException;
 import java.util.Random;
 import java.util.Set;
 
@@ -48,7 +49,9 @@ public class MockDirectoryHelper {
     public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
     public static final String RANDOM_PREVENT_DOUBLE_WRITE = "index.store.mock.random.prevent_double_write";
     public static final String RANDOM_NO_DELETE_OPEN_FILE = "index.store.mock.random.no_delete_open_file";
-    public static final Set<MockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
+    public static final String RANDOM_FAIL_ON_CLOSE= "index.store.mock.random.fail_on_close";
+
+    public static final Set<ElasticsearchMockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
     
     private final Random random;
     private final double randomIOExceptionRate;
@@ -59,6 +62,8 @@ public class MockDirectoryHelper {
     private final ShardId shardId;
     private final boolean preventDoubleWrite;
     private final boolean noDeleteOpenFile;
+    private final ESLogger logger;
+    private final boolean failOnClose;
 
     public MockDirectoryHelper(ShardId shardId, Settings indexSettings, ESLogger logger) {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.INDEX_SEED_SETTING, 0l);
@@ -70,16 +75,19 @@ public class MockDirectoryHelper {
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = Throttling.valueOf(indexSettings.get(RANDOM_THROTTLE, random.nextDouble() < 0.1 ? "SOMETIMES" : "NEVER"));
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        failOnClose = indexSettings.getAsBoolean(RANDOM_FAIL_ON_CLOSE, false);
+
         if (logger.isDebugEnabled()) {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] checkIndexOnClose: [{}]", SeedUtils.formatSeed(seed),
                     throttle, checkIndexOnClose);
         }
         this.indexSettings = indexSettings;
         this.shardId = shardId;
+        this.logger = logger;
     }
 
     public Directory wrap(Directory dir) {
-        final MockDirectoryWrapper w = new MockDirectoryWrapper(random, dir);
+        final ElasticsearchMockDirectoryWrapper w = new ElasticsearchMockDirectoryWrapper(random, dir, logger, failOnClose);
         w.setRandomIOExceptionRate(randomIOExceptionRate);
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
@@ -127,6 +135,37 @@ public class MockDirectoryHelper {
             return new ByteBufferDirectoryService(shardId, indexSettings, byteBufferCache);
         }
 
+    }
+
+    public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
+
+        private final ESLogger logger;
+        private final boolean failOnClose;
+
+        public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, ESLogger logger, boolean failOnClose) {
+            super(random, delegate);
+            this.logger = logger;
+            this.failOnClose = failOnClose;
+        }
+
+        @Override
+        public  void close() throws IOException {
+            try {
+                super.close();
+            } catch (RuntimeException ex) {
+                if (failOnClose) {
+                    throw ex;
+                }
+                // we catch the exception on close to properly close shards even if there are open files
+                // the test framework will call closeWithRuntimeException after the test exits to fail
+                // on unclosed files.
+                logger.debug("MockDirectoryWrapper#close() threw exception", ex);
+            }
+        }
+
+        public void closeWithRuntimeException() throws IOException {
+            super.close(); // force fail if open files etc. called in tear down of ElasticsearchIntegrationTest
+        }
     }
 
 }

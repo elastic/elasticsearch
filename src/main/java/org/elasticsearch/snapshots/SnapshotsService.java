@@ -901,7 +901,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                 ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                 if (primary == null || !primary.assignedToNode()) {
                     //TODO: Should we bailout completely or just mark this shard as failed?
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.FAILED, "primary shard is not allocated"));
+                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.FAILED, "primary shard is not allocated"));
                 } else if (!primary.started()) {
                     builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.FAILED, "primary shard hasn't been started yet"));
                 } else {

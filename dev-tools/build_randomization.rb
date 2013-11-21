@@ -40,16 +40,27 @@ class JDKSelector
   def select_one(selection_array = nil)
     selection_array ||= @jdk_list
     selection_array[rand(selection_array.size)]
+    get_random_one(selection_array)
   end
+end
+
+def get_random_one(data_array)
+  data_array[rand(data_array.size)]
 end
 
 # given a jdk directory selection, generate revelant environment variables
 def get_env_matrix(data_array)
+  
+  es_node_mode =  get_random_one(['local', 'network'])
+  tests_nightly = get_random_one([true, false])
+
   [*data_array].map do |x|
     {
       'PATH' => File.join(x,'bin') + ':' + ENV['PATH'],
       'JAVA_HOME' => x,
-      'BUILD_DESC' => File.basename(x)
+      'BUILD_DESC' => "%s,%s,nightly=%s"%[File.basename(x), es_node_mode, tests_nightly],
+      'es.node.mode' => es_node_mode,
+      'tests.nightly' => tests_nightly
     }
   end
 end
@@ -60,7 +71,7 @@ def generate_property_file(directory, data)
   content = data.first.map do |key, value|
     "%s=%s"%[key, value]
   end
-  file_name = (ENV['BUILD_ID'] + ENV['BUILD_NUMBER']) || 'prop'
+  file_name = (ENV['BUILD_ID'] + ENV['BUILD_NUMBER']) || 'prop' rescue 'prop'
   file_name = file_name.split(File::SEPARATOR).first + '.txt'
   File.open(File.join(directory, file_name), 'w') do |file| 
               file.write(content.join("\n")) 

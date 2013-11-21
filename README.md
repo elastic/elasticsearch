@@ -17,7 +17,9 @@ You will need node.js+npm and grunt. Node is available via brew, install grunt w
 
 ```grunt server```
 
-Starts a web server on http://127.0.0.1:5601 pointing at the kibana directory, while also serving custom marvel panels
+Starts a web server on http://127.0.0.1:5601 pointing at the kibana directory, while also serving custom marvel panels.
+
+You can use `grunt server --port=5601 --es_host=9200` to control the ports used for kibana and the elasticsearch port used.
 
 ```grunt jshint```
 

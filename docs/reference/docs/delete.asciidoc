@@ -123,7 +123,7 @@ and verification that this does not cause a heavy load on the system
 (and slows down indexing).
 
 [float]
-[[timeout]]
+[[delete-timeout]]
 === Timeout
 
 The primary shard assigned to perform the delete operation might not be

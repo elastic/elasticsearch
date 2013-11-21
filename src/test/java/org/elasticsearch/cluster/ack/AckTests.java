@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -67,13 +66,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testUpdateSettingsAcknowledgement() {
         createIndex("test");
 
-        UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
-        assertThat(updateSettingsResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)));
 
         for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
-            String refreshInterval = clusterStateResponse.getState().metaData().index("test").settings().get("index.refresh_interval");
+            String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
             assertThat(refreshInterval, equalTo("9999"));
         }
     }
@@ -92,10 +89,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
 
         for (Client client : clients()) {
             ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
@@ -123,13 +118,10 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
 
-        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer").get();
-        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer"));
 
         for (Client client : clients()) {
             ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
@@ -162,8 +154,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         MappingMetaData mapping = clusterStateResponse.getState().metaData().index("test").mapping("type1");
         assertThat(mapping, notNullValue());
 
-        DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setType("type1").get();
-        assertThat(deleteMappingResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareDeleteMapping("test").setType("type1"));
 
         for (Client client : clients()) {
             clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
@@ -195,12 +186,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
 
-        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().add(moveAllocationCommand).get();
-        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().cluster().prepareReroute().add(moveAllocationCommand));
 
         for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
-            RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
+            ClusterState clusterState = getLocalClusterState(client);
+            RoutingNode routingNode = clusterState.routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
             for (MutableShardRouting mutableShardRouting : routingNode) {
                 //if the shard that we wanted to move is still on the same node, it must be relocating
                 if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
@@ -209,7 +199,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
             }
 
-            routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
+            routingNode = clusterState.routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
             boolean found = false;
             for (MutableShardRouting mutableShardRouting : routingNode) {
                 if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
@@ -248,8 +238,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
 
-        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setDryRun(true).add(moveAllocationCommand).get();
-        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().cluster().prepareReroute().setDryRun(true).add(moveAllocationCommand));
 
         //testing only on master with the latest cluster state as we didn't make any change thus we cannot guarantee that
         //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
@@ -337,11 +326,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
-        assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(true));
+        assertAcked(clusterUpdateSettingsResponse);
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
 
         for (Client client : clients()) {
-            ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+            ClusterState clusterState = getLocalClusterState(client);
             assertThat(clusterState.routingNodes().metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
@@ -403,8 +392,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
             assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
 
             for (Client client : clients()) {
-                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                AliasMetaData aliasMetaData = clusterState.metaData().aliases().get("alias").get("test");
+                AliasMetaData aliasMetaData = getLocalClusterState(client).metaData().aliases().get("alias").get("test");
                 assertThat(aliasMetaData.alias(), equalTo("alias"));
             }
         }
@@ -422,12 +410,10 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareClose("test"));
 
         for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
-            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
             assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.CLOSE));
         }
     }
@@ -446,15 +432,12 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareClose("test"));
 
-        OpenIndexResponse openIndexResponse= client().admin().indices().prepareOpen("test").execute().actionGet();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().prepareOpen("test"));
 
         for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
-            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
             assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.OPEN));
         }
     }
@@ -469,5 +452,9 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    private static ClusterState getLocalClusterState(Client client) {
+        return client.admin().cluster().prepareState().setLocal(true).get().getState();
     }
 }

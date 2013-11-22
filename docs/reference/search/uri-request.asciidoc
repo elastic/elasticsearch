@@ -62,7 +62,11 @@ query.
 |`explain` |For each hit, contain an explanation of how scoring of the
 hits was computed.
 
-|`fields` |The selective fields of the document to return for each hit
+|`_source`| Set to `false` to disable retrieval of the `_source` field. You can also retrieve
+part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
+documentation for more details)
+
+|`fields` |The selective stored fields of the document to return for each hit
 (either retrieved from the index if stored, or from the `_source` if
 not), comma delimited. Defaults to the internal `_source` field. Not
 specifying any value will cause no fields to return.

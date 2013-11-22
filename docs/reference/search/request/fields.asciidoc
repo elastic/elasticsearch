@@ -1,7 +1,7 @@
 [[search-request-fields]]
 === Fields
 
-Allows to selectively load specific fields for each document represented
+Allows to selectively load specific stored fields for each document represented
 by a search hit. Defaults to load the internal `_source` field.
 
 [source,js]
@@ -39,6 +39,9 @@ things like `_source.obj1.obj2` can be used, though not recommended, as
 
 [[partial]]
 ==== Partial
+
+deprecated[1.0.0Beta1,Replaced by <<search-request-source-filtering>>]
+
 
 When loading data from `_source`, partial fields can be used to use
 wildcards to control what part of the `_source` will be loaded based on

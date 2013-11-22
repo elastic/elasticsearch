@@ -50,8 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
@@ -100,6 +99,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -131,6 +131,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
         cluster().rollingRestart();
@@ -158,6 +159,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(percolate, 0l);
         assertThat(percolate.getMatches(), emptyArray());
 
         logger.info("--> register a query");
@@ -177,6 +179,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .field("field1", "value1")
                         .endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
@@ -220,6 +223,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 95).endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 6l);
         assertThat(response.getMatches(), arrayWithSize(6));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
@@ -233,6 +237,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(response.getMatches()[0].getId().string(), equalTo("100"));
     }

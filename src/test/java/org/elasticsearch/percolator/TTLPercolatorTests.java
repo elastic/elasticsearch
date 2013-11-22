@@ -14,6 +14,7 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -123,7 +124,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject()
                 ).execute().actionGet();
-        assertNoFailures(percolateResponse);
+        assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), emptyArray());
     }
 

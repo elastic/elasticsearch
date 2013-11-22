@@ -579,8 +579,8 @@ custom doc values formats. See
 ==== Similarity
 
 Elasticsearch allows you to configure a similarity (scoring algorithm) per field.
-Allowing users a simpler extension beyond the usual TF/IDF algorithm. As
-part of this, new algorithms have been added including BM25. Also as
+This allows users a simpler extension beyond the usual TF/IDF algorithm. As
+part of this, new algorithms have been added, including BM25. Also as
 part of the changes, it is now possible to define a Similarity per
 field, giving even greater control over scoring.
 

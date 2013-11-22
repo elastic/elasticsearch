@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -159,6 +160,13 @@ public class ElasticsearchAssertions {
             fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
+    }
+
+    public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
+        if (percolateResponse.getCount() != expectedHitCount) {
+            fail("Count is " + percolateResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(percolateResponse));
+        }
+        assertVersionSerializable(percolateResponse);
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {

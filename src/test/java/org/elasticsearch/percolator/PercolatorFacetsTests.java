@@ -31,6 +31,7 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -85,7 +86,7 @@ public class PercolatorFacetsTests extends ElasticsearchIntegrationTest {
             }
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
-            assertThat(response.getCount(), equalTo((long) expectedCount[i % numUniqueQueries]));
+            assertMatchCount(response, expectedCount[i % numUniqueQueries]);
             if (!countOnly) {
                 assertThat(response.getMatches(), arrayWithSize(expectedCount[i % numUniqueQueries]));
             }

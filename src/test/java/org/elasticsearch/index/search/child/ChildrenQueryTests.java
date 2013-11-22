@@ -18,18 +18,16 @@
 
 package org.elasticsearch.index.search.child;
 
+import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -43,15 +41,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.assertBitSet;
 import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.createSearchContext;
+import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
-public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
+public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
     @BeforeClass
     public static void before() throws IOException {
@@ -67,23 +65,21 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        int numUniqueParentValues = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
-        String[] parentValues = new String[numUniqueParentValues];
-        for (int i = 0; i < numUniqueParentValues; i++) {
-            parentValues[i] = Integer.toString(i);
+        int numUniqueChildValues = 1 + random().nextInt(TEST_NIGHTLY ? 6000 : 600);
+        String[] childValues = new String[numUniqueChildValues];
+        for (int i = 0; i < numUniqueChildValues; i++) {
+            childValues[i] = Integer.toString(i);
         }
 
         int childDocId = 0;
-        int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 10000 : 1000);
-        ObjectObjectOpenHashMap<String, NavigableSet<String>> parentValueToChildDocIds = new ObjectObjectOpenHashMap<String, NavigableSet<String>>();
+        int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
+        ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
-            String parentValue = parentValues[random().nextInt(parentValues.length)];
             String parent = Integer.toString(parentDocId);
             Document document = new Document();
-            document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.NO));
+            document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.YES));
             document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
-            document.add(new StringField("field1", parentValue, Field.Store.NO));
             if (markParentAsDeleted) {
                 document.add(new StringField("delete", "me", Field.Store.NO));
             }
@@ -92,26 +88,31 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
             int numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
             for (int i = 0; i < numChildDocs; i++) {
                 boolean markChildAsDeleted = rarely();
-                String child = Integer.toString(childDocId++);
+                String childValue = childValues[random().nextInt(childValues.length)];
 
                 document = new Document();
-                document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("child", child), Field.Store.YES));
+                document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("child", Integer.toString(childDocId)), Field.Store.NO));
                 document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
                 document.add(new StringField(ParentFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.NO));
+                document.add(new StringField("field1", childValue, Field.Store.NO));
                 if (markChildAsDeleted) {
                     document.add(new StringField("delete", "me", Field.Store.NO));
                 }
                 indexWriter.addDocument(document);
 
                 if (!markChildAsDeleted) {
-                    NavigableSet<String> childIds;
-                    if (parentValueToChildDocIds.containsKey(parentValue)) {
-                        childIds = parentValueToChildDocIds.lget();
+                    NavigableMap<String, FloatArrayList> parentIdToChildScores;
+                    if (childValueToParentIds.containsKey(childValue)) {
+                        parentIdToChildScores = childValueToParentIds.lget();
                     } else {
-                        parentValueToChildDocIds.put(parentValue, childIds = new TreeSet<String>());
+                        childValueToParentIds.put(childValue, parentIdToChildScores = new TreeMap<String, FloatArrayList>());
                     }
                     if (!markParentAsDeleted) {
-                        childIds.add(child);
+                        FloatArrayList childScores = parentIdToChildScores.get(parent);
+                        if (childScores == null) {
+                            parentIdToChildScores.put(parent, childScores = new FloatArrayList());
+                        }
+                        childScores.add(1f);
                     }
                 }
             }
@@ -124,43 +125,40 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
-                ParentConstantScoreQuery.class.getSimpleName(), searcher
+                ChildrenQueryTests.class.getSimpleName(), searcher
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
-        TermFilter childrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
-        for (String parentValue : parentValues) {
-            TermQuery parentQuery = new TermQuery(new Term("field1", parentValue));
-            Query query;
-            boolean applyAcceptedDocs = random().nextBoolean();
-            if (applyAcceptedDocs) {
-                // Usage in HasParentQueryParser
-                query = new ParentConstantScoreQuery(parentQuery, "parent", childrenFilter, applyAcceptedDocs);
-            } else {
-                // Usage in HasParentFilterParser
-                query = new XConstantScoreQuery(
-                        new CustomQueryWrappingFilter(
-                                new ParentConstantScoreQuery(parentQuery, "parent", childrenFilter, applyAcceptedDocs)
-                        )
-                );
-            }
+        TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        for (String childValue : childValues) {
+            Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
+            int shortCircuitParentDocSet = random().nextInt(numParentDocs);
+            ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
+            Query query = new ChildrenQuery("parent", "child", parentFilter, childQuery, scoreType, shortCircuitParentDocSet);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
-            searcher.search(query, collector);
+            int numHits = 1 + random().nextInt(25);
+            TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            searcher.search(query, MultiCollector.wrap(collector, actualTopDocsCollector));
             FixedBitSet actualResult = collector.getResult();
 
             FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
-            if (parentValueToChildDocIds.containsKey(parentValue)) {
+            MockScorer mockScorer = new MockScorer(scoreType);
+            TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
+            expectedTopDocsCollector.setScorer(mockScorer);
+            if (childValueToParentIds.containsKey(childValue)) {
                 AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(indexReader);
                 Terms terms = slowAtomicReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
-                    NavigableSet<String> childIds = parentValueToChildDocIds.lget();
+                    NavigableMap<String, FloatArrayList> parentIdToChildScores = childValueToParentIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
                     DocsEnum docsEnum = null;
-                    for (String id : childIds) {
-                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", id));
+                    for (Map.Entry<String, FloatArrayList> entry : parentIdToChildScores.entrySet()) {
+                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("parent", entry.getKey()));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
                             docsEnum = termsEnum.docs(slowAtomicReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                             expectedResult.set(docsEnum.nextDoc());
+                            mockScorer.scores = entry.getValue();
+                            expectedTopDocsCollector.collect(docsEnum.docID());
                         } else if (seekStatus == TermsEnum.SeekStatus.END) {
                             break;
                         }
@@ -169,10 +167,23 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
             }
 
             assertBitSet(actualResult, expectedResult, searcher);
+            assertTopDocs(actualTopDocsCollector.topDocs(), expectedTopDocsCollector.topDocs());
         }
 
         indexReader.close();
         directory.close();
+    }
+
+    static void assertTopDocs(TopDocs actual, TopDocs expected) {
+        assertThat("actual.totalHits != expected.totalHits", actual.totalHits, equalTo(expected.totalHits));
+        assertThat("actual.getMaxScore() != expected.getMaxScore()", actual.getMaxScore(), equalTo(expected.getMaxScore()));
+        assertThat("actual.scoreDocs.length != expected.scoreDocs.length", actual.scoreDocs.length, equalTo(actual.scoreDocs.length));
+        for (int i = 0; i < actual.scoreDocs.length; i++) {
+            ScoreDoc actualHit = actual.scoreDocs[i];
+            ScoreDoc expectedHit = expected.scoreDocs[i];
+            assertThat("actualHit.doc != expectedHit.doc", actualHit.doc, equalTo(expectedHit.doc));
+            assertThat("actualHit.score != expectedHit.score", actualHit.score, equalTo(expectedHit.score));
+        }
     }
 
 }

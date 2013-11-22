@@ -2,6 +2,7 @@ package org.elasticsearch.document;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -18,8 +19,7 @@ import org.junit.Test;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -334,6 +334,42 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }
+    }
+
+    @Test
+    public void testBulkIndexingWhileInitializing() throws Exception {
+
+        int shards = 1 + randomInt(10);
+        int replica = randomInt(2);
+
+        cluster().ensureAtLeastNumNodes(1 + replica);
+
+
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", shards)
+                                .put("index.number_of_replicas", replica)
+                ).execute().actionGet();
+
+        int numDocs = 5000;
+        int bulk = 50;
+        for (int i = 0; i < numDocs; ) {
+            BulkRequestBuilder builder = client().prepareBulk();
+            for (int j = 0; j < bulk; j++, i++) {
+                builder.add(client().prepareIndex("test", "type1", Integer.toString(i)).setSource("val", i));
+            }
+            logger.info("bulk indexing {}-{}", i - bulk, i - 1);
+            BulkResponse response = builder.get();
+            if (response.hasFailures()) {
+                fail(response.buildFailureMessage());
+            }
+        }
+
+        refresh();
+
+        CountResponse countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
     }
 
     /*

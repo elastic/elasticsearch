@@ -67,6 +67,7 @@ class TestSearchContext extends SearchContext {
     final IndexService indexService;
 
     ContextIndexSearcher searcher;
+    int size;
 
     TestSearchContext(CacheRecycler cacheRecycler, IdCache idCache, IndexService indexService) {
         this.cacheRecycler = cacheRecycler;
@@ -390,8 +391,13 @@ class TestSearchContext extends SearchContext {
 
     @Override
     public int size() {
-        return 0;
+        return size;
     }
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
 
     @Override
     public SearchContext size(int size) {

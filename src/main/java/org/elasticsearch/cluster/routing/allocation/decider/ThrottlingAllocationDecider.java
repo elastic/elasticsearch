@@ -82,7 +82,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 List<MutableShardRouting> shards = node.shards();
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
-                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary()) {
+                    // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
+                    // we only count initial recoveries here, so we need to make sure that relocating node is null
+                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
                         primariesInRecovery++;
                     }
                 }

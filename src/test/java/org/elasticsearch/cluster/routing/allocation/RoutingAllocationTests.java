@@ -20,13 +20,20 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 
+import java.util.List;
 import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 @Ignore("Not a test")
 public class RoutingAllocationTests extends ElasticsearchTestCase {
@@ -42,4 +49,14 @@ public class RoutingAllocationTests extends ElasticsearchTestCase {
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
     }
+
+    public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
+        List<MutableShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
+        if (initializingShards.isEmpty()) {
+            return clusterState;
+        }
+        RoutingTable routingTable = strategy.applyStartedShards(clusterState, newArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
+        return ClusterState.builder(clusterState).routingTable(routingTable).build();
+    }
+
 }

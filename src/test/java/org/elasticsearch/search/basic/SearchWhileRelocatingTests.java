@@ -57,7 +57,8 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
     private void testSearchAndRelocateConcurrently(int numberOfReplicas) throws Exception {
         final int numShards = between(10, 20);
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas)
+                .put("index.store.type", "niofs"))
                 .addMapping("type1", "loc", "type=geo_point", "test", "type=string").execute().actionGet();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();

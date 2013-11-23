@@ -417,6 +417,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public FetchSearchResult executeFetchPhase(FetchSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
+        boolean contextFreed = false;
         try {
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
             context.indexShard().searchService().onPreFetchPhase(context);
@@ -424,6 +425,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             fetchPhase.execute(context);
             if (context.scroll() == null) {
                 freeContext(request.id());
+                contextFreed = true;
             } else {
                 contextProcessedSuccessfully(context);
             }
@@ -432,7 +434,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
-            freeContext(context);
+            if (!contextFreed) {
+                freeContext(context);
+            }
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);

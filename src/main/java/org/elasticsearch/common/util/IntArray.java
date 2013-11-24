@@ -22,7 +22,7 @@ package org.elasticsearch.common.util;
 /**
  * Abstraction of an array of integer values.
  */
-public interface IntArray {
+public interface IntArray extends BigArray {
 
     /**
      * Get an element given its index.
@@ -30,14 +30,13 @@ public interface IntArray {
     public abstract int get(long index);
 
     /**
-     * Set a value at the given index.
+     * Set a value at the given index and return the previous value.
      */
-    public abstract void set(long index, int value);
+    public abstract int set(long index, int value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.
      */
     public abstract int increment(long index, int inc);
 
-    void clear(int sentinal);
 }

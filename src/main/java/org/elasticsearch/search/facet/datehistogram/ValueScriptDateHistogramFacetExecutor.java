@@ -23,8 +23,8 @@ import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
@@ -124,7 +124,7 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
         @Override
         public void onValue(int docId, long value) {
             valueScript.setNextDocId(docId);
-            long time = tzRounding.calc(value);
+            long time = tzRounding.round(value);
             double scriptValue = valueScript.runAsDouble();
 
             InternalFullDateHistogramFacet.FullEntry entry = entries.get(time);

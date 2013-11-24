@@ -53,6 +53,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -145,6 +146,8 @@ public class DefaultSearchContext extends SearchContext {
     private int docsIdsToLoadFrom;
 
     private int docsIdsToLoadSize;
+
+    private SearchContextAggregations aggregations;
 
     private SearchContextFacets facets;
 
@@ -294,6 +297,17 @@ public class DefaultSearchContext extends SearchContext {
 
     public SearchContext scroll(Scroll scroll) {
         this.scroll = scroll;
+        return this;
+    }
+
+    @Override
+    public SearchContextAggregations aggregations() {
+        return aggregations;
+    }
+
+    @Override
+    public SearchContext aggregations(SearchContextAggregations aggregations) {
+        this.aggregations = aggregations;
         return this;
     }
 

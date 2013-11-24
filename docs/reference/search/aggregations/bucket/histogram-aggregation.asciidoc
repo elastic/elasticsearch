@@ -1,0 +1,203 @@
+[[search-aggregations-bucket-histogram-aggregation]]
+=== Histogram
+
+A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document will be evaluated and will be rounded down to its closes bucket - for example, if the price is `32` and the bucket size is `5` then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated withe the key `30`. To make this more formal, here is the rounding function that is used:
+
+[source,java]
+--------------------------------------------------
+rem = value % interval
+if (rem < 0) {
+    rem += interval
+}
+bucket_key = value - rem
+--------------------------------------------------
+
+The following snippet "buckets" the products based on their `price` by interval of `50`:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "prices": [
+            {
+                "key": 0,
+                "doc_count": 2
+            },
+            {
+                "key": 50,
+                "doc_count": 4
+            },
+            {
+                "key": 150,
+                "doc_count": 3
+            }
+        ]
+    }
+}
+--------------------------------------------------
+
+The response above shows that non of the aggregated products has a price that falls within the range of `[100 - 150)`. By default, the response will only contain the non-empty buckets, though it is possible to also return those, by setting the `empty_buckets` flag to `true`:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "empty_buckets" : true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "prices": [
+            {
+                "key": 0,
+                "doc_count": 2
+            },
+            {
+                "key": 50,
+                "doc_count": 4
+            },
+            {
+                "key" : 100,
+                "doc_count" : 0
+            },
+            {
+                "key": 150,
+                "doc_count": 3
+            }
+        ]
+    }
+}
+--------------------------------------------------
+
+==== Order
+
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controled using the `order` setting.
+
+Ordering the buckets by their key - descending:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "order" : { "_key" : "desc" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Ordering the buckets by their `doc_count` - ascending:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "order" : { "_count" : "asc" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+If the histogram aggregation has a direct metrics sub-aggregation, the latter can determine the order of the buckets:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "order" : { "price_stats.min" : "asc" } <1>
+            },
+            "aggs" : {
+                "price_stats" : { "stats" : {} } <2>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their their `price_stats` sub-aggregation.
+
+<2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
+
+==== Response Format
+
+By default, the buckets are retuned as an ordered array. It is also possilbe to request the response as a hash instead keyed by the buckets keys:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "keyed" : true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "prices": {
+            "0": {
+                "key": 0,
+                "doc_count": 2
+            },
+            "50": {
+                "key": 50,
+                "doc_count": 4
+            },
+            "150": {
+                "key": 150,
+                "doc_count": 3
+            }
+        }
+   }
+}
+--------------------------------------------------

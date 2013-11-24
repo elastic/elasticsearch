@@ -135,6 +135,12 @@ public class GeoPoint {
         return "[" + lat + ", " + lon + "]";
     }
 
+    public static GeoPoint parseFromLatLon(String latLon) {
+        GeoPoint point = new GeoPoint();
+        point.resetFromString(latLon);
+        return point;
+    }
+
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}:
      * 

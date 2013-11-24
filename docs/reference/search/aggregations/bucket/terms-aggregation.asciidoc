@@ -1,0 +1,156 @@
+[[search-aggregations-bucket-terms-aggregation]]
+=== Terms
+
+A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { "field" : "gender" }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "genders" : {
+            "buckets" : [
+                {
+                    "key" : "male",
+                    "doc_count" : 10
+                },
+                {
+                    "key" : "female",
+                    "doc_count" : 10
+                },
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can change this default behaviour by setting the `size` parameter.
+
+==== Size
+
+The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By default, the node coordinating the search process will request each shard to provide its own top `size` term buckets and once all shards respond, it will reduces the results to the final list that will then be returned to the client. This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate (it could be that the term counts are slightly off and it could even be that a term that should have been in the top size buckets was not returned). The higher the `size` is, the more accurate the response at the cost of aggregation performance.
+
+==== Order
+
+The order of the buckets can be customized by setting the `order` parameter. By default, the buckets are ordered by their `doc_count` descending. It is also possible to change this behaviour as follows:
+
+Ordering the buckets by their `doc_count` in an ascending manner:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "field" : "gender",
+                "order" : { "_count" : "asc" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Ordering the buckets alphabetically by their terms in an ascending manner:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "field" : "gender",
+                "order" : { "_term" : "asc" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "field" : "gender",
+                "order" : { "avg_height" : "desc" }
+            },
+            "aggs" : {
+                "avg_height" : { "avg" : { "field" : "height" } }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Ordering the buckets by multi value metrics sub-aggregation (identified by the aggregation name):
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "field" : "gender",
+                "order" : { "stats.avg" : "desc" }
+            },
+            "aggs" : {
+                "height_stats" : { "stats" : { "field" : "height" } }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== Script
+
+Generating the terms using a script:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "script" : "doc['gender'].value"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== Value Script
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : { 
+                "field" : "gender",
+                "script" : "doc['gender'].value"
+            }
+        }
+    }
+}
+--------------------------------------------------
+

@@ -20,7 +20,8 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.util.BigLongArray;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -36,7 +37,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
 
     private int version;
     private long totalUncompressedLength;
-    private BigLongArray offsets;
+    private LongArray offsets;
 
     private boolean closed;
 
@@ -58,7 +59,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
         in.seek(metaDataPosition);
         this.totalUncompressedLength = in.readVLong();
         int size = in.readVInt();
-        offsets = new BigLongArray(size);
+        offsets = BigArrays.newLongArray(size);
         for (int i = 0; i < size; i++) {
             offsets.set(i, in.readVLong());
         }
@@ -139,7 +140,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
     @Override
     public void seek(long pos) throws IOException {
         int idx = (int) (pos / uncompressedLength);
-        if (idx >= offsets.size) {
+        if (idx >= offsets.size()) {
             // set the next "readyBuffer" to EOF
             currentOffsetIdx = idx;
             position = 0;
@@ -184,7 +185,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
             return false;
         }
         // we reached the end...
-        if (currentOffsetIdx + 1 >= offsets.size) {
+        if (currentOffsetIdx + 1 >= offsets.size()) {
             return false;
         }
         valid = uncompress(in, uncompressed);

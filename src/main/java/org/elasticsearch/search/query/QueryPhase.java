@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,12 +45,14 @@ import java.util.Map;
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
+    private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
+    public QueryPhase(FacetPhase facetPhase, AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.facetPhase = facetPhase;
+        this.aggregationPhase = aggregationPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
     }
@@ -73,6 +76,7 @@ public class QueryPhase implements SearchPhase {
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements())
+                .putAll(aggregationPhase.parseElements())
                 .putAll(suggestPhase.parseElements())
                 .putAll(rescorePhase.parseElements());
         return parseElements.build();
@@ -82,6 +86,7 @@ public class QueryPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
         context.preProcess();
         facetPhase.preProcess(context);
+        aggregationPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
@@ -129,5 +134,6 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
+        aggregationPhase.execute(searchContext);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -563,6 +564,54 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setFacets(Map facets) {
         sourceBuilder().facets(facets);
+        return this;
+    }
+
+    /**
+     * Adds an get to the search operation.
+     */
+    public SearchRequestBuilder addAggregation(AbstractAggregationBuilder aggregation) {
+        sourceBuilder().aggregation(aggregation);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     */
+    public SearchRequestBuilder setAggregations(BytesReference aggregations) {
+        sourceBuilder().aggregations(aggregations);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     */
+    public SearchRequestBuilder setAggregations(byte[] aggregations) {
+        sourceBuilder().aggregations(aggregations);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     */
+    public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
+        sourceBuilder().facets(aggregations, aggregationsOffset, aggregationsLength);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     */
+    public SearchRequestBuilder setAggregations(XContentBuilder aggregations) {
+        sourceBuilder().aggregations(aggregations);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent) binary representation of addAggregation to use.
+     */
+    public SearchRequestBuilder setAggregations(Map aggregations) {
+        sourceBuilder().aggregations(aggregations);
         return this;
     }
 

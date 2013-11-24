@@ -19,59 +19,77 @@
 
 package org.elasticsearch.common.util;
 
-import java.util.Locale;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
+
+import java.util.Arrays;
 
 /**
- * A GC friendly long[].
- * Allocating large arrays (that are not short-lived) generate fragmentation
- * in old-gen space. This breaks such large long array into fixed size pages
- * to avoid that problem.
+ * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+ * configurable length.
  */
-public class BigLongArray {
+final class BigLongArray extends AbstractBigArray implements LongArray {
 
-    private static final int DEFAULT_PAGE_SIZE = 4096;
+    /**
+     * Page size, 16KB of memory per page.
+     */
+    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
+    
 
-    private final long[][] pages;
-    public final int size;
+    private long[][] pages;
 
-    private final int pageSize;
-    private final int pageCount;
-
-    public BigLongArray(int size) {
-        this(size, DEFAULT_PAGE_SIZE);
-    }
-
-    public BigLongArray(int size, int pageSize) {
+    /** Constructor. */
+    public BigLongArray(long size) {
+        super(PAGE_SIZE);
         this.size = size;
-        this.pageSize = pageSize;
-
-        int lastPageSize = size % pageSize;
-        int fullPageCount = size / pageSize;
-        pageCount = fullPageCount + (lastPageSize == 0 ? 0 : 1);
-        pages = new long[pageCount][];
-
-        for (int i = 0; i < fullPageCount; ++i)
-            pages[i] = new long[pageSize];
-
-        if (lastPageSize != 0)
-            pages[pages.length - 1] = new long[lastPageSize];
+        pages = new long[numPages(size)][];
+        for (int i = 0; i < pages.length; ++i) {
+            pages[i] = new long[pageSize()];
+        }
     }
 
-    public void set(int idx, long value) {
-        if (idx < 0 || idx > size)
-            throw new IndexOutOfBoundsException(String.format(Locale.ROOT, "%d is not whithin [0, %d)", idx, size));
-
-        int page = idx / pageSize;
-        int pageIdx = idx % pageSize;
-        pages[page][pageIdx] = value;
+    @Override
+    public long get(long index) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        return pages[pageIndex][indexInPage];
     }
 
-    public long get(int idx) {
-        if (idx < 0 || idx > size)
-            throw new IndexOutOfBoundsException(String.format(Locale.ROOT, "%d is not whithin [0, %d)", idx, size));
-
-        int page = idx / pageSize;
-        int pageIdx = idx % pageSize;
-        return pages[page][pageIdx];
+    @Override
+    public long set(long index, long value) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        final long[] page = pages[pageIndex];
+        final long ret = page[indexInPage];
+        page[indexInPage] = value;
+        return ret;
     }
+
+    @Override
+    public long increment(long index, long inc) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        return pages[pageIndex][indexInPage] += inc;
+    }
+
+    @Override
+    protected int numBytesPerElement() {
+        return RamUsageEstimator.NUM_BYTES_LONG;
+    }
+
+    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    public void resize(long newSize) {
+        final int numPages = numPages(newSize);
+        if (numPages > pages.length) {
+            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+        }
+        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
+            pages[i] = new long[pageSize()];
+        }
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            pages[i] = null;
+        }
+        this.size = newSize;
+    }
+
 }

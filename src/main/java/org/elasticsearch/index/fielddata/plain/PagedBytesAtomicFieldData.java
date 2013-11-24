@@ -23,7 +23,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.PagedBytes.Reader;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
-import org.elasticsearch.common.util.BigIntArray;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
@@ -43,7 +44,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    private volatile BigIntArray hashes;
+    private volatile IntArray hashes;
     private long size = -1;
     private final long readerBytesSize;
 
@@ -91,10 +92,10 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return size;
     }
 
-    private final BigIntArray getHashes() {
+    private final IntArray getHashes() {
         if (hashes == null) {
             long numberOfValues = termOrdToBytesOffset.size();
-            BigIntArray hashes = new BigIntArray(numberOfValues);
+            IntArray hashes = BigArrays.newIntArray(numberOfValues);
             BytesRef scratch = new BytesRef();
             for (long i = 0; i < numberOfValues; i++) {
                 bytes.fill(scratch, termOrdToBytesOffset.get(i));
@@ -108,7 +109,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     @Override
     public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
         if (needsHashes) {
-            final BigIntArray hashes = getHashes();
+            final IntArray hashes = getHashes();
             return new BytesValues.HashedBytesValues(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
         } else {
             return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
@@ -159,10 +160,10 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         static final class HashedBytesValues extends BytesValues {
-            private final BigIntArray hashes;
+            private final IntArray hashes;
 
 
-            HashedBytesValues(BigIntArray hashes, Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Docs ordinals) {
+            HashedBytesValues(IntArray hashes, Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 this.hashes = hashes;
             }

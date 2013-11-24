@@ -54,7 +54,7 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
 
         parserConfiguration = new ParserConfiguration();
         parserConfiguration.addPackageImport("java.util");
-        parserConfiguration.addPackageImport("org.joda");
+        parserConfiguration.addPackageImport("org.joda.time");
         parserConfiguration.addImport("time", MVEL.getStaticMethod(System.class, "currentTimeMillis", new Class[0]));
         // unboxed version of Math, better performance since conversion from boxed to unboxed my mvel is not needed
         for (Method m : UnboxedMathUtils.class.getMethods()) {

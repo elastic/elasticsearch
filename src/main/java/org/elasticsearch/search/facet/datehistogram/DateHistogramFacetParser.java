@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.joda.TimeZoneRounding;
+import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +36,6 @@ import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.Chronology;
-import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
@@ -48,29 +47,30 @@ import java.util.Map;
  */
 public class DateHistogramFacetParser extends AbstractComponent implements FacetParser {
 
-    private final ImmutableMap<String, DateFieldParser> dateFieldParsers;
+    private final ImmutableMap<String, DateTimeUnit> dateTimeUnits;
 
     @Inject
     public DateHistogramFacetParser(Settings settings) {
         super(settings);
         InternalDateHistogramFacet.registerStreams();
 
-        dateFieldParsers = MapBuilder.<String, DateFieldParser>newMapBuilder()
-                .put("year", new DateFieldParser.YearOfCentury())
-                .put("1y", new DateFieldParser.YearOfCentury())
-                .put("quarter", new DateFieldParser.Quarter())
-                .put("month", new DateFieldParser.MonthOfYear())
-                .put("1m", new DateFieldParser.MonthOfYear())
-                .put("week", new DateFieldParser.WeekOfWeekyear())
-                .put("1w", new DateFieldParser.WeekOfWeekyear())
-                .put("day", new DateFieldParser.DayOfMonth())
-                .put("1d", new DateFieldParser.DayOfMonth())
-                .put("hour", new DateFieldParser.HourOfDay())
-                .put("1h", new DateFieldParser.HourOfDay())
-                .put("minute", new DateFieldParser.MinuteOfHour())
-                .put("1m", new DateFieldParser.MinuteOfHour())
-                .put("second", new DateFieldParser.SecondOfMinute())
-                .put("1s", new DateFieldParser.SecondOfMinute())
+        dateTimeUnits = MapBuilder.<String, DateTimeUnit>newMapBuilder()
+                .put("year", DateTimeUnit.YEAR_OF_CENTURY)
+                .put("1y", DateTimeUnit.YEAR_OF_CENTURY)
+                .put("quarter", DateTimeUnit.QUARTER)
+                .put("1q", DateTimeUnit.QUARTER)
+                .put("month", DateTimeUnit.MONTH_OF_YEAR)
+                .put("1M", DateTimeUnit.MONTH_OF_YEAR)
+                .put("week", DateTimeUnit.WEEK_OF_WEEKYEAR)
+                .put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR)
+                .put("day", DateTimeUnit.DAY_OF_MONTH)
+                .put("1d", DateTimeUnit.DAY_OF_MONTH)
+                .put("hour", DateTimeUnit.HOUR_OF_DAY)
+                .put("1h", DateTimeUnit.HOUR_OF_DAY)
+                .put("minute", DateTimeUnit.MINUTES_OF_HOUR)
+                .put("1m", DateTimeUnit.MINUTES_OF_HOUR)
+                .put("second", DateTimeUnit.SECOND_OF_MINUTE)
+                .put("1s", DateTimeUnit.SECOND_OF_MINUTE)
                 .immutableMap();
     }
 
@@ -162,9 +162,9 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
 
         TimeZoneRounding.Builder tzRoundingBuilder;
-        DateFieldParser fieldParser = dateFieldParsers.get(interval);
-        if (fieldParser != null) {
-            tzRoundingBuilder = TimeZoneRounding.builder(fieldParser.parse(chronology));
+        DateTimeUnit dateTimeUnit = dateTimeUnits.get(interval);
+        if (dateTimeUnit != null) {
+            tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
         } else {
             // the interval is a time value?
             tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
@@ -220,64 +220,4 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         }
     }
 
-    static interface DateFieldParser {
-
-        DateTimeField parse(Chronology chronology);
-
-        static class WeekOfWeekyear implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.weekOfWeekyear();
-            }
-        }
-
-        static class YearOfCentury implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.yearOfCentury();
-            }
-        }
-
-        static class Quarter implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return Joda.QuarterOfYear.getField(chronology);
-            }
-        }
-
-        static class MonthOfYear implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.monthOfYear();
-            }
-        }
-
-        static class DayOfMonth implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.dayOfMonth();
-            }
-        }
-
-        static class HourOfDay implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.hourOfDay();
-            }
-        }
-
-        static class MinuteOfHour implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.minuteOfHour();
-            }
-        }
-
-        static class SecondOfMinute implements DateFieldParser {
-            @Override
-            public DateTimeField parse(Chronology chronology) {
-                return chronology.secondOfMinute();
-            }
-        }
-    }
 }

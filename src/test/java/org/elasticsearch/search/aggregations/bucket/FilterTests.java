@@ -1,0 +1,173 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.search.aggregations.bucket;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matchers;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+
+/**
+ *
+ */
+public class FilterTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
+                .put("index.number_of_shards", between(1, 5))
+                .put("index.number_of_replicas", between(0, 1))
+                .build();
+    }
+
+    int numDocs, numTag1Docs;
+
+    @Before
+    public void init() throws Exception {
+        createIndex("idx");
+        createIndex("idx2");
+        numDocs = randomIntBetween(5, 20);
+        numTag1Docs = randomIntBetween(1, numDocs - 1);
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        for (int i = 0; i < numTag1Docs; i++) {
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i + 1)
+                    .field("tag", "tag1")
+                    .endObject()));
+        }
+        for (int i = numTag1Docs; i < numDocs; i++) {
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i)
+                    .field("tag", "tag2")
+                    .field("name", "name" + i)
+                    .endObject()));
+        }
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+    }
+
+    @Test
+    public void simple() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(filter("tag1").filter(termFilter("tag", "tag1")))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        Filter filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getName(), equalTo("tag1"));
+        assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
+    }
+
+    @Test
+    public void withSubAggregation() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(filter("tag1")
+                        .filter(termFilter("tag", "tag1"))
+                        .subAggregation(avg("avg_value").field("value")))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        Filter filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getName(), equalTo("tag1"));
+        assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
+
+        long sum = 0;
+        for (int i = 0; i < numTag1Docs; ++i) {
+            sum += i + 1;
+        }
+        assertThat(filter.getAggregations().asList().isEmpty(), is(false));
+        Avg avgValue = filter.getAggregations().get("avg_value");
+        assertThat(avgValue, notNullValue());
+        assertThat(avgValue.getName(), equalTo("avg_value"));
+        assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
+    }
+
+    @Test
+    public void withContextBasedSubAggregation() throws Exception {
+
+        try {
+            client().prepareSearch("idx")
+                    .addAggregation(filter("tag1")
+                            .filter(termFilter("tag", "tag1"))
+                            .subAggregation(avg("avg_value")))
+                    .execute().actionGet();
+
+            fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
+                    "context which the sub-aggregation can inherit");
+
+        } catch (ElasticSearchException ese) {
+        }
+    }
+
+    @Test
+    public void emptyAggregation() throws Exception {
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i*2)
+                    .endObject()));
+        }
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                        .subAggregation(filter("filter").filter(matchAllFilter())))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        Histogram histo = searchResponse.getAggregations().get("histo");
+        assertThat(histo, Matchers.notNullValue());
+        Histogram.Bucket bucket = histo.getByKey(1l);
+        assertThat(bucket, Matchers.notNullValue());
+
+        Filter filter = bucket.getAggregations().get("filter");
+        assertThat(filter, Matchers.notNullValue());
+        assertThat(filter.getName(), equalTo("filter"));
+        assertThat(filter.getDocCount(), is(0l));
+    }
+}

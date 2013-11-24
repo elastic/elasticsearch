@@ -1148,6 +1148,8 @@ public final class XContentBuilder implements BytesStream {
             generator.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
         } else if (value instanceof Calendar) {
             generator.writeString(XContentBuilder.defaultDatePrinter.print((((Calendar) value)).getTimeInMillis()));
+        } else if (value instanceof ReadableInstant) {
+            generator.writeString(XContentBuilder.defaultDatePrinter.print((((ReadableInstant) value)).getMillis()));
         } else if (value instanceof BytesReference) {
             BytesReference bytes = (BytesReference) value;
             if (!bytes.hasArray()) {

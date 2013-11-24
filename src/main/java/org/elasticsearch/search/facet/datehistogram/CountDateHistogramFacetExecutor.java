@@ -22,8 +22,8 @@ package org.elasticsearch.search.facet.datehistogram;
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -110,7 +110,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
         @Override
         public void onValue(int docId, long value) {
-            counts.addTo(tzRounding.calc(value), 1);
+            counts.addTo(tzRounding.round(value), 1);
         }
 
         public LongLongOpenHashMap counts() {

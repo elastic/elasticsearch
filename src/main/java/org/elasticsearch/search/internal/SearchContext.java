@@ -42,6 +42,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -113,6 +114,10 @@ public abstract class SearchContext implements Releasable {
     public abstract Scroll scroll();
 
     public abstract SearchContext scroll(Scroll scroll);
+
+    public abstract SearchContextAggregations aggregations();
+
+    public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
     public abstract SearchContextFacets facets();
 

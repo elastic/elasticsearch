@@ -42,6 +42,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -166,6 +167,16 @@ class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext facets(SearchContextFacets facets) {
+        return null;
+    }
+
+    @Override
+    public SearchContextAggregations aggregations() {
+        return null;
+    }
+
+    @Override
+    public SearchContext aggregations(SearchContextAggregations aggregations) {
         return null;
     }
 

@@ -215,6 +215,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
     }
 
+    public FormatDateTimeFormatter dateTimeFormatter() {
+        return dateTimeFormatter;
+    }
+
+    public DateMathParser dateMathParser() {
+        return dateMathParser;
+    }
+
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;

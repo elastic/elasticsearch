@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.search.aggregations.TransportAggregationModule;
 import org.elasticsearch.search.facet.TransportFacetModule;
 
 /**
@@ -32,7 +33,7 @@ public class TransportSearchModule extends AbstractModule implements SpawnModule
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportFacetModule());
+        return ImmutableList.of(new TransportFacetModule(), new TransportAggregationModule());
     }
 
     @Override

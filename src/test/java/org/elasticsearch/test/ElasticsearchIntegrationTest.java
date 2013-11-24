@@ -594,6 +594,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return client().admin();
     }
 
+    /** Convenience method that forwards to {@link #indexRandom(boolean, List)}. */
+    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
+        indexRandom(forceRefresh, Arrays.asList(builders));
+    }
+
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
      * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
@@ -601,26 +606,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      */
-    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
-        if (builders.length == 0) {
+    public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
+        if (builders.size() == 0) {
             return;
         }
         
         Random random = getRandom();
         Set<String> indicesSet = new HashSet<String>();
-        for (int i = 0; i < builders.length; i++) {
-            indicesSet.add(builders[i].request().index());
+        for (IndexRequestBuilder builder : builders) {
+            indicesSet.add(builder.request().index());
         }
         final String[] indices = indicesSet.toArray(new String[0]);
-        List<IndexRequestBuilder> list = Arrays.asList(builders);
-        Collections.shuffle(list, random);
+        Collections.shuffle(builders, random);
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>>();
         List<CountDownLatch> latches = new ArrayList<CountDownLatch>();
         if (frequently()) {
-            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), true, false);
-            final CountDownLatch latch = new CountDownLatch(list.size());
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
+            final CountDownLatch latch = new CountDownLatch(builders.size());
             latches.add(latch);
-            for (IndexRequestBuilder indexRequestBuilder : list) {
+            for (IndexRequestBuilder indexRequestBuilder : builders) {
                 indexRequestBuilder.execute(new PayloadLatchedActionListener<IndexResponse, IndexRequestBuilder>(indexRequestBuilder, latch, errors));
                 if (rarely()) {
                     if (rarely()) {
@@ -634,8 +638,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
 
         } else if (randomBoolean()) {
-            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), false, false);
-            for (IndexRequestBuilder indexRequestBuilder : list) {
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
+            for (IndexRequestBuilder indexRequestBuilder : builders) {
                 indexRequestBuilder.execute().actionGet();
                 if (rarely()) {
                     if (rarely()) {
@@ -648,9 +652,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 }
             }
         } else {
-            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), false, true);
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, true);
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
-            for (IndexRequestBuilder indexRequestBuilder : list) {
+            for (IndexRequestBuilder indexRequestBuilder : builders) {
                 bulkBuilder.add(indexRequestBuilder);
             }
             BulkResponse actionGet = bulkBuilder.execute().actionGet();

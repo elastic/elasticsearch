@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
@@ -27,17 +28,19 @@ import java.util.Arrays;
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-public final class BigIntArray extends AbstractBigArray implements IntArray {
+final class BigIntArray extends AbstractBigArray implements IntArray {
 
     /**
-     * Default page size, 16KB of memory per page.
+     * Page size, 16KB of memory per page.
      */
-    public static final int DEFAULT_PAGE_SIZE = 1 << 12;
+    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_INT;
+    
 
     private int[][] pages;
 
-    public BigIntArray(int pageSize, long size) {
-        super(pageSize);
+    /** Constructor. */
+    public BigIntArray(long size) {
+        super(PAGE_SIZE);
         this.size = size;
         pages = new int[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
@@ -45,22 +48,24 @@ public final class BigIntArray extends AbstractBigArray implements IntArray {
         }
     }
 
-    public BigIntArray(long size) {
-        this(DEFAULT_PAGE_SIZE, size);
-    }
-
+    @Override
     public int get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         return pages[pageIndex][indexInPage];
     }
 
-    public void set(long index, int value) {
+    @Override
+    public int set(long index, int value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        pages[pageIndex][indexInPage] = value;
+        final int[] page = pages[pageIndex];
+        final int ret = page[indexInPage];
+        page[indexInPage] = value;
+        return ret;
     }
 
+    @Override
     public int increment(long index, int inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
@@ -72,10 +77,19 @@ public final class BigIntArray extends AbstractBigArray implements IntArray {
         return RamUsageEstimator.NUM_BYTES_INT;
     }
 
-    @Override
-    public void clear(int sentinal) {
-        for (int[] page : pages) {
-            Arrays.fill(page, sentinal);
+    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    public void resize(long newSize) {
+        final int numPages = numPages(newSize);
+        if (numPages > pages.length) {
+            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
+        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
+            pages[i] = new int[pageSize()];
+        }
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            pages[i] = null;
+        }
+        this.size = newSize;
     }
+
 }

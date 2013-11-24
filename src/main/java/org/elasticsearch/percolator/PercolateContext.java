@@ -55,6 +55,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -281,6 +282,16 @@ public class PercolateContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return fieldDataService;
+    }
+
+    @Override
+    public SearchContextAggregations aggregations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SearchContext aggregations(SearchContextAggregations aggregations) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

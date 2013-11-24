@@ -19,10 +19,11 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 
@@ -31,11 +32,7 @@ import java.util.Map;
  *
  * @see ExplainableSearchScript for script which can explain a score
  */
-public interface SearchScript extends ExecutableScript {
-
-    void setScorer(Scorer scorer);
-
-    void setNextReader(AtomicReaderContext context);
+public interface SearchScript extends ExecutableScript, ReaderContextAware, ScorerAware {
 
     void setNextDocId(int doc);
 
@@ -48,4 +45,34 @@ public interface SearchScript extends ExecutableScript {
     long runAsLong();
 
     double runAsDouble();
+
+    public static class Builder {
+
+        private String script;
+        private String lang;
+        private Map<String, Object> params;
+
+        public Builder script(String script) {
+            this.script = script;
+            return this;
+        }
+
+        public Builder lang(String lang) {
+            this.lang = lang;
+            return this;
+        }
+
+        public Builder params(Map<String, Object> params) {
+            this.params = params;
+            return this;
+        }
+
+        public SearchScript build(SearchContext context) {
+            return build(context.scriptService(), context.lookup());
+        }
+
+        public SearchScript build(ScriptService service, SearchLookup lookup) {
+            return service.search(lookup, lang, script, params);
+        }
+    }
 }

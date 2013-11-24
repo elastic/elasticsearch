@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -102,8 +103,11 @@ public class SearchSourceBuilder implements ToXContent {
     private FetchSourceContext fetchSourceContext;
 
     private List<FacetBuilder> facets;
-
     private BytesReference facetsBinary;
+
+    private List<AbstractAggregationBuilder> aggregations;
+    private BytesReference aggregationsBinary;
+
 
     private HighlightBuilder highlightBuilder;
 
@@ -390,6 +394,59 @@ public class SearchSourceBuilder implements ToXContent {
             return facets(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + facets + "]", e);
+        }
+    }
+
+    /**
+     * Add an get to perform as part of the search.
+     */
+    public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
+        if (aggregations == null) {
+            aggregations = Lists.newArrayList();
+        }
+        aggregations.add(aggregation);
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent / json) addAggregation.
+     */
+    public SearchSourceBuilder aggregations(byte[] aggregationsBinary) {
+        return aggregations(aggregationsBinary, 0, aggregationsBinary.length);
+    }
+
+    /**
+     * Sets a raw (xcontent / json) addAggregation.
+     */
+    public SearchSourceBuilder aggregations(byte[] aggregationsBinary, int aggregationsBinaryOffset, int aggregationsBinaryLength) {
+        return aggregations(new BytesArray(aggregationsBinary, aggregationsBinaryOffset, aggregationsBinaryLength));
+    }
+
+    /**
+     * Sets a raw (xcontent / json) addAggregation.
+     */
+    public SearchSourceBuilder aggregations(BytesReference aggregationsBinary) {
+        this.aggregationsBinary = aggregationsBinary;
+        return this;
+    }
+
+    /**
+     * Sets a raw (xcontent / json) addAggregation.
+     */
+    public SearchSourceBuilder aggregations(XContentBuilder facets) {
+        return aggregations(facets.bytes());
+    }
+
+    /**
+     * Sets a raw (xcontent / json) addAggregation.
+     */
+    public SearchSourceBuilder aggregations(Map aggregations) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
+            builder.map(aggregations);
+            return aggregations(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + aggregations + "]", e);
         }
     }
 
@@ -786,6 +843,23 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.rawField("facets", facetsBinary);
             } else {
                 builder.field("facets_binary", facetsBinary);
+            }
+        }
+
+        if (aggregations != null) {
+            builder.field("aggregations");
+            builder.startObject();
+            for (AbstractAggregationBuilder aggregation : aggregations) {
+                aggregation.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        if (aggregationsBinary != null) {
+            if (XContentFactory.xContentType(aggregationsBinary) == builder.contentType()) {
+                builder.rawField("aggregations", aggregationsBinary);
+            } else {
+                builder.field("aggregations_binary", aggregationsBinary);
             }
         }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.suggest.Suggest;
@@ -101,6 +102,11 @@ public class SearchResponse extends ActionResponse implements ToXContent {
     public Facets getFacets() {
         return internalResponse.facets();
     }
+
+    public Aggregations getAggregations() {
+        return internalResponse.aggregations();
+    }
+
 
     public Suggest getSuggest() {
         return internalResponse.suggest();

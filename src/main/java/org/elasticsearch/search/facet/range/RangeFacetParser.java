@@ -158,7 +158,7 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
         } else {
             FieldMapper valueFieldMapper = context.smartNameFieldMapper(valueField);
             if (valueFieldMapper == null) {
-                throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + keyField + "]");
+                throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueField + "]");
             }
             IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
             // we have a value field, and its different than the key

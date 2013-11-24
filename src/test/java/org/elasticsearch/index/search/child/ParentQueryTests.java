@@ -53,6 +53,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
     @BeforeClass
     public static void before() throws IOException {
+        forceDefaultCodec();
         SearchContext.setCurrent(createSearchContext("test", "parent", "child"));
     }
 
@@ -87,7 +88,12 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             }
             indexWriter.addDocument(document);
 
-            int numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
+            int numChildDocs;
+            if (rarely()) {
+                numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
+            } else {
+                numChildDocs = random().nextInt(TEST_NIGHTLY ? 40 : 10);
+            }
             for (int i = 0; i < numChildDocs; i++) {
                 String child = Integer.toString(childDocId++);
                 boolean markChildAsDeleted = rarely();
@@ -127,7 +133,9 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
         TermFilter childFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
-        for (String parentValue : parentValues) {
+        int max = numUniqueParentValues / 4;
+        for (int i = 0; i < max; i++) {
+            String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", parentValue)));
             Query query = new ParentQuery(parentQuery,"parent", childFilter);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());

@@ -66,6 +66,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     @BeforeClass
     public static void before() throws IOException {
+        forceDefaultCodec();
         SearchContext.setCurrent(createSearchContext("test", "parent", "child"));
     }
 
@@ -138,7 +139,12 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             }
             indexWriter.addDocument(document);
 
-            int numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
+            int numChildDocs;
+            if (rarely()) {
+                numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
+            } else {
+                numChildDocs = random().nextInt(TEST_NIGHTLY ? 40 : 10);
+            }
             for (int i = 0; i < numChildDocs; i++) {
                 boolean markChildAsDeleted = rarely();
                 String childValue = childValues[random().nextInt(childValues.length)];
@@ -179,7 +185,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        for (String childValue : childValues) {
+        int max = numUniqueChildValues / 4;
+        for (int i = 0; i < max; i++) {
+            String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             Query query;

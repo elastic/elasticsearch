@@ -26,6 +26,8 @@ import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Sort;
 import org.apache.lucene.store.*;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
@@ -34,10 +36,7 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.MinResult;
 import org.elasticsearch.common.collect.HppcMaps;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -53,8 +52,9 @@ import java.util.*;
  * then the partial text "ghost chr..." could see the
  * suggestion "The Ghost of Christmas Past".  Note that
  * position increments MUST NOT be preserved for this example
- * to work, so you should call
- * {@link #setPreservePositionIncrements(boolean) setPreservePositionIncrements(false)}.
+ * to work, so you should call the constructor with
+ * <code>preservePositionIncrements</code> parameter set to
+ * false
  *
  * <p>
  * If SynonymFilter is used to map wifi and wireless network to
@@ -124,24 +124,24 @@ public class XAnalyzingSuggester extends Lookup {
   private final boolean preserveSep;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,FST,boolean,int)} to always
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,FST,boolean,int)} to preserve
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
 
   /** Represents the separation between tokens, if
    *  PRESERVE_SEP was specified */
-  private static final int SEP_LABEL = 0xFF; 
+  public static final int SEP_LABEL = '\u001F';
 
   /** Marks end of the analyzed input and start of dedup
    *  byte. */
-  private static final int END_BYTE = 0x0;
+  public static final int END_BYTE = 0x0;
 
   /** Maximum number of dup surface forms (different surface
    *  forms for the same analyzed form). */
@@ -160,27 +160,31 @@ public class XAnalyzingSuggester extends Lookup {
 
   private boolean hasPayloads;
 
-  private static final int PAYLOAD_SEP = '\u001f';
+  private final int sepLabel;
+  private final int payloadSep;
+  private final int endByte;
+
+  public static final int PAYLOAD_SEP = '\u001f';
 
   /** Whether position holes should appear in the automaton. */
   private boolean preservePositionIncrements;
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,FST,boolean,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer analyzer) {
-    this(analyzer, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, null, false, 0);
+    this(analyzer, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,FST,boolean,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
-    this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, null, false, 0);
+    this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
   }
 
   /**
@@ -199,8 +203,9 @@ public class XAnalyzingSuggester extends Lookup {
    *   to expand from the analyzed form.  Set this to -1 for
    *   no limit.
    */
-  public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions
-          , FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput) { 
+  public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
+                             boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
+                             int sepLabel, int payloadSep, int endByte) {
       // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
     this.indexAnalyzer = indexAnalyzer;
     this.queryAnalyzer = queryAnalyzer;
@@ -226,16 +231,13 @@ public class XAnalyzingSuggester extends Lookup {
     }
     this.maxGraphExpansions = maxGraphExpansions;
     this.maxAnalyzedPathsForOneInput = maxAnalyzedPathsForOneInput;
-    this.preservePositionIncrements = true;
-  }
-
-  /** Whether to take position holes (position increment > 1) into account when
-   *  building the automaton, <code>true</code> by default. */
-  public void setPreservePositionIncrements(boolean preservePositionIncrements) {
     this.preservePositionIncrements = preservePositionIncrements;
+    this.sepLabel = sepLabel;
+    this.payloadSep = payloadSep;
+    this.endByte = endByte;
   }
 
-    /** Returns byte size of the underlying FST. */
+  /** Returns byte size of the underlying FST. */
   public long sizeInBytes() {
     return fst == null ? 0 : fst.sizeInBytes();
   }
@@ -251,7 +253,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   // Replaces SEP with epsilon or remaps them if
   // we were asked to preserve them:
-  private static void replaceSep(Automaton a, boolean preserveSep) {
+  private static void replaceSep(Automaton a, boolean preserveSep, int replaceSep) {
 
     State[] states = a.getNumberedStates();
 
@@ -265,7 +267,7 @@ public class XAnalyzingSuggester extends Lookup {
         if (t.getMin() == TokenStreamToAutomaton.POS_SEP) {
           if (preserveSep) {
             // Remap to SEP_LABEL:
-            newTransitions.add(new Transition(SEP_LABEL, t.getDest()));
+            newTransitions.add(new Transition(replaceSep, t.getDest()));
           } else {
             copyDestTransitions(state, t.getDest(), newTransitions);
             a.setDeterministic(false);
@@ -289,21 +291,30 @@ public class XAnalyzingSuggester extends Lookup {
     }
   }
 
+  protected Automaton convertAutomaton(Automaton a) {
+    return a;
+  }
+
   /** Just escapes the 0xff byte (which we still for SEP). */
   private static final class  EscapingTokenStreamToAutomaton extends TokenStreamToAutomaton {
 
     final BytesRef spare = new BytesRef();
+    private char sepLabel;
+
+    public EscapingTokenStreamToAutomaton(char sepLabel) {
+      this.sepLabel = sepLabel;
+    }
 
     @Override
     protected BytesRef changeToken(BytesRef in) {
       int upto = 0;
       for(int i=0;i<in.length;i++) {
         byte b = in.bytes[in.offset+i];
-        if (b == (byte) SEP_LABEL) {
+        if (b == (byte) sepLabel) {
           if (spare.bytes.length == upto) {
             spare.grow(upto+2);
           }
-          spare.bytes[upto++] = (byte) SEP_LABEL;
+          spare.bytes[upto++] = (byte) sepLabel;
           spare.bytes[upto++] = b;
         } else {
           if (spare.bytes.length == upto) {
@@ -321,7 +332,7 @@ public class XAnalyzingSuggester extends Lookup {
   public TokenStreamToAutomaton getTokenStreamToAutomaton() {
     final TokenStreamToAutomaton tsta;
     if (preserveSep) {
-      tsta = new EscapingTokenStreamToAutomaton();
+      tsta = new EscapingTokenStreamToAutomaton((char) sepLabel);
     } else {
       // When we're not preserving sep, we don't steal 0xff
       // byte, so we don't need to do any escaping:
@@ -387,7 +398,7 @@ public class XAnalyzingSuggester extends Lookup {
       }
       return scratchA.compareTo(scratchB);
     }
-  };
+  }
 
   @Override
   public void build(InputIterator iterator) throws IOException {
@@ -454,7 +465,7 @@ public class XAnalyzingSuggester extends Lookup {
 
           if (hasPayloads) {
             for(int i=0;i<surfaceForm.length;i++) {
-              if (surfaceForm.bytes[i] == PAYLOAD_SEP) {
+              if (surfaceForm.bytes[i] == payloadSep) {
                 throw new IllegalArgumentException("surface form cannot contain unit separator character U+001F; this character is reserved");
               }
             }
@@ -558,7 +569,7 @@ public class XAnalyzingSuggester extends Lookup {
           int payloadLength = scratch.length - payloadOffset;
           BytesRef br = new BytesRef(surface.length + 1 + payloadLength);
           System.arraycopy(surface.bytes, surface.offset, br.bytes, 0, surface.length);
-          br.bytes[surface.length] = PAYLOAD_SEP;
+          br.bytes[surface.length] = (byte) payloadSep;
           System.arraycopy(scratch.bytes, payloadOffset, br.bytes, surface.length+1, payloadLength);
           br.length = br.bytes.length;
           builder.add(scratchInts, outputs.newPair(cost, br));
@@ -566,8 +577,10 @@ public class XAnalyzingSuggester extends Lookup {
       }
       fst = builder.finish();
 
-      //Util.dotToFile(fst, "/tmp/suggest.dot");
-      
+      //PrintWriter pw = new PrintWriter("/tmp/out.dot");
+      //Util.toDot(fst, pw, true, true);
+      //pw.close();
+
       success = true;
     } finally {
       if (success) {
@@ -616,7 +629,7 @@ public class XAnalyzingSuggester extends Lookup {
     if (hasPayloads) {
       int sepIndex = -1;
       for(int i=0;i<output2.length;i++) {
-        if (output2.bytes[output2.offset+i] == PAYLOAD_SEP) {
+        if (output2.bytes[output2.offset+i] == payloadSep) {
           sepIndex = i;
           break;
         }
@@ -649,7 +662,7 @@ public class XAnalyzingSuggester extends Lookup {
           return false;
         }
       }
-      return output2.bytes[output2.offset + key.length] == PAYLOAD_SEP;
+      return output2.bytes[output2.offset + key.length] == payloadSep;
     } else {
       return key.bytesEquals(output2);
     }
@@ -667,6 +680,14 @@ public class XAnalyzingSuggester extends Lookup {
     }
 
     //System.out.println("lookup key=" + key + " num=" + num);
+    for (int i = 0; i < key.length(); i++) {
+      if (key.charAt(i) == 0x1E) {
+        throw new IllegalArgumentException("lookup key cannot contain HOLE character U+001E; this character is reserved");
+      }
+      if (key.charAt(i) == 0x1F) {
+        throw new IllegalArgumentException("lookup key cannot contain unit separator character U+001F; this character is reserved");
+      }
+    }
     final BytesRef utf8Key = new BytesRef(key);
     try {
 
@@ -688,13 +709,13 @@ public class XAnalyzingSuggester extends Lookup {
 
       final List<LookupResult> results = new ArrayList<LookupResult>();
 
-      List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(lookupAutomaton, fst);
+      List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
 
       if (exactFirst) {
 
         int count = 0;
         for (FSTUtil.Path<Pair<Long,BytesRef>> path : prefixPaths) {
-          if (fst.findTargetArc(END_BYTE, path.fstNode, scratchArc, bytesReader) != null) {
+          if (fst.findTargetArc(endByte, path.fstNode, scratchArc, bytesReader) != null) {
             // This node has END_BYTE arc leaving, meaning it's an
             // "exact" match:
             count++;
@@ -712,7 +733,7 @@ public class XAnalyzingSuggester extends Lookup {
         // pruned our exact match from one of these nodes
         // ...:
         for (FSTUtil.Path<Pair<Long,BytesRef>> path : prefixPaths) {
-          if (fst.findTargetArc(END_BYTE, path.fstNode, scratchArc, bytesReader) != null) {
+          if (fst.findTargetArc(endByte, path.fstNode, scratchArc, bytesReader) != null) {
             // This node has END_BYTE arc leaving, meaning it's an
             // "exact" match:
             searcher.addStartPaths(scratchArc, fst.outputs.add(path.output, scratchArc.output), false, path.input);
@@ -820,13 +841,12 @@ public class XAnalyzingSuggester extends Lookup {
     throws IOException {
     return prefixPaths;
   }
-  
-  final Set<IntsRef> toFiniteStrings(final BytesRef surfaceForm, final TokenStreamToAutomaton ts2a) throws IOException {
-      // Analyze surface form:
+
+  public final Set<IntsRef> toFiniteStrings(final BytesRef surfaceForm, final TokenStreamToAutomaton ts2a) throws IOException {
+    // Analyze surface form:
     TokenStream ts = indexAnalyzer.tokenStream("", surfaceForm.utf8ToString());
     return toFiniteStrings(ts2a, ts);
   }
-  
   public final Set<IntsRef> toFiniteStrings(final TokenStreamToAutomaton ts2a, TokenStream ts) throws IOException {
       // Analyze surface form:
 
@@ -836,7 +856,7 @@ public class XAnalyzingSuggester extends Lookup {
       Automaton automaton = ts2a.toAutomaton(ts);
       ts.close();
 
-      replaceSep(automaton, preserveSep);
+      replaceSep(automaton, preserveSep, sepLabel);
 
       assert SpecialOperations.isFinite(automaton);
 
@@ -862,7 +882,7 @@ public class XAnalyzingSuggester extends Lookup {
     // This way we could eg differentiate "net" from "net ",
     // which we can't today...
 
-    replaceSep(automaton, preserveSep);
+    replaceSep(automaton, preserveSep, sepLabel);
 
     // TODO: we can optimize this somewhat by determinizing
     // while we convert
@@ -903,7 +923,6 @@ public class XAnalyzingSuggester extends Lookup {
   
     public static class XBuilder {
         private Builder<Pair<Long, BytesRef>> builder;
-        BytesRef previousAnalyzed = null;
         private int maxSurfaceFormsPerAnalyzedForm;
         private IntsRef scratchInts = new IntsRef();
         private final PairOutputs<Long, BytesRef> outputs;
@@ -912,8 +931,10 @@ public class XAnalyzingSuggester extends Lookup {
         private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
         private int count;
         private ObjectIntOpenHashMap<BytesRef> seenSurfaceForms = HppcMaps.Object.Integer.ensureNoNullKeys(256, 0.75f);
+        private int payloadSep;
 
-        public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads) {
+        public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads, int payloadSep) {
+            this.payloadSep = payloadSep;
             this.outputs = new PairOutputs<Long, BytesRef>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
             this.builder = new Builder<Pair<Long, BytesRef>>(FST.INPUT_TYPE.BYTE1, outputs);
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
@@ -983,7 +1004,7 @@ public class XAnalyzingSuggester extends Lookup {
                 int len = surface.length + 1 + payload.length;
                 final BytesRef br = new BytesRef(len);
                 System.arraycopy(surface.bytes, surface.offset, br.bytes, 0, surface.length);
-                br.bytes[surface.length] = PAYLOAD_SEP;
+                br.bytes[surface.length] = (byte) payloadSep;
                 System.arraycopy(payload.bytes, payload.offset, br.bytes, surface.length + 1, payload.length);
                 br.length = len;
                 payloadRef = br;

@@ -362,5 +362,6 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static abstract class LookupFactory {
         public abstract Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
+        abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper);
     }
 }

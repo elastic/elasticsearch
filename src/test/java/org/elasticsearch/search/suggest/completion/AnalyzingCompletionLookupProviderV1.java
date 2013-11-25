@@ -40,11 +40,17 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
+import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
 
 import java.io.IOException;
 import java.util.*;
-
-public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider {
+/**
+ * This is an older implementation of the AnalyzingCompletionLookupProvider class
+ * We use this to test for backwards compatibility in our tests, namely
+ * CompletionPostingsFormatTest
+ * This ensures upgrades between versions work smoothly
+ */
+public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvider {
 
     // for serialization
     public static final int SERIALIZE_PRESERVE_SEPERATORS = 1;
@@ -55,8 +61,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private static final int MAX_GRAPH_EXPANSIONS = -1;
 
     public static final String CODEC_NAME = "analyzing";
-    public static final int CODEC_VERSION_START = 1;
-    public static final int CODEC_VERSION_LATEST = 2;
+    public static final int CODEC_VERSION = 1;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;
@@ -65,7 +70,12 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private boolean hasPayloads;
     private final XAnalyzingSuggester prototype;
 
-    public AnalyzingCompletionLookupProvider(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
+    // important, these are the settings from the old xanalyzingsuggester
+    public static final int SEP_LABEL = 0xFF;
+    public static final int END_BYTE = 0x0;
+    public static final int PAYLOAD_SEP = '\u001f';
+
+    public AnalyzingCompletionLookupProviderV1(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
         this.preserveSep = preserveSep;
         this.preservePositionIncrements = preservePositionIncrements;
         this.hasPayloads = hasPayloads;
@@ -74,7 +84,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
         //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE);
+        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements,
+                null, false, 1, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
     }
 
     @Override
@@ -84,7 +95,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     @Override
     public FieldsConsumer consumer(final IndexOutput output) throws IOException {
-        CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION_LATEST);
+        CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION);
         return new FieldsConsumer() {
             private Map<FieldInfo, Long> fieldOffsets = new HashMap<FieldInfo, Long>();
 
@@ -111,8 +122,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
-                    final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProvider.this, builder);
+                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
+                    final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1.this, builder);
 
                     @Override
                     public PostingsConsumer startTerm(BytesRef text) throws IOException {
@@ -156,9 +167,6 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
                             options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
                             output.writeVInt(options);
-                            output.writeVInt(XAnalyzingSuggester.SEP_LABEL);
-                            output.writeVInt(XAnalyzingSuggester.END_BYTE);
-                            output.writeVInt(XAnalyzingSuggester.PAYLOAD_SEP);
                         }
                     }
                 };
@@ -168,11 +176,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
-        private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
+        private AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider;
         private XAnalyzingSuggester.XBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
+        public CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }
@@ -203,7 +211,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     @Override
     public LookupFactory load(IndexInput input) throws IOException {
-        int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
+        CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION, CODEC_VERSION);
         final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<String, AnalyzingSuggestHolder>();
         input.seek(input.length() - 8);
         long metaPointer = input.readLong();
@@ -228,23 +236,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             boolean preserveSep = (options & SERIALIZE_PRESERVE_SEPERATORS) != 0;
             boolean hasPayloads = (options & SERIALIZE_HAS_PAYLOADS) != 0;
             boolean preservePositionIncrements = (options & SERIALIZE_PRESERVE_POSITION_INCREMENTS) != 0;
-
-            // first version did not include these three fields, so fall back to old default (before the analyzingsuggester
-            // was updated in Lucene, so we cannot use the suggester defaults)
-            int sepLabel, payloadSep, endByte;
-            if (version == CODEC_VERSION_START) {
-                sepLabel = 0xFF;
-                payloadSep = '\u001f';
-                endByte = 0x0;
-            } else {
-                sepLabel = input.readVInt();
-                endByte = input.readVInt();
-                payloadSep = input.readVInt();
-            }
-
-            AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
-                    hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte);
-            lookupMap.put(entry.getValue(), holder);
+            lookupMap.put(entry.getValue(), new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
+                    hasPayloads, maxAnalyzedPathsForOneInput, fst));
         }
         return new LookupFactory() {
             @Override
@@ -260,15 +253,16 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                     suggester = new XFuzzySuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
-                            suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
+                            suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte);
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
 
                 } else {
                     suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                            analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte);
+                            analyzingSuggestHolder.preservePositionIncrements,
+                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
                 }
                 return suggester;
             }
@@ -297,7 +291,6 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
                 return new CompletionStats(sizeInBytes, completionFields);
             }
-
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper) {
                 return lookupMap.get(mapper.names().indexName());
@@ -305,6 +298,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         };
     }
 
+    /*
+    // might be readded when we change the current impl, right now not needed
     static class AnalyzingSuggestHolder {
         final boolean preserveSep;
         final boolean preservePositionIncrements;
@@ -313,16 +308,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final boolean hasPayloads;
         final int maxAnalyzedPathsForOneInput;
         final FST<Pair<Long, BytesRef>> fst;
-        final int sepLabel;
-        final int payloadSep;
-        final int endByte;
 
         public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                                       boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst) {
-            this(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, hasPayloads, maxAnalyzedPathsForOneInput, fst, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE);
-        }
-
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions, boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst, int sepLabel, int payloadSep, int endByte) {
             this.preserveSep = preserveSep;
             this.preservePositionIncrements = preservePositionIncrements;
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
@@ -330,11 +318,10 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             this.hasPayloads = hasPayloads;
             this.maxAnalyzedPathsForOneInput = maxAnalyzedPathsForOneInput;
             this.fst = fst;
-            this.sepLabel = sepLabel;
-            this.payloadSep = payloadSep;
-            this.endByte = endByte;
         }
+
     }
+    */
 
     @Override
     public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {

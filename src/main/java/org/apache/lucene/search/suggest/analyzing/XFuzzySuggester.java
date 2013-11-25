@@ -19,6 +19,7 @@
 package org.apache.lucene.search.suggest.analyzing;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.*;
@@ -48,6 +49,9 @@ import java.util.Set;
  * #DEFAULT_NON_FUZZY_PREFIX} byte is not allowed to be
  * edited.  We allow up to 1 (@link
  * #DEFAULT_MAX_EDITS} edit.
+ * If {@link #unicodeAware} parameter in the constructor is set to true, maxEdits,
+ * minFuzzyLength, transpositions and nonFuzzyPrefix are measured in Unicode code
+ * points (actual letters) instead of bytes.*
  *
  * <p>
  * NOTE: This suggester does not boost suggestions that
@@ -60,12 +64,22 @@ import java.util.Set;
  * like synonyms to keep the complexity of the prefix intersection low for good
  * lookup performance. At index time, complex analyzers can safely be used.
  * </p>
+ *
+ * @lucene.experimental
  */
 public final class XFuzzySuggester extends XAnalyzingSuggester {
     private final int maxEdits;
     private final boolean transpositions;
     private final int nonFuzzyPrefix;
     private final int minFuzzyLength;
+    private final boolean unicodeAware;
+
+    /**
+     *  Measure maxEdits, minFuzzyLength, transpositions and nonFuzzyPrefix
+     *  parameters in Unicode code points (actual letters)
+     *  instead of bytes.
+     */
+    public static final boolean DEFAULT_UNICODE_AWARE = false;
 
     /**
      * The default minimum length of the key passed to {@link
@@ -108,7 +122,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      */
     public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
         this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, DEFAULT_MAX_EDITS, DEFAULT_TRANSPOSITIONS,
-                DEFAULT_NON_FUZZY_PREFIX, DEFAULT_MIN_FUZZY_LENGTH, null, false, 0);
+                DEFAULT_NON_FUZZY_PREFIX, DEFAULT_MIN_FUZZY_LENGTH, DEFAULT_UNICODE_AWARE, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
 
     }
 
@@ -133,11 +147,15 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      *        Levenshtein algorithm.
      * @param nonFuzzyPrefix length of common (non-fuzzy) prefix (see default {@link #DEFAULT_NON_FUZZY_PREFIX}
      * @param minFuzzyLength minimum length of lookup key before any edits are allowed (see default {@link #DEFAULT_MIN_FUZZY_LENGTH})
+     * @param sepLabel separation label
+     * @param payloadSep payload separator byte
+     * @param endByte end byte marker byte
      */
     public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
-                           int maxEdits, boolean transpositions, int nonFuzzyPrefix, int minFuzzyLength,
-                           FST<PairOutputs.Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput) {
-        super(indexAnalyzer, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, fst, hasPayloads, maxAnalyzedPathsForOneInput);
+                           int maxEdits, boolean transpositions, int nonFuzzyPrefix, int minFuzzyLength, boolean unicodeAware,
+                           FST<PairOutputs.Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
+                           int sepLabel, int payloadSep, int endByte) {
+        super(indexAnalyzer, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, true, fst, hasPayloads, maxAnalyzedPathsForOneInput, sepLabel, payloadSep, endByte);
         if (maxEdits < 0 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
             throw new IllegalArgumentException("maxEdits must be between 0 and " + LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
         }
@@ -152,6 +170,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
         this.transpositions = transpositions;
         this.nonFuzzyPrefix = nonFuzzyPrefix;
         this.minFuzzyLength = minFuzzyLength;
+        this.unicodeAware = unicodeAware;
     }
 
     @Override
@@ -170,7 +189,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
         // "compete") ... in which case I think the wFST needs
         // to be log weights or something ...
 
-        Automaton levA = toLevenshteinAutomata(lookupAutomaton);
+        Automaton levA = convertAutomaton(toLevenshteinAutomata(lookupAutomaton));
     /*
       Writer w = new OutputStreamWriter(new FileOutputStream("out.dot"), "UTF-8");
       w.write(levA.toDot());
@@ -178,6 +197,24 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
       System.out.println("Wrote LevA to out.dot");
     */
         return FSTUtil.intersectPrefixPaths(levA, fst);
+    }
+
+    @Override
+    protected Automaton convertAutomaton(Automaton a) {
+      if (unicodeAware) {
+        Automaton utf8automaton = new UTF32ToUTF8().convert(a);
+        BasicOperations.determinize(utf8automaton);
+        return utf8automaton;
+      } else {
+        return a;
+      }
+    }
+
+    @Override
+    public TokenStreamToAutomaton getTokenStreamToAutomaton() {
+      final TokenStreamToAutomaton tsta = super.getTokenStreamToAutomaton();
+      tsta.setUnicodeArcs(unicodeAware);
+      return tsta;
     }
 
     Automaton toLevenshteinAutomata(Automaton automaton) {
@@ -197,7 +234,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
                 // to allow the trailing dedup bytes to be
                 // edited... but then 0 byte is "in general" allowed
                 // on input (but not in UTF8).
-                LevenshteinAutomata lev = new LevenshteinAutomata(ints, 255, transpositions);
+                LevenshteinAutomata lev = new LevenshteinAutomata(ints, unicodeAware ? Character.MAX_CODE_POINT : 255, transpositions);
                 Automaton levAutomaton = lev.toAutomaton(maxEdits);
                 Automaton combined = BasicOperations.concatenate(Arrays.asList(prefix, levAutomaton));
                 combined.setDeterministic(true); // its like the special case in concatenate itself, except we cloneExpanded already

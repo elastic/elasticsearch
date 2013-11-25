@@ -218,6 +218,11 @@ The following parameters are supported:
     Minimum length of the input, which is not
     checked for fuzzy alternatives, defaults to `1`
 
+`unicode_aware`::
+    Sets all are measurements (like edit distance,
+    transpositions and lengths) in unicode code points
+    (actual letters) instead of bytes.
+
 NOTE: If you want to stick with the default values, but
       still use fuzzy, you can either use `fuzzy: {}`
       or `fuzzy: true`.

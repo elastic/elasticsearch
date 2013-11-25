@@ -28,8 +28,10 @@ import java.io.IOException;
  * <p/>
  * <p>Uses the field data cache (loading all the values for the specified field into memory).
  *
- *
+ * @deprecated This filter will be removed at some point in time in favor for the range filter with the execution
+ *             mode <code>fielddata</code>.
  */
+@Deprecated
 public class NumericRangeFilterBuilder extends BaseFilterBuilder {
 
     private final String name;

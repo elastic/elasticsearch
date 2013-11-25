@@ -51,6 +51,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.count.query.SimpleQueryTests.rangeFilter;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -1480,16 +1481,16 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         SearchResponse response = client().prepareSearch("test").setFilter(
                 FilterBuilders.boolFilter()
-                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4))
         ).execute().actionGet();
         assertThat(response.getHits().totalHits(), equalTo(4l));
 
         // This made 2826 fail! (only with bit based filters)
         response = client().prepareSearch("test").setFilter(
                 FilterBuilders.boolFilter()
-                        .should(FilterBuilders.numericRangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.numericRangeFilter("num_long").from(3).to(4))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4))
         ).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(4l));
@@ -1498,8 +1499,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         response = client().prepareSearch("test").setFilter(
                 FilterBuilders.boolFilter()
                         .must(FilterBuilders.termFilter("field1", "test1"))
-                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4))
         ).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));

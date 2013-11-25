@@ -300,7 +300,10 @@ public abstract class FilterBuilders {
      * field data cache (loading all the values for the specified field into memory)
      *
      * @param name The field name
+     * @deprecated The numeric_range filter will be removed at some point in time in favor for the range filter with
+     *             the execution mode <code>fielddata</code>.
      */
+    @Deprecated
     public static NumericRangeFilterBuilder numericRangeFilter(String name) {
         return new NumericRangeFilterBuilder(name);
     }

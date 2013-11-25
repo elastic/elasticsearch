@@ -57,7 +57,24 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, ObjectIntOpenHashMap<String>> nodesPerAttributeNames = new HashMap<String, ObjectIntOpenHashMap<String>>();
 
-    public RoutingNodes(ClusterState clusterState) {
+    private static RoutingNodes instance;
+
+    public static RoutingNodes getInstance() {
+        return instance;
+    }
+
+    public static RoutingNodes createInstance( ClusterState state ) {
+        instance = new RoutingNodes( state );
+        return getInstance();
+    }
+
+    private Map<ShardId, List<MutableShardRouting>> replicaSets = newHashMap();
+    private int unassignedPrimaryCount = 0;
+    private int inactivePrimaryCount = 0;
+    private int inactiveShardCount   = 0;
+    private Set<ShardId> relocatingReplicaSets = new HashSet<ShardId>();
+
+    private RoutingNodes(ClusterState clusterState) {
         this.metaData = clusterState.metaData();
         this.blocks = clusterState.blocks();
         this.routingTable = clusterState.routingTable();
@@ -71,26 +88,44 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 for (ShardRouting shard : indexShard) {
+                    List<MutableShardRouting> replicaSet = replicaSets.get( shard.shardId() );
+                    if ( replicaSet == null ) {
+                        replicaSet = new ArrayList<MutableShardRouting>();
+                        replicaSets.put( shard.shardId(), replicaSet );
+                    }
                     if (shard.assignedToNode()) {
                         List<MutableShardRouting> entries = nodesToShards.get(shard.currentNodeId());
                         if (entries == null) {
                             entries = newArrayList();
                             nodesToShards.put(shard.currentNodeId(), entries);
                         }
-                        entries.add(new MutableShardRouting(shard));
+                        MutableShardRouting sr = new MutableShardRouting(shard);
+                        entries.add( sr );
+                        replicaSet.add( sr );
                         if (shard.relocating()) {
                             entries = nodesToShards.get(shard.relocatingNodeId());
+                            relocatingReplicaSets.add( shard.shardId() );
                             if (entries == null) {
                                 entries = newArrayList();
                                 nodesToShards.put(shard.relocatingNodeId(), entries);
                             }
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            entries.add(new MutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(),
-                                    shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version()));
+                            sr = new MutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(),
+                                    shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version());
+                            entries.add( sr );
+                            replicaSet.add( sr );
+                        }
+                        else if ( !shard.active() ) { // shards that are initializing without being relocated
+                            if ( shard.primary() )
+                                inactivePrimaryCount++;
+                            inactiveShardCount++;
                         }
                     } else {
                         unassigned.add(new MutableShardRouting(shard));
+                        if ( shard.primary() )
+                            unassignedPrimaryCount++;
+
                     }
                 }
             }
@@ -202,15 +237,69 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesPerAttributesCounts;
     }
 
+    public void notifyAssigned( MutableShardRouting shard, boolean needsAccounting ) {
+        replicaSets.get( shard.shardId() ).add( shard );
+        if ( needsAccounting ) {
+            if ( shard.state() == ShardRoutingState.INITIALIZING ) {
+                inactiveShardCount++;
+                if ( shard.primary() ) {
+                    unassignedPrimaryCount--;
+                    inactivePrimaryCount++;
+                }
+            }
+            else if ( shard.state() == ShardRoutingState.RELOCATING ) {
+                relocatingReplicaSets.add( shard.shardId() );
+            }
+        }
+    }
+
+    public void notifyUnassigned( MutableShardRouting shard ) {
+        if ( shard.primary() )
+            unassignedPrimaryCount++;
+    }
+
+    public void notifyStarted( MutableShardRouting shard ) {
+        inactiveShardCount--;
+        if ( shard.primary() ) {
+            inactivePrimaryCount--;
+        }
+    }
+
+    public void notifyRelocating( MutableShardRouting shard ) {
+        relocatingReplicaSets.add( shard.shardId() );
+    }
+
+    public void notifyRelocationCanceled( MutableShardRouting shard ) {
+        relocatingReplicaSets.remove( shard.shardId() );
+    }
+
+    public boolean hasUnassignedPrimaries() {
+        return unassignedPrimaryCount > 0;
+    }
+
+    public boolean hasUnassignedShards() {
+        return !unassigned.isEmpty();
+    }
+
+    public boolean hasInactivePrimaries() {
+        return inactivePrimaryCount > 0;
+    }
+
+    public boolean hasInactiveShards() {
+        return inactiveShardCount > 0;
+    }
+
+    public int getRelocatingShardCount() {
+        return relocatingReplicaSets.size();
+    }
+
     public MutableShardRouting findPrimaryForReplica(ShardRouting shard) {
         assert !shard.primary();
-        for (RoutingNode routingNode : nodesToShards.values()) {
-            List<MutableShardRouting> shards = routingNode.shards();
-            for (int i = 0; i < shards.size(); i++) {
-                MutableShardRouting shardRouting = shards.get(i);
-                if (shardRouting.shardId().equals(shard.shardId()) && shardRouting.primary()) {
-                    return shardRouting;
-                }
+        List<MutableShardRouting> shards = shardsRoutingFor( shard );
+        for (int i = 0; i < shards.size(); i++) {
+            MutableShardRouting shardRouting = shards.get(i);
+            if ( shardRouting.primary() ) {
+                return shardRouting;
             }
         }
         return null;
@@ -221,15 +310,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public List<MutableShardRouting> shardsRoutingFor(String index, int shardId) {
-        List<MutableShardRouting> shards = newArrayList();
-        for (RoutingNode routingNode : this) {
-            List<MutableShardRouting> nShards = routingNode.shards();
-            for (int i = 0; i < nShards.size(); i++) {
-                MutableShardRouting shardRouting = nShards.get(i);
-                if (shardRouting.index().equals(index) && shardRouting.id() == shardId) {
-                    shards.add(shardRouting);
-                }
-            }
+        ShardId sid = new ShardId( index, shardId );
+        List<MutableShardRouting> shards = replicaSets.get( sid );
+        if ( shards == null ) {
+            shards = newArrayList();
         }
         for (int i = 0; i < unassigned.size(); i++) {
             MutableShardRouting shardRouting = unassigned.get(i);

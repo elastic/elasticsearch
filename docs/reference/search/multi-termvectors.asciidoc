@@ -1,0 +1,93 @@
+[[docs-multi-termvectors]]
+== Multi termvectors API
+
+Multi termvectors API allows to get multiple termvectors based on an index, type and id. The response includes a `docs`
+array with all the fetched termvectors, each element having the structure
+provided by the <<search-termvectors,termvectors>>
+API. Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/_mtermvectors' -d '{
+{
+   "docs": [
+      {
+         "_index": "testidx",
+         "_type": "test",
+         "_id": "2",
+         "term_statistics": true
+      },
+      {
+         "_index": "testidx",
+         "_type": "test",
+         "_id": "1",
+         "fields": [
+            "text"
+         ]
+      }
+   ]
+}'
+--------------------------------------------------
+
+See the <<search-termvectors,termvectors>> API for a description of possible parameters.
+
+The `_mtermvectors` endpoint can also be used against an index (in which case it
+is not required in the body):
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/testidx/_mtermvectors' -d '{
+   "docs": [
+      {
+         "_type": "test",
+         "_id": "2",
+         "fields": [
+            "text"
+         ],
+         "term_statistics": true
+      },
+      {
+         "_type": "test",
+         "_id": "1"
+      }
+   ]
+}'
+--------------------------------------------------
+
+And type:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
+   "docs": [
+      {
+         "_id": "2",
+         "fields": [
+            "text"
+         ],
+         "term_statistics": true
+      },
+      {
+         "_id": "1"
+      }
+   ]
+}'
+--------------------------------------------------
+
+If all requested documents are on same index and have same type and also the parameters are the same, the request can be simplified:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
+    "ids" : ["1", "2"],
+    "parameters": {
+    	"fields": [
+         	"text"
+      	],
+      	"term_statistics": true,
+      	…
+    }
+}'
+--------------------------------------------------
+
+Parameters can aslo be set by passing them as uri parameters (see <<search-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.

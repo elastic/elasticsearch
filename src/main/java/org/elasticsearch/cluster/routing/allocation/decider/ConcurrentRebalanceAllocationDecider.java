@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -72,15 +73,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         if (clusterConcurrentRebalance == -1) {
             return Decision.YES;
         }
-        int rebalance = 0;
-        for (RoutingNode node : allocation.routingNodes()) {
-            List<MutableShardRouting> shards = node.shards();
-            for (int i = 0; i < shards.size(); i++) {
-                if (shards.get(i).state() == ShardRoutingState.RELOCATING) {
-                    rebalance++;
-                }
-            }
-        }
+        int rebalance = allocation.routingNodes().getRelocatingShardCount();
         if (rebalance >= clusterConcurrentRebalance) {
             return Decision.NO;
         }

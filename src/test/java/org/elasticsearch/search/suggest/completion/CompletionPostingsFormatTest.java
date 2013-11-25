@@ -31,10 +31,7 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -67,27 +64,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         Completion090PostingsFormat.CompletionLookupProvider randomProvider = providers.get(getRandom().nextInt(providers.size()));
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-        FieldsConsumer consumer = randomProvider.consumer(output);
-        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
-        TermsConsumer addField = consumer.addField(fieldInfo);
-
-        PostingsConsumer postingsConsumer = addField.startTerm(new BytesRef("foofightersgenerator"));
-        postingsConsumer.startDoc(0, 1);
-        postingsConsumer.addPosition(256 - 2, randomProvider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-                1);
-        postingsConsumer.finishDoc();
-        addField.finishTerm(new BytesRef("foofightersgenerator"), new TermStats(1, 1));
-        addField.startTerm(new BytesRef("generator"));
-        postingsConsumer.startDoc(0, 1);
-        postingsConsumer.addPosition(256 - 1, randomProvider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-                1);
-        postingsConsumer.finishDoc();
-        addField.finishTerm(new BytesRef("generator"), new TermStats(1, 1));
-        addField.finish(1, 1, 1);
-        consumer.close();
-        output.close();
+        writeData(dir, randomProvider);
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
@@ -106,37 +83,34 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
 
         RAMDirectory dir = new RAMDirectory();
-        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-        FieldsConsumer consumer = providerV1.consumer(output);
-        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
-        TermsConsumer addField = consumer.addField(fieldInfo);
-
-        PostingsConsumer postingsConsumer = addField.startTerm(new BytesRef("foofightersgenerator"));
-        postingsConsumer.startDoc(0, 1);
-        postingsConsumer.addPosition(256 - 2, providerV1.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-                1);
-        postingsConsumer.finishDoc();
-        addField.finishTerm(new BytesRef("foofightersgenerator"), new TermStats(1, 1));
-        addField.startTerm(new BytesRef("generator"));
-        postingsConsumer.startDoc(0, 1);
-        postingsConsumer.addPosition(256 - 1, providerV1.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-                1);
-        postingsConsumer.finishDoc();
-        addField.finishTerm(new BytesRef("generator"), new TermStats(1, 1));
-        addField.finish(1, 1, 1);
-        consumer.close();
-        output.close();
+        writeData(dir, providerV1);
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE));
         assertThat(analyzingSuggestHolder.sepLabel, is(AnalyzingCompletionLookupProviderV1.SEP_LABEL));
         assertThat(analyzingSuggestHolder.payloadSep, is(AnalyzingCompletionLookupProviderV1.PAYLOAD_SEP));
         assertThat(analyzingSuggestHolder.endByte, is(AnalyzingCompletionLookupProviderV1.END_BYTE));
+        dir.close();
+    }
+
+    @Test
+    public void testProviderVersion2() throws IOException {
+        AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
+
+        RAMDirectory dir = new RAMDirectory();
+        writeData(dir, currentProvider);
+
+        IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
+        LookupFactory load = currentProvider.load(input);
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE));
+        assertThat(analyzingSuggestHolder.sepLabel, is(XAnalyzingSuggester.SEP_LABEL));
+        assertThat(analyzingSuggestHolder.payloadSep, is(XAnalyzingSuggester.PAYLOAD_SEP));
+        assertThat(analyzingSuggestHolder.endByte, is(XAnalyzingSuggester.END_BYTE));
         dir.close();
     }
 
@@ -326,4 +300,28 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
     }
 
     // TODO ADD more unittests
+    private void writeData(Directory dir, Completion090PostingsFormat.CompletionLookupProvider provider) throws IOException {
+        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
+        FieldsConsumer consumer = provider.consumer(output);
+        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
+                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
+        TermsConsumer addField = consumer.addField(fieldInfo);
+
+        PostingsConsumer postingsConsumer = addField.startTerm(new BytesRef("foofightersgenerator"));
+        postingsConsumer.startDoc(0, 1);
+        postingsConsumer.addPosition(256 - 2, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
+                1);
+        postingsConsumer.finishDoc();
+        addField.finishTerm(new BytesRef("foofightersgenerator"), new TermStats(1, 1));
+        addField.startTerm(new BytesRef("generator"));
+        postingsConsumer.startDoc(0, 1);
+        postingsConsumer.addPosition(256 - 1, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
+                1);
+        postingsConsumer.finishDoc();
+        addField.finishTerm(new BytesRef("generator"), new TermStats(1, 1));
+        addField.finish(1, 1, 1);
+        consumer.close();
+        output.close();
+
+    }
 }

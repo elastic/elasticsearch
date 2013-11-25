@@ -35,11 +35,11 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.jvm.argline></tests.jvm.argline>
         <tests.jvm.option1>${env.ES_TESTS_JVM_OPTION1}</tests.jvm.option1>
         <tests.jvm.option2>${env.ES_TESTS_JVM_OPTION2}</tests.jvm.option2>
         <tests.jvm.option3>${env.ES_TESTS_JVM_OPTION3}</tests.jvm.option3>
         <tests.jvm.option4>${env.ES_TESTS_JVM_OPTION4}</tests.jvm.option4>
-
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -370,6 +370,9 @@
                                 <exclude>**/Abstract*.class</exclude>
                                 <exclude>**/*StressTest.class</exclude>
                             </excludes>
+                            <argLine>
+                                ${tests.jvm.argline}
+                            </argLine>
                             <jvmArgs>
                                 <param>${tests.jvm.option1}</param>
                                 <param>${tests.jvm.option2}</param>
@@ -385,6 +388,12 @@
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <systemProperties>
                                 <!-- RandomizedTesting library system properties -->
+                                <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <!-- the option[1..4] should go away soon once the jenkins skript if adjusted-->
+                                <tests.jvm.option1>${tests.jvm.option1}</tests.jvm.option1>
+                                <tests.jvm.option2>${tests.jvm.option2}</tests.jvm.option2>
+                                <tests.jvm.option3>${tests.jvm.option3}</tests.jvm.option3>
+                                <tests.jvm.option4>${tests.jvm.option4}</tests.jvm.option4>
                                 <tests.iters>${tests.iters}</tests.iters>
                                 <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                                 <tests.failfast>${tests.failfast}</tests.failfast>

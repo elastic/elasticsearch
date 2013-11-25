@@ -567,6 +567,36 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testThatFuzzySuggesterIsUnicodeAware() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("ööööö").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        // suggestion with a character, which needs unicode awareness
+        CompletionSuggestionFuzzyBuilder completionSuggestionBuilder =
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("öööи").size(10).setUnicodeAware(true);
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(completionSuggestionBuilder).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "ööööö");
+
+        // removing unicode awareness leads to no result
+        completionSuggestionBuilder.setUnicodeAware(false);
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(completionSuggestionBuilder).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo");
+
+        // increasing edit distance instead of unicode awareness works again, as this is only a single character
+        completionSuggestionBuilder.setFuzzyEditDistance(2);
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(completionSuggestionBuilder).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "ööööö");
+    }
+
+    @Test
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
 
@@ -650,8 +680,11 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         refresh();
 
+        assertSuggestions("f", "Feed the trolls", "Feed trolls");
+        assertSuggestions("fe", "Feed the trolls", "Feed trolls");
+        assertSuggestions("fee", "Feed the trolls", "Feed trolls");
+        assertSuggestions("feed", "Feed the trolls", "Feed trolls");
         assertSuggestions("feed t", "Feed the trolls", "Feed trolls");
-        assertSuggestions("feed th", "Feed the trolls");
         assertSuggestions("feed the", "Feed the trolls");
         // stop word complete, gets ignored on query time, makes it "feed" only
         assertSuggestions("feed the ", "Feed the trolls", "Feed trolls");

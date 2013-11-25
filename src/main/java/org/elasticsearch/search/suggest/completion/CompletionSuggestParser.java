@@ -68,6 +68,8 @@ public class CompletionSuggestParser implements SuggestContextParser {
                             suggestion.setFuzzyMinLength(parser.intValue());
                         } else if ("prefix_length".equals(fuzzyConfigName) || "prefixLength".equals(fuzzyConfigName)) {
                             suggestion.setFuzzyPrefixLength(parser.intValue());
+                        } else if ("unicode_aware".equals(fuzzyConfigName) || "unicodeAware".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyUnicodeAware(parser.booleanValue());
                         }
                     }
                 }

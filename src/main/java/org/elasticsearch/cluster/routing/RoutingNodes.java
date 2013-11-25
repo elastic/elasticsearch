@@ -122,7 +122,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             inactiveShardCount++;
                         }
                     } else {
-                        unassigned.add(new MutableShardRouting(shard));
+                        MutableShardRouting sr = new MutableShardRouting(shard);
+                        replicaSet.add( sr );
+                        unassigned.add( sr );
                         if ( shard.primary() )
                             unassignedPrimaryCount++;
 
@@ -315,12 +317,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if ( shards == null ) {
             shards = newArrayList();
         }
-        for (int i = 0; i < unassigned.size(); i++) {
-            MutableShardRouting shardRouting = unassigned.get(i);
-            if (shardRouting.index().equals(index) && shardRouting.id() == shardId) {
-                shards.add(shardRouting);
-            }
-        }
+        // no need to check unassigned array, since the ShardRoutings are in the replica set.
         return shards;
     }
 

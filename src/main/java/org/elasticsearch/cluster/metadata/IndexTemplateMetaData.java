@@ -155,9 +155,9 @@ public class IndexTemplateMetaData {
 
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
-        private ImmutableOpenMap.Builder<String, CompressedString> mappings;
+        private final ImmutableOpenMap.Builder<String, CompressedString> mappings;
 
-        private ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
+        private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
 
         public Builder(String name) {
             this.name = name;
@@ -166,7 +166,7 @@ public class IndexTemplateMetaData {
         }
 
         public Builder(IndexTemplateMetaData indexTemplateMetaData) {
-            this(indexTemplateMetaData.name());
+            this.name = indexTemplateMetaData.name();
             order(indexTemplateMetaData.order());
             template(indexTemplateMetaData.template());
             settings(indexTemplateMetaData.settings());

@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -59,6 +60,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
     final List<ActionRequest> requests = Lists.newArrayList();
     List<Object> payloads = null;
 
+    protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private boolean refresh = false;
@@ -426,6 +428,25 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         return this.replicationType;
     }
 
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final BulkRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final BulkRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
             if (data.get(i) == marker) {
@@ -477,6 +498,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             }
         }
         refresh = in.readBoolean();
+        if (in.getVersion().after(Version.V_0_90_7)) {
+            timeout = TimeValue.readTimeValue(in);
+        }
     }
 
     @Override
@@ -496,5 +520,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             request.writeTo(out);
         }
         out.writeBoolean(refresh);
+        if (out.getVersion().after(Version.V_0_90_7)) {
+            timeout.writeTo(out);
+        }
     }
 }

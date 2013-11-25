@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -76,7 +77,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         super.request.add(request.request());
         return this;
     }
-
 
 
     /**
@@ -134,6 +134,22 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public BulkRequestBuilder setRefresh(boolean refresh) {
         request.refresh(refresh);
+        return this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final BulkRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public final BulkRequestBuilder setTimeout(String timeout) {
+        request.timeout(timeout);
         return this;
     }
 

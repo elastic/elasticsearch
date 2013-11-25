@@ -67,10 +67,11 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     @Test
     public void testSimple() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
         String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
                 {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
                 {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
@@ -94,7 +95,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasicPrefixSuggestion() throws Exception {
-        createIndexAndMapping();
+        completionMappingBuilder.payloads(true);
+        createIndexAndMapping(completionMappingBuilder);
         for (int i = 0; i < 2; i++) {
             createData(i == 0);
             assertSuggestions("f", "Firestarter - The Prodigy", "Foo Fighters", "Generator - Foo Fighters", "Learn to Fly - Foo Fighters");
@@ -106,7 +108,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatWeightsAreWorking() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
 
         List<String> similarNames = Lists.newArrayList("the", "The Prodigy", "The Verve", "The the");
         // the weight is 1000 divided by string length, so the results are easy to to check
@@ -126,7 +128,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatWeightMustBeAnInteger() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
 
         try {
             client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -143,7 +145,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -159,7 +161,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatPayloadsAreArbitraryJsonObjects() throws Exception {
-        createIndexAndMapping();
+        completionMappingBuilder.payloads(true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -192,7 +195,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPayloadAsNumeric() throws Exception {
-        createIndexAndMapping();
+        completionMappingBuilder.payloads(true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -219,7 +223,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPayloadAsString() throws Exception {
-        createIndexAndMapping();
+        completionMappingBuilder.payloads(true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -246,7 +251,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = MapperException.class)
     public void testThatExceptionIsThrownWhenPayloadsAreDisabledButInIndexRequest() throws Exception {
-        createIndexAndMapping("simple", "simple", false, false, true);
+        completionMappingBuilder.payloads(false);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -259,7 +265,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDisabledPreserveSeperators() throws Exception {
-        createIndexAndMapping("simple", "simple", true, false, true);
+        completionMappingBuilder.preserveSeparators(false);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -282,7 +289,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testEnabledPreserveSeperators() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        completionMappingBuilder.preserveSeparators(true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -303,7 +311,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatMultipleInputsAreSupported() throws Exception {
-        createIndexAndMapping("simple", "simple", false, false, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -320,7 +328,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatShortSyntaxIsWorking() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startArray(FIELD)
@@ -337,7 +345,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     public void testThatDisablingPositionIncrementsWorkForStopwords() throws Exception {
         // analyzer which removes stopwords... so may not be the simple one
-        createIndexAndMapping("standard", "standard", false, false, false);
+        completionMappingBuilder.searchAnalyzer("classic").indexAnalyzer("classic").preservePositionIncrements(false);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -358,7 +367,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .putArray("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
                 .put("analysis.filter.my_synonyms.type", "synonym")
                 .putArray("analysis.filter.my_synonyms.synonyms", "foo,renamed");
-        createIndexAndMappingAndSettings(settingsBuilder, "suggest_analyzer_synonyms", "suggest_analyzer_synonyms", false, false, true);
+        completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
+        createIndexAndMappingAndSettings(settingsBuilder, completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -420,7 +430,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterWorks() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -443,7 +453,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterSupportsEditDistances() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -468,7 +478,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterSupportsTranspositions() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -491,7 +501,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterSupportsMinPrefixLength() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -514,7 +524,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterSupportsNonPrefixLength() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -537,7 +547,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatFuzzySuggesterIsUnicodeAware() throws Exception {
-        createIndexAndMapping("simple", "simple", true, true, true);
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -611,7 +621,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatSortingOnCompletionFieldReturnsUsefulException() throws Exception {
-        createIndexAndMapping();
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -637,7 +647,11 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
-        createIndexAndMappingAndSettings(settingsBuilder, "simple", "stoptest", true, true, true);
+        CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
+        completionMappingBuilder.preserveSeparators(true).preservePositionIncrements(true);
+        completionMappingBuilder.searchAnalyzer("stoptest");
+        completionMappingBuilder.indexAnalyzer("simple");
+        createIndexAndMappingAndSettings(settingsBuilder, completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().field(FIELD, "Feed trolls").endObject()
@@ -663,7 +677,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = MapperParsingException.class)
     public void testThatIndexingInvalidFieldsInCompletionFieldResultsInException() throws Exception {
-        createIndexAndMapping();
+        CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
+        createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -732,11 +747,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         return names;
     }
 
-    private void createIndexAndMapping() throws IOException {
-        createIndexAndMapping("simple", "simple", true, false, true);
-    }
-
-    private void createIndexAndMappingAndSettings(Settings.Builder settingsBuilder, String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators, boolean preservePositionIncrements) throws IOException {
+    private void createIndexAndMappingAndSettings(Settings.Builder settingsBuilder, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         client().admin().indices().prepareCreate(INDEX)
                 .setSettings(settingsBuilder)
                 .get();
@@ -744,11 +755,11 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
-                .field("index_analyzer", indexAnalyzer)
-                .field("search_analyzer", searchAnalyzer)
-                .field("payloads", payloads)
-                .field("preserve_separators", preserveSeparators)
-                .field("preserve_position_increments", preservePositionIncrements)
+                .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
+                .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
+                .field("payloads", completionMappingBuilder.payloads)
+                .field("preserve_separators", completionMappingBuilder.preserveSeparators)
+                .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements)
                 .endObject()
                 .endObject().endObject()
                 .endObject())
@@ -757,8 +768,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureYellow();
     }
 
-    private void createIndexAndMapping(String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators, boolean preservePositionIncrements) throws IOException {
-        createIndexAndMappingAndSettings(createDefaultSettings(), indexAnalyzer, searchAnalyzer, payloads, preserveSeparators, preservePositionIncrements);
+    private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
+        createIndexAndMappingAndSettings(createDefaultSettings(), completionMappingBuilder);
     }
 
     private ImmutableSettings.Builder createDefaultSettings() {
@@ -810,7 +821,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0), "standard", "standard", false, false, false);
+        createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0), completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -936,5 +947,34 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             }
         }
         return new String(charArray);
+    }
+
+    private static class CompletionMappingBuilder {
+        private String searchAnalyzer = "simple";
+        private String indexAnalyzer = "simple";
+        private Boolean payloads = getRandom().nextBoolean();
+        private Boolean preserveSeparators = getRandom().nextBoolean();
+        private Boolean preservePositionIncrements = getRandom().nextBoolean();
+
+        public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {
+            this.searchAnalyzer = searchAnalyzer;
+            return this;
+        }
+        public CompletionMappingBuilder indexAnalyzer(String indexAnalyzer) {
+            this.indexAnalyzer = indexAnalyzer;
+            return this;
+        }
+        public CompletionMappingBuilder payloads(Boolean payloads) {
+            this.payloads = payloads;
+            return this;
+        }
+        public CompletionMappingBuilder preserveSeparators(Boolean preserveSeparators) {
+            this.preserveSeparators = preserveSeparators;
+            return this;
+        }
+        public CompletionMappingBuilder preservePositionIncrements(Boolean preservePositionIncrements) {
+            this.preservePositionIncrements = preservePositionIncrements;
+            return this;
+        }
     }
 }

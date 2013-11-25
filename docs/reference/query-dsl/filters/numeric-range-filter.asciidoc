@@ -1,6 +1,8 @@
 [[query-dsl-numeric-range-filter]]
 === Numeric Range Filter
 
+deprecated[0.90.8,Use the <<query-dsl-range-filter,range filter>> with the `fielddata` execution mode instead]
+
 Filters documents with fields that have values within a certain numeric
 range. Similar to
 <<query-dsl-range-filter,range filter>>, except

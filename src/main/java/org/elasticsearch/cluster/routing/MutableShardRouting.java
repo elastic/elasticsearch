@@ -50,8 +50,9 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * 
      * @param nodeId id of the node to assign this shard to
      */
-    public void assignToNode(String nodeId) {
+    void assignToNode(String nodeId) {
         version++;
+
         if (currentNodeId == null) {
             assert state == ShardRoutingState.UNASSIGNED;
 
@@ -71,7 +72,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * 
      * @param relocatingNodeId id of the node to relocate the shard
      */
-    public void relocate(String relocatingNodeId) {
+    void relocate(String relocatingNodeId) {
         version++;
         assert state == ShardRoutingState.STARTED;
         state = ShardRoutingState.RELOCATING;
@@ -82,7 +83,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Cancel relocation of a shard. The shards state must be set
      * to <code>RELOCATING</code>.
      */
-    public void cancelRelocation() {
+    void cancelRelocation() {
         version++;
         assert state == ShardRoutingState.RELOCATING;
         assert assignedToNode();
@@ -96,7 +97,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Set the shards state to <code>UNASSIGNED</code>.
      * //TODO document the state
      */
-    public void deassignNode() {
+    void deassignNode() {
         version++;
         assert state != ShardRoutingState.UNASSIGNED;
 
@@ -110,7 +111,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
      * canceled. 
      */
-    public void moveToStarted() {
+    void moveToStarted() {
         version++;
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
         relocatingNodeId = null;
@@ -121,7 +122,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Make the shard primary unless it's not Primary
      * //TODO: doc exception
      */
-    public void moveToPrimary() {
+    void moveToPrimary() {
         version++;
         if (primary) {
             throw new IllegalShardRoutingStateException(this, "Already primary, can't move to primary");
@@ -132,7 +133,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
     /**
      * Set the primary shard to non-primary
      */
-    public void moveFromPrimary() {
+    void moveFromPrimary() {
         version++;
         if (!primary) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");

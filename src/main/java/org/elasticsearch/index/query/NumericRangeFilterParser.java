@@ -34,6 +34,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 /**
  *
  */
+@Deprecated
 public class NumericRangeFilterParser implements FilterParser {
 
     public static final String NAME = "numeric_range";

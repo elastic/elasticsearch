@@ -1031,16 +1031,16 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         CountResponse response = client().prepareCount("test").setQuery(
                 filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
-                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4)))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4)))
         ).execute().actionGet();
         assertHitCount(response, 4l);
 
         // This made 2826 fail! (only with bit based filters)
         response = client().prepareCount("test").setQuery(
                 filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
-                        .should(FilterBuilders.numericRangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.numericRangeFilter("num_long").from(3).to(4)))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4)))
         ).execute().actionGet();
 
         assertHitCount(response, 4l);
@@ -1049,8 +1049,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         response = client().prepareCount("test").setQuery(
                 filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
                         .must(FilterBuilders.termFilter("field1", "test1"))
-                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
-                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4)))
+                        .should(rangeFilter("num_long", 1, 2))
+                        .should(rangeFilter("num_long", 3, 4)))
         ).execute().actionGet();
 
         assertHitCount(response, 2l);
@@ -1107,5 +1107,17 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                         .slop(3)).execute().actionGet();
         assertNoFailures(response);
         assertHitCount(response, 3l);
+    }
+
+    public static FilterBuilder rangeFilter(String field, Object from, Object to) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return FilterBuilders.rangeFilter(field).from(from).to(to);
+            } else {
+                return FilterBuilders.rangeFilter(field).from(from).to(to).setExecution("fielddata");
+            }
+        } else {
+            return FilterBuilders.numericRangeFilter(field).from(from).to(to);
+        }
     }
 }

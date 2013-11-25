@@ -109,11 +109,13 @@ public class LongTerms extends InternalTerms {
     public InternalTerms reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
-            return (InternalTerms) aggregations.get(0);
+            InternalTerms terms = (InternalTerms) aggregations.get(0);
+            terms.trimExcessEntries();
+            return terms;
         }
         InternalTerms reduced = null;
 
-        Recycler.V<LongObjectOpenHashMap<List<Bucket>>> buckets = reduceContext.cacheRecycler().longObjectMap(-1);
+        Recycler.V<LongObjectOpenHashMap<List<Bucket>>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
             if (terms instanceof UnmappedTerms) {
@@ -121,6 +123,9 @@ public class LongTerms extends InternalTerms {
             }
             if (reduced == null) {
                 reduced = terms;
+            }
+            if (buckets == null) {
+                buckets = reduceContext.cacheRecycler().longObjectMap(terms.buckets.size());
             }
             for (Terms.Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.v().get(((Bucket) bucket).term);

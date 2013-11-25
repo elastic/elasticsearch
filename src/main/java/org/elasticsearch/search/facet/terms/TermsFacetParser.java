@@ -130,7 +130,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
-                } else if ("shard_size".equals(currentFieldName)) {
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
                     shardSize = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
                     allTerms = parser.booleanValue();

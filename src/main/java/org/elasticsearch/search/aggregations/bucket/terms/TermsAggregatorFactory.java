@@ -22,11 +22,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 /**
  *
@@ -35,11 +35,13 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
     private final InternalOrder order;
     private final int requiredSize;
+    private final int shardSize;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize) {
         super(name, StringTerms.TYPE.name(), valueSourceConfig);
         this.order = order;
         this.requiredSize = requiredSize;
+        this.shardSize = shardSize;
     }
 
     @Override
@@ -50,14 +52,14 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         if (valuesSource instanceof BytesValuesSource) {
-            return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, aggregationContext, parent);
+            return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
         }
 
         if (valuesSource instanceof NumericValuesSource) {
             if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, aggregationContext, parent);
+                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
             }
-            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, aggregationContext, parent);
+            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +

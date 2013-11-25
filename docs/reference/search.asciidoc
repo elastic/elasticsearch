@@ -100,3 +100,5 @@ include::search/percolate.asciidoc[]
 include::search/more-like-this.asciidoc[]
 
 include::search/termvectors.asciidoc[]
+
+include::search/multi-termvectors.asciidoc[]

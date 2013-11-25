@@ -512,7 +512,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *
          * @return <code>true</code> iff the shard has successfully been moved.
          */
-        public boolean move(MutableShardRouting shard, RoutingNode node) {
+        public boolean move(MutableShardRouting shard, RoutingNode node ) {
             if (nodes.isEmpty() || !shard.started()) {
                 /* with no nodes or a not started shard this is pointless */
                 return false;
@@ -535,7 +535,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * This is not guaranteed to be balanced after this operation we still try best effort to 
              * allocate on the minimal eligible node.
              */
-            
+           
             for (ModelNode currentNode : nodes) {
                 if (currentNode.getNodeId().equals(node.nodeId())) {
                     continue;
@@ -547,8 +547,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     final MutableShardRouting initializingShard = new MutableShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
                             shard.currentNodeId(), shard.restoreSource(), shard.primary(), INITIALIZING, shard.version() + 1);
                     currentNode.addShard(initializingShard, decision);
-                    target.add(initializingShard);
-                    shard.relocate(target.nodeId()); // set the node to relocate after we added the initializing shard
+                    allocation.routingNodes().assignShardToNode( initializingShard, target.nodeId() );
+                    allocation.routingNodes().relocateShard( shard, target.nodeId() ); // set the node to relocate after we added the initializing shard
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shard, currentNode.getNodeId());
                     }
@@ -704,7 +704,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.node(minNode.getNodeId()).add(shard);
+                            routingNodes.assignShardToNode( shard, routingNodes.node(minNode.getNodeId()).nodeId() );
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         }
@@ -782,13 +782,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         /* now allocate on the cluster - if we are started we need to relocate the shard */
                         if (candidate.started()) {
                             RoutingNode lowRoutingNode = allocation.routingNodes().node(minNode.getNodeId());
-                            lowRoutingNode.add(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
-                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1));
-                            candidate.relocate(lowRoutingNode.nodeId());
+                            allocation.routingNodes().assignShardToNode(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
+                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1), lowRoutingNode.nodeId() );
+                            allocation.routingNodes().relocateShard( candidate, lowRoutingNode.nodeId());
 
                         } else {
                             assert candidate.unassigned();
-                            allocation.routingNodes().node(minNode.getNodeId()).add(candidate);
+                            allocation.routingNodes().assignShardToNode( candidate, allocation.routingNodes().node(minNode.getNodeId()).nodeId() );
                         }
                         return true;
 

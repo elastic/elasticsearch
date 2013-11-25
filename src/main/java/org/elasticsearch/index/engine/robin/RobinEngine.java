@@ -740,10 +740,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
         SearcherManager manager = this.searcherManager;
+        if (manager == null) {
+            throw new EngineClosedException(shardId);
+        }
         try {
-            if (manager == null) {
-                throw new EngineClosedException(shardId);
-            }
             IndexSearcher searcher = manager.acquire();
             return newSearcher(source, searcher, manager);
         } catch (Throwable ex) {

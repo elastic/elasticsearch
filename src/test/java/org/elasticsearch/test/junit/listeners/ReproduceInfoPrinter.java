@@ -14,6 +14,8 @@ import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -72,6 +74,7 @@ public class ReproduceInfoPrinter extends RunListener {
         @Override
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
             super.appendAllOpts(description);
+            appendJVMArgLine();
             return appendESProperties();
         }
 
@@ -87,15 +90,36 @@ public class ReproduceInfoPrinter extends RunListener {
             } 
             return this;
         }
-        
+
         public ReproduceErrorMessageBuilder appendESProperties() {
             for (String sysPropName : Arrays.asList(
-                "es.logger.level", "es.node.mode", "es.node.local")) {
-              if (System.getProperty(sysPropName) != null && !System.getProperty(sysPropName).isEmpty()) {
-                appendOpt(sysPropName, System.getProperty(sysPropName));
-              }
+                    "es.logger.level", "es.node.mode", "es.node.local")) {
+                if (System.getProperty(sysPropName) != null && !System.getProperty(sysPropName).isEmpty()) {
+                    appendOpt(sysPropName, System.getProperty(sysPropName));
+                }
             }
             return this;
-          }
+        }
+
+        public ReproduceErrorMessageBuilder appendJVMArgLine() {
+            StringBuilder builder = new StringBuilder();
+            Set<String> values = new HashSet<String>();
+            for (String sysPropName : Arrays.asList(
+                    "tests.jvm.option1", "tests.jvm.option2", "tests.jvm.option3", "tests.jvm.option4", "tests.jvm.argline")) {
+                if (System.getProperty(sysPropName) != null && !System.getProperty(sysPropName).isEmpty()) {
+                    String propValue = System.getProperty(sysPropName).trim();
+                    if (!values.contains(propValue)) {
+                        builder.append(propValue);
+                        values.add(propValue); // deduplicate
+                        builder.append(' ');
+                    }
+                }
+            }
+            if (builder.length() > 0) {
+                appendOpt("tests.jvm.argline", "\"" + builder.toString().trim() + "\"");
+            }
+
+            return this;
+        }
     }
 }

@@ -116,7 +116,6 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
             // only delete indices when we already received a state (currentMetaData != null)
             for (IndexMetaData current : currentMetaData) {
                 if (!newMetaData.hasIndex(current.index())) {
-                    // TODO: have util for toString()
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));

@@ -690,7 +690,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             IndexSearcher searcher = manager.acquire();
             return newSearcher(source, searcher, manager);
-        } catch (IOException ex) {
+        } catch (Throwable ex) {
             logger.error("failed to acquire searcher, source {}", ex, source);
             throw new EngineException(shardId, ex.getMessage());
         }

@@ -167,11 +167,11 @@ public class MoveAllocationCommand implements AllocationCommand {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
 
-            toRoutingNode.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
+            allocation.routingNodes().assignShardToNode(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
                     toRoutingNode.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
-                    shardRouting.primary(), ShardRoutingState.INITIALIZING, shardRouting.version() + 1));
+                    shardRouting.primary(), ShardRoutingState.INITIALIZING, shardRouting.version() + 1), toRoutingNode.nodeId() );
 
-            shardRouting.relocate(toRoutingNode.nodeId());
+            allocation.routingNodes().relocateShard( shardRouting, toRoutingNode.nodeId() );
         }
 
         if (!found) {

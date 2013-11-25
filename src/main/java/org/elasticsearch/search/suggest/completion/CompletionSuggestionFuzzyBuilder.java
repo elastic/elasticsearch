@@ -38,6 +38,7 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
     private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
     private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
+    private boolean unicodeAware = XFuzzySuggester.DEFAULT_UNICODE_AWARE;
 
     public int getFuzzyEditDistance() {
         return fuzzyEditDistance;
@@ -75,6 +76,15 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return this;
     }
 
+    public boolean isUnicodeAware() {
+        return unicodeAware;
+    }
+
+    public CompletionSuggestionFuzzyBuilder setUnicodeAware(boolean unicodeAware) {
+        this.unicodeAware = unicodeAware;
+        return this;
+    }
+
     @Override
     protected XContentBuilder innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject("fuzzy");
@@ -90,6 +100,9 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         }
         if (fuzzyPrefixLength != XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX) {
             builder.field("prefix_length", fuzzyPrefixLength);
+        }
+        if (unicodeAware != XFuzzySuggester.DEFAULT_UNICODE_AWARE) {
+            builder.field("unicode_aware", unicodeAware);
         }
 
         builder.endObject();

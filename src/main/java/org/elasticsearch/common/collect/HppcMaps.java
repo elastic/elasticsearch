@@ -1,4 +1,4 @@
-package org.elasticsearch.common.hppc;
+package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectLookupContainer;

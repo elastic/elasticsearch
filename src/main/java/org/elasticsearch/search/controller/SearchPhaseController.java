@@ -27,7 +27,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.hppc.HppcMaps;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;

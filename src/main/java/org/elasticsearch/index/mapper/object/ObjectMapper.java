@@ -30,7 +30,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hppc.HppcMaps;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

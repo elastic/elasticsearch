@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
@@ -358,7 +358,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         return changed;
     }
 
-    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(DiscoveryNodes nodes, MutableShardRouting shard) {
+    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard) {
         ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
         Set<String> nodeIds;
         if (shardStates == null) {
@@ -367,12 +367,12 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             nodeIds = nodes.dataNodes().keySet();
         } else {
             // clean nodes that have failed
-            for (Iterator<ObjectLongCursor<DiscoveryNode>> it = shardStates.iterator(); it.hasNext(); ) {
-                DiscoveryNode node = it.next().key;
-                if (!nodes.nodeExists(node.id())) {
-                    it.remove();
+            shardStates.keys().removeAll(new ObjectPredicate<DiscoveryNode>() {
+                @Override
+                public boolean apply(DiscoveryNode node) {
+                    return !nodes.nodeExists(node.id());
                 }
-            }
+            });
             nodeIds = Sets.newHashSet();
             // we have stored cached from before, see if the nodes changed, if they have, go fetch again
             for (DiscoveryNode node : nodes.dataNodes().values()) {

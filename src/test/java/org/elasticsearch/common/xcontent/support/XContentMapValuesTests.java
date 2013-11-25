@@ -441,6 +441,38 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testThatFilterExcludesObjectWithWildcardPrefix() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("obj")
+                .field("f1", "v1")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.f1"});
+
+        assertThat(filteredSource.size(), equalTo(0));
+    }
+
+    @Test
+    public void testThatFilterExcludesFieldsWithWildcardPrefix() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("obj")
+                .field("f1", "v1")
+                .field("f2", "v2")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.f1"});
+
+        assertThat(filteredSource.size(), equalTo(1));
+        assertThat(filteredSource, hasKey("obj"));
+        assertThat(((Map) filteredSource.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("obj")), hasKey("f2"));
+    }
+
+    @Test
     public void testThatFilterIncludesEmptyObjectWhenUsingIncludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -526,6 +558,25 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2.*"});
 
         assertThat(filteredSource.size(), equalTo(0));
+    }
+
+    @Test
+    public void testFilterExcludesNestedObjectAndKeepsParent() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("obj1")
+                .field("f1", "v1")
+                .startObject("obj2")
+                .endObject()
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2.*"});
+
+        assertThat(filteredSource.size(), equalTo(1));
+        assertThat(filteredSource, hasKey("obj1"));
+        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("f1"));
     }
 
     @Test

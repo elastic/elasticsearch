@@ -275,5 +275,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         public ObjectContainer<VType> values() {
             return map.values();
         }
+
+        @SuppressWarnings("unchecked")
+        public <K, V> Builder<K, V> cast() {
+            return (Builder) this;
+        }
+
     }
 }

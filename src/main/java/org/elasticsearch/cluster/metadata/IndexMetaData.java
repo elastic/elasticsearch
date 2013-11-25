@@ -408,9 +408,9 @@ public class IndexMetaData {
         private State state = State.OPEN;
         private long version = 1;
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-        private ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
-        private ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
-        private ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
+        private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
+        private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder(String index) {
             this.index = index;
@@ -420,13 +420,13 @@ public class IndexMetaData {
         }
 
         public Builder(IndexMetaData indexMetaData) {
-            this(indexMetaData.index());
+            this.index = indexMetaData.index();
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
-            settings(indexMetaData.settings());
-            mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
-            aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
-            customs = ImmutableOpenMap.builder(indexMetaData.customs);
+            this.settings = indexMetaData.settings();
+            this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
+            this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
+            this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
         }
 
         public String index() {

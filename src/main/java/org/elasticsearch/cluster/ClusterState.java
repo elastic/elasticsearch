@@ -467,7 +467,7 @@ public class ClusterState implements ToXContent {
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private AllocationExplanation allocationExplanation = AllocationExplanation.EMPTY;
-        private ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder() {
             customs = ImmutableOpenMap.builder();

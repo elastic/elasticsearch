@@ -12,6 +12,7 @@ import java.util.Locale;
 public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     private int size = -1;
+    private int shardSize = -1;
     private Terms.ValueType valueType;
     private Terms.Order order;
 
@@ -21,6 +22,11 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     public TermsBuilder size(int size) {
         this.size = size;
+        return this;
+    }
+
+    public TermsBuilder shardSize(int shardSize) {
+        this.shardSize = shardSize;
         return this;
     }
 
@@ -38,6 +44,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (size >=0) {
             builder.field("size", size);
+        }
+        if (shardSize >= 0) {
+            builder.field("shard_size", shardSize);
         }
         if (valueType != null) {
             builder.field("value_type", valueType.name().toLowerCase(Locale.ROOT));

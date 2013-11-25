@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,6 +62,7 @@ public class TermsParser implements Aggregator.Parser {
         Map<String, Object> scriptParams = null;
         Terms.ValueType valueType = null;
         int requiredSize = 10;
+        int shardSize = -1;
         String orderKey = "_count";
         boolean orderAsc = false;
         String format = null;
@@ -92,6 +93,8 @@ public class TermsParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("size".equals(currentFieldName)) {
                     requiredSize = parser.intValue();
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
@@ -108,6 +111,11 @@ public class TermsParser implements Aggregator.Parser {
                     }
                 }
             }
+        }
+
+        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
+        if (shardSize < requiredSize) {
+            shardSize = requiredSize;
         }
 
         InternalOrder order = resolveOrder(orderKey, orderAsc);
@@ -131,14 +139,14 @@ public class TermsParser implements Aggregator.Parser {
             if (!assumeUnique) {
                 config.ensureUnique(true);
             }
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             ValuesSourceConfig<?> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
             config.unmapped(true);
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
@@ -180,7 +188,7 @@ public class TermsParser implements Aggregator.Parser {
             config.ensureUnique(true);
         }
 
-        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize);
+        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

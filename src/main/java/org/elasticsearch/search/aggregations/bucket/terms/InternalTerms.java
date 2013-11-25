@@ -129,13 +129,15 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     public InternalTerms reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
-            return (InternalTerms) aggregations.get(0);
+            InternalTerms terms = (InternalTerms) aggregations.get(0);
+            terms.trimExcessEntries();
+            return terms;
         }
         InternalTerms reduced = null;
 
         // TODO: would it be better to use a hppc map and then directly work on the backing array instead of using a PQ?
 
-        Map<Text, List<InternalTerms.Bucket>> buckets = new HashMap<Text, List<InternalTerms.Bucket>>(requiredSize);
+        Map<Text, List<InternalTerms.Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
             if (terms instanceof UnmappedTerms) {
@@ -143,6 +145,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             }
             if (reduced == null) {
                 reduced = terms;
+            }
+            if (buckets == null) {
+                buckets = new HashMap<Text, List<Bucket>>(terms.buckets.size());
             }
             for (Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.get(bucket.getKey());
@@ -171,6 +176,25 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         }
         reduced.buckets = Arrays.asList(list);
         return reduced;
+    }
+
+    protected void trimExcessEntries() {
+        if (requiredSize >= buckets.size()) {
+            return;
+        }
+
+        if (buckets instanceof List) {
+            buckets = ((List) buckets).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<Bucket> iter  = buckets.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
+        }
     }
 
 }

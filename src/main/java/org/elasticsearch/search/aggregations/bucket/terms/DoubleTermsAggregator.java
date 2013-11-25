@@ -41,15 +41,17 @@ public class DoubleTermsAggregator extends BucketsAggregator {
 
     private final InternalOrder order;
     private final int requiredSize;
+    private final int shardSize;
     private final NumericValuesSource valuesSource;
     private final LongHash bucketOrds;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
-                               InternalOrder order, int requiredSize, AggregationContext aggregationContext, Aggregator parent) {
+                               InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.order = order;
         this.requiredSize = requiredSize;
+        this.shardSize = shardSize;
         bucketOrds = new LongHash(INITIAL_CAPACITY);
     }
 
@@ -89,7 +91,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     @Override
     public DoubleTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
-        final int size = (int) Math.min(bucketOrds.size(), requiredSize);
+        final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
         OrdinalBucket spare = null;

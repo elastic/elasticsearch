@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
@@ -88,34 +89,26 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
-            for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
-                if (shard.primary()) {
-                    return Decision.NO;
-                }
+            // check if there are unassigned primaries.
+            if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
+                return Decision.NO;
             }
-            for (RoutingNode node : allocation.routingNodes()) {
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
-                    if (shard.primary() && !shard.active() && shard.relocatingNodeId() == null) {
-                        return Decision.NO;
-                    }
-                }
+            // check if there are initializing primaries that don't have a relocatingNodeId entry.
+            if ( allocation.routingNodes().hasInactivePrimaries() ) {
+                return Decision.NO;
             }
+
             return Decision.YES;
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
-            if (!allocation.routingNodes().unassigned().isEmpty()) {
+            // check if there are unassigned shards.
+            if ( allocation.routingNodes().hasUnassignedShards() ) {
                 return Decision.NO;
             }
-            for (RoutingNode node : allocation.routingNodes()) {
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
-                    if (!shard.active() && shard.relocatingNodeId() == null) {
-                        return Decision.NO;
-                    }
-                }
+            // in case all indices are assigned, are there initializing shards which
+            // are not relocating?
+            if ( allocation.routingNodes().hasInactiveShards() ) {
+                return Decision.NO;
             }
         }
         // type == Type.ALWAYS

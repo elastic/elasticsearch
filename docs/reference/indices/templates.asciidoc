@@ -27,6 +27,35 @@ Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
 the `te*` template.
 
+coming[1.1.0]
+
+It is also possible to include aliases in an index template as follows:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_template/template_1 -d '
+{
+    "template" : "te*",
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "aliases" : {
+        "alias1" : {},
+        "alias2" : {
+            "filter" : {
+                "term" : {"user" : "kimchy" }
+            },
+            "routing" : "kimchy"
+        },
+        "{index}-alias" : {} <1>
+    }
+}
+'
+--------------------------------------------------
+
+<1> the `{index}` placeholder within the alias name will be replaced with the
+actual index name that the template gets applied to during index creation.
+
 [float]
 [[delete]]
 === Deleting a Template

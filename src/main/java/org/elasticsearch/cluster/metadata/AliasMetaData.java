@@ -62,6 +62,10 @@ public class AliasMetaData {
         }
     }
 
+    private AliasMetaData(AliasMetaData aliasMetaData, String alias) {
+        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting());
+    }
+
     public String alias() {
         return alias;
     }
@@ -110,6 +114,13 @@ public class AliasMetaData {
         return new Builder(alias);
     }
 
+    /**
+     * Creates a new AliasMetaData instance with same content as the given one, but with a different alias name
+     */
+    public static AliasMetaData newAliasMetaData(AliasMetaData aliasMetaData, String newAlias) {
+        return new AliasMetaData(aliasMetaData, newAlias);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -137,7 +148,7 @@ public class AliasMetaData {
 
     public static class Builder {
 
-        private String alias;
+        private final String alias;
 
         private CompressedString filter;
 

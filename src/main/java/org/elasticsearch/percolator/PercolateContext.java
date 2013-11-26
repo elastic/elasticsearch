@@ -108,6 +108,7 @@ public class PercolateContext extends SearchContext {
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
     private SearchContextFacets facets;
+    private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler) {
@@ -286,12 +287,13 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContextAggregations aggregations() {
-        throw new UnsupportedOperationException();
+        return aggregations;
     }
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        throw new UnsupportedOperationException();
+        this.aggregations = aggregations;
+        return this;
     }
 
     @Override

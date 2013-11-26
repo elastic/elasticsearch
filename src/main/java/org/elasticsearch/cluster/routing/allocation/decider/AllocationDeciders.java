@@ -38,25 +38,50 @@ public class AllocationDeciders extends AllocationDecider {
     private final AllocationDecider[] allocations;
 
     /**
-     * Create a new {@link AllocationDeciders} instance
+     * Create a new {@link AllocationDeciders} instance. The different deciders
+     * should be added in order, as looping over them will stop when the first 
+     * return a {@link Decision.THROTTLE} or {@link Decision.NO}. For performance
+     * reasons, those more likely to return either of these, and those with
+     * cheap execution should be executed first.
+     *
+     * Performance characteristics:
+     * {@link ConcurrentRebalanceAllocationDecider} numerical comparison of a counter in {@link RoutingNodes},
+     * constant performance, likely to be triggered.
+     * {@link DisableAllocationDecider} lookup of setting. Constant performance, not as
+     * likely to be triggered.
+     * {@link ClusterRebalanceAllocationDecider} checks for unassigned primaries, inactive primaries and
+     * a rebalance already happening in replica set. 
+     * {@link DiskThresholdDecider} one numerical comparison per node in cluster.
+     * {@link SnapshotInProgressAllocationDecider} status lookup, unlikely.
+     * {@link FilterAllocationDecider} checks all allocation include/exclude filters in the cluster against the 
+     * node's attributes.
+     * {@link RebalanceOnlyWhenActiveAllocationDecider} checks if all shards are active.
+     * {@link ReplicaAfterPrimaryActiveAllocationDecider} finds primary in replica set, checks whether it
+     * is started.
+     * {@link ShardsLimitAllocationDecider} loops over shards allocated on a node, filters out non-relocating
+     * shards of the same index to do a count comparison.
+     * {@link AwarenessAllocationDecider} loops over all shards in cluster.
+     * {@link SameShardAllocationDecider} loops over shards on node.
+     * {@link ThrottlingAllocationDecider} checks primaries initializing (looping over shards on node) for a primary
+     * to be allocated, for replicas loops over all shards on node.
      *
      * @param settings            settings to use
      * @param nodeSettingsService per-node settings to use
      */
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
         this(settings, ImmutableSet.<AllocationDecider>builder()
-                .add(new SameShardAllocationDecider(settings))
-                .add(new FilterAllocationDecider(settings, nodeSettingsService))
-                .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
-                .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
-                .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
-                .add(new ClusterRebalanceAllocationDecider(settings))
                 .add(new ConcurrentRebalanceAllocationDecider(settings, nodeSettingsService))
                 .add(new DisableAllocationDecider(settings, nodeSettingsService))
-                .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
-                .add(new ShardsLimitAllocationDecider(settings))
+                .add(new ClusterRebalanceAllocationDecider(settings))
                 .add(new DiskThresholdDecider(settings, nodeSettingsService))
                 .add(new SnapshotInProgressAllocationDecider(settings))
+                .add(new FilterAllocationDecider(settings, nodeSettingsService))
+                .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
+                .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
+                .add(new ShardsLimitAllocationDecider(settings))
+                .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
+                .add(new SameShardAllocationDecider(settings))
+                .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
                 .build()
         );
     }
@@ -72,7 +97,10 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
-            if (decision != Decision.ALWAYS) {
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                return decision;
+            } else if (decision != Decision.ALWAYS) {
                 ret.add(decision);
             }
         }
@@ -87,9 +115,12 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
-            // the assumption is that a decider that returns the static instance Decision#ALWAYS
-            // does not really implements canAllocate
-            if (decision != Decision.ALWAYS) {
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                return decision;
+            } else if (decision != Decision.ALWAYS) {
+                // the assumption is that a decider that returns the static instance Decision#ALWAYS
+                // does not really implements canAllocate
                 ret.add(decision);
             }
         }
@@ -104,7 +135,10 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
-            if (decision != Decision.ALWAYS) {
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                return decision;
+            } else if (decision != Decision.ALWAYS) {
                 ret.add(decision);
             }
         }

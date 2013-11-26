@@ -164,7 +164,8 @@ public class XAnalyzingSuggester extends Lookup {
   private final int payloadSep;
   private final int endByte;
 
-  public static final int PAYLOAD_SEP = '\u001f';
+  public static final int PAYLOAD_SEP = '\u001F';
+  public static final int HOLE_CHARACTER = '\u001E';
 
   /** Whether position holes should appear in the automaton. */
   private boolean preservePositionIncrements;
@@ -681,10 +682,10 @@ public class XAnalyzingSuggester extends Lookup {
 
     //System.out.println("lookup key=" + key + " num=" + num);
     for (int i = 0; i < key.length(); i++) {
-      if (key.charAt(i) == 0x1E) {
+      if (key.charAt(i) == HOLE_CHARACTER) {
         throw new IllegalArgumentException("lookup key cannot contain HOLE character U+001E; this character is reserved");
       }
-      if (key.charAt(i) == 0x1F) {
+      if (key.charAt(i) == SEP_LABEL) {
         throw new IllegalArgumentException("lookup key cannot contain unit separator character U+001F; this character is reserved");
       }
     }

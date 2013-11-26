@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -414,13 +415,19 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
     }
 
-    private static final char END_LABEL = 0x00;
-
     // this should be package private but our tests don't allow it.
     public static boolean isReservedChar(char character) {
-        /* we also use 0xFF as a SEP_LABEL in the suggester but it's not valid UTF-8 so no need to check.
-         *  we also don't need to convert to UTF-8 here to check for the 0x00 end label since all multi-byte
-         *  UTF-8 chars start with 0x10 binary so if the UTF-16 CP is == 0x00 it's the single byte UTF-8 CP */
-        return character == END_LABEL;
+        /*  we use 0x001F as a SEP_LABEL in the suggester but we can use the UTF-16 representation since they
+         *  are equivalent. We also don't need to convert the input character to UTF-8 here to check for
+         *  the 0x00 end label since all multi-byte  UTF-8 chars start with 0x10 binary so if the UTF-16 CP is == 0x00
+         *  it's the single byte UTF-8 CP */
+        assert XAnalyzingSuggester.PAYLOAD_SEP == XAnalyzingSuggester.SEP_LABEL; // ensure they are the same!
+        switch(character) {
+             case  XAnalyzingSuggester.END_BYTE:
+             case  XAnalyzingSuggester.SEP_LABEL:
+                return true;
+            default:
+                return false;
+         }
     }
 }

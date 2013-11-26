@@ -425,6 +425,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         switch(character) {
              case  XAnalyzingSuggester.END_BYTE:
              case  XAnalyzingSuggester.SEP_LABEL:
+             case  XAnalyzingSuggester.HOLE_CHARACTER:
                 return true;
             default:
                 return false;

@@ -182,6 +182,10 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         return result;
     }
 
+    public static InternalAggregations readOptionalAggregations(StreamInput in) throws IOException {
+        return in.readOptionalStreamable(new InternalAggregations());
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();

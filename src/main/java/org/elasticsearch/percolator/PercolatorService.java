@@ -77,6 +77,8 @@ import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
 import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -98,7 +100,7 @@ import static org.elasticsearch.percolator.QueryCollector.*;
 public class PercolatorService extends AbstractComponent {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
-    public static final String TYPE_NAME = ".percolator";
+    public final static String TYPE_NAME = ".percolator";
 
     private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
@@ -108,15 +110,19 @@ public class PercolatorService extends AbstractComponent {
 
     private final FacetPhase facetPhase;
     private final HighlightPhase highlightPhase;
+    private final AggregationPhase aggregationPhase;
 
     @Inject
-    public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler, HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase) {
+    public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler,
+                             HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase,
+                             AggregationPhase aggregationPhase) {
         super(settings);
         this.indicesService = indicesService;
         this.cacheRecycler = cacheRecycler;
         this.clusterService = clusterService;
         this.highlightPhase = highlightPhase;
         this.facetPhase = facetPhase;
+        this.aggregationPhase = aggregationPhase;
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
         cache = new CloseableThreadLocal<MemoryIndex>() {
@@ -166,7 +172,7 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticSearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.score || context.sort || context.facets() != null)) {
+            if (context.percolateQuery() == null && (context.score || context.sort || context.facets() != null || context.aggregations() != null)) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
@@ -228,8 +234,10 @@ public class PercolatorService extends AbstractComponent {
             return null;
         }
 
+        // TODO: combine all feature parse elements into one map
         Map<String, ? extends SearchParseElement> hlElements = highlightPhase.parseElements();
         Map<String, ? extends SearchParseElement> facetElements = facetPhase.parseElements();
+        Map<String, ? extends SearchParseElement> aggregationElements = aggregationPhase.parseElements();
 
         ParsedDocument doc = null;
         XContentParser parser = null;
@@ -262,6 +270,9 @@ public class PercolatorService extends AbstractComponent {
                     SearchParseElement element = hlElements.get(currentFieldName);
                     if (element == null) {
                         element = facetElements.get(currentFieldName);
+                        if (element == null) {
+                            element = aggregationElements.get(currentFieldName);
+                        }
                     }
 
                     if ("query".equals(currentFieldName)) {
@@ -389,12 +400,9 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            if (shardResults.get(0).facets() != null) {
-                InternalFacets reducedFacets = reduceFacets(shardResults);
-                return new ReduceResult(finalCount, reducedFacets);
-            } else {
-                return new ReduceResult(finalCount);
-            }
+            InternalFacets reducedFacets = reduceFacets(shardResults);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResults);
+            return new ReduceResult(finalCount, reducedFacets, reducedAggregations);
         }
 
         @Override
@@ -482,12 +490,9 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            if (shardResults.get(0).facets() != null) {
-                InternalFacets reducedFacets = reduceFacets(shardResults);
-                return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets);
-            } else {
-                return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]));
-            }
+            InternalFacets reducedFacets = reduceFacets(shardResults);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResults);
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets, reducedAggregations);
         }
 
         @Override
@@ -680,12 +685,9 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            if (shardResults.get(0).facets() != null) {
-                InternalFacets reducedFacets = reduceFacets(shardResults);
-                return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets);
-            } else {
-                return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]));
-            }
+            InternalFacets reducedFacets = reduceFacets(shardResults);
+            InternalAggregations reducedAggregations = reduceAggregations(shardResults);
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets, reducedAggregations);
         }
 
         @Override
@@ -755,6 +757,9 @@ public class PercolatorService extends AbstractComponent {
         if (context.facets() != null) {
             facetPhase.execute(context);
         }
+        if (context.aggregations() != null) {
+            aggregationPhase.execute(context);
+        }
     }
 
     public final static class ReduceResult {
@@ -764,29 +769,20 @@ public class PercolatorService extends AbstractComponent {
         private final long count;
         private final PercolateResponse.Match[] matches;
         private final InternalFacets reducedFacets;
+        private final InternalAggregations reducedAggregations;
 
-        ReduceResult(long count, PercolateResponse.Match[] matches, InternalFacets reducedFacets) {
+        ReduceResult(long count, PercolateResponse.Match[] matches, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
             this.count = count;
             this.matches = matches;
             this.reducedFacets = reducedFacets;
+            this.reducedAggregations = reducedAggregations;
         }
 
-        ReduceResult(long count, PercolateResponse.Match[] matches) {
-            this.count = count;
-            this.matches = matches;
-            this.reducedFacets = null;
-        }
-
-        public ReduceResult(long count, InternalFacets reducedFacets) {
+        public ReduceResult(long count, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
             this.count = count;
             this.matches = EMPTY;
             this.reducedFacets = reducedFacets;
-        }
-
-        public ReduceResult(long count) {
-            this.count = count;
-            this.matches = EMPTY;
-            this.reducedFacets = null;
+            this.reducedAggregations = reducedAggregations;
         }
 
         public long count() {
@@ -800,9 +796,17 @@ public class PercolatorService extends AbstractComponent {
         public InternalFacets reducedFacets() {
             return reducedFacets;
         }
+
+        public InternalAggregations reducedAggregations() {
+            return reducedAggregations;
+        }
     }
 
     private InternalFacets reduceFacets(List<PercolateShardResponse> shardResults) {
+        if (shardResults.get(0).facets() == null) {
+            return null;
+        }
+
         if (shardResults.size() == 1) {
             return shardResults.get(0).facets();
         }
@@ -826,6 +830,22 @@ public class PercolatorService extends AbstractComponent {
             }
         }
         return new InternalFacets(aggregatedFacets);
+    }
+
+    private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults) {
+        if (shardResults.get(0).aggregations() == null) {
+            return null;
+        }
+
+        if (shardResults.size() == 1) {
+            return shardResults.get(0).aggregations();
+        }
+
+        List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(shardResults.size());
+        for (PercolateShardResponse shardResult : shardResults) {
+            aggregationsList.add(shardResult.aggregations());
+        }
+        return InternalAggregations.reduce(aggregationsList, cacheRecycler);
     }
 
 }

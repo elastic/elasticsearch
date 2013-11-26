@@ -26,6 +26,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -48,6 +50,7 @@ public class PercolateSourceBuilder implements ToXContent {
     private Boolean score;
     private HighlightBuilder highlightBuilder;
     private List<FacetBuilder> facets;
+    private List<AggregationBuilder> aggregations;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
@@ -137,6 +140,17 @@ public class PercolateSourceBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Add an aggregationB definition.
+     */
+    public PercolateSourceBuilder addAggregation(AggregationBuilder aggregationBuilder) {
+        if (aggregations == null) {
+            aggregations = Lists.newArrayList();
+        }
+        aggregations.add(aggregationBuilder);
+        return this;
+    }
+
     public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -178,6 +192,14 @@ public class PercolateSourceBuilder implements ToXContent {
             builder.startObject();
             for (FacetBuilder facet : facets) {
                 facet.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        if (aggregations != null) {
+            builder.field("aggregations");
+            builder.startObject();
+            for (AbstractAggregationBuilder aggregation : aggregations) {
+                aggregation.toXContent(builder, params);
             }
             builder.endObject();
         }

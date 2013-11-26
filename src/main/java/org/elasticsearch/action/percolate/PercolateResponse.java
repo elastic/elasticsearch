@@ -147,6 +147,9 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             }
             builder.endArray();
         }
+        if (facets != null) {
+            facets.toXContent(builder, params);
+        }
 
         builder.endObject();
         return builder;

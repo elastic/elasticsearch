@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -196,6 +198,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
                     List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                    
+                    List<AliasMetaData> aliases = Lists.newArrayList();
 
                     Map<String, Custom> customs = Maps.newHashMap();
 
@@ -229,6 +233,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             } else {
                                 IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
                                 customs.put(type, merged);
+                            }
+                        }
+                        // handle aliases
+                        for (AliasMetaData alias : template.aliases()) {
+                            if (!aliases.contains(alias)) {
+                                aliases.add(alias);
                             }
                         }
                     }
@@ -325,6 +335,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
+                    }
+                    for (AliasMetaData aliasMetaData : aliases) {
+                    	// Allow alias 'names' to be templated by replacing a token with the name of the index that we are applying it to
+                    	if (aliasMetaData.alias().contains("{index}")) {
+                    		String templatedAlias = aliasMetaData.alias().replace("{index}", request.index);
+                    		aliasMetaData = AliasMetaData.builder(aliasMetaData).alias(templatedAlias).build();
+                    	}
+                    	indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
                     indexMetaDataBuilder.state(request.state);
                     final IndexMetaData indexMetaData;

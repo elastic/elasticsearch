@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
@@ -40,6 +41,7 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -137,6 +139,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                 templateBuilder.putMapping(entry.getKey(), entry.getValue());
             }
+            for (AliasMetaData alias : request.aliases) {
+            	templateBuilder.addAlias(alias);
+            }
             for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
                 templateBuilder.putCustom(entry.getKey(), entry.getValue());
             }
@@ -223,6 +228,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         String template;
         Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
+        List<AliasMetaData> aliases = Lists.newArrayList();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
         TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -254,6 +260,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest mappings(Map<String, String> mappings) {
             this.mappings.putAll(mappings);
+            return this;
+        }
+        
+        public PutRequest aliases(List<AliasMetaData> aliases) {
+            this.aliases.addAll(aliases); // FIXME: jbrook - validate the alias too if present. That means validating the filter if present as we do in MetaDataIndexAliasesService
             return this;
         }
 

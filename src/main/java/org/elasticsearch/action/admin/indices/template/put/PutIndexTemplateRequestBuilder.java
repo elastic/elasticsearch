@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -108,6 +109,18 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
      */
     public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
         request.mapping(type, source);
+        return this;
+    }
+    
+    /**
+     * Adds an alias that will be added when the index template gets created.
+     *
+     * @param name   The alias name
+     * @param alias  The alias
+     * @return the request builder
+     */
+    public PutIndexTemplateRequestBuilder addAlias(AliasMetaData alias) {
+        request.alias(alias);
         return this;
     }
 

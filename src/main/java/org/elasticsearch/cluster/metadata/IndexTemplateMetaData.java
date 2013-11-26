@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,15 +53,18 @@ public class IndexTemplateMetaData {
 
     // the mapping source should always include the type as top level
     private final ImmutableOpenMap<String, CompressedString> mappings;
+    
+    private final List<AliasMetaData> aliases;
 
     private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
 
-    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedString> mappings, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedString> mappings, List<AliasMetaData> aliases, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
         this.name = name;
         this.order = order;
         this.template = template;
         this.settings = settings;
         this.mappings = mappings;
+        this.aliases = aliases;
         this.customs = customs;
     }
 
@@ -101,6 +106,18 @@ public class IndexTemplateMetaData {
 
     public ImmutableOpenMap<String, CompressedString> getMappings() {
         return this.mappings;
+    }
+
+    /**
+     * The aliases configured in the index template
+     * @return a list of aliases
+     */
+    public List<AliasMetaData> aliases() {
+        return this.aliases;
+    }
+    
+    public List<AliasMetaData> getAliases() {
+        return this.aliases;
     }
 
     public ImmutableOpenMap<String, IndexMetaData.Custom> customs() {
@@ -156,6 +173,8 @@ public class IndexTemplateMetaData {
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         private final ImmutableOpenMap.Builder<String, CompressedString> mappings;
+        
+        private List<AliasMetaData> aliases = Lists.newArrayList();
 
         private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
 
@@ -173,6 +192,7 @@ public class IndexTemplateMetaData {
 
             mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings());
             customs = ImmutableOpenMap.builder(indexTemplateMetaData.customs());
+            aliases.addAll(indexTemplateMetaData.aliases());
         }
 
         public Builder order(int order) {
@@ -213,6 +233,11 @@ public class IndexTemplateMetaData {
             mappings.put(mappingType, new CompressedString(mappingSource));
             return this;
         }
+        
+        public Builder addAlias(AliasMetaData aliasMetaData) {
+            aliases.add(aliasMetaData);
+            return this;
+        }
 
         public Builder putCustom(String type, IndexMetaData.Custom customIndexMetaData) {
             this.customs.put(type, customIndexMetaData);
@@ -229,7 +254,7 @@ public class IndexTemplateMetaData {
         }
 
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, template, settings, mappings.build(), customs.build());
+            return new IndexTemplateMetaData(name, order, template, settings, mappings.build(), aliases, customs.build());
         }
 
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -274,6 +299,12 @@ public class IndexTemplateMetaData {
                 IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
+            
+            builder.startObject("aliases");
+            for (AliasMetaData alias : indexTemplateMetaData.aliases()) {
+                AliasMetaData.Builder.toXContent(alias, builder, params); // FIXME: jbrook - Must be same structure as used for input - TEST
+            }
+            builder.endObject();
 
             builder.endObject();
         }
@@ -314,6 +345,10 @@ public class IndexTemplateMetaData {
                                 builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
                             }
                         }
+                    }  else if ("aliases".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.addAlias(AliasMetaData.Builder.fromXContent(parser));
+                        }
                     } else {
                         // check if its a custom index metadata
                         IndexMetaData.Custom.Factory<IndexMetaData.Custom> factory = IndexMetaData.lookupFactory(currentFieldName);
@@ -339,6 +374,10 @@ public class IndexTemplateMetaData {
                                 }
                             }
                         }
+                    } else if ("aliases".equals(currentFieldName)) { // FIXME: jbrook - needs a test
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        	builder.addAlias(AliasMetaData.Builder.fromXContent(parser));
+                        }
                     }
                 } else if (token.isValue()) {
                     if ("template".equals(currentFieldName)) {
@@ -360,6 +399,12 @@ public class IndexTemplateMetaData {
             for (int i = 0; i < mappingsSize; i++) {
                 builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
             }
+            // FIXME: jbrook - Version check needed
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.addAlias(aliasMd);
+            }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();
@@ -378,6 +423,11 @@ public class IndexTemplateMetaData {
             for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
                 out.writeString(cursor.key);
                 cursor.value.writeTo(out);
+            }
+            // FIXME: jbrook - Version check needed
+            out.writeVInt(indexTemplateMetaData.aliases().size());
+            for (AliasMetaData aliasMd : indexTemplateMetaData.aliases()) {
+                AliasMetaData.Builder.writeTo(aliasMd, out);
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
             for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {

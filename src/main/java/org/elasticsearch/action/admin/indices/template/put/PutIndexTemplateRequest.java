@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -38,14 +39,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
@@ -67,11 +71,14 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
 
     private Map<String, String> mappings = newHashMap();
 
+    private List<AliasMetaData> aliases = newArrayList();
+    
     private Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
     PutIndexTemplateRequest() {
+       
     }
 
     /**
@@ -191,7 +198,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         mappings.put(type, source);
         return this;
     }
-
+    
     /**
      * The cause for this index template creation.
      */
@@ -278,6 +285,27 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
+            } else if (name.equals("aliases")) {
+                Map<String, Object> aliases = (Map<String, Object>) entry.getValue();
+                for (Map.Entry<String, Object> entry1 : aliases.entrySet()) {
+                    if (!(entry1.getValue() instanceof Map)) {
+                        throw new ElasticSearchIllegalArgumentException("Malformed alias [" + entry1.getKey() + "], should include an inner object describing the alias");
+                    }
+                    try {
+                        // FIXME: jbrook - This is a mess. Find a better way to build the alias metadata
+                        Map<String, Object> aliasMap = (Map<String, Object>)entry1.getValue();
+                        HashMap<String, Object> aliasWrapperMap = new HashMap<String, Object>();
+                        aliasWrapperMap.put(entry1.getKey(), aliasMap);
+                        
+                        AliasMetaData metadata = AliasMetaData.Builder.fromMap(aliasWrapperMap);
+                        
+                        // FromXContent does not handle alias names, so rebuild it with a name
+                        metadata = AliasMetaData.builder(metadata).alias(entry1.getKey()).build();
+                        alias(metadata);
+                    } catch (IOException e) {
+                        throw new ElasticSearchParseException("failed to parse custom metadata for [" + name + "]");
+                    }
+                }
             } else {
                 // maybe custom?
                 IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
@@ -341,6 +369,21 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
+       
+    List<AliasMetaData> aliases() {
+        return this.aliases;
+    }
+    
+    /**
+     * Adds an alias that will be added when the index gets created.
+     *
+     * @param alias   The metadata for the new alias
+     * @return  the index template creation request
+     */
+    public PutIndexTemplateRequest alias(AliasMetaData alias) {
+        aliases.add(alias);
+        return this;
+    }
 
     /**
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
@@ -370,6 +413,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+
         cause = in.readString();
         name = in.readString();
         template = in.readString();
@@ -380,6 +424,12 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             mappings.put(in.readString(), in.readString());
+        }        
+        // FIXME: jbrook - Version check required
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+            aliases.add(aliasMd);
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -388,7 +438,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
             customs.put(type, customIndexMetaData);
         }
     }
-
+    
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -403,6 +453,11 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
+        }
+        // FIXME: jbrook - Version check required
+        out.writeVInt(aliases().size());
+        for (AliasMetaData aliasMd : aliases()) {
+            AliasMetaData.Builder.writeTo(aliasMd, out);
         }
         out.writeVInt(customs.size());
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {

@@ -25,10 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -105,9 +102,17 @@ public class AliasMetaData {
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
-
+    
     public static Builder newAliasMetaDataBuilder(String alias) {
         return new Builder(alias);
+    }
+   
+    public static Builder builder(AliasMetaData aliasMetaData) {
+        return new Builder(aliasMetaData);
+    }
+    
+    public static Builder newAliasMetaDataBuilder(AliasMetaData aliasMetaData) {
+        return new Builder(aliasMetaData);
     }
 
     @Override
@@ -149,16 +154,21 @@ public class AliasMetaData {
         public Builder(String alias) {
             this.alias = alias;
         }
-
+        
         public Builder(AliasMetaData aliasMetaData) {
             this(aliasMetaData.alias());
-            filter = aliasMetaData.filter();
-            indexRouting = aliasMetaData.indexRouting();
-            searchRouting = aliasMetaData.searchRouting();
+            this.filter = aliasMetaData.filter();
+            this.indexRouting = aliasMetaData.indexRouting();
+            this.searchRouting = aliasMetaData.searchRouting();
         }
 
         public String alias() {
             return alias;
+        }
+        
+        public Builder alias(String alias) {
+            this.alias = alias;
+            return this;
         }
 
         public Builder filter(CompressedString filter) {
@@ -284,6 +294,28 @@ public class AliasMetaData {
                 }
             }
             return builder.build();
+        }
+        
+        /**
+         * Build an AliasMetaData object from a map.
+         * @param map   The map representing the alias 
+         * @return metadata object for an alias
+         * @throws IOException
+         */
+        public static AliasMetaData fromMap(Map<String, Object> map) throws IOException {
+         // if it starts with the type, remove it
+            if (map.size() == 1 && map.containsKey("aliases")) {
+                map = (Map<String, Object>) map.values().iterator().next();
+            }
+            XContentBuilder builder = XContentFactory.smileBuilder().map(map);
+            XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes());
+            try {
+                // move to START_OBJECT
+                parser.nextToken();
+                return fromXContent(parser);
+            } finally {
+                parser.close();
+            }
         }
 
         public static void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {

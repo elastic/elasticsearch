@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -159,7 +160,30 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         if (mapping == null) {
             mapping = Maps.newHashMap();
         }
+        return parse(type, mapping, defaultSource);
+    }
 
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source) throws MapperParsingException {
+        return parseCompressed(type, source, null);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public DocumentMapper parseCompressed(@Nullable String type, CompressedString source, String defaultSource) throws MapperParsingException {
+        Map<String, Object> mapping = null;
+        if (source != null) {
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressed(), true).v2();
+            Tuple<String, Map<String, Object>> t = extractMapping(type, root);
+            type = t.v1();
+            mapping = t.v2();
+        }
+        if (mapping == null) {
+            mapping = Maps.newHashMap();
+        }
+        return parse(type, mapping, defaultSource);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
@@ -248,16 +272,21 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 xContentParser.close();
             }
         }
+        return extractMapping(type, root);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
         int size = root.size();
         switch (size) {
-        case 0:
-            // if we don't have any keys throw an exception
-            throw new MapperParsingException("malformed mapping no root object found");
-        case 1:
-            break;
-        default:
-            // we always assume the first and single key is the mapping type root
-            throw new MapperParsingException("mapping must have the `type` as the root object");
+            case 0:
+                // if we don't have any keys throw an exception
+                throw new MapperParsingException("malformed mapping no root object found");
+            case 1:
+                break;
+            default:
+                // we always assume the first and single key is the mapping type root
+                throw new MapperParsingException("mapping must have the `type` as the root object");
         }
 
         String rootName = root.keySet().iterator().next();

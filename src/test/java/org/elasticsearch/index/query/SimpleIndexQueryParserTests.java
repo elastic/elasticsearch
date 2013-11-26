@@ -32,6 +32,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -122,7 +123,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         ).createInjector();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        injector.getInstance(MapperService.class).merge("person", mapping, true);
+        injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
@@ -1490,7 +1491,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
         assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
     }
-    
+
     @Test
     public void testCustomBoostFactorQueryBuilder_withFunctionScoreWithoutQueryGiven() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1498,7 +1499,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof XConstantScoreQuery, equalTo(true));
-        assertThat(((XConstantScoreQuery)functionScoreQuery.getSubQuery()).getFilter() instanceof MatchAllDocsFilter, equalTo(true));
+        assertThat(((XConstantScoreQuery) functionScoreQuery.getSubQuery()).getFilter() instanceof MatchAllDocsFilter, equalTo(true));
         assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
     }
 

@@ -45,18 +45,18 @@ public class AllocationDeciders extends AllocationDecider {
      */
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
         this(settings, ImmutableSet.<AllocationDecider>builder()
-                .add(new SameShardAllocationDecider(settings))
-                .add(new FilterAllocationDecider(settings, nodeSettingsService))
-                .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
-                .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
-                .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
-                .add(new ClusterRebalanceAllocationDecider(settings))
                 .add(new ConcurrentRebalanceAllocationDecider(settings, nodeSettingsService))
                 .add(new DisableAllocationDecider(settings, nodeSettingsService))
-                .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
-                .add(new ShardsLimitAllocationDecider(settings))
+                .add(new ClusterRebalanceAllocationDecider(settings))
                 .add(new DiskThresholdDecider(settings, nodeSettingsService))
                 .add(new SnapshotInProgressAllocationDecider(settings))
+                .add(new FilterAllocationDecider(settings, nodeSettingsService))
+                .add(new RebalanceOnlyWhenActiveAllocationDecider(settings))
+                .add(new ReplicaAfterPrimaryActiveAllocationDecider(settings))
+                .add(new ShardsLimitAllocationDecider(settings))
+                .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
+                .add(new SameShardAllocationDecider(settings))
+                .add(new ThrottlingAllocationDecider(settings, nodeSettingsService))
                 .build()
         );
     }
@@ -72,8 +72,12 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
-            if (decision != Decision.ALWAYS) {
-                ret.add(decision);
+            // short track if a NO is returned.
+            if ( decision == Decision.NO ) {
+                return decision;
+            }
+            else if ( decision != Decision.ALWAYS ) {
+                ret.add( decision );
             }
         }
         return ret;
@@ -87,9 +91,13 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if ( decision == Decision.NO ) {
+                return decision;
+            }
             // the assumption is that a decider that returns the static instance Decision#ALWAYS
             // does not really implements canAllocate
-            if (decision != Decision.ALWAYS) {
+            else if (decision != Decision.ALWAYS) {
                 ret.add(decision);
             }
         }
@@ -104,7 +112,11 @@ public class AllocationDeciders extends AllocationDecider {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
-            if (decision != Decision.ALWAYS) {
+            // short track if a NO is returned.
+            if ( decision == Decision.NO ) {
+                return decision;
+            }
+            else if (decision != Decision.ALWAYS) {
                 ret.add(decision);
             }
         }

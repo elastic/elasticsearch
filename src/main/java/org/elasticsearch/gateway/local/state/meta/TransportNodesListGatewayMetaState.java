@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -59,7 +58,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayMetaState> list(Set<String> nodesIds, @Nullable TimeValue timeout) {
+    public ActionFuture<NodesLocalGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
@@ -133,8 +132,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         public Request() {
         }
 
-        public Request(Set<String> nodesIds) {
-            super(nodesIds.toArray(new String[nodesIds.size()]));
+        public Request(String... nodesIds) {
+            super(nodesIds);
         }
 
         @Override

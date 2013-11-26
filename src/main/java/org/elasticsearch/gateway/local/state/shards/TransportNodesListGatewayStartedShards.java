@@ -59,7 +59,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayStartedShards> list(ShardId shardId, Set<String> nodesIds, @Nullable TimeValue timeout) {
+    public ActionFuture<NodesLocalGatewayStartedShards> list(ShardId shardId, String[] nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(shardId, nodesIds).timeout(timeout));
     }
 
@@ -141,6 +141,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
         public Request(ShardId shardId, Set<String> nodesIds) {
             super(nodesIds.toArray(new String[nodesIds.size()]));
+            this.shardId = shardId;
+        }
+        public Request(ShardId shardId, String... nodesIds) {
+            super(nodesIds);
             this.shardId = shardId;
         }
 

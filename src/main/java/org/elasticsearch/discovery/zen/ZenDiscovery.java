@@ -315,7 +315,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
-                        return ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
+                        return ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
                     }
 
                     @Override
@@ -483,34 +483,34 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return currentState;
                 }
 
-                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes())
+                DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
                         // make sure the old master node, which has failed, is not part of the nodes we publish
                         .remove(masterNode.id())
-                        .masterNodeId(null);
+                        .masterNodeId(null).build();
 
-                if (!electMaster.hasEnoughMasterNodes(nodesBuilder.build())) {
-                    return rejoin(ClusterState.builder(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
+                if (!electMaster.hasEnoughMasterNodes(discoveryNodes)) {
+                    return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "not enough master nodes after master left (reason = " + reason + ")");
                 }
 
-                final DiscoveryNode electedMaster = electMaster.electMaster(nodesBuilder.build()); // elect master
+                final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
                 if (localNode.equals(electedMaster)) {
                     master = true;
                     masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
                     nodesFD.start();
-                    nodesBuilder.masterNodeId(localNode.id());
-                    latestDiscoNodes = nodesBuilder.build();
+                    discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
+                    latestDiscoNodes = discoveryNodes;
                     return ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                 } else {
                     nodesFD.stop();
                     if (electedMaster != null) {
-                        nodesBuilder.masterNodeId(electedMaster.id());
+                        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(electedMaster.id()).build();
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
-                        latestDiscoNodes = nodesBuilder.build();
+                        latestDiscoNodes = discoveryNodes;
                         return ClusterState.builder(currentState)
                                 .nodes(latestDiscoNodes)
                                 .build();
                     } else {
-                        return rejoin(ClusterState.builder(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
+                        return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master_left and no other node elected to become master");
                     }
                 }
             }

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.gateway.blobstore;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,7 +51,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -115,8 +115,8 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;
-            for (DiscoveryNode discoNode : nodes.dataNodes().values()) {
-                RoutingNode node = routingNodes.node(discoNode.id());
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
+                RoutingNode node = routingNodes.node(cursor.value.id());
                 if (node == null) {
                     continue;
                 }
@@ -263,13 +263,13 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
         Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
-        Set<String> nodesIds;
+        ObjectOpenHashSet<String> nodesIds;
         if (shardStores == null) {
             shardStores = Maps.newHashMap();
             cachedStores.put(shard.shardId(), shardStores);
-            nodesIds = nodes.dataNodes().keySet();
+            nodesIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
         } else {
-            nodesIds = Sets.newHashSet();
+            nodesIds = ObjectOpenHashSet.newInstance();
             // clean nodes that have failed
             for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
@@ -278,7 +278,8 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
                 }
             }
 
-            for (DiscoveryNode node : nodes.dataNodes().values()) {
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
+                DiscoveryNode node = cursor.value;
                 if (!shardStores.containsKey(node)) {
                     nodesIds.add(node.id());
                 }
@@ -286,7 +287,8 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
         }
 
         if (!nodesIds.isEmpty()) {
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIds, listTimeout).actionGet();
+            String[] nodesIdsArray = nodesIds.toArray(String.class);
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
             if (logger.isTraceEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {
                     StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");

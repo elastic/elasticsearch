@@ -30,8 +30,10 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -224,16 +226,20 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, String mappingSource, boolean applyDefault) {
+    public DocumentMapper merge(String type, CompressedString mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
-            DocumentMapper mapper = documentParser.parse(type, mappingSource);
+            DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
             synchronized (typeMutex) {
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
-            defaultMappingSource = mappingSource;
+            try {
+                defaultMappingSource = mappingSource.string();
+            } catch (IOException e) {
+                throw new ElasticSearchGenerationException("failed to un-compress", e);
+            }
             return mapper;
         } else {
             return merge(parse(type, mappingSource, applyDefault));
@@ -358,18 +364,18 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     /**
      * Just parses and returns the mapper without adding it, while still applying default mapping.
      */
-    public DocumentMapper parse(String mappingType, String mappingSource) throws MapperParsingException {
+    public DocumentMapper parse(String mappingType, CompressedString mappingSource) throws MapperParsingException {
         return parse(mappingType, mappingSource, true);
     }
 
-    public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
+    public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;
         } else {
             defaultMappingSource = this.defaultMappingSource;
         }
-        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     public boolean hasMapping(String mappingType) {

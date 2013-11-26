@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -266,7 +267,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
             String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(documentType.v1())
                     .startObject("_parent").field("type", documentType.v2()).endObject()
                     .endObject().endObject().string();
-            mapperService.merge(documentType.v1(), defaultMapping, true);
+            mapperService.merge(documentType.v1(), new CompressedString(defaultMapping), true);
         }
 
         idCache.setIndexService(new StubIndexService(mapperService));

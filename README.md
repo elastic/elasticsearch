@@ -3,83 +3,106 @@ AWS Cloud Plugin for ElasticSearch
 
 The AWS Cloud plugin allows to use AWS EC2 API for the unicast discovery mechanism as well as using S3 as a shared gateway.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.15.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.16.0`.
 
 <table>
 	<thead>
 		<tr>
 			<td>AWS Cloud Plugin</td>
-			<td>ElasticSearch</td>
+			<td>Elasticsearch</td>
+			<td>Release date</td>
 		</tr>
 	</thead>
 	<tbody>
 		<tr>
-			<td>1.16.0-SNAPSHOT (master)</td>
+			<td>1.17.0-SNAPSHOT (master)</td>
 			<td>0.90.4 -> master</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>1.16.0</td>
+			<td>0.90.4 -> master</td>
+			<td>2013-11-26</td>
 		</tr>
 		<tr>
 			<td>1.15.0</td>
 			<td>0.90.4 -> master</td>
+			<td>2013-09-16</td>
 		</tr>
 		<tr>
 			<td>1.14.0</td>
 			<td>0.90.3</td>
+			<td>2013-08-09</td>
 		</tr>
 		<tr>
 			<td>1.13.0</td>
 			<td>broken</td>
+			<td>2013-08-09</td>
 		</tr>
 		<tr>
 			<td>1.12.0</td>
 			<td>0.90 -> 0.90.2</td>
+			<td>2013-05-31</td>
 		</tr>
 		<tr>
 			<td>1.11.0</td>
 			<td>0.90 -> 0.90.2</td>
+            <td>2013-02-26</td>
 		</tr>
 		<tr>
 			<td>1.10.0</td>
 			<td>0.19</td>
+            <td>2012-12-05</td>
 		</tr>
 		<tr>
 			<td>1.9.0</td>
 			<td>0.19</td>
+            <td>2012-08-25</td>
 		</tr>
 		<tr>
 			<td>1.8.0</td>
 			<td>0.19</td>
+            <td>2012-06-27</td>
 		</tr>
 		<tr>
 			<td>1.7.0</td>
 			<td>0.19</td>
+            <td>2012-06-20</td>
 		</tr>
 		<tr>
 			<td>1.6.0</td>
 			<td>0.19</td>
+            <td>2012-06-01</td>
 		</tr>
 		<tr>
 			<td>1.5.0</td>
 			<td>0.19</td>
+            <td>2012-03-07</td>
 		</tr>
 		<tr>
 			<td>1.4.0</td>
 			<td>0.19</td>
+            <td>2012-03-03</td>
 		</tr>
 		<tr>
 			<td>1.3.0</td>
 			<td>0.19</td>
+            <td>2012-02-07</td>
 		</tr>
 		<tr>
 			<td>1.2.0</td>
 			<td>0.18</td>
+            <td>2012-01-02</td>
 		</tr>
 		<tr>
 			<td>1.1.0</td>
 			<td>0.18</td>
+            <td>2012-01-02</td>
 		</tr>
 		<tr>
 			<td>1.0.0</td>
 			<td>0.18</td>
+            <td>2011-12-05</td>
 		</tr>
 	</tbody>
 </table>

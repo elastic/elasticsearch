@@ -80,7 +80,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         if (tokenizerFactoryFactory == null) {
             throw new ElasticSearchIllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
-        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, settings);
+        Map<String, Settings> tokenizersSettings = indexSettings.getGroups("index.analysis.tokenizer");
+        Settings tokenizerSettings = tokenizersSettings.get(tokenizerName);
+        if (tokenizerSettings == null) {
+            tokenizerSettings = settings;
+        }
+        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
 
         Analyzer analyzer = new Analyzer() {
             @Override

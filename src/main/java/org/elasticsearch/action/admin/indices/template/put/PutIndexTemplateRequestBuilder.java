@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -106,6 +107,49 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
      */
     public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
         request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequestBuilder setAliases(Map source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequestBuilder setAliases(String source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequestBuilder setAliases(XContentBuilder source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequestBuilder setAliases(BytesReference source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Adds an alias that will be added when the index template gets created.
+     *
+     * @param alias  The alias
+     * @return the request builder
+     */
+    public PutIndexTemplateRequestBuilder addAlias(Alias alias) {
+        request.alias(alias);
         return this;
     }
 

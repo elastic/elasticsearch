@@ -3,5 +3,8 @@
     "settings" : {
         "index.number_of_shards": 10,
         "index.number_of_replicas": 0
-   }
+    },
+    "aliases" : {
+        "{index}-alias" : {}
+    }
 }

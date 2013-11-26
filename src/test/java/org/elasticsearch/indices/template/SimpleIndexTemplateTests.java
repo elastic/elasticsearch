@@ -19,22 +19,34 @@
 package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
+import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
@@ -321,5 +333,266 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         //the wrong setting has no effect but does get stored among the index settings
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getIndexToSettings().get("test").getAsMap().get("index.does_not_exist"), equalTo("test"));
+    }
+
+    public void testIndexTemplateWithAliases() throws Exception {
+
+        client().admin().indices().preparePutTemplate("template_with_aliases")
+                .setTemplate("te*")
+                .addAlias(new Alias("simple_alias"))
+                .addAlias(new Alias("templated_alias-{index}"))
+                .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
+                .addAlias(new Alias("complex_filtered_alias")
+                        .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool").cache(true)))
+                .get();
+
+        client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
+        client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
+        client().prepareIndex("test_index", "typeX", "3").setSource("field", "C value").get();
+        client().prepareIndex("test_index", "typeY", "4").setSource("field", "D value").get();
+        client().prepareIndex("test_index", "typeZ", "5").setSource("field", "E value").get();
+
+        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(4));
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test_index").get();
+        assertHitCount(searchResponse, 5l);
+
+        searchResponse = client().prepareSearch("simple_alias").get();
+        assertHitCount(searchResponse, 5l);
+
+        searchResponse = client().prepareSearch("templated_alias-test_index").get();
+        assertHitCount(searchResponse, 5l);
+
+        searchResponse = client().prepareSearch("filtered_alias").get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+
+        // Search the complex filter alias
+        searchResponse = client().prepareSearch("complex_filtered_alias").get();
+        assertHitCount(searchResponse, 3l);
+
+        Set<String> types = Sets.newHashSet();
+        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+            types.add(searchHit.getType());
+        }
+        assertThat(types.size(), equalTo(3));
+        assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
+    }
+
+    @Test
+    public void testIndexTemplateWithAliasesInSource() {
+        client().admin().indices().preparePutTemplate("template_1")
+                .setSource("{\n" +
+                        "    \"template\" : \"*\",\n" +
+                        "    \"aliases\" : {\n" +
+                        "        \"my_alias\" : {\n" +
+                        "            \"filter\" : {\n" +
+                        "                \"type\" : {\n" +
+                        "                    \"value\" : \"type2\"\n" +
+                        "                }\n" +
+                        "            }\n" +
+                        "        }\n" +
+                        "    }\n" +
+                        "}").get();
+
+
+        createIndex("test_index");
+        ensureGreen();
+
+        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
+
+        client().prepareIndex("test_index", "type1", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "type2", "2").setSource("field", "value2").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test_index").get();
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("my_alias").get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+    }
+
+    @Test
+    public void testIndexTemplateWithAliasesSource() {
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setAliases(
+                        "    {\n" +
+                        "        \"alias1\" : {},\n" +
+                        "        \"alias2\" : {\n" +
+                        "            \"filter\" : {\n" +
+                        "                \"type\" : {\n" +
+                        "                    \"value\" : \"type2\"\n" +
+                        "                }\n" +
+                        "            }\n" +
+                        "         },\n" +
+                        "        \"alias3\" : { \"routing\" : \"1\" }" +
+                        "    }\n").get();
+
+        createIndex("test_index");
+        ensureGreen();
+
+        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
+
+        client().prepareIndex("test_index", "type1", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "type2", "2").setSource("field", "value2").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test_index").get();
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("alias1").get();
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("alias2").get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+    }
+
+    @Test
+    public void testDuplicateAlias() throws Exception {
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("my_alias").filter(FilterBuilders.termFilter("field", "value1")))
+                .addAlias(new Alias("my_alias").filter(FilterBuilders.termFilter("field", "value2")))
+                .get();
+
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
+        assertThat(response.getIndexTemplates().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getAliases().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getAliases().get("my_alias").filter().string(), containsString("\"value1\""));
+    }
+
+    @Test
+    public void testAliasInvalidFilterValidJson() throws Exception {
+
+        //invalid filter but valid json: put index template works fine, fails during index creation
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("invalid_alias").filter("{ \"invalid\": {} }")).get();
+
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
+        assertThat(response.getIndexTemplates().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getAliases().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getAliases().get("invalid_alias").filter().string(), equalTo("{\"invalid\":{}}"));
+
+        try {
+            createIndex("test");
+            fail("index creation should have failed due to invalid alias filter in matching index template");
+        } catch(ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getCause().getMessage(), equalTo("[test] No filter registered for [invalid]"));
+        }
+    }
+
+    @Test
+    public void testAliasInvalidFilterInvalidJson() throws Exception {
+
+        //invalid json: put index template fails
+        PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("invalid_alias").filter("abcde"));
+
+        try {
+            putIndexTemplateRequestBuilder.get();
+        } catch(ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
+        }
+
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
+        assertThat(response.getIndexTemplates().size(), equalTo(0));
+    }
+
+    @Test
+    public void testAliasNameExistingIndex() throws Exception {
+
+        createIndex("index");
+
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("index")).get();
+
+        try {
+            createIndex("test");
+            fail("index creation should have failed due to alias with existing index name in mathching index template");
+        } catch(InvalidAliasNameException e) {
+            assertThat(e.getMessage(), equalTo("[test] Invalid alias name [index], an index exists with the same name as the alias"));
+        }
+    }
+
+    @Test
+    public void testAliasEmptyName() throws Exception {
+        PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("  ").indexRouting("1,2,3"));
+
+        try {
+            putIndexTemplateRequestBuilder.get();
+            fail("put template should have failed due to alias with empty name");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("alias name is required"));
+        }
+    }
+
+    @Test
+    public void testAliasWithMultipleIndexRoutings() throws Exception {
+        PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addAlias(new Alias("alias").indexRouting("1,2,3"));
+
+        try {
+            putIndexTemplateRequestBuilder.get();
+            fail("put template should have failed due to alias with multiple index routings");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("alias [alias] has several index routing values associated with it"));
+        }
+    }
+
+    @Test
+    public void testMultipleAliasesPrecedence() throws Exception {
+        client().admin().indices().preparePutTemplate("template1")
+                .setTemplate("*")
+                .setOrder(0)
+                .addAlias(new Alias("alias1"))
+                .addAlias(new Alias("{index}-alias"))
+                .addAlias(new Alias("alias3").filter(FilterBuilders.missingFilter("test")))
+                .addAlias(new Alias("alias4")).get();
+
+        client().admin().indices().preparePutTemplate("template2")
+                .setTemplate("te*")
+                .setOrder(1)
+                .addAlias(new Alias("alias1").routing("test"))
+                .addAlias(new Alias("alias3")).get();
+
+
+        assertAcked(prepareCreate("test").addAlias(new Alias("test-alias").searchRouting("test-routing")));
+
+        ensureGreen();
+
+        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().addIndices("test").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(4));
+
+        for (AliasMetaData aliasMetaData : getAliasesResponse.getAliases().get("test")) {
+            assertThat(aliasMetaData.alias(), anyOf(equalTo("alias1"), equalTo("test-alias"), equalTo("alias3"), equalTo("alias4")));
+            if ("alias1".equals(aliasMetaData.alias())) {
+                assertThat(aliasMetaData.indexRouting(), equalTo("test"));
+                assertThat(aliasMetaData.searchRouting(), equalTo("test"));
+            } else if ("alias3".equals(aliasMetaData.alias())) {
+                assertThat(aliasMetaData.filter(), nullValue());
+            } else if ("test-alias".equals(aliasMetaData.alias())) {
+                assertThat(aliasMetaData.indexRouting(), nullValue());
+                assertThat(aliasMetaData.searchRouting(), equalTo("test-routing"));
+            }
+        }
     }
 }

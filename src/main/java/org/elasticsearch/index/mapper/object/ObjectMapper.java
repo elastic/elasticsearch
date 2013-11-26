@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -30,7 +29,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -291,7 +290,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
-    private volatile ObjectObjectOpenHashMap<String, Mapper> mappers = HppcMaps.newMap();
+    private volatile ImmutableOpenMap<String, Mapper> mappers = ImmutableOpenMap.of();
 
     private final Object mutex = new Object();
 
@@ -303,9 +302,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         this.dynamic = dynamic;
         this.pathType = pathType;
         if (mappers != null) {
-            for (Map.Entry<String, Mapper> entry : mappers.entrySet()) {
-                this.mappers.put(entry.getKey(), entry.getValue());
-            }
+            this.mappers = ImmutableOpenMap.builder(this.mappers).putAll(mappers).build();
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -357,9 +354,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            ObjectObjectOpenHashMap<String, Mapper> mappers = this.mappers.clone();
-            mappers.put(mapper.name(), mapper);
-            this.mappers = mappers;
+            this.mappers = ImmutableOpenMap.builder(this.mappers).fPut(mapper.name(), mapper).build();
         }
         return this;
     }

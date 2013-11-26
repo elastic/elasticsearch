@@ -91,9 +91,9 @@ public class RestCountAction extends BaseRestHandler {
 
         Table table = new Table();
         table.startHeaders();
-        table.addCell("time(ms)");
-        table.addCell("timestamp");
-        table.addCell("count");
+        table.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
+        table.addCell("timestamp", "desc:time that the count was executed");
+        table.addCell("count", "desc:the document count");
         table.endHeaders();
 
         long time = System.currentTimeMillis();

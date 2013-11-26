@@ -67,6 +67,20 @@ public class RestTable {
 
     public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
         boolean verbose = request.paramAsBoolean("v", false);
+        boolean help = request.paramAsBoolean("h", false);
+        if (help) {
+            int[] width = buildHelpWidths(table, request, verbose);
+            StringBuilder out = new StringBuilder();
+            for (Table.Cell cell : table.getHeaders()) {
+                // need to do left-align always, so create new cells
+                pad(new Table.Cell(cell.value), width[0], request, out);
+                out.append(" ");
+                pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[1], request, out);
+                out.append("\n");
+            }
+            return new StringRestResponse(RestStatus.OK, out.toString());
+        }
+
         int[] width = buildWidths(table, request, verbose);
         Set<String> displayHeaders = buildDisplayHeaders(table, request);
 
@@ -111,6 +125,24 @@ public class RestTable {
             }
         }
         return display;
+    }
+
+    private static int[] buildHelpWidths(Table table, RestRequest request, boolean verbose) {
+        int[] width = new int[2];
+        for (Table.Cell cell : table.getHeaders()) {
+            String v = renderValue(request, cell.value);
+            int vWidth = v == null ? 0 : v.length();
+            if (width[0] < vWidth) {
+                width[0] = vWidth;
+            }
+
+            v = renderValue(request, cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available");
+            vWidth = v == null ? 0 : v.length();
+            if (width[1] < vWidth) {
+                width[1] = vWidth;
+            }
+        }
+        return width;
     }
 
     private static int[] buildWidths(Table table, RestRequest request, boolean verbose) {

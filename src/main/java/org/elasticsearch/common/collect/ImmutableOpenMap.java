@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -178,6 +179,16 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             ObjectObjectOpenHashMap<KType, VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return new ImmutableOpenMap<KType, VType>(map);
+        }
+
+        /**
+         * Puts all the entries in the map to the builder.
+         */
+        public Builder<KType, VType> putAll(Map<KType, VType> map) {
+            for (Map.Entry<KType, VType> entry : map.entrySet()) {
+                this.map.put(entry.getKey(), entry.getValue());
+            }
+            return this;
         }
 
         /**

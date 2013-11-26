@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
@@ -169,7 +170,6 @@ public class AllocationService extends AbstractComponent {
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         Collections.shuffle(routingNodes.unassigned());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
-        Iterable<DiscoveryNode> dataNodes = allocation.nodes().dataNodes().values();
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
         changed |= deassociateDeadNodes(allocation);
@@ -327,7 +327,8 @@ public class AllocationService extends AbstractComponent {
      * new nodes);
      */
     private void applyNewNodes(RoutingAllocation allocation) {
-        for (DiscoveryNode node : allocation.nodes().dataNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().dataNodes().values()) {
+            DiscoveryNode node = cursor.value;
             if (!allocation.routingNodes().nodesToShards().containsKey(node.id())) {
                 RoutingNode routingNode = new RoutingNode(node.id(), node);
                 allocation.routingNodes().nodesToShards().put(node.id(), routingNode);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -472,8 +473,8 @@ public class TransportClientNodesService extends AbstractComponent {
                 if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.getClusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.getState().nodes().localNode(), clusterName);
                 }
-                for (DiscoveryNode node : clusterStateResponse.getState().nodes().dataNodes().values()) {
-                    newNodes.add(node);
+                for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().dataNodes().values()) {
+                    newNodes.add(cursor.value);
                 }
             }
 

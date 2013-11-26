@@ -136,12 +136,12 @@ public class AggregationPhase implements SearchPhase {
     }
 
 
-    static class AggregationsCollector extends XCollector {
+    public static class AggregationsCollector extends XCollector {
 
         private final AggregationContext aggregationContext;
         private final List<Aggregator> collectors;
 
-        AggregationsCollector(List<Aggregator> collectors, AggregationContext aggregationContext) {
+        public AggregationsCollector(List<Aggregator> collectors, AggregationContext aggregationContext) {
             this.collectors = collectors;
             this.aggregationContext = aggregationContext;
         }

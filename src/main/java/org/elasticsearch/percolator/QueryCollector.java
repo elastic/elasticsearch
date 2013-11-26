@@ -33,6 +33,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.facet.nested.NestedFacetExecutor;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -59,7 +63,7 @@ abstract class QueryCollector extends Collector {
     BytesValues values;
 
     final List<Collector> facetCollectors = new ArrayList<Collector>();
-    final Collector facetCollector;
+    final Collector facetAndAggregatorCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context) {
         this.logger = logger;
@@ -85,13 +89,41 @@ abstract class QueryCollector extends Collector {
             }
         }
 
-        facetCollector = facetCollectors.isEmpty() ? null : MultiCollector.wrap(facetCollectors.toArray(new Collector[facetCollectors.size()]));
+        List<Collector> collectors = new ArrayList<Collector>(facetCollectors);
+        if (context.aggregations() != null) {
+            AggregationContext aggregationContext = new AggregationContext(context);
+            context.aggregations().aggregationContext(aggregationContext);
+
+            List<Aggregator> aggregatorCollectors = new ArrayList<Aggregator>();
+            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+            for (int i = 0; i < aggregators.length; i++) {
+                if (!(aggregators[i] instanceof GlobalAggregator)) {
+                    Aggregator aggregator = aggregators[i];
+                    if (aggregator.shouldCollect()) {
+                        aggregatorCollectors.add(aggregator);
+                    }
+                }
+            }
+            context.aggregations().aggregators(aggregators);
+            if (!aggregatorCollectors.isEmpty()) {
+                collectors.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
+            }
+        }
+
+        int size = collectors.size();
+        if (size == 0) {
+            facetAndAggregatorCollector = null;
+        } else if (size == 1) {
+            facetAndAggregatorCollector = collectors.get(0);
+        } else {
+            facetAndAggregatorCollector = MultiCollector.wrap(collectors.toArray(new Collector[collectors.size()]));
+        }
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        if (facetCollector != null) {
-            facetCollector.setScorer(scorer);
+        if (facetAndAggregatorCollector != null) {
+            facetAndAggregatorCollector.setScorer(scorer);
         }
     }
 
@@ -99,8 +131,8 @@ abstract class QueryCollector extends Collector {
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues(true);
-        if (facetCollector != null) {
-            facetCollector.setNextReader(context);
+        if (facetAndAggregatorCollector != null) {
+            facetAndAggregatorCollector.setNextReader(context);
         }
     }
 
@@ -183,8 +215,8 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
-                    if (facetCollector != null) {
-                        facetCollector.collect(doc);
+                    if (facetAndAggregatorCollector != null) {
+                        facetAndAggregatorCollector.collect(doc);
                     }
                 }
             } catch (IOException e) {
@@ -228,8 +260,8 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     topDocsCollector.collect(doc);
-                    if (facetCollector != null) {
-                        facetCollector.collect(doc);
+                    if (facetAndAggregatorCollector != null) {
+                        facetAndAggregatorCollector.collect(doc);
                     }
                 }
             } catch (IOException e) {
@@ -302,8 +334,8 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
-                    if (facetCollector != null) {
-                        facetCollector.collect(doc);
+                    if (facetAndAggregatorCollector != null) {
+                        facetAndAggregatorCollector.collect(doc);
                     }
                 }
             } catch (IOException e) {
@@ -354,8 +386,8 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     counter++;
-                    if (facetCollector != null) {
-                        facetCollector.collect(doc);
+                    if (facetAndAggregatorCollector != null) {
+                        facetAndAggregatorCollector.collect(doc);
                     }
                 }
             } catch (IOException e) {

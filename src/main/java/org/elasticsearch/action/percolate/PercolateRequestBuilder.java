@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 
@@ -161,6 +162,14 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      */
     public PercolateRequestBuilder addFacet(FacetBuilder facetBuilder) {
         sourceBuilder().addFacet(facetBuilder);
+        return this;
+    }
+
+    /**
+     * Add a aggregation definition.
+     */
+    public PercolateRequestBuilder addAggregation(AggregationBuilder aggregationBuilder) {
+        sourceBuilder().addAggregation(aggregationBuilder);
         return this;
     }
 

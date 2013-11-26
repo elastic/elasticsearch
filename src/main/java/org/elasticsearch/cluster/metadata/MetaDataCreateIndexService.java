@@ -232,6 +232,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
 
+                    Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
+
                     for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
@@ -260,6 +262,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
                                 customs.put(type, merged);
                             }
+                        }
+                        //handle aliases
+                        for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
+                            AliasMetaData aliasMetaData = cursor.value;
+                            //if an alias with same name came with the create index request itself,
+                            // ignore this one taken from the index template
+                            if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
+                                continue;
+                            }
+                            //if an alias with same name was already processed, ignore this one
+                            if (templatesAliases.containsKey(cursor.key)) {
+                                continue;
+                            }
+
+                            //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
+                            if (aliasMetaData.alias().contains("{index}")) {
+                                String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
+                                aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
+                            }
+
+                            aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
+                            templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                         }
                     }
 
@@ -349,6 +373,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
                         }
                     }
+                    for (AliasMetaData aliasMetaData : templatesAliases.values()) {
+                        if (aliasMetaData.filter() != null) {
+                            aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), indexQueryParserService);
+                        }
+                    }
 
                     // now, update the mappings with the actual source
                     Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
@@ -361,15 +390,22 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
                     }
+
+                    for (AliasMetaData aliasMetaData : templatesAliases.values()) {
+                        indexMetaDataBuilder.putAlias(aliasMetaData);
+                    }
                     for (Alias alias : request.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
+
                     for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
+
                     indexMetaDataBuilder.state(request.state());
+
                     final IndexMetaData indexMetaData;
                     try {
                         indexMetaData = indexMetaDataBuilder.build();

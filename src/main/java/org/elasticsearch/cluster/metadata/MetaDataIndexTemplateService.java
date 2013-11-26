@@ -19,10 +19,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,21 +41,24 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- *
+ * Service responsible for submitting index templates updates
  */
 public class MetaDataIndexTemplateService extends AbstractComponent {
 
     private final ClusterService clusterService;
+    private final AliasValidator aliasValidator;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService) {
+    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService, AliasValidator aliasValidator) {
         super(settings);
         this.clusterService = clusterService;
+        this.aliasValidator = aliasValidator;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -136,6 +141,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                 templateBuilder.putMapping(entry.getKey(), entry.getValue());
             }
+            for (Alias alias : request.aliases) {
+                AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                templateBuilder.putAlias(aliasMetaData);
+            }
             for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
                 templateBuilder.putCustom(entry.getKey(), entry.getValue());
             }
@@ -205,6 +215,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (!Strings.validFileNameExcludingAstrix(request.template)) {
             throw new InvalidIndexTemplateException(request.name, "template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
+
+        for (Alias alias : request.aliases) {
+            //we validate the alias only partially, as we don't know yet to which index it'll get applied to
+            aliasValidator.validateAliasStandalone(alias);
+        }
     }
 
     public static interface PutListener {
@@ -222,6 +237,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         String template;
         Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
+        List<Alias> aliases = Lists.newArrayList();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
         TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -253,6 +269,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest mappings(Map<String, String> mappings) {
             this.mappings.putAll(mappings);
+            return this;
+        }
+        
+        public PutRequest aliases(Set<Alias> aliases) {
+            this.aliases.addAll(aliases);
             return this;
         }
 

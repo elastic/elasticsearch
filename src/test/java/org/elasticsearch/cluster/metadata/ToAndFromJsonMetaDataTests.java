@@ -92,9 +92,13 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
                         .put(IndexTemplateMetaData.builder("foo")
                                 .template("bar")
-                                .order(1).settings(settingsBuilder()
+                                .order(1)
+                                .settings(settingsBuilder()
                                         .put("setting1", "value1")
-                                        .put("setting2", "value2")))
+                                        .put("setting2", "value2"))
+                                .putAlias(newAliasMetaDataBuilder("alias-bar1"))
+                                .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
+                                .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -184,6 +188,13 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(parsedMetaData.templates().get("foo").template(), is("bar"));
         assertThat(parsedMetaData.templates().get("foo").settings().get("index.setting1"), is("value1"));
         assertThat(parsedMetaData.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().size(), equalTo(3));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar2").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
+        assertThat(parsedMetaData.templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

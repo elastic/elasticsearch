@@ -34,6 +34,7 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -84,6 +85,9 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
             ClusterStateResponse stateResponse = client().admin().cluster().prepareState().setIndices(indexName).get();
             assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfShards(), is(10));
             assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfReplicas(), is(0));
+            assertThat(stateResponse.getState().getMetaData().indices().get(indexName).aliases().size(), equalTo(1));
+            String aliasName = indexName + "-alias";
+            assertThat(stateResponse.getState().getMetaData().indices().get(indexName).aliases().get(aliasName).alias(), equalTo(aliasName));
         }
     }
 }

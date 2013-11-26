@@ -21,24 +21,27 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
@@ -63,6 +66,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
 
     private Map<String, String> mappings = newHashMap();
 
+    private final Set<Alias> aliases = newHashSet();
+    
     private Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     PutIndexTemplateRequest() {
@@ -251,6 +256,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     /**
      * The template source definition.
      */
+    @SuppressWarnings("unchecked")
     public PutIndexTemplateRequest source(Map templateSource) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
@@ -272,6 +278,8 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
+            } else if (name.equals("aliases")) {
+                aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
                 IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
@@ -335,6 +343,66 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
+       
+    Set<Alias> aliases() {
+        return this.aliases;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    @SuppressWarnings("unchecked")
+    public PutIndexTemplateRequest aliases(Map source) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.map(source);
+            return aliases(builder.bytes());
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequest aliases(XContentBuilder source) {
+        return aliases(source.bytes());
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequest aliases(String source) {
+        return aliases(new BytesArray(source));
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public PutIndexTemplateRequest aliases(BytesReference source) {
+        try {
+            XContentParser parser = XContentHelper.createParser(source);
+            //move to the first alias
+            parser.nextToken();
+            while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                alias(Alias.fromXContent(parser));
+            }
+            return this;
+        } catch(IOException e) {
+            throw new ElasticsearchParseException("Failed to parse aliases", e);
+        }
+    }
+
+    /**
+     * Adds an alias that will be added when the index gets created.
+     *
+     * @param alias   The metadata for the new alias
+     * @return  the index template creation request
+     */
+    public PutIndexTemplateRequest alias(Alias alias) {
+        aliases.add(alias);
+        return this;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -354,6 +422,12 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
             String type = in.readString();
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                aliases.add(Alias.read(in));
+            }
         }
     }
 
@@ -375,6 +449,12 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             out.writeString(entry.getKey());
             IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeVInt(aliases.size());
+            for (Alias alias : aliases) {
+                alias.writeTo(out);
+            }
         }
     }
 }

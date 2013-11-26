@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import com.google.common.collect.Sets;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
@@ -38,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -101,7 +101,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Shutdown is disabled");
         }
-        final Set<DiscoveryNode> nodes = Sets.newHashSet();
+        final ObjectOpenHashSet<DiscoveryNode> nodes = new ObjectOpenHashSet<DiscoveryNode>();
         if (state.nodes().isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
             nodes.addAll(state.nodes().dataNodes().values());
@@ -119,7 +119,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                     clusterService.stop();
 
                     final CountDownLatch latch = new CountDownLatch(nodes.size());
-                    for (final DiscoveryNode node : nodes) {
+                    for (ObjectCursor<DiscoveryNode> cursor : nodes) {
+                        final DiscoveryNode node = cursor.value;
                         if (node.id().equals(state.nodes().masterNodeId())) {
                             // don't shutdown the master yet...
                             latch.countDown();
@@ -219,7 +220,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
         }
-        listener.onResponse(new NodesShutdownResponse(clusterName, nodes.toArray(new DiscoveryNode[nodes.size()])));
+        listener.onResponse(new NodesShutdownResponse(clusterName, nodes.toArray(DiscoveryNode.class)));
     }
 
     private class NodeShutdownRequestHandler extends BaseTransportRequestHandler<NodeShutdownRequest> {

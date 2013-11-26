@@ -19,26 +19,27 @@
 
 package org.elasticsearch.cluster.node;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convinience methods to
@@ -48,17 +49,17 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
-    private final ImmutableMap<String, DiscoveryNode> nodes;
+    private final ImmutableOpenMap<String, DiscoveryNode> nodes;
 
-    private final ImmutableMap<String, DiscoveryNode> dataNodes;
+    private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
 
-    private final ImmutableMap<String, DiscoveryNode> masterNodes;
+    private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
 
     private final String masterNodeId;
 
     private final String localNodeId;
 
-    private DiscoveryNodes(ImmutableMap<String, DiscoveryNode> nodes, ImmutableMap<String, DiscoveryNode> dataNodes, ImmutableMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId) {
+    private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
@@ -68,7 +69,18 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     @Override
     public UnmodifiableIterator<DiscoveryNode> iterator() {
-        return nodes.values().iterator();
+        final Iterator<ObjectCursor<DiscoveryNode>> cursor = nodes.values().iterator();
+        return new UnmodifiableIterator<DiscoveryNode>() {
+            @Override
+            public boolean hasNext() {
+                return cursor.hasNext();
+            }
+
+            @Override
+            public DiscoveryNode next() {
+                return cursor.next().value;
+            }
+        };
     }
 
     /**
@@ -113,7 +125,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> nodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> nodes() {
         return this.nodes;
     }
 
@@ -122,7 +134,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> getNodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> getNodes() {
         return nodes();
     }
 
@@ -131,7 +143,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> dataNodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> dataNodes() {
         return this.dataNodes;
     }
 
@@ -140,7 +152,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> getDataNodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> getDataNodes() {
         return dataNodes();
     }
 
@@ -149,7 +161,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> masterNodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> masterNodes() {
         return this.masterNodes;
     }
 
@@ -158,7 +170,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> getMasterNodes() {
+    public ImmutableOpenMap<String, DiscoveryNode> getMasterNodes() {
         return masterNodes();
     }
 
@@ -167,8 +179,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @return {@link Map} of the discovered master and data nodes arranged by their ids
      */
-    public ImmutableMap<String, DiscoveryNode> masterAndDataNodes() {
-        return MapBuilder.<String, DiscoveryNode>newMapBuilder().putAll(dataNodes).putAll(masterNodes).immutableMap();
+    public ImmutableOpenMap<String, DiscoveryNode> masterAndDataNodes() {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
+        nodes.putAll(masterNodes);
+        return nodes.build();
     }
 
     /**
@@ -270,7 +284,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      * @return node identified by the given address or <code>null</code> if no such node exists
      */
     public DiscoveryNode findByAddress(TransportAddress address) {
-        for (DiscoveryNode node : nodes.values()) {
+        for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
+            DiscoveryNode node = cursor.value;
             if (node.address().equals(address)) {
                 return node;
             }
@@ -310,7 +325,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             }
             return nodesIds;
         } else {
-            Set<String> resolvedNodesIds = new HashSet<String>(nodesIds.length);
+            ObjectOpenHashSet<String> resolvedNodesIds = new ObjectOpenHashSet<String>(nodesIds.length);
             for (String nodeId : nodesIds) {
                 if (nodeId.equals("_local")) {
                     String localNodeId = localNodeId();
@@ -342,15 +357,15 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                         String matchAttrValue = nodeId.substring(index + 1);
                         if ("data".equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(dataNodes.keySet());
+                                resolvedNodesIds.addAll(dataNodes.keys());
                             } else {
-                                resolvedNodesIds.removeAll(dataNodes.keySet());
+                                resolvedNodesIds.removeAll(dataNodes.keys());
                             }
                         } else if ("master".equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(masterNodes.keySet());
+                                resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
-                                resolvedNodesIds.removeAll(masterNodes.keySet());
+                                resolvedNodesIds.removeAll(masterNodes.keys());
                             }
                         } else {
                             for (DiscoveryNode node : this) {
@@ -366,7 +381,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                     }
                 }
             }
-            return resolvedNodesIds.toArray(new String[resolvedNodesIds.size()]);
+            return resolvedNodesIds.toArray(String.class);
         }
     }
 
@@ -553,18 +568,18 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public static class Builder {
 
-        private Map<String, DiscoveryNode> nodes = newHashMap();
+        private final ImmutableOpenMap.Builder<String, DiscoveryNode> nodes;
         private String masterNodeId;
         private String localNodeId;
 
         public Builder() {
-
+            nodes = ImmutableOpenMap.builder();
         }
 
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.masterNodeId();
             this.localNodeId = nodes.localNodeId();
-            this.nodes.putAll(nodes.nodes());
+            this.nodes = ImmutableOpenMap.builder(nodes.nodes());
         }
 
         public Builder put(DiscoveryNode node) {
@@ -588,17 +603,17 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         }
 
         public DiscoveryNodes build() {
-            ImmutableMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableMap.builder();
-            ImmutableMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableMap.builder();
-            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
-                if (nodeEntry.getValue().dataNode()) {
-                    dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
+            ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
+            ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
+            for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
+                if (nodeEntry.value.dataNode()) {
+                    dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
-                if (nodeEntry.getValue().masterNode()) {
-                    masterNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
+                if (nodeEntry.value.masterNode()) {
+                    masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
             }
-            return new DiscoveryNodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId);
+            return new DiscoveryNodes(nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId);
         }
 
         public static void writeTo(DiscoveryNodes nodes, StreamOutput out) throws IOException {

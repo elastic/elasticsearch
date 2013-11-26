@@ -64,8 +64,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.routingTable = clusterState.routingTable();
         Map<String, List<MutableShardRouting>> nodesToShards = newHashMap();
         // fill in the nodeToShards with the "live" nodes
-        for (DiscoveryNode node : clusterState.nodes().dataNodes().values()) {
-            nodesToShards.put(node.id(), new ArrayList<MutableShardRouting>());
+        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
+            nodesToShards.put(cursor.value.id(), new ArrayList<MutableShardRouting>());
         }
 
         // fill in the inverse of node -> shards allocated

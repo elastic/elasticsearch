@@ -179,7 +179,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         clearPostAllocationFlag.add(shardId);
     }
 
-    public Iterable<ShardId> getShardsToClearPostAllocationFlag() {
+    public Set<ShardId> getShardsToClearPostAllocationFlag() {
         if (clearPostAllocationFlag == null) {
             return ImmutableSet.of();
         }

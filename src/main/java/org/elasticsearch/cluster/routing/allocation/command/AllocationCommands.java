@@ -69,6 +69,7 @@ public class AllocationCommands {
 
     static {
         registerFactory(AllocateAllocationCommand.NAME, new AllocateAllocationCommand.Factory());
+        registerFactory(AllocateAllPrimariesAllocationCommand.NAME, new AllocateAllPrimariesAllocationCommand.Factory());
         registerFactory(CancelAllocationCommand.NAME, new CancelAllocationCommand.Factory());
         registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
     }

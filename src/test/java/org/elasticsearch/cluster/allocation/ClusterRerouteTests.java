@@ -21,8 +21,11 @@ package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateAllPrimariesAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
@@ -30,6 +33,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +44,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -185,7 +190,57 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
-
     }
 
+    @Test
+    public void allocateAllPrimariesAllocationCommand() throws InterruptedException, ExecutionException {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        builder.put("gateway.type", "local");
+        Settings settings = builder.build();
+        
+        // Get an index into red
+        long makeRedStart = System.currentTimeMillis();
+        while (true) {
+            logger.info("Starting two nodes");
+            cluster().startNode(settings);
+            cluster().startNode(settings);
+
+            logger.info("Creating an index and put some data in it");
+            prepareCreate("test").setSettings(
+                    ImmutableSettings.builder().put("index.number_of_shards", 5).put("index.number_of_replicas", 0)).get();
+            ensureGreen();
+            for (int i = 0; i < 100; i++) {
+                index("test", "test", Integer.toString(i), "foo", "bar");
+            }
+            refresh();
+            flush();
+
+            logger.info("Shutting down all but one node to leave masters unassigned");
+            cluster().ensureAtMostNumNodes(1);
+
+            logger.info("Giving the cluster a second to recover on its own if it is going to");
+            // It will do that if it the gateway isn't "local"
+            sleep(1000);
+
+            logger.info("Checking if the cluster is RED");
+            ClusterHealthResponse health = client().admin().cluster().health(Requests.clusterHealthRequest()).get();
+            if (health.getStatus() == ClusterHealthStatus.RED) {
+                logger.info("Cluster is red");
+                break;
+            }
+
+            if (System.currentTimeMillis() - makeRedStart > 10000) {
+                fail("Couldn't turn the cluster RED after 10 seconds");
+            }
+            logger.info("Cluster is not red, trying again");
+            // This was probably caused by all data being sent to one the node that wasn't shut down.  It isn't common.
+            wipeIndices("test");
+        }
+
+        logger.info("Sending the allocate all primaries command");
+        client().admin().cluster().reroute(new ClusterRerouteRequest().add(new AllocateAllPrimariesAllocationCommand())).get();
+
+        logger.info("Waiting for the cluster to recover");
+        ensureGreen();
+    }
 }

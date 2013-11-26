@@ -65,4 +65,13 @@ The commands supported are:
     `index` and `shard` for index name and shard number, and `node` to
     allocate the shard to. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to explicitly allocate a primary
-    shard (might result in data loss).
+    shard (might result in data loss).  `allow_primary` is useful when all
+    redundant copies of the data are gone and the cluster just needs to
+    accept the loss and move on.
+
+`allocate_all_primaries`::
+    Allocate all unallocated primaries to any node that can take them.
+    Accepts no parameters.  Each allocation is similar to running `allocate`
+    with `allow_primary` so this can cause data loss.  This is useful in the
+    same cases as `allocate` with `allow_primary` but doesn't require looking
+    up the `index` or `shard` or guessing an appropriate `node`.

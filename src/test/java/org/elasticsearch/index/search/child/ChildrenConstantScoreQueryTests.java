@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.Environment;
@@ -198,9 +199,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
-                            new CustomQueryWrappingFilter(
-                                    new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, applyAcceptedDocs)
-                            )
+                        new CustomQueryWrappingFilter(
+                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, applyAcceptedDocs)
+                        )
                 );
             }
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
@@ -236,7 +237,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     static void assertBitSet(FixedBitSet actual, FixedBitSet expected, IndexSearcher searcher) throws IOException {
         if (!actual.equals(expected)) {
-            Description description= new StringDescription();
+            Description description = new StringDescription();
             description.appendText(reason(actual, expected, searcher));
             description.appendText("\nExpected: ");
             description.appendValue(expected);
@@ -270,7 +271,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                 index, ImmutableSettings.EMPTY, new Environment(), new AnalysisService(index), null, null, null
         );
         mapperService.merge(
-                childType, PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string(), true
+                childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
         final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
         idCache.setIndexService(indexService);

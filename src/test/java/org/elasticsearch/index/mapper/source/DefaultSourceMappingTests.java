@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.source;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -173,7 +174,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = MapperTestUtils.newMapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, defaultMapping, true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(defaultMapping), true);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
@@ -187,12 +188,12 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = MapperTestUtils.newMapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, defaultMapping, true);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(defaultMapping), true);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.merge("my_type", mapping, true);
+        mapperService.merge("my_type", new CompressedString(mapping), true);
 
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));

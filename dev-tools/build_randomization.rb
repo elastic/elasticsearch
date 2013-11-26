@@ -48,18 +48,21 @@ def get_random_one(data_array)
   data_array[rand(data_array.size)]
 end
 
-# given a jdk directory selection, generate revelant environment variables
+# given a jdk directory selection, generate relevant environment variables
 def get_env_matrix(data_array)
   
   #refactoring target
-  es_test_jvm_option1 = get_random_one(['-client', '-server'])
-  es_test_jvm_option2 = get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC', 
-                                        '-XX:+UseG1GC'])
+  es_test_jvm_option1 = get_random_one(['-server']) #only server for now get_random_one(['-client', '-server'])
+  greater_than_six = File.basename([*data_array].first).split(/[^0-9]/)[-1].to_i > 6
+  es_test_jvm_option2 = greater_than_six ? get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC',
+                                        '-XX:+UseG1GC']) :
+                        get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC'])
+
   es_test_jvm_option3 = get_random_one(['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'])
   es_node_mode =  get_random_one(['local', 'network'])
   tests_nightly = get_random_one([true, false])
+  tests_nightly = get_random_one([false]) #bug
 
-  #build_desc = "%s,%s,%s%s %s %s"%[File.basename(x), es_node_mode, tests_nightly, es_test_jvm_option1, es_test_jvm_option2, es_test_jvm_option3]
   [*data_array].map do |x|
     {
       'PATH' => File.join(x,'bin') + ':' + ENV['PATH'],
@@ -68,9 +71,7 @@ def get_env_matrix(data_array)
                                             es_test_jvm_option1[1..-1], es_test_jvm_option2[4..-1], es_test_jvm_option3[4..-1]],
       'es.node.mode' => es_node_mode,
       'tests.nightly' => tests_nightly,
-      'ES_TESTS_JVM_OPTION1' => es_test_jvm_option1,
-      'ES_TESTS_JVM_OPTION2' => es_test_jvm_option2,
-      'ES_TESTS_JVM_OPTION3' => es_test_jvm_option3,
+      'tests.jvm.argline' => "%s %s %s"%[es_test_jvm_option1, es_test_jvm_option2, es_test_jvm_option3]
     }
   end
 end

@@ -92,7 +92,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         return new AssertingSearcher(super.newSearcher(source, assertingIndexSearcher, manager), shardId);
     }
 
-    public static final class AssertingSearcher implements Searcher {
+    public final class AssertingSearcher implements Searcher {
         private final Searcher searcher;
         private final ShardId shardId;
         private RuntimeException firstReleaseStack;
@@ -124,7 +124,12 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
                     firstReleaseStack = new RuntimeException("Searcher Released first here, source [" + searcher.source() + "]");
                 }
             }
-            return searcher.release();
+            try {
+                return searcher.release();
+            } catch (RuntimeException ex) {
+                logger.debug("Failed to release searcher", ex);
+                throw ex;
+            }
         }
 
         @Override

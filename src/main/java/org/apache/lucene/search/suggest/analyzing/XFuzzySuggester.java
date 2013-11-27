@@ -122,7 +122,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      */
     public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
         this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, DEFAULT_MAX_EDITS, DEFAULT_TRANSPOSITIONS,
-                DEFAULT_NON_FUZZY_PREFIX, DEFAULT_MIN_FUZZY_LENGTH, DEFAULT_UNICODE_AWARE, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
+                DEFAULT_NON_FUZZY_PREFIX, DEFAULT_MIN_FUZZY_LENGTH, DEFAULT_UNICODE_AWARE, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
 
     }
 
@@ -154,8 +154,8 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                            int maxEdits, boolean transpositions, int nonFuzzyPrefix, int minFuzzyLength, boolean unicodeAware,
                            FST<PairOutputs.Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
-                           int sepLabel, int payloadSep, int endByte) {
-        super(indexAnalyzer, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, true, fst, hasPayloads, maxAnalyzedPathsForOneInput, sepLabel, payloadSep, endByte);
+                           int sepLabel, int payloadSep, int endByte, int holeCharacter) {
+        super(indexAnalyzer, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, true, fst, hasPayloads, maxAnalyzedPathsForOneInput, sepLabel, payloadSep, endByte, holeCharacter);
         if (maxEdits < 0 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
             throw new IllegalArgumentException("maxEdits must be between 0 and " + LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
         }

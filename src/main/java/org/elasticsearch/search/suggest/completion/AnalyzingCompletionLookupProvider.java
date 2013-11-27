@@ -74,7 +74,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
         //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE);
+        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
     }
 
     @Override
@@ -231,19 +231,23 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             // first version did not include these three fields, so fall back to old default (before the analyzingsuggester
             // was updated in Lucene, so we cannot use the suggester defaults)
-            int sepLabel, payloadSep, endByte;
-            if (version == CODEC_VERSION_START) {
-                sepLabel = 0xFF;
-                payloadSep = '\u001f';
-                endByte = 0x0;
-            } else {
-                sepLabel = input.readVInt();
-                endByte = input.readVInt();
-                payloadSep = input.readVInt();
+            int sepLabel, payloadSep, endByte, holeCharacter;
+            switch (version) {
+                case CODEC_VERSION_START:
+                    sepLabel = 0xFF;
+                    payloadSep = '\u001f';
+                    endByte = 0x0;
+                    holeCharacter = '\u001E';
+                    break;
+                default:
+                    sepLabel = input.readVInt();
+                    endByte = input.readVInt();
+                    payloadSep = input.readVInt();
+                    holeCharacter = input.readVInt();
             }
 
             AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
-                    hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte);
+                    hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte, holeCharacter);
             lookupMap.put(entry.getValue(), holder);
         }
         return new LookupFactory() {
@@ -262,13 +266,15 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                             suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte);
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
+                            analyzingSuggestHolder.holeCharacter);
 
                 } else {
                     suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte);
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
+                            analyzingSuggestHolder.holeCharacter);
                 }
                 return suggester;
             }
@@ -316,13 +322,14 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final int sepLabel;
         final int payloadSep;
         final int endByte;
+        final int holeCharacter;
 
         public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                                       boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst) {
-            this(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, hasPayloads, maxAnalyzedPathsForOneInput, fst, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE);
+            this(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, hasPayloads, maxAnalyzedPathsForOneInput, fst, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         }
 
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions, boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst, int sepLabel, int payloadSep, int endByte) {
+        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions, boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst, int sepLabel, int payloadSep, int endByte, int holeCharacter) {
             this.preserveSep = preserveSep;
             this.preservePositionIncrements = preservePositionIncrements;
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
@@ -333,6 +340,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             this.sepLabel = sepLabel;
             this.payloadSep = payloadSep;
             this.endByte = endByte;
+            this.holeCharacter = holeCharacter;
         }
     }
 

@@ -153,7 +153,7 @@ to expire. Setting it to `true` can trigger additional load, and may
 slow down indexing.
 
 [float]
-[[update]]
+[[bulk-update]]
 === Update
 
 When using `update` action `_retry_on_conflict` can be used as field in
@@ -174,3 +174,9 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 --------------------------------------------------
+
+[float]
+[[bulk-security]]
+=== Security
+
+See <<url-access-control>>

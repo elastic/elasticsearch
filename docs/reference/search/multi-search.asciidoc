@@ -70,3 +70,9 @@ against the `test2` index.
 
 The `search_type` can be set in a similar manner to globally apply to
 all search requests.
+
+[float]
+[[msearch-security]]
+=== Security
+
+See <<url-access-control>>

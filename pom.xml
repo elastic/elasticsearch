@@ -732,7 +732,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>rpm-maven-plugin</artifactId>
-                <version>2.1-alpha-2</version>
+                <version>2.1-alpha-3</version>
                 <configuration>
                     <copyright>2013, Elasticsearch</copyright>
                     <distribution>Elasticsearch</distribution>

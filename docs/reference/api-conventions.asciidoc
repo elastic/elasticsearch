@@ -125,10 +125,10 @@ instead.
 == URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-Elasticsearch indices. For <<search-multi-search,multi-search>>, <<docs-multi-
-get,multi-get>> and <<docs-bulk,bulk>> requests, the user has the choice of
-specifying an index in the URL and on each individual request within the
-request body. This can make URL-based access control challenging.
+Elasticsearch indices. For <<search-multi-search,multi-search>>,
+<<docs-multi-get,multi-get>> and <<docs-bulk,bulk>> requests, the user has
+the choice of specifying an index in the URL and on each individual request
+within the request body. This can make URL-based access control challenging.
 
 To prevent the user from overriding the index which has been specified in the
 URL, add this setting to the `config.yml` file:

@@ -168,3 +168,9 @@ curl 'localhost:9200/_mget?routing=key1' -d '{
 
 In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
 document `test/type/1` will be fetch from shard corresponding to routing key `key2`.
+
+[float]
+[[mget-security]]
+=== Security
+
+See <<url-access-control>>

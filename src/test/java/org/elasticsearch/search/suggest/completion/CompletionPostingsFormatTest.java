@@ -123,7 +123,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final int options = preserveSeparators ? AnalyzingSuggester.PRESERVE_SEP : 0;
 
         XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(TEST_VERSION_CURRENT), new StandardAnalyzer(
-                TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE);
+                TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         LineFileDocs docs = new LineFileDocs(getRandom());
         int num = atLeast(150);
         final String[] titles = new String[num];

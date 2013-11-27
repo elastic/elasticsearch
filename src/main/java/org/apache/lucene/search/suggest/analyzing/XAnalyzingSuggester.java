@@ -92,7 +92,7 @@ import java.util.*;
  * @lucene.experimental
  */
 public class XAnalyzingSuggester extends Lookup {
- 
+
   /**
    * FST<Weight,Surface>: 
    *  input is the analyzed form, with a null byte between terms
@@ -124,14 +124,14 @@ public class XAnalyzingSuggester extends Lookup {
   private final boolean preserveSep;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)} to always
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)} to preserve
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
 
@@ -163,6 +163,7 @@ public class XAnalyzingSuggester extends Lookup {
   private final int sepLabel;
   private final int payloadSep;
   private final int endByte;
+  private final int holeCharacter;
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
@@ -171,21 +172,21 @@ public class XAnalyzingSuggester extends Lookup {
   private boolean preservePositionIncrements;
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer analyzer) {
-    this(analyzer, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
+    this(analyzer, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
-    this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE);
+    this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
@@ -206,7 +207,7 @@ public class XAnalyzingSuggester extends Lookup {
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                              boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
-                             int sepLabel, int payloadSep, int endByte) {
+                             int sepLabel, int payloadSep, int endByte, int holeCharacter) {
       // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
     this.indexAnalyzer = indexAnalyzer;
     this.queryAnalyzer = queryAnalyzer;
@@ -236,6 +237,7 @@ public class XAnalyzingSuggester extends Lookup {
     this.sepLabel = sepLabel;
     this.payloadSep = payloadSep;
     this.endByte = endByte;
+    this.holeCharacter = holeCharacter;
   }
 
   /** Returns byte size of the underlying FST. */
@@ -682,10 +684,10 @@ public class XAnalyzingSuggester extends Lookup {
 
     //System.out.println("lookup key=" + key + " num=" + num);
     for (int i = 0; i < key.length(); i++) {
-      if (key.charAt(i) == HOLE_CHARACTER) {
+      if (key.charAt(i) == holeCharacter) {
         throw new IllegalArgumentException("lookup key cannot contain HOLE character U+001E; this character is reserved");
       }
-      if (key.charAt(i) == SEP_LABEL) {
+      if (key.charAt(i) == sepLabel) {
         throw new IllegalArgumentException("lookup key cannot contain unit separator character U+001F; this character is reserved");
       }
     }

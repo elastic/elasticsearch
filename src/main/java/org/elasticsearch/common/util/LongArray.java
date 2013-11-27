@@ -39,4 +39,9 @@ public interface LongArray extends BigArray {
      */
     public abstract long increment(long index, long inc);
 
+    /**
+     * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
+     */
+    public abstract void fill(long fromIndex, long toIndex, long value);
+
 }

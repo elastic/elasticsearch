@@ -58,6 +58,51 @@ public abstract class FieldDataSource {
 
     public static abstract class Bytes extends FieldDataSource {
 
+        public static abstract class WithOrdinals extends Bytes {
+
+            public abstract BytesValues.WithOrdinals bytesValues();
+
+            public static class FieldData extends WithOrdinals implements ReaderContextAware {
+
+                protected boolean needsHashes;
+                protected final IndexFieldData.WithOrdinals<?> indexFieldData;
+                protected AtomicFieldData.WithOrdinals<?> atomicFieldData;
+                private BytesValues.WithOrdinals bytesValues;
+
+                public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData) {
+                    this.indexFieldData = indexFieldData;
+                    needsHashes = false;
+                }
+
+                @Override
+                public Uniqueness getUniqueness() {
+                    return Uniqueness.UNIQUE;
+                }
+
+                public final void setNeedsHashes(boolean needsHashes) {
+                    this.needsHashes = needsHashes;
+                }
+
+                @Override
+                public void setNextReader(AtomicReaderContext reader) {
+                    atomicFieldData = indexFieldData.load(reader);
+                    if (bytesValues != null) {
+                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    }
+                }
+
+                @Override
+                public BytesValues.WithOrdinals bytesValues() {
+                    if (bytesValues == null) {
+                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    }
+                    return bytesValues;
+                }
+
+            }
+
+        }
+
         public static class FieldData extends Bytes implements ReaderContextAware {
 
             protected boolean needsHashes;

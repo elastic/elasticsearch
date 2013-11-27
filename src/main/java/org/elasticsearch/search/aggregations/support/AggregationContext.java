@@ -27,9 +27,11 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.FieldDataSource.Uniqueness;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
@@ -160,10 +162,15 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return new NumericValuesSource(dataSource, config.formatter(), config.parser());
     }
 
-    private BytesValuesSource bytesField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
+    private ValuesSource bytesField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
         FieldDataSource dataSource = fieldDataSources.get(config.fieldContext.field());
         if (dataSource == null) {
-            dataSource = new FieldDataSource.Bytes.FieldData(config.fieldContext.indexFieldData());
+            final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
+            if (indexFieldData instanceof IndexFieldData.WithOrdinals<?>) {
+                dataSource = new FieldDataSource.Bytes.WithOrdinals.FieldData((IndexFieldData.WithOrdinals<?>) indexFieldData);
+            } else {
+                dataSource = new FieldDataSource.Bytes.FieldData(indexFieldData);
+            }
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
             fieldDataSources.put(config.fieldContext.field(), dataSource);
@@ -178,14 +185,19 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         // Even in case we wrap field data, we might still need to wrap for sorting, because the wrapped field data might be
         // eg. a numeric field data that doesn't sort according to the byte order. However field data values are unique so no
         // need to wrap for uniqueness
-        if ((config.ensureUnique && !(dataSource instanceof FieldDataSource.Bytes.FieldData)) || config.ensureSorted) {
+        if ((config.ensureUnique && dataSource.getUniqueness() != Uniqueness.UNIQUE) || config.ensureSorted) {
             dataSource = new FieldDataSource.Bytes.SortedAndUnique(dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
         }
+
         if (config.needsHashes) { // the data source needs hash if at least one consumer needs hashes
             dataSource.setNeedsHashes(true);
         }
-        return new BytesValuesSource(dataSource);
+        if (dataSource instanceof FieldDataSource.Bytes.WithOrdinals) {
+            return new BytesValuesSource.WithOrdinals((FieldDataSource.Bytes.WithOrdinals) dataSource);
+        } else {
+            return new BytesValuesSource(dataSource);
+        }
     }
 
     private BytesValuesSource bytesScript(ValuesSourceConfig<?> config) {

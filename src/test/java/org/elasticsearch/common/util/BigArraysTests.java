@@ -109,4 +109,24 @@ public class BigArraysTests extends ElasticsearchTestCase {
         }
     }
 
+    public void testLongArrayFill() {
+        final int len = randomIntBetween(1, 100000);
+        final int fromIndex = randomIntBetween(0, len - 1);
+        final int toIndex = randomBoolean()
+            ? Math.min(fromIndex + randomInt(100), len) // single page
+            : randomIntBetween(fromIndex, len); // likely multiple pages
+        final LongArray array2 = BigArrays.newLongArray(len);
+        final long[] array1 = new long[len];
+        for (int i = 0; i < len; ++i) {
+            array1[i] = randomLong();
+            array2.set(i, array1[i]);
+        }
+        final long rand = randomLong();
+        Arrays.fill(array1, fromIndex, toIndex, rand);
+        array2.fill(fromIndex, toIndex, rand);
+        for (int i = 0; i < len; ++i) {
+            assertEquals(array1[i], array2.get(i));
+        }
+    }
+
 }

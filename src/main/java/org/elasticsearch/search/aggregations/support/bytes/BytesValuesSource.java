@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 /**
  *
  */
-public final class BytesValuesSource implements ValuesSource {
+public class BytesValuesSource implements ValuesSource {
 
     private final FieldDataSource source;
 
@@ -37,6 +37,22 @@ public final class BytesValuesSource implements ValuesSource {
     @Override
     public BytesValues bytesValues() {
         return source.bytesValues();
+    }
+
+    public static final class WithOrdinals extends BytesValuesSource {
+
+        private final FieldDataSource.Bytes.WithOrdinals source;
+
+        public WithOrdinals(FieldDataSource.Bytes.WithOrdinals source) {
+            super(source);
+            this.source = source;
+        }
+
+        @Override
+        public BytesValues.WithOrdinals bytesValues() {
+            return source.bytesValues();
+        }
+
     }
 
 }

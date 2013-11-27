@@ -81,7 +81,7 @@ public class TermsAggregationSearchBenchmark {
         AGGREGATION {
             @Override
             SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
-                return builder.addAggregation(AggregationBuilders.terms(name).field(field));
+                return builder.addAggregation(AggregationBuilders.terms(name).executionHint(executionHint).field(field));
             }
 
             @Override
@@ -234,6 +234,8 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_s_dv", Method.FACET, "s_value_dv", "map"));
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
+        stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
+        stats.add(terms("terms_agg_map_s_dv", Method.AGGREGATION, "s_value_dv", "map"));
         stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
         stats.add(terms("terms_facet_l_dv", Method.FACET, "l_value_dv", null));
         stats.add(terms("terms_agg_l", Method.AGGREGATION, "l_value", null));
@@ -244,6 +246,8 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_sm_dv", Method.FACET, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_sm", Method.AGGREGATION, "sm_value", null));
         stats.add(terms("terms_agg_sm_dv", Method.AGGREGATION, "sm_value_dv", null));
+        stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
+        stats.add(terms("terms_agg_map_sm_dv", Method.AGGREGATION, "sm_value_dv", "map"));
         stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));
         stats.add(terms("terms_facet_lm_dv", Method.FACET, "lm_value_dv", null));
         stats.add(terms("terms_agg_lm", Method.AGGREGATION, "lm_value", null));

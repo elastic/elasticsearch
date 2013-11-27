@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
+import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -29,6 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriority
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +43,6 @@ import java.util.Collections;
 /**
  * An aggregator of string values.
  */
-// TODO we need a similar aggregator that would use ords, similarly to TermsStringOrdinalsFacetExecutor
 public class StringTermsAggregator extends BucketsAggregator {
 
     private static final int INITIAL_CAPACITY = 50; // TODO sizing
@@ -46,7 +51,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
-    private final BytesRefHash bucketOrds;
+    protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
@@ -128,6 +133,57 @@ public class StringTermsAggregator extends BucketsAggregator {
     @Override
     public StringTerms buildEmptyAggregation() {
         return new StringTerms(name, order, requiredSize, Collections.<InternalTerms.Bucket>emptyList());
+    }
+
+    /**
+     * Extension of StringTermsAggregator that caches bucket ords using terms ordinals.
+     */
+    public static class WithOrdinals extends StringTermsAggregator implements ReaderContextAware {
+
+        private final BytesValuesSource.WithOrdinals valuesSource;
+        private BytesValues.WithOrdinals bytesValues;
+        private Ordinals.Docs ordinals;
+        private LongArray ordinalToBucket;
+
+        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource, InternalOrder order, int requiredSize,
+                int shardSize, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, order, requiredSize, shardSize, null, aggregationContext, parent);
+            this.valuesSource = valuesSource;
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext reader) {
+            bytesValues = valuesSource.bytesValues();
+            ordinals = bytesValues.ordinals();
+            final long maxOrd = ordinals.getMaxOrd();
+            if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
+                ordinalToBucket = BigArrays.newLongArray(BigArrays.overSize(maxOrd));
+            }
+            ordinalToBucket.fill(0, maxOrd, -1L);
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrdinal) throws IOException {
+            assert owningBucketOrdinal == 0;
+            final int valuesCount = ordinals.setDocument(doc);
+
+            for (int i = 0; i < valuesCount; ++i) {
+                final long ord = ordinals.nextOrd();
+                long bucketOrd = ordinalToBucket.get(ord);
+                if (bucketOrd < 0) { // unlikely condition on a low-cardinality field
+                    final BytesRef bytes = bytesValues.getValueByOrd(ord);
+                    final int hash = bytesValues.currentValueHash();
+                    assert hash == bytes.hashCode();
+                    bucketOrd = bucketOrds.add(bytes, hash);
+                    if (bucketOrd < 0) { // already seen in another segment
+                        bucketOrd = - 1 - bucketOrd;
+                    }
+                    ordinalToBucket.set(ord, bucketOrd);
+                }
+
+                collectBucket(doc, bucketOrd);
+            }
+        }
     }
 
 }

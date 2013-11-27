@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -90,6 +91,22 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             pages[i] = null;
         }
         this.size = newSize;
+    }
+
+    @Override
+    public void fill(long fromIndex, long toIndex, long value) {
+        Preconditions.checkArgument(fromIndex <= toIndex);
+        final int fromPage = pageIndex(fromIndex);
+        final int toPage = pageIndex(toIndex - 1);
+        if (fromPage == toPage) {
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+        } else {
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            for (int i = fromPage + 1; i < toPage; ++i) {
+                Arrays.fill(pages[i], value);
+            }
+            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
     }
 
 }

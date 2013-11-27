@@ -9,13 +9,12 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 
 import java.io.IOException;
@@ -34,14 +33,11 @@ final class QueriesLoaderCollector extends Collector {
     private BytesValues idValues;
     private AtomicReader reader;
 
-    QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, IndexFieldDataService indexFieldDataService) {
+    QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         this.percolator = percolator;
         this.logger = logger;
-        this.idFieldData = indexFieldDataService.getForField(
-                new FieldMapper.Names(IdFieldMapper.NAME),
-                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
-                false
-        );
+        final FieldMapper<?> idMapper = mapperService.smartNameFieldMapper(IdFieldMapper.NAME);
+        this.idFieldData = indexFieldDataService.getForField(idMapper);
     }
 
     public Map<HashedBytesRef, Query> queries() {

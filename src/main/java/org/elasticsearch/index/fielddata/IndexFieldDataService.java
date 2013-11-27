@@ -133,10 +133,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
-        return getForField(mapper.names(), mapper.fieldDataType(), mapper.hasDocValues());
-    }
-
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type, boolean docValues) {
+        final FieldMapper.Names fieldNames = mapper.names();
+        final FieldDataType type = mapper.fieldDataType();
+        final boolean docValues = mapper.hasDocValues();
         IndexFieldData<?> fieldData = loadedFieldData.get(fieldNames.indexName());
         if (fieldData == null) {
             synchronized (loadedFieldData) {

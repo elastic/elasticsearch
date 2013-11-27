@@ -1499,6 +1499,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 return true;
             } catch (IOException e) {
                 return false;
+            } catch (AlreadyClosedException e) {
+                /* this one can happen if we already closed the
+                 * underlying store / directory and we call into the
+                 * IndexWriter to free up pending files. */
+                return false;
             }
         }
     }

@@ -433,11 +433,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } catch (Throwable e) {
             context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
-            try {
-                freeContext(context); // we just try to make sure this is freed - rethrow orig exception.
-            } catch(Throwable t) {
-                logger.trace("Could not free context", t);
-            }
+            freeContext(context); // we just try to make sure this is freed - rethrow orig exception.
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);

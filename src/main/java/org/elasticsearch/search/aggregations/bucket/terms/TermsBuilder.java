@@ -20,6 +20,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private int includeFlags;
     private String excludePattern;
     private int excludeFlags;
+    private String executionHint;
 
     public TermsBuilder(String name) {
         super(name, "terms");
@@ -102,6 +103,11 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         return this;
     }
 
+    public TermsBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
+        return this;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (size >=0) {
@@ -136,6 +142,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
                         .field("flags", excludeFlags)
                         .endObject();
             }
+        }
+        if (executionHint != null) {
+            builder.field("execution_hint", executionHint);
         }
         return builder;
     }

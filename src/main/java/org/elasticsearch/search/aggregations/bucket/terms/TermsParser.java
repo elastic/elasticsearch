@@ -72,6 +72,7 @@ public class TermsParser implements Aggregator.Parser {
         int includeFlags = 0; // 0 means no flags
         String exclude = null;
         int excludeFlags = 0; // 0 means no flags
+        String executionHint = null;
 
 
         XContentParser.Token token;
@@ -94,6 +95,8 @@ public class TermsParser implements Aggregator.Parser {
                     include = parser.text();
                 } else if ("exclude".equals(currentFieldName)) {
                     exclude = parser.text();
+                } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
+                    executionHint = parser.text();
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("script_values_unique".equals(currentFieldName)) {
@@ -192,14 +195,14 @@ public class TermsParser implements Aggregator.Parser {
             if (!assumeUnique) {
                 config.ensureUnique(true);
             }
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             ValuesSourceConfig<?> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
             config.unmapped(true);
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
@@ -241,7 +244,7 @@ public class TermsParser implements Aggregator.Parser {
             config.ensureUnique(true);
         }
 
-        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
+        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

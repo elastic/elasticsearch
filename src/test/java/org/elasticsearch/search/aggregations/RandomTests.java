@@ -28,11 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -194,23 +195,29 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string").field("string_values").size(maxNumTerms).subAggregation(stats("stats").field("num"))).execute().actionGet();
+                .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.EXECUTION_HINT_VALUE_MAP).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.EXECUTION_HINT_VALUE_ORDINALS).size(maxNumTerms).subAggregation(extendedStats("stats").field("num"))).execute().actionGet();
         assertEquals(0, resp.getFailedShards());
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
-        final Terms stringTerms = resp.getAggregations().get("string");
+        final Terms stringMapTerms = resp.getAggregations().get("string_map");
+        final Terms stringOrdinalsTerms = resp.getAggregations().get("string_ordinals");
 
         assertEquals(valuesSet.size(), longTerms.buckets().size());
         assertEquals(valuesSet.size(), doubleTerms.buckets().size());
-        assertEquals(valuesSet.size(), stringTerms.buckets().size());
+        assertEquals(valuesSet.size(), stringMapTerms.buckets().size());
+        assertEquals(valuesSet.size(), stringOrdinalsTerms.buckets().size());
         for (Terms.Bucket bucket : longTerms.buckets()) {
             final Terms.Bucket doubleBucket = doubleTerms.getByTerm(Double.toString(Long.parseLong(bucket.getKey().string())));
-            final Terms.Bucket stringBucket = stringTerms.getByTerm(bucket.getKey().string());
+            final Terms.Bucket stringMapBucket = stringMapTerms.getByTerm(bucket.getKey().string());
+            final Terms.Bucket stringOrdinalsBucket = stringOrdinalsTerms.getByTerm(bucket.getKey().string());
             assertNotNull(doubleBucket);
-            assertNotNull(stringBucket);
+            assertNotNull(stringMapBucket);
+            assertNotNull(stringOrdinalsBucket);
             assertEquals(bucket.getDocCount(), doubleBucket.getDocCount());
-            assertEquals(bucket.getDocCount(), stringBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringMapBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringOrdinalsBucket.getDocCount());
         }
     }
 

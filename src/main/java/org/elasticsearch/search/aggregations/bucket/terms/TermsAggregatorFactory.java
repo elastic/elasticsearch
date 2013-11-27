@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
@@ -34,17 +36,22 @@ import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource
  */
 public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
+    public static final String EXECUTION_HINT_VALUE_MAP = "map";
+    public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
+
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
     private final IncludeExclude includeExclude;
+    private final String executionHint;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, IncludeExclude includeExclude) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, IncludeExclude includeExclude, String executionHint) {
         super(name, StringTerms.TYPE.name(), valueSourceConfig);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.includeExclude = includeExclude;
+        this.executionHint = executionHint;
     }
 
     @Override
@@ -52,10 +59,46 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
         return new UnmappedTermsAggregator(name, order, requiredSize, aggregationContext, parent);
     }
 
+    private static boolean hasParentBucketAggregator(Aggregator parent) {
+        if (parent == null) {
+            return false;
+        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
+            return true;
+        } else {
+            return hasParentBucketAggregator(parent.parent());
+        }
+    }
+
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         if (valuesSource instanceof BytesValuesSource) {
-            return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
+            if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
+                throw new ElasticSearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
+            }
+            String execution = executionHint;
+            if (!(valuesSource instanceof BytesValuesSource.WithOrdinals)) {
+                execution = EXECUTION_HINT_VALUE_MAP;
+            } else if (includeExclude != null) {
+                execution = EXECUTION_HINT_VALUE_MAP;
+            }
+            if (execution == null) {
+                if ((valuesSource instanceof BytesValuesSource.WithOrdinals)
+                        && !hasParentBucketAggregator(parent)) {
+                    execution = EXECUTION_HINT_VALUE_ORDINALS;
+                } else {
+                    execution = EXECUTION_HINT_VALUE_MAP;
+                }
+            }
+            assert execution != null;
+
+            if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
+                assert includeExclude == null;
+                final StringTermsAggregator.WithOrdinals aggregator = new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
+                aggregationContext.registerReaderContextAware(aggregator);
+                return aggregator;
+            } else {
+                return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
+            }
         }
 
         if (includeExclude != null) {

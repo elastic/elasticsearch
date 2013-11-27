@@ -131,6 +131,13 @@ public enum BigArrays {
             assert indexIsInt(index);
             return array[(int) index] += inc;
         }
+
+        @Override
+        public void fill(long fromIndex, long toIndex, long value) {
+            assert indexIsInt(fromIndex);
+            assert indexIsInt(toIndex);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
     }
 
     private static class DoubleArrayWrapper implements DoubleArray {

@@ -28,9 +28,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -50,7 +48,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 abstract class QueryCollector extends Collector {
 
-    final IndexFieldData idFieldData;
+    final IndexFieldData<?> idFieldData;
     final IndexSearcher searcher;
     final ConcurrentMap<HashedBytesRef, Query> queries;
     final ESLogger logger;
@@ -67,11 +65,8 @@ abstract class QueryCollector extends Collector {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
-        this.idFieldData = context.fieldData().getForField(
-                new FieldMapper.Names(IdFieldMapper.NAME),
-                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
-                false
-        );
+        final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
+        this.idFieldData = context.fieldData().getForField(idMapper);
 
         if (context.facets() != null) {
             for (SearchContextFacets.Entry entry : context.facets().entries()) {

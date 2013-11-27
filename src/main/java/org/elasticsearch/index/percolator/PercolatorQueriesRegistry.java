@@ -244,7 +244,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                                     new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
                             )
                     );
-                    QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, indexFieldDataService);
+                    QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
                     searcher.searcher().search(query, queryCollector);
                     Map<HashedBytesRef, Query> queries = queryCollector.queries();
                     for (Map.Entry<HashedBytesRef, Query> entry : queries.entrySet()) {

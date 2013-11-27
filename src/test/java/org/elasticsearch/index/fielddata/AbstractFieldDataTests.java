@@ -24,7 +24,10 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -42,8 +45,31 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
         return false;
     }
 
-    public <IFD extends IndexFieldData> IFD getForField(String fieldName) {
-        return ifdService.getForField(new FieldMapper.Names(fieldName), getFieldDataType(), hasDocValues());
+    public <IFD extends IndexFieldData<?>> IFD getForField(String fieldName) {
+        return getForField(getFieldDataType(), fieldName);
+    }
+
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName) {
+        final FieldMapper<?> mapper;
+        final BuilderContext context = new BuilderContext(null, new ContentPath(1));
+        if (type.getType().equals("string")) {
+            mapper = MapperBuilders.stringField(fieldName).tokenized(false).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("float")) {
+            mapper = MapperBuilders.floatField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("double")) {
+            mapper = MapperBuilders.doubleField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("long")) {
+            mapper = MapperBuilders.longField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("int")) {
+            mapper = MapperBuilders.integerField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("short")) {
+            mapper = MapperBuilders.shortField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("byte")) {
+            mapper = MapperBuilders.byteField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else {
+            throw new UnsupportedOperationException(type.getType());
+        }
+        return ifdService.getForField(mapper);
     }
 
     @Before

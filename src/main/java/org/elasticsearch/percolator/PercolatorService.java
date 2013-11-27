@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -60,7 +59,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -73,7 +71,10 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.*;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facet;
@@ -702,11 +703,8 @@ public class PercolatorService extends AbstractComponent {
                     hls = new ArrayList<Map<String, HighlightField>>(topDocs.scoreDocs.length);
                 }
 
-                IndexFieldData idFieldData = context.fieldData().getForField(
-                        new FieldMapper.Names(IdFieldMapper.NAME),
-                        new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
-                        false
-                );
+                final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
+                final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
                 int i = 0;
                 final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

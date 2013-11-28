@@ -95,13 +95,7 @@ public class MockDirectoryHelper {
         w.setPreventDoubleWrite(preventDoubleWrite);
         w.setNoDeleteOpenFile(noDeleteOpenFile);
         wrappers.add(w);
-        return new FilterDirectory(w) {
-            @Override
-            public Directory getDelegate() {
-                // TODO we should port this FilterDirectory to Lucene
-                return w.getDelegate();
-            }
-        };
+        return w;
     }
 
     public Directory[] wrapAllInplace(Directory[] dirs) {
@@ -167,5 +161,4 @@ public class MockDirectoryHelper {
             super.close(); // force fail if open files etc. called in tear down of ElasticsearchIntegrationTest
         }
     }
-
 }

@@ -22,7 +22,7 @@ import org.apache.lucene.store.IOContext.Context;
 
 import java.io.IOException;
 
-public final class RateLimitedFSDirectory extends FilterDirectory {
+public final class RateLimitedFSDirectory extends FilterDirectory{
 
     private final StoreRateLimiting.Provider rateLimitingProvider;
 

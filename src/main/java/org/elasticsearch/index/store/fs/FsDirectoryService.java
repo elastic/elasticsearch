@@ -28,6 +28,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
@@ -74,7 +75,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     
     @Override
     public final void renameFile(Directory dir, String from, String to) throws IOException {
-        final FSDirectory fsDirectory = FilterDirectory.getLeaf(dir, FSDirectory.class);
+        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
         if (fsDirectory == null) {
             throw new ElasticSearchIllegalArgumentException("Can not rename file on non-filesystem based directory ");
         }
@@ -108,7 +109,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
 
     @Override
     public final void fullDelete(Directory dir) throws IOException {
-        final FSDirectory fsDirectory = FilterDirectory.getLeaf(dir, FSDirectory.class);
+        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
         if (fsDirectory == null) {
             throw new ElasticSearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
         }

@@ -26,9 +26,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -73,9 +73,17 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
+        int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
-            numChildren[i] = randomInt(5);
+            if (i == numParents - 1 && totalChildren == 0) {
+                // we need at least one child overall
+                numChildren[i] = randomIntBetween(1, 5);
+            } else {
+                numChildren[i] = randomInt(5);
+            }
+            totalChildren += numChildren[i];
         }
+        assert totalChildren > 0;
 
         for (int i = 0; i < numParents; i++) {
             XContentBuilder source = jsonBuilder()

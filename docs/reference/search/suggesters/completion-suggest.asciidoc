@@ -112,7 +112,9 @@ The following parameters are supported:
 `output`::
     The string to return, if a suggestion matches. This is very
     useful to normalize outputs (i.e. have them always in the format
-    `artist - songname`). This is optional.
+    `artist - songname`). The result is de-duplicated if several documents
+    have the same output, i.e. only one is returned as part of the
+    suggest result. This is optional.
 
 `payload`::
     An arbitrary JSON object, which is simply returned in the
@@ -124,7 +126,7 @@ The following parameters are supported:
     A positive integer, which defines a weight and allows you to
     rank your suggestions. This field is optional.
 
-[NOTE] Even though you are losing most of the features of the
+NOTE: Even though you are losing most of the features of the
 completion suggest, you can opt in for the shortest form, which even
 allows you to use inside of multi_field. But keep in mind, that you will
 not be able to use several inputs, an output, payloads or weights.
@@ -135,6 +137,11 @@ not be able to use several inputs, an output, payloads or weights.
   "suggest" : "Nirvana"
 }
 --------------------------------------------------
+
+NOTE: The suggest data structure might not reflect deletes on
+documents immediately. You may need to do an <<indices-optimize>> for that.
+You can call optimize with the `only_expunge_deletes=true` to only cater for deletes
+or alternatively call a <<index-modules-merge>> operation.
 
 [[querying]]
 ==== Querying

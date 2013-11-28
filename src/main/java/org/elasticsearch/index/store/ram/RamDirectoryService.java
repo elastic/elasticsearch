@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.store.ram;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.store.RAMFile;
+import org.apache.lucene.store.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -54,7 +52,7 @@ public final class RamDirectoryService extends AbstractIndexShardComponent imple
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        CustomRAMDirectory leaf = FilterDirectory.getLeaf(dir, CustomRAMDirectory.class);
+        CustomRAMDirectory leaf = DirectoryUtils.getLeaf(dir, CustomRAMDirectory.class);
         assert leaf != null;
         leaf.renameTo(from, to);
     }

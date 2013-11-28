@@ -35,9 +35,11 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.SimpleIdCacheTests;
 import org.elasticsearch.index.cache.id.simple.SimpleIdCache;
@@ -48,9 +50,12 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Description;
 import org.hamcrest.StringDescription;
 import org.junit.AfterClass;
@@ -267,15 +272,21 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final Index index = new Index(indexName);
         final IdCache idCache = new SimpleIdCache(index, ImmutableSettings.EMPTY);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
+        Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = new MapperService(
-                index, ImmutableSettings.EMPTY, new Environment(), new AnalysisService(index), null, null, null
+                index, settings, new Environment(), new AnalysisService(index), null, null, null
         );
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
         final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
         idCache.setIndexService(indexService);
-        return new TestSearchContext(cacheRecycler, idCache, indexService);
+
+        ThreadPool threadPool = new ThreadPool();
+        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
+        IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
+        WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
+        return new TestSearchContext(cacheRecycler, idCache, indexService, filterCache);
     }
 
 }

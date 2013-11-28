@@ -28,6 +28,8 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -77,12 +79,16 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
         ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
+            boolean filterMe = rarely();
             String parent = Integer.toString(parentDocId);
             Document document = new Document();
             document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.YES));
             document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
             if (markParentAsDeleted) {
                 document.add(new StringField("delete", "me", Field.Store.NO));
+            }
+            if (filterMe) {
+                document.add(new StringField("filter", "me", Field.Store.NO));
             }
             indexWriter.addDocument(document);
 
@@ -113,7 +119,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                     } else {
                         childValueToParentIds.put(childValue, parentIdToChildScores = new TreeMap<String, FloatArrayList>());
                     }
-                    if (!markParentAsDeleted) {
+                    if (!markParentAsDeleted && !filterMe) {
                         FloatArrayList childScores = parentIdToChildScores.get(parent);
                         if (childScores == null) {
                             parentIdToChildScores.put(parent, childScores = new FloatArrayList());
@@ -134,15 +140,33 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                 ChildrenQueryTests.class.getSimpleName(), searcher
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
-
-        TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
+            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
+            // that deletes are applied at the top level when filters are cached.
+            Filter parentFilter;
+            if (random().nextBoolean()) {
+                parentFilter = SearchContext.current().filterCache().cache(rawParentFilter);
+            } else {
+                parentFilter = rawParentFilter;
+            }
+
+            // Using this in FQ, will invoke / test the Scorer#advance(..)
+            Filter filterMe;
+            if (random().nextBoolean()) {
+                filterMe = SearchContext.current().filterCache().cache(rawFilterMe);
+            } else {
+                filterMe = rawFilterMe;
+            }
+
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
             Query query = new ChildrenQuery("parent", "child", parentFilter, childQuery, scoreType, shortCircuitParentDocSet);
+            query = new XFilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
             TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);

@@ -66,14 +66,16 @@ class TestSearchContext extends SearchContext {
     final CacheRecycler cacheRecycler;
     final IdCache idCache;
     final IndexService indexService;
+    final FilterCache filterCache;
 
     ContextIndexSearcher searcher;
     int size;
 
-    TestSearchContext(CacheRecycler cacheRecycler, IdCache idCache, IndexService indexService) {
+    TestSearchContext(CacheRecycler cacheRecycler, IdCache idCache, IndexService indexService, FilterCache filterCache) {
         this.cacheRecycler = cacheRecycler;
         this.idCache = idCache;
         this.indexService = indexService;
+        this.filterCache = filterCache;
     }
 
     @Override
@@ -293,7 +295,7 @@ class TestSearchContext extends SearchContext {
 
     @Override
     public FilterCache filterCache() {
-        return null;
+        return filterCache;
     }
 
     @Override

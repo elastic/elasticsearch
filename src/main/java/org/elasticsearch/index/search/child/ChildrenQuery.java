@@ -329,7 +329,6 @@ public class ChildrenQuery extends Query {
 
         private final class AvgParentScorer extends ParentScorer {
 
-            HashedBytesArray currentUid;
             final ObjectIntOpenHashMap<HashedBytesArray> uidToCount;
 
             AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, ObjectIntOpenHashMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
@@ -345,11 +344,11 @@ public class ChildrenQuery extends Query {
                         return currentDocId;
                     }
 
-                    currentUid = idTypeCache.idByDoc(currentDocId);
-                    currentScore = uidToScore.get(currentUid);
+                    HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+                    currentScore = uidToScore.get(uid);
                     if (currentScore != 0) {
                         remaining--;
-                        currentScore /= uidToCount.get(currentUid);
+                        currentScore /= uidToCount.get(uid);
                         return currentDocId;
                     }
                 }
@@ -366,7 +365,7 @@ public class ChildrenQuery extends Query {
                 currentScore = uidToScore.get(uid);
                 if (currentScore != 0) {
                     remaining--;
-                    currentScore /= uidToCount.get(currentUid);
+                    currentScore /= uidToCount.get(uid);
                     return currentDocId;
                 } else {
                     return nextDoc();

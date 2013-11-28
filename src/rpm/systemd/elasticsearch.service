@@ -14,7 +14,9 @@ LimitNOFILE=65535
 # See MAX_LOCKED_MEMORY in sysconfig, use "infinity" when MAX_LOCKED_MEMORY=unlimited and using bootstrap.mlockall: true
 #LimitMEMLOCK=infinity
 # Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
-TimeoutStopSec=20
+TimeoutStopSec=$ES_STOP_TIMEOUT
+# Should a KILL signal be sent, if a TERM signal fails?
+SendSIGKILL=false
 
 [Install]
 WantedBy=multi-user.target

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.apache.lucene.store.bytebuffer.ByteBufferAllocator;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.apache.lucene.store.bytebuffer.ByteBufferFile;
@@ -59,7 +59,7 @@ public final class ByteBufferDirectoryService extends AbstractIndexShardComponen
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        CustomByteBufferDirectory leaf = FilterDirectory.getLeaf(dir, CustomByteBufferDirectory.class);
+        CustomByteBufferDirectory leaf = DirectoryUtils.getLeaf(dir, CustomByteBufferDirectory.class);
         assert leaf != null;
         leaf.renameTo(from, to);
     }

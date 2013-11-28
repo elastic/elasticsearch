@@ -21,7 +21,7 @@ package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public abstract class AbstractDistributor implements Distributor {
 
     @SuppressWarnings("unchecked")
     protected long getUsableSpace(Directory directory) {
-        final FSDirectory leaf = FilterDirectory.getLeaf(directory, FSDirectory.class);
+        final FSDirectory leaf = DirectoryUtils.getLeaf(directory, FSDirectory.class);
         if (leaf != null) {
             return leaf.getDirectory().getUsableSpace();
         } else {

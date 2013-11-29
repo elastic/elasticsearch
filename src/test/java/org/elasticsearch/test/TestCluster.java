@@ -514,7 +514,7 @@ public final class TestCluster implements Iterable<Client> {
     }
 
     /**
-     * This method should be exectued before each test to reset the cluster to it's initial state.
+     * This method should be executed before each test to reset the cluster to it's initial state.
      */
     synchronized void beforeTest(Random random, double transportClientRatio) {
         reset(random, true, transportClientRatio);

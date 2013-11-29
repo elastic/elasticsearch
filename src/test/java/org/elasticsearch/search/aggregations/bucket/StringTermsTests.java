@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -103,6 +104,150 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
+
+    @Test
+    public void singleValueField_WithRegexFiltering() throws Exception {
+
+        // include without exclude
+        // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
+
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").include("val00.+"))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+
+        // include and exclude
+        // we should be left with: val002, val003, val004, val005, val006, val007, val008, val009
+
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").include("val00.+").exclude("(val000|val001)"))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(8));
+
+        for (int i = 2; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+
+        // exclude without include
+        // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
+
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").exclude("val0[1-9]+.+"))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    @Test
+    public void singleValueField_WithRegexFiltering_WithFlags() throws Exception {
+
+        // include without exclude
+        // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
+        // with case insensitive flag on the include regex
+
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").include("VAL00.+", Pattern.CASE_INSENSITIVE))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+
+        // include and exclude
+        // we should be left with: val002, val003, val004, val005, val006, val007, val008, val009
+        // with multi-flag masking on the exclude regex
+
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").include("val00.+").exclude("( val000 | VAL001 )#this is a comment", Pattern.CASE_INSENSITIVE | Pattern.COMMENTS))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(8));
+
+        for (int i = 2; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+
+        // exclude without include
+        // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
+        // with a "no flag" flag
+
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value").exclude("val0[1-9]+.+", 0))
+                .execute().actionGet();
+
+        assertThat(response.getFailedShards(), equalTo(0));
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
 
     @Test
     public void singleValueField_WithMaxSize() throws Exception {

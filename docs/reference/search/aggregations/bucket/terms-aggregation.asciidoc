@@ -175,3 +175,65 @@ Generating the terms using a script:
 }
 --------------------------------------------------
 
+
+==== Filtering Values
+
+It is possible to filter the values for which buckets will be created. This can be done using the `include` and
+`exclude` parameters which are based on regular expressions.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+            "terms" : {
+                "field" : "tags",
+                "include" : ".*sport.*",
+                "exclude" : "water_.*"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
+with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
+values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
+both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
+
+The regular expression are based on the Java(TM) http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html[Pattern],
+and as such, they it is also possible to pass in flags that will determine how the compiled regular expression will work:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+             "terms" : {
+                 "field" : "tags",
+                 "include" : {
+                     "pattern" : ".*sport.*",
+                     "flags" : "CANON_EQ|CASE_INSENSITIVE" <1>
+                 },
+                 "exclude" : {
+                     "pattern" : "water_.*",
+                     "flags" : "CANON_EQ|CASE_INSENSITIVE"
+                 }
+             }
+         }
+    }
+}
+--------------------------------------------------
+
+<1> the flags are concatenated using the `|` character as a separator
+
+The possible flags that can be used are:
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#CANON_EQ[`CANON_EQ`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#CASE_INSENSITIVE[`CASE_INSENSITIVE`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#COMMENTS[`COMMENTS`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#DOTALL[`DOTALL`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#LITERAL[`LITERAL`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#MULTILINE[`MULTILINE`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CASE[`UNICODE_CASE`],
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
+http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]

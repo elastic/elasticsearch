@@ -23,10 +23,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,15 +47,18 @@ public class StringTermsAggregator extends BucketsAggregator {
     private final int requiredSize;
     private final int shardSize;
     private final BytesRefHash bucketOrds;
+    private final IncludeExclude includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                                 InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
+                                 InternalOrder order, int requiredSize, int shardSize,
+                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
 
         super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash();
     }
 
@@ -70,6 +75,9 @@ public class StringTermsAggregator extends BucketsAggregator {
 
         for (int i = 0; i < valuesCount; ++i) {
             final BytesRef bytes = values.nextValue();
+            if (includeExclude != null && !includeExclude.accept(bytes)) {
+                continue;
+            }
             final int hash = values.currentValueHash();
             int bucketOrdinal = bucketOrds.add(bytes, hash);
             if (bucketOrdinal < 0) { // already seen
@@ -122,3 +130,4 @@ public class StringTermsAggregator extends BucketsAggregator {
     }
 
 }
+

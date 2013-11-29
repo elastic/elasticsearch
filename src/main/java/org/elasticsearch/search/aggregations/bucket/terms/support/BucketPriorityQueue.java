@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.elasticsearch.search.aggregations.bucket.terms.support;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.Comparator;
 

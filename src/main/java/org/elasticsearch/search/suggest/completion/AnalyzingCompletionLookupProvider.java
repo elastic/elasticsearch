@@ -159,6 +159,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             output.writeVInt(XAnalyzingSuggester.SEP_LABEL);
                             output.writeVInt(XAnalyzingSuggester.END_BYTE);
                             output.writeVInt(XAnalyzingSuggester.PAYLOAD_SEP);
+                            output.writeVInt(XAnalyzingSuggester.HOLE_CHARACTER);
                         }
                     }
                 };

@@ -183,7 +183,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             currentCluster = buildAndPutCluster(currentClusterScope, true);
             break;
         default:
-           assert false : "Unknonw Scope: [" + currentClusterScope + "]";
+           assert false : "Unknown Scope: [" + currentClusterScope + "]";
         }
         currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
         wipeIndices();
@@ -197,7 +197,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (createIfExists || testCluster == null) {
             testCluster = buildTestCluster(currentClusterScope);
         } else {
-            assert testCluster != null;
             clusters.remove(this.getClass());
         } 
         clearClusters();
@@ -352,7 +351,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 success = true;
             } finally {
                 if (!success) {
-                    wipeIndices(created.toArray(new String[0]));
+                    wipeIndices(created.toArray(new String[created.size()]));
                 }
             }
         }
@@ -616,7 +615,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
         }
-        final String[] indices = indicesSet.toArray(new String[0]);
+        final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random);
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>>();
         List<CountDownLatch> latches = new ArrayList<CountDownLatch>();
@@ -677,7 +676,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    private static final CountDownLatch newLatch(List<CountDownLatch> latches) {
+    private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);
         return l;
@@ -738,7 +737,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * The scope of a test cluster used together with
-     * {@link ClusterScope} annonations on {@link ElasticsearchIntegrationTest} subclasses.
+     * {@link ClusterScope} annotations on {@link ElasticsearchIntegrationTest} subclasses.
      */
     public static enum Scope {
         /**
@@ -753,7 +752,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         /**
          * A test exclusive test cluster
          */
-        TEST;
+        TEST
     }
     
     private ClusterScope getAnnotation(Class<?> clazz) {

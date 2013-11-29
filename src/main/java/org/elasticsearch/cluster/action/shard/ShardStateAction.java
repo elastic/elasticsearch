@@ -171,7 +171,7 @@ public class ShardStateAction extends AbstractComponent {
         // process started events as fast as possible, to make shards available
         startedShardsQueue.add(shardRoutingEntry);
 
-        clusterService.submitStateUpdateTask("shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.HIGH,
+        clusterService.submitStateUpdateTask("shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.URGENT,
                 new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {

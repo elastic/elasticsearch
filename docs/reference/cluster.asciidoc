@@ -33,6 +33,8 @@ include::cluster/health.asciidoc[]
 
 include::cluster/state.asciidoc[]
 
+include::cluster/pending.asciidoc[]
+
 include::cluster/reroute.asciidoc[]
 
 include::cluster/update-settings.asciidoc[]

@@ -20,8 +20,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
@@ -30,17 +35,13 @@ import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
-import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
-import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -65,6 +66,7 @@ public class TransportAggregationModule extends AbstractModule {
         InternalMissing.registerStreams();
         StringTerms.registerStreams();
         LongTerms.registerStreams();
+        InternalGeoHashGrid.registerStreams();                
         DoubleTerms.registerStreams();
         UnmappedTerms.registerStreams();
         InternalRange.registerStream();

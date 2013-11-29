@@ -338,4 +338,146 @@ public class GeoHashUtils {
         }
         return interval;
     }
+    
+    //========== long-based encodings for geohashes ========================================
+
+
+    /**
+     * Encodes latitude and longitude information into a single long with variable precision.
+     * Up to 12 levels of precision are supported which should offer sub-metre resolution.
+     *
+     * @param latitude
+     * @param longitude
+     * @param precision The required precision between 1 and 12
+     * @return A single long where 4 bits are used for holding the precision and the remaining 
+     * 60 bits are reserved for 5 bit cell identifiers giving up to 12 layers. 
+     */
+    public static long encodeAsLong(double latitude, double longitude, int precision) {
+        if((precision>12)||(precision<1))
+        {
+            throw new ElasticsearchIllegalArgumentException("Illegal precision length of "+precision+
+                    ". Long-based geohashes only support precisions between 1 and 12");
+        }
+        double latInterval0 = -90.0;
+        double latInterval1 = 90.0;
+        double lngInterval0 = -180.0;
+        double lngInterval1 = 180.0;
+
+        long geohash = 0l;
+        boolean isEven = true;
+
+        int bit = 0;
+        int ch = 0;
+
+        int geohashLength=0;
+        while (geohashLength < precision) {
+            double mid = 0.0;
+            if (isEven) {
+                mid = (lngInterval0 + lngInterval1) / 2D;
+                if (longitude > mid) {
+                    ch |= BITS[bit];
+                    lngInterval0 = mid;
+                } else {
+                    lngInterval1 = mid;
+                }
+            } else {
+                mid = (latInterval0 + latInterval1) / 2D;
+                if (latitude > mid) {
+                    ch |= BITS[bit];
+                    latInterval0 = mid;
+                } else {
+                    latInterval1 = mid;
+                }
+            }
+
+            isEven = !isEven;
+
+            if (bit < 4) {
+                bit++;
+            } else {
+                geohashLength++;
+                geohash|=ch;
+                if(geohashLength<precision){
+                    geohash<<=5;
+                }
+                bit = 0;
+                ch = 0;
+            }
+        }
+        geohash<<=4;
+        geohash|=precision;
+        return geohash;
+    }
+    
+    /**
+     * Formats a geohash held as a long as a more conventional 
+     * String-based geohash
+     * @param geohashAsLong a geohash encoded as a long
+     * @return A traditional base32-based String representation of a geohash 
+     */
+    public static String toString(long geohashAsLong)
+    {
+        int precision= (int) (geohashAsLong&15);
+        char[] chars=new char[precision];
+        geohashAsLong>>=4;                    
+        for (int i = precision-1; i >=0 ; i--) {
+            chars[i]=  BASE_32[(int) (geohashAsLong&31)];
+            geohashAsLong>>=5;                    
+        }
+        return new String(chars);        
+    }
+
+    
+    
+    public static GeoPoint decode(long geohash) {
+        GeoPoint point = new GeoPoint();
+        decode(geohash, point);
+        return point;
+    }    
+    
+    /**
+     * Decodes the given long-format geohash into a latitude and longitude
+     *
+     * @param geohash long format Geohash to decode
+     * @param ret The Geopoint into which the latitude and longitude will be stored
+     */
+    public static void decode(long geohash, GeoPoint ret) {
+        double[] interval = decodeCell(geohash);
+        ret.reset((interval[0] + interval[1]) / 2D, (interval[2] + interval[3]) / 2D);
+
+    }    
+    
+    private static double[] decodeCell(long geohash) {
+        double[] interval = {-90.0, 90.0, -180.0, 180.0};
+        boolean isEven = true;
+        
+        int precision= (int) (geohash&15);
+        geohash>>=4;
+        int[]cds=new int[precision];
+        for (int i = precision-1; i >=0 ; i--) {            
+            cds[i] = (int) (geohash&31);
+            geohash>>=5;
+        }
+
+        for (int i = 0; i <cds.length ; i++) {            
+            final int cd = cds[i];
+            for (int mask : BITS) {
+                if (isEven) {
+                    if ((cd & mask) != 0) {
+                        interval[2] = (interval[2] + interval[3]) / 2D;
+                    } else {
+                        interval[3] = (interval[2] + interval[3]) / 2D;
+                    }
+                } else {
+                    if ((cd & mask) != 0) {
+                        interval[0] = (interval[0] + interval[1]) / 2D;
+                    } else {
+                        interval[1] = (interval[0] + interval[1]) / 2D;
+                    }
+                }
+                isEven = !isEven;
+            }
+        }
+        return interval;
+    }       
 }

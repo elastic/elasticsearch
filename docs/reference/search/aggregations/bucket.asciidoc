@@ -21,3 +21,5 @@ include::bucket/histogram-aggregation.asciidoc[]
 include::bucket/datehistogram-aggregation.asciidoc[]
 
 include::bucket/geodistance-aggregation.asciidoc[]
+
+include::bucket/geohashgrid-aggregation.asciidoc[]

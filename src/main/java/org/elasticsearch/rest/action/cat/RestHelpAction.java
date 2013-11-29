@@ -52,6 +52,7 @@ public class RestHelpAction extends BaseRestHandler {
         s.append("/_cat/indices/{index}\n");
         s.append("/_cat/master\n");
         s.append("/_cat/nodes\n");
+        s.append("/_cat/pending_tasks\n");
         s.append("/_cat/recovery\n");
         s.append("/_cat/shards\n");
         s.append("/_cat/shards/{index}\n");

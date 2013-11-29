@@ -70,6 +70,8 @@ include::cat/master.asciidoc[]
 
 include::cat/nodes.asciidoc[]
 
+include::cat/pending_tasks.asciidoc[]
+
 include::cat/recovery.asciidoc[]
 
 include::cat/shards.asciidoc[]

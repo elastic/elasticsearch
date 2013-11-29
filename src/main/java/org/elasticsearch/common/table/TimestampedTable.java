@@ -20,6 +20,7 @@
 package org.elasticsearch.common.table;
 
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Table;
 
@@ -27,6 +28,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 
 public class TimestampedTable extends Table {
 
@@ -41,8 +43,15 @@ public class TimestampedTable extends Table {
     public Table startHeaders() {
         inHeaders = true;
         currentCells = new ArrayList<Cell>();
-        currentCells.add(new Cell("epoch"));
-        currentCells.add(new Cell("time"));
+        
+        final Map<String, String> epochAttr = Maps.newHashMap();
+        epochAttr.put("desc", "seconds since 1970-01-01 00:00:00 when request executed");
+        
+        final Map<String, String> hmsAttr = Maps.newHashMap();
+        hmsAttr.put("desc", "human time when request executed");
+        
+        currentCells.add(new Cell("epoch", epochAttr));
+        currentCells.add(new Cell("time", hmsAttr));
         return this;
     }
 

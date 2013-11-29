@@ -598,7 +598,7 @@ public final class TestCluster implements Iterable<Client> {
         if (!dataDirToClean.isEmpty()) {
             logger.info("Wipe data directory for all nodes locations: {}", this.dataDirToClean);
             try {
-                FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[0]));
+                FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[dataDirToClean.size()]));
             } finally {
                 this.dataDirToClean.clear();
             }

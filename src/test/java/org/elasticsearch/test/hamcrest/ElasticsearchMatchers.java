@@ -93,4 +93,26 @@ public class ElasticsearchMatchers {
         }
     }
 
+    public static class SearchHitHasScoreMatcher extends TypeSafeMatcher<SearchHit> {
+        private float score;
+
+        public SearchHitHasScoreMatcher(float score) {
+            this.score = score;
+        }
+
+        @Override
+        protected boolean matchesSafely(SearchHit searchHit) {
+            return searchHit.getScore() == score;
+        }
+
+        @Override
+        public void describeMismatchSafely(final SearchHit searchHit, final Description mismatchDescription) {
+            mismatchDescription.appendText(" was ").appendValue(searchHit.getScore());
+        }
+
+        @Override
+        public void describeTo(final Description description) {
+            description.appendText("searchHit score should be ").appendValue(score);
+        }
+    }
 }

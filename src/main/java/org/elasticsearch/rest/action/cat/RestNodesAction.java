@@ -179,7 +179,7 @@ public class RestNodesAction extends BaseRestHandler {
             table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : stats.getOs().getLoadAverage()[0]);
             table.addCell(stats == null ? null : stats.getJvm().uptime());
-            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);
+            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
             table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
             table.addCell(node.name());
 

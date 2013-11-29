@@ -63,7 +63,7 @@ public class RestIndicesAction extends BaseRestHandler {
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(concreteIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {

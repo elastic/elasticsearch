@@ -60,7 +60,7 @@ public class RestShardsAction extends BaseRestHandler {
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(indices);
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.clear().docs(true).store(true);
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {

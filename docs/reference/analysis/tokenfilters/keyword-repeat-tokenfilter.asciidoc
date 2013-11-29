@@ -19,7 +19,7 @@ index :
             myAnalyzer :
                 type : custom
                 tokenizer : standard
-                filter : [lowercase, keyword_repeat, porterStem, unique_stem]    
+                filter : [lowercase, keyword_repeat, porter_stem, unique_stem]    
             unique_stem:
                 type: unique
                 only_on_same_position : true

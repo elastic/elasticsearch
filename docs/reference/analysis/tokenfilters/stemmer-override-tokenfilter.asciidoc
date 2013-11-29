@@ -26,7 +26,7 @@ index :
             myAnalyzer :
                 type : custom
                 tokenizer : standard
-                filter : [lowercase, custom_stems, porterStem]    
+                filter : [lowercase, custom_stems, porter_stem]    
         filter:
             custom_stems:
                 type: stemmer_override

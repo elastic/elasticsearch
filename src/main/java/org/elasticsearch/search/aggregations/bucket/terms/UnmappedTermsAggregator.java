@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 

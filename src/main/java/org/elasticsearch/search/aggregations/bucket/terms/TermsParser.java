@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -26,8 +27,10 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -39,6 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -49,9 +53,6 @@ public class TermsParser implements Aggregator.Parser {
     public String type() {
         return StringTerms.TYPE.name();
     }
-
-    // TODO add support for shard_size (vs. size) a la terms facets
-    // TODO add support for term filtering (regexp/include/exclude) a la terms facets
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
@@ -67,6 +68,10 @@ public class TermsParser implements Aggregator.Parser {
         boolean orderAsc = false;
         String format = null;
         boolean assumeUnique = false;
+        String include = null;
+        int includeFlags = 0; // 0 means no flags
+        String exclude = null;
+        int excludeFlags = 0; // 0 means no flags
 
 
         XContentParser.Token token;
@@ -85,6 +90,10 @@ public class TermsParser implements Aggregator.Parser {
                     valueType = Terms.ValueType.resolveType(parser.text());
                 } else if ("format".equals(currentFieldName)) {
                     format = parser.text();
+                } else if ("include".equals(currentFieldName)) {
+                    include = parser.text();
+                } else if ("exclude".equals(currentFieldName)) {
+                    exclude = parser.text();
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("script_values_unique".equals(currentFieldName)) {
@@ -105,8 +114,45 @@ public class TermsParser implements Aggregator.Parser {
                             orderKey = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             String dir = parser.text();
-                            orderAsc = "asc".equalsIgnoreCase(dir);
-                            //TODO: do we want to throw a parse error if the alternative is not "desc"???
+                            if ("asc".equalsIgnoreCase(dir)) {
+                                orderAsc = true;
+                            } else if ("desc".equalsIgnoreCase(dir)) {
+                                orderAsc = false;
+                            } else {
+                                throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
+                            }
+                        }
+                    }
+                } else if ("include".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            if ("pattern".equals(currentFieldName)) {
+                                include = parser.text();
+                            } else if ("flags".equals(currentFieldName)) {
+                                includeFlags = Regex.flagsFromString(parser.text());
+                            }
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            if ("flags".equals(currentFieldName)) {
+                                includeFlags = parser.intValue();
+                            }
+                        }
+                    }
+                } else if ("exclude".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            if ("pattern".equals(currentFieldName)) {
+                                exclude = parser.text();
+                            } else if ("flags".equals(currentFieldName)) {
+                                excludeFlags = Regex.flagsFromString(parser.text());
+                            }
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            if ("flags".equals(currentFieldName)) {
+                                excludeFlags = parser.intValue();
+                            }
                         }
                     }
                 }
@@ -116,6 +162,13 @@ public class TermsParser implements Aggregator.Parser {
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
+        }
+
+        IncludeExclude includeExclude = null;
+        if (include != null || exclude != null) {
+            Pattern includePattern =  include != null ? Pattern.compile(include, includeFlags) : null;
+            Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
+            includeExclude = new IncludeExclude(includePattern, excludePattern);
         }
 
         InternalOrder order = resolveOrder(orderKey, orderAsc);
@@ -139,14 +192,14 @@ public class TermsParser implements Aggregator.Parser {
             if (!assumeUnique) {
                 config.ensureUnique(true);
             }
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             ValuesSourceConfig<?> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
             config.unmapped(true);
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
@@ -188,7 +241,7 @@ public class TermsParser implements Aggregator.Parser {
             config.ensureUnique(true);
         }
 
-        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize);
+        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

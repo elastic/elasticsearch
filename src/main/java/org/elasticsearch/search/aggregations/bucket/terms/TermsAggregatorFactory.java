@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,12 +37,14 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
+    private final IncludeExclude includeExclude;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, IncludeExclude includeExclude) {
         super(name, StringTerms.TYPE.name(), valueSourceConfig);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.includeExclude = includeExclude;
     }
 
     @Override
@@ -52,7 +55,12 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         if (valuesSource instanceof BytesValuesSource) {
-            return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
+            return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
+        }
+
+        if (includeExclude != null) {
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support the include/exclude " +
+                    "settings as it can only be applied to string values");
         }
 
         if (valuesSource instanceof NumericValuesSource) {

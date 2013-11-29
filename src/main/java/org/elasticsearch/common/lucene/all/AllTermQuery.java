@@ -46,15 +46,8 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.decodeFloat;
  */
 public class AllTermQuery extends SpanTermQuery {
 
-    private boolean includeSpanScore;
-
     public AllTermQuery(Term term) {
-        this(term, true);
-    }
-
-    public AllTermQuery(Term term, boolean includeSpanScore) {
         super(term);
-        this.includeSpanScore = includeSpanScore;
     }
 
     @Override
@@ -127,7 +120,7 @@ public class AllTermQuery extends SpanTermQuery {
              */
             @Override
             public float score() throws IOException {
-                return includeSpanScore ? getSpanScore() * getPayloadScore() : getPayloadScore();
+                return getSpanScore() * getPayloadScore();
             }
 
             /**
@@ -189,10 +182,7 @@ public class AllTermQuery extends SpanTermQuery {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + (includeSpanScore ? 1231 : 1237);
-        return result;
+        return super.hashCode() + 1;
     }
 
     @Override
@@ -202,9 +192,6 @@ public class AllTermQuery extends SpanTermQuery {
         if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
-            return false;
-        AllTermQuery other = (AllTermQuery) obj;
-        if (includeSpanScore != other.includeSpanScore)
             return false;
         return true;
     }

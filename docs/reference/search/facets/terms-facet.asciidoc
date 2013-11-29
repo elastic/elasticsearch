@@ -42,12 +42,12 @@ The higher the requested `size` is, the more accurate the results will be,
 but also, the more expensive it will be to compute the final results (both
 due to bigger priority queues that are managed on a shard level and due to
 bigger data transfers between the nodes and the client). In an attempt to
-minimize the extra work that comes with bigger requested `size` we a
-`shard_size` parameter was introduced. The once defined, it will determine
-how many terms the coordinating node is requesting from each shard. Once
+minimize the extra work that comes with bigger requested `size` the
+`shard_size` parameter was introduced. When defined, it will determine
+how many terms the coordinating node will request from each shard. Once
 all the shards responded, the coordinating node will then reduce them
 to a final result which will be based on the `size` parameter - this way,
-once can increase the accuracy of the returned terms and avoid the overhead
+one can increase the accuracy of the returned terms and avoid the overhead
 of streaming a big list of terms back to the client.
 
 Note that `shard_size` cannot be smaller than `size`... if that's the case

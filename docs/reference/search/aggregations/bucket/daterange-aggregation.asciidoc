@@ -51,7 +51,9 @@ Response:
 --------------------------------------------------
 
 [[date-format-pattern]]
-==== Date Format/Pattern (copied from http://joda-time.sourceforge.net/apidocs/org/joda/time/format/DateTimeFormat.html[JodaDate])
+==== Date Format/Pattern
+
+NOTE: this information was copied from http://joda-time.sourceforge.net/apidocs/org/joda/time/format/DateTimeFormat.html[JodaDate]
 
 All ASCII letters are reserved as format pattern letters, which are defined as follows:
 

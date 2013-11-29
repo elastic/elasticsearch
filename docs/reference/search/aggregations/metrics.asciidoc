@@ -1,7 +1,4 @@
 [[search-aggregations-metrics]]
-=== Metrics Aggregations
-
-The aggregations in this family compute metrics based on values extracted in one way or another from the documents that are being aggregated. The values are typically extracted from the fields of the document (using the field data), but can also be generated using scripts. Some aggregations output a single metric (e.g. `avg`) and are called `single-value metrics aggregation`, others generate multiple metrics (e.g. `stats`) and are called `multi-value metrics aggregation`. The distinction between single-value and multi-value metrics aggregations plays a role when these aggregations serve as direct sub-aggregations of some bucket aggregations (some bucket aggregation enable you to sort the returned buckets based on the metrics in each bucket).
 
 include::metrics/min-aggregation.asciidoc[]
 
@@ -14,3 +11,5 @@ include::metrics/avg-aggregation.asciidoc[]
 include::metrics/stats-aggregation.asciidoc[]
 
 include::metrics/extendedstats-aggregation.asciidoc[]
+
+include::metrics/valuecount-aggregation.asciidoc[]

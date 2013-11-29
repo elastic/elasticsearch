@@ -291,15 +291,19 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public void revertTransient() {
-        FsTranslogFile old;
+        FsTranslogFile tmpTransient;
         rwl.writeLock().lock();
         try {
-            old = trans;
+            tmpTransient = trans;
             this.trans = null;
         } finally {
             rwl.writeLock().unlock();
         }
-        old.close(true);
+        // previous transient might be null because it was failed on its creation
+        // for example
+        if (tmpTransient != null) {
+            tmpTransient.close(true);
+        }
     }
 
     public byte[] read(Location location) {

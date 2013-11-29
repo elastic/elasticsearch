@@ -131,7 +131,7 @@ public class ElasticsearchAssertions {
             assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
-        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs."
+        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + " in the result - result size differs."
                 + shardStatus, idsSet.size(), equalTo(0));
         assertVersionSerializable(searchResponse);
     }
@@ -281,6 +281,10 @@ public class ElasticsearchAssertions {
 
     public static Matcher<SearchHit> hasIndex(final String index) {
         return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);
+    }
+
+    public static Matcher<SearchHit> hasScore(final float score) {
+        return new ElasticsearchMatchers.SearchHitHasScoreMatcher(score);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

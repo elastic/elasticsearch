@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
@@ -36,35 +35,34 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void passQueryAsStringTest() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("index.number_of_shards", 1).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
-        CountResponse countResponse = client().prepareCount().setQuery(new BytesArray("{ \"term\" : { \"field1\" : \"value1_1\" }}").array()).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(new BytesArray("{ \"term\" : { \"field1\" : \"value1_1\" }}").array()).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testIndexOptions() throws Exception {
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,index_options=docs")
-                .setSettings("index.number_of_shards", 1).get();
+                .setSettings("index.number_of_shards", 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).get();
 
         CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).get();
         assertHitCount(countResponse, 1l);
@@ -77,75 +75,75 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCommonTermsQuery() throws Exception {
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+
+        indexRandom(true,
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
-        );
+                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
 
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
         assertHitCount(countResponse, 2l);
 
         // Default
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).get();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(new BytesArray("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").array()).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(new BytesArray("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").array()).get();
         assertHitCount(countResponse, 1l);
 
         // Default
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).get();
         assertHitCount(countResponse, 3l);
         // standard drops "the" since its a stopword
 
         // try the same with match query
-        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).get();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
         assertHitCount(countResponse, 3l);
         // standard drops "the" since its a stopword
 
         // try the same with multi match query
-        countResponse = client().prepareCount().setQuery(QueryBuilders.multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(countResponse, 3l);
     }
 
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
         // backwards compat test!
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
-
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).get();
         assertHitCount(countResponse, 1l);
         try {
-            client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)).execute().actionGet();
+            client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)).get();
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
@@ -153,68 +151,65 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void queryStringAnalyzedWildcard() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("value*").analyzeWildcard(true)).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(queryString("value*").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("*ue*").analyzeWildcard(true)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("*ue*").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("*ue_1").analyzeWildcard(true)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("*ue_1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("val*e_1").analyzeWildcard(true)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("val*e_1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testLowercaseExpandedTerms() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(true)).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(true)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 0l);
-        countResponse = client().prepareCount().setQuery(queryString("ValUE_*").lowercaseExpandedTerms(true)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("ValUE_*").lowercaseExpandedTerms(true)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("vAl*E_1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("vAl*E_1")).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]")).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 0l);
     }
 
     @Test
     public void testDateRangeInQueryString() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
         String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
         String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
 
-        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).execute().actionGet();
-
+        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
-        CountResponse countResponse = client().prepareCount().setQuery(queryString("past:[now-2M/d TO now/d]")).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(queryString("past:[now-2M/d TO now/d]")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         //D is an unsupported unit in date math
         assertThat(countResponse.getSuccessfulShards(), equalTo(0));
         assertThat(countResponse.getFailedShards(), equalTo(1));
@@ -233,14 +228,13 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("_type").field("index", index).endObject()
-                        .endObject().endObject())
-                .execute().actionGet();
+                        .endObject().endObject()));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -250,10 +244,10 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(client().prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type1"))).get(), 2l);
         assertHitCount(client().prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type2"))).get(), 3l);
 
-        assertHitCount(client().prepareCount().setTypes("type1").setQuery(matchAllQuery()).execute().actionGet(), 2l);
-        assertHitCount(client().prepareCount().setTypes("type2").setQuery(matchAllQuery()).execute().actionGet(), 3l);
+        assertHitCount(client().prepareCount().setTypes("type1").setQuery(matchAllQuery()).get(), 2l);
+        assertHitCount(client().prepareCount().setTypes("type2").setQuery(matchAllQuery()).get(), 3l);
 
-        assertHitCount(client().prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).execute().actionGet(), 5l);
+        assertHitCount(client().prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 5l);
     }
 
     @Test
@@ -267,547 +261,423 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsFilterTests(String index) throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_id").field("index", index).endObject()
-                        .endObject().endObject())
-                .execute().actionGet();
+                        .endObject().endObject()));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "value3").execute().actionGet();
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(constantScoreQuery(idsFilter("type1").ids("1", "3"))).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(constantScoreQuery(idsFilter("type1").ids("1", "3"))).get();
         assertHitCount(countResponse, 2l);
 
         // no type
-        countResponse = client().prepareCount().setQuery(constantScoreQuery(idsFilter().ids("1", "3"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(constantScoreQuery(idsFilter().ids("1", "3"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(idsQuery("type1").ids("1", "3")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(idsQuery("type1").ids("1", "3")).get();
         assertHitCount(countResponse, 2l);
 
         // no type
-        countResponse = client().prepareCount().setQuery(idsQuery().ids("1", "3")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(idsQuery().ids("1", "3")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(idsQuery("type1").ids("7", "10")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(idsQuery("type1").ids("7", "10")).get();
         assertHitCount(countResponse, 0l);
 
         // repeat..., with terms
-        countResponse = client().prepareCount().setTypes("type1").setQuery(constantScoreQuery(termsFilter("_id", "1", "3"))).execute().actionGet();
+        countResponse = client().prepareCount().setTypes("type1").setQuery(constantScoreQuery(termsFilter("_id", "1", "3"))).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
     public void testLimitFilter() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3").execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4").execute().actionGet();
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "value1_2"),
+                client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3"),
+                client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4"));
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
     public void filterExistsMissingTests() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()).execute().actionGet();
+        indexRandom(true,
+                client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
+                client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
+                client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
+                client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field3"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field3"))).get();
         assertHitCount(countResponse, 1l);
 
         // wildcard check
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("x*"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("x*"))).get();
         assertHitCount(countResponse, 2l);
 
         // object check
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("obj1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("obj1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
         assertHitCount(countResponse, 2l);
 
         // wildcard check
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("x*"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("x*"))).get();
         assertHitCount(countResponse, 2l);
 
         // object check
-        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
     public void passQueryAsJSONStringTest() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
-        CountResponse countResponse = client().prepareCount().setQuery(wrapper).execute().actionGet();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(client().prepareCount().setQuery(wrapper).get(), 1l);
 
-        BoolQueryBuilder bool = new BoolQueryBuilder();
-        bool.must(wrapper);
-        bool.must(new TermQueryBuilder("field2", "value2_1"));
-
-        countResponse = client().prepareCount().setQuery(wrapper).execute().actionGet();
-        assertHitCount(countResponse, 1l);
+        BoolQueryBuilder bool = boolQuery().must(wrapper).must(new TermQueryBuilder("field2", "value2_1"));
+        assertHitCount(client().prepareCount().setQuery(bool).get(), 1l);
     }
 
     @Test
     public void testFiltersWithCustomCacheKey() throws Exception {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         refresh();
-        CountResponse countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).execute().actionGet();
-        assertNoFailures(countResponse);
+
+        CountResponse countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testMatchQueryNumeric() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d).execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("long", 2l, "double", 2.0d).execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("long", 3l, "double", 3.0d).execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        CountResponse countResponse = client().prepareCount().setQuery(matchQuery("long", "1")).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d).get();
+        client().prepareIndex("test", "type1", "2").setSource("long", 2l, "double", 2.0d).get();
+        client().prepareIndex("test", "type1", "3").setSource("long", 3l, "double", 3.0d).get();
+        refresh();
+        CountResponse countResponse = client().prepareCount().setQuery(matchQuery("long", "1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(matchQuery("double", "2")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(matchQuery("double", "2")).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testMultiMatchQuery() throws Exception {
 
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2").get();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1").get();
+        refresh();
 
         MultiMatchQueryBuilder builder = QueryBuilders.multiMatchQuery("value1 value2 value4", "field1", "field2");
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(builder)
-                .execute().actionGet();
-
+        CountResponse countResponse = client().prepareCount().setQuery(builder).get();
         assertHitCount(countResponse, 2l);
 
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
         builder = QueryBuilders.multiMatchQuery("value1", "field1", "field2")
                 .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
-        countResponse = client().prepareCount()
-                .setQuery(builder)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(builder).get();
         assertHitCount(countResponse, 1l);
 
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
         builder = QueryBuilders.multiMatchQuery("value1", "field1", "field3^1.5")
                 .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
-        countResponse = client().prepareCount()
-                .setQuery(builder)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(builder).get();
         assertHitCount(countResponse, 2l);
 
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
         builder = QueryBuilders.multiMatchQuery("value1").field("field1").field("field3", 1.5f)
                 .operator(MatchQueryBuilder.Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
-        countResponse = client().prepareCount()
-                .setQuery(builder)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(builder).get();
         assertHitCount(countResponse, 2l);
 
         // Test lenient
-        client().prepareIndex("test", "type1", "3").setSource("field1", "value7", "field2", "value8", "field4", 5).execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "value7", "field2", "value8", "field4", 5).get();
+        refresh();
 
         builder = QueryBuilders.multiMatchQuery("value1", "field1", "field2", "field4");
         builder.lenient(true);
-        countResponse = client().prepareCount().setQuery(builder).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(builder).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
-    public void testMatchQueryZeroTermsQuery() throws IOException {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
-                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+    public void testMatchQueryZeroTermsQuery() {
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+            .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
+        refresh();
 
         BoolQueryBuilder boolQuery = boolQuery()
                 .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
                 .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE));
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 0l);
 
         boolQuery = boolQuery()
                 .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL))
                 .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
-        countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 1l);
 
-        boolQuery = boolQuery()
-                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
-        countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
-    public void testMultiMatchQueryZeroTermsQuery() throws IOException {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
-                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+    public void testMultiMatchQueryZeroTermsQuery() {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").get();
+        refresh();
 
         BoolQueryBuilder boolQuery = boolQuery()
                 .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
                 .must(multiMatchQuery("value1", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE)); // Fields are ORed together
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 0l);
 
         boolQuery = boolQuery()
                 .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL))
                 .must(multiMatchQuery("value4", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
-        countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 1l);
 
-        boolQuery = boolQuery()
-                .must(multiMatchQuery("a", "field1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
-        countResponse = client().prepareCount()
-                .setQuery(boolQuery)
-                .execute().actionGet();
+        boolQuery = boolQuery().must(multiMatchQuery("a", "field1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        countResponse = client().prepareCount().setQuery(boolQuery).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
     public void testMultiMatchQueryMinShouldMatch() {
-
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field2", "value1").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
+        refresh();
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
 
         multiMatchQuery.useDisMax(true);
         multiMatchQuery.minimumShouldMatch("70%");
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 1l);
 
         multiMatchQuery.minimumShouldMatch("30%");
-        countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 2l);
 
         multiMatchQuery.useDisMax(false);
         multiMatchQuery.minimumShouldMatch("70%");
-        countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 1l);
 
         multiMatchQuery.minimumShouldMatch("30%");
-        countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 2l);
 
         multiMatchQuery = multiMatchQuery("value1 value2 bar", "field1");
         multiMatchQuery.minimumShouldMatch("100%");
-        countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 0l);
 
         multiMatchQuery.minimumShouldMatch("70%");
-        countResponse = client().prepareCount()
-                .setQuery(multiMatchQuery)
-                .execute().actionGet();
+        countResponse = client().prepareCount().setQuery(multiMatchQuery).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testFuzzyQueryString() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        refresh();
 
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(queryString("str:kimcy~1"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        CountResponse countResponse = client().prepareCount().setQuery(queryString("str:kimcy~1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:11~1"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:11~1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("date:2012-02-02~1d"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("date:2012-02-02~1d")).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testSpecialRangeSyntaxInQueryString() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
+        client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        refresh();
 
-        CountResponse countResponse = client().prepareCount()
-                .setQuery(queryString("num:>19"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        CountResponse countResponse = client().prepareCount().setQuery(queryString("num:>19")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:>20"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:>20")).get();
         assertHitCount(countResponse, 0l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:>=20"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:>=20")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:>11"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:>11")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:<20"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:<20")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("num:<=20"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("num:<=20")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount()
-                .setQuery(queryString("+num:>11 +num:<20"))
-                .execute().actionGet();
-        assertNoFailures(countResponse);
+        countResponse = client().prepareCount().setQuery(queryString("+num:>11 +num:<20")).get();
         assertHitCount(countResponse, 1l);
     }
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type", "terms", "type=string"));
         ensureGreen();
-        client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
-        client().prepareIndex("test", "type", "3").setSource("term", "3").execute().actionGet();
-        client().prepareIndex("test", "type", "4").setSource("term", "4").execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("term", "1").get();
+        client().prepareIndex("test", "type", "2").setSource("term", "2").get();
+        client().prepareIndex("test", "type", "3").setSource("term", "3").get();
+        client().prepareIndex("test", "type", "4").setSource("term", "4").get();
         refresh();
         CountResponse countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsFilter("term", new String[0]))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("term", new String[0]))).get();
         assertHitCount(countResponse, 0l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), idsFilter())
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), idsFilter())).get();
         assertHitCount(countResponse, 0l);
     }
 
     @Test
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("terms").field("type", "string").endObject()
-                        .startObject("other").field("type", "string").endObject()
-                        .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup").addMapping("type", "terms", "type=string", "other", "type=string"));
         assertAcked(prepareCreate("lookup2").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("arr").startObject("properties").startObject("term").field("type", "string")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
-        assertAcked(prepareCreate("test").addMapping("type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("term").field("type", "string").endObject()
-                        .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type", "term", "type=string"));
         ensureGreen();
-        client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
-        client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();
-        client().prepareIndex("lookup", "type", "3").setSource("terms", new String[]{"2", "4"}).execute().actionGet();
-        client().prepareIndex("lookup", "type", "4").setSource("other", "value").execute().actionGet();
 
-        client().prepareIndex("lookup2", "type", "1").setSource(XContentFactory.jsonBuilder().startObject()
-                .startArray("arr")
-                .startObject().field("term", "1").endObject()
-                .startObject().field("term", "3").endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-        client().prepareIndex("lookup2", "type", "2").setSource(XContentFactory.jsonBuilder().startObject()
-                .startArray("arr")
-                .startObject().field("term", "2").endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-        client().prepareIndex("lookup2", "type", "3").setSource(XContentFactory.jsonBuilder().startObject()
-                .startArray("arr")
-                .startObject().field("term", "2").endObject()
-                .startObject().field("term", "4").endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
-        client().prepareIndex("test", "type", "3").setSource("term", "3").execute().actionGet();
-        client().prepareIndex("test", "type", "4").setSource("term", "4").execute().actionGet();
-        refresh();
+        indexRandom(true, client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}),
+                client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}),
+                client().prepareIndex("lookup", "type", "3").setSource("terms", new String[]{"2", "4"}),
+                client().prepareIndex("lookup", "type", "4").setSource("other", "value"),
+                client().prepareIndex("lookup2", "type", "1").setSource(XContentFactory.jsonBuilder().startObject()
+                        .startArray("arr")
+                        .startObject().field("term", "1").endObject()
+                        .startObject().field("term", "3").endObject()
+                        .endArray()
+                        .endObject()),
+                client().prepareIndex("lookup2", "type", "2").setSource(XContentFactory.jsonBuilder().startObject()
+                        .startArray("arr")
+                        .startObject().field("term", "2").endObject()
+                        .endArray()
+                        .endObject()),
+                client().prepareIndex("lookup2", "type", "3").setSource(XContentFactory.jsonBuilder().startObject()
+                        .startArray("arr")
+                        .startObject().field("term", "2").endObject()
+                        .startObject().field("term", "4").endObject()
+                        .endArray()
+                        .endObject()),
+                client().prepareIndex("test", "type", "1").setSource("term", "1"),
+                client().prepareIndex("test", "type", "2").setSource("term", "2"),
+                client().prepareIndex("test", "type", "3").setSource("term", "3"),
+                client().prepareIndex("test", "type", "4").setSource("term", "4"));
 
         CountResponse countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         // same as above, just on the _id...
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         // another search with same parameters...
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("2").lookupPath("terms"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("2").lookupPath("terms"))).get();
         assertHitCount(countResponse, 1l);
 
         countResponse = client().prepareCount("test")
                 .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("3").lookupPath("terms"))
-                ).execute().actionGet();
+                ).get();
         assertNoFailures(countResponse);
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("4").lookupPath("terms"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("4").lookupPath("terms"))).get();
         assertHitCount(countResponse, 0l);
 
-
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("1").lookupPath("arr.term"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("1").lookupPath("arr.term"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("2").lookupPath("arr.term"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("2").lookupPath("arr.term"))).get();
         assertHitCount(countResponse, 1l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
-                ).execute().actionGet();
-        assertNoFailures(countResponse);
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))).get();
         assertHitCount(countResponse, 0l);
     }
 
@@ -816,31 +686,26 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("field1", "value1")
-                .endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "2").setSource(jsonBuilder().startObject()
-                .field("field1", "value2")
-                .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2").ids("1", "2"))).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2").ids("1", "2"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1", "2"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1", "2"))).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1").ids("1", "2"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1").ids("1", "2"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter(null).ids("1"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter(null).ids("1"))).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2", "type3").ids("1", "2", "3", "4"))).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2", "type3").ids("1", "2", "3", "4"))).get();
         assertHitCount(countResponse, 2l);
     }
 
@@ -849,275 +714,133 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("field1", "value1")
-                .endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "2").setSource(jsonBuilder().startObject()
-                .field("field1", "value2")
-                .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1", "type2").ids("1", "2")).execute().actionGet();
+        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1", "type2").ids("1", "2")).get();
         assertHitCount(countResponse, 2l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1", "2")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1", "2")).get();
         assertHitCount(countResponse, 2l);
 
-
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1").ids("1", "2")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1").ids("1", "2")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery().ids("1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery(null).ids("1")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery(null).ids("1")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4")).get();
         assertHitCount(countResponse, 2l);
     }
 
     @Test
     public void testNumericTermsAndRanges() throws Exception {
-                client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("num_byte").field("type", "byte").endObject()
-                        .startObject("num_short").field("type", "short").endObject()
-                        .startObject("num_integer").field("type", "integer").endObject()
-                        .startObject("num_long").field("type", "long").endObject()
-                        .startObject("num_float").field("type", "float").endObject()
-                        .startObject("num_double").field("type", "double").endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type1",
+                        "num_byte", "type=byte", "num_short", "type=short",
+                        "num_integer", "type=integer", "num_long", "type=long",
+                        "num_float", "type=float", "num_double", "type=double"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("num_byte", 1)
-                .field("num_short", 1)
-                .field("num_integer", 1)
-                .field("num_long", 1)
-                .field("num_float", 1)
-                .field("num_double", 1)
-                .endObject())
-                .execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("num_byte", 1, "num_short", 1, "num_integer", 1,
+                "num_long", 1, "num_float", 1, "num_double", 1).get();
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("num_byte", 2)
-                .field("num_short", 2)
-                .field("num_integer", 2)
-                .field("num_long", 2)
-                .field("num_float", 2)
-                .field("num_double", 2)
-                .endObject())
-                .execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("num_byte", 2, "num_short", 2, "num_integer", 2,
+                "num_long", 2, "num_float", 2, "num_double", 2).get();
 
-        client().prepareIndex("test", "type1", "17").setSource(jsonBuilder().startObject()
-                .field("num_byte", 17)
-                .field("num_short", 17)
-                .field("num_integer", 17)
-                .field("num_long", 17)
-                .field("num_float", 17)
-                .field("num_double", 17)
-                .endObject())
-                .execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "17").setSource("num_byte", 17, "num_short", 17, "num_integer", 17,
+                "num_long", 17, "num_float", 17, "num_double", 17).get();
+        refresh();
 
         CountResponse countResponse;
-
         logger.info("--> term query on 1");
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_byte", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_byte", 1)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_short", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_short", 1)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_integer", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_integer", 1)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_long", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_long", 1)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_float", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_float", 1)).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termQuery("num_double", 1)).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termQuery("num_double", 1)).get();
         assertHitCount(countResponse, 1l);
 
         logger.info("--> terms query on 1");
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_byte", new int[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_byte", new int[]{1})).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_short", new int[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_short", new int[]{1})).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_integer", new int[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_integer", new int[]{1})).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_long", new int[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_long", new int[]{1})).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_float", new double[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_float", new double[]{1})).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(termsQuery("num_double", new double[]{1})).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(termsQuery("num_double", new double[]{1})).get();
         assertHitCount(countResponse, 1l);
 
         logger.info("--> term filter on 1");
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_byte", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_byte", 1))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_short", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_short", 1))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_integer", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_integer", 1))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_long", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_long", 1))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_float", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_float", 1))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_double", 1))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_double", 1))).get();
         assertHitCount(countResponse, 1l);
 
         logger.info("--> terms filter on 1");
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_byte", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_byte", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_short", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_short", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_integer", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_integer", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_long", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_long", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_float", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_float", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_double", new int[]{1}))).execute().actionGet();
+        countResponse = client().prepareCount("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_double", new int[]{1}))).get();
         assertHitCount(countResponse, 1l);
-    }
-
-    @Test
-    public void testNumericRangeFilter_2826() throws Exception {
-                client().admin().indices().prepareCreate("test").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-        )
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("num_byte").field("type", "byte").endObject()
-                        .startObject("num_short").field("type", "short").endObject()
-                        .startObject("num_integer").field("type", "integer").endObject()
-                        .startObject("num_long").field("type", "long").endObject()
-                        .startObject("num_float").field("type", "float").endObject()
-                        .startObject("num_double").field("type", "double").endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("field1", "test1")
-                .field("num_long", 1)
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("field1", "test1")
-                .field("num_long", 2)
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .field("field1", "test2")
-                .field("num_long", 3)
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
-                .field("field1", "test2")
-                .field("num_long", 4)
-                .endObject())
-                .execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        CountResponse response = client().prepareCount("test").setQuery(
-                filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
-                        .should(rangeFilter("num_long", 1, 2))
-                        .should(rangeFilter("num_long", 3, 4)))
-        ).execute().actionGet();
-        assertHitCount(response, 4l);
-
-        // This made 2826 fail! (only with bit based filters)
-        response = client().prepareCount("test").setQuery(
-                filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
-                        .should(rangeFilter("num_long", 1, 2))
-                        .should(rangeFilter("num_long", 3, 4)))
-        ).execute().actionGet();
-
-        assertHitCount(response, 4l);
-
-        // This made #2979 fail!
-        response = client().prepareCount("test").setQuery(
-                filteredQuery(matchAllQuery(), FilterBuilders.boolFilter()
-                        .must(FilterBuilders.termFilter("field1", "test1"))
-                        .should(rangeFilter("num_long", 1, 2))
-                        .should(rangeFilter("num_long", 3, 4)))
-        ).execute().actionGet();
-
-        assertHitCount(response, 2l);
     }
 
     @Test // see #2994
     public void testSimpleSpan() throws ElasticSearchException, IOException {
-
-        client().admin().indices().prepareCreate("test").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-        )
-                .execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
 
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
-                .field("description", "foo other anything bar")
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
-                .field("description", "foo other anything")
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "test", "3").setSource(jsonBuilder().startObject()
-                .field("description", "foo other")
-                .endObject())
-                .execute().actionGet();
-
-        client().prepareIndex("test", "test", "4").setSource(jsonBuilder().startObject()
-                .field("description", "foo")
-                .endObject())
-                .execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar").get();
+        client().prepareIndex("test", "test", "2").setSource("description", "foo other anything").get();
+        client().prepareIndex("test", "test", "3").setSource("description", "foo other").get();
+        client().prepareIndex("test", "test", "4").setSource("description", "foo").get();
+        refresh();
 
         CountResponse response = client().prepareCount("test")
-                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar")))
-                .execute().actionGet();
-        assertNoFailures(response);
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar"))).get();
         assertHitCount(response, 1l);
         response = client().prepareCount("test")
-                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("test.description", "bar")))
-                .execute().actionGet();
-        assertNoFailures(response);
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("test.description", "bar"))).get();
         assertHitCount(response, 1l);
 
         response = client().prepareCount("test").setQuery(
                 QueryBuilders.spanNearQuery()
                         .clause(QueryBuilders.spanTermQuery("description", "foo"))
                         .clause(QueryBuilders.spanTermQuery("test.description", "other"))
-                        .slop(3)).execute().actionGet();
-        assertNoFailures(response);
+                        .slop(3)).get();
         assertHitCount(response, 3l);
-    }
-
-    public static FilterBuilder rangeFilter(String field, Object from, Object to) {
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                return FilterBuilders.rangeFilter(field).from(from).to(to);
-            } else {
-                return FilterBuilders.rangeFilter(field).from(from).to(to).setExecution("fielddata");
-            }
-        } else {
-            return FilterBuilders.numericRangeFilter(field).from(from).to(to);
-        }
     }
 }

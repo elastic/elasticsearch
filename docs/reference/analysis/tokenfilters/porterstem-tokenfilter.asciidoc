@@ -1,7 +1,7 @@
 [[analysis-porterstem-tokenfilter]]
 === Porter Stem Token Filter
 
-A token filter of type `porterStem` that transforms the token stream as
+A token filter of type `porter_stem` that transforms the token stream as
 per the Porter stemming algorithm.
 
 Note, the input to the stemming filter must already be in lower case, so
@@ -11,5 +11,5 @@ Case Token Filter>> or
 <<analysis-lowercase-tokenizer,Lower
 Case Tokenizer>> farther down the Tokenizer chain in order for this to
 work properly!. For example, when using custom analyzer, make sure the
-`lowercase` filter comes before the `porterStem` filter in the list of
+`lowercase` filter comes before the `porter_stem` filter in the list of
 filters.

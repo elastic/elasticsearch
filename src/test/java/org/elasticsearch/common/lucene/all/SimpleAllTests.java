@@ -24,8 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -34,7 +33,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -68,6 +66,11 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         return sb.toString();
     }
 
+    private void assertExplanationScore(IndexSearcher searcher, Query query, ScoreDoc scoreDoc) throws IOException {
+        final Explanation expl = searcher.explain(query, scoreDoc.doc);
+        assertEquals(scoreDoc.score, expl.getValue(), 0.00001f);
+    }
+
     @Test
     public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
@@ -96,15 +99,21 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
+        Query query = new AllTermQuery(new Term("_all", "else"));
+        TopDocs docs = searcher.search(query, 10);
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
+        assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
+        assertExplanationScore(searcher, query, docs.scoreDocs[1]);
 
-        docs = searcher.search(new AllTermQuery(new Term("_all", "something")), 10);
+        query = new AllTermQuery(new Term("_all", "something"));
+        docs = searcher.search(query, 10);
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
+        assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
+        assertExplanationScore(searcher, query, docs.scoreDocs[1]);
 
         indexWriter.close();
     }
@@ -138,15 +147,21 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
-        TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
+        Query query = new AllTermQuery(new Term("_all", "else"));
+        TopDocs docs = searcher.search(query, 10);
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(1));
+        assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(0));
+        assertExplanationScore(searcher, query, docs.scoreDocs[1]);
 
-        docs = searcher.search(new AllTermQuery(new Term("_all", "something")), 10);
+        query = new AllTermQuery(new Term("_all", "something"));
+        docs = searcher.search(query, 10);
         assertThat(docs.totalHits, equalTo(2));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
+        assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
+        assertExplanationScore(searcher, query, docs.scoreDocs[1]);
 
         indexWriter.close();
     }

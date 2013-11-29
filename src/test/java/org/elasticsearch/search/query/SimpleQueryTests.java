@@ -54,6 +54,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.count.query.SimpleQueryTests.rangeFilter;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -2000,34 +2001,28 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("index3", "type3").setId("3").setSource("text", "value3").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("index1", "index2", "index3")
+        SearchResponse searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
                         .noMatchQuery(matchQuery("text", "value2"))).get();
-        assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "1", "2");
 
         //default no match query is match_all
-        response = client().prepareSearch("index1", "index2", "index3")
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")).get();
-        assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-
-        response = client().prepareSearch("index1", "index2", "index3")
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
                         .noMatchQuery("all")).get();
-        assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
 
-        response = client().prepareSearch("index1", "index2", "index3")
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
                         .noMatchQuery("none")).get();
-        assertHitCount(response, 1l);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("1"));
     }
 
     @Test
@@ -2040,34 +2035,29 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("index3", "type3").setId("3").setSource("text", "value3").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("index1", "index2", "index3")
+        SearchResponse searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter(termFilter("text", "value2"))).get();
-        assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "1", "2");
 
         //default no match filter is "all"
-        response = client().prepareSearch("index1", "index2", "index3")
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")).get();
-        assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
 
-        response = client().prepareSearch("index1", "index2", "index3")
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter("all")).get();
-        assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
 
-        response = client().prepareSearch("index1", "index2", "index3")
+        searchResponse = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter("none")).get();
-        assertHitCount(response, 1l);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("1"));
     }
 
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
@@ -2075,8 +2065,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         createIndex("simple");
         client().admin().indices().prepareCreate("related")
                 .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject())
-                .get();
+                        .endObject().endObject().endObject()).get();
         ensureGreen();
 
         client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
@@ -2097,12 +2086,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         }
 
         //has_child doesn't get parsed for "simple" index
-        SearchResponse response = client().prepareSearch("related", "simple")
+        SearchResponse searchResponse = client().prepareSearch("related", "simple")
                 .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2")), "related")
                         .noMatchQuery(matchQuery("text", "value1"))).get();
-        assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "1", "2");
     }
 
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
@@ -2110,8 +2098,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         createIndex("simple");
         client().admin().indices().prepareCreate("related")
                 .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject())
-                .get();
+                        .endObject().endObject().endObject()).get();
         ensureGreen();
 
         client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
@@ -2131,11 +2118,30 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        SearchResponse response = client().prepareSearch("related", "simple")
+        SearchResponse searchResponse = client().prepareSearch("related", "simple")
                 .setFilter(indicesFilter(hasChildFilter("child", termFilter("text", "value2")), "related")
                         .noMatchFilter(termFilter("text", "value1"))).get();
-        assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "1", "2");
+    }
+
+    @Test
+    public void testMinScore() {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource("score", 1.5).get();
+        client().prepareIndex("test", "test", "2").setSource("score", 1).get();
+        client().prepareIndex("test", "test", "3").setSource("score", 2).get();
+        client().prepareIndex("test", "test", "4").setSource("score", 0.5).get();
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+                functionScoreQuery(scriptFunction("_doc['score'].value"))).setMinScore(1.5f).get();
+        assertHitCount(searchResponse, 2);
+
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("1"));
     }
 }

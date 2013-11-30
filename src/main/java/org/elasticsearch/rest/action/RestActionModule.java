@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
@@ -207,17 +208,20 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestExplainAction.class).asEagerSingleton();
 
-        bind(RestAllocationAction.class).asEagerSingleton();
-        bind(RestShardsAction.class).asEagerSingleton();
-        bind(RestMasterAction.class).asEagerSingleton();
-        bind(RestNodesAction.class).asEagerSingleton();
-        bind(RestIndicesAction.class).asEagerSingleton();
+        // cat API
+        Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
+        catActionMultibinder.addBinding().to(RestAllocationAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestShardsAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestMasterAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestNodesAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestIndicesAction.class).asEagerSingleton();
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        bind(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
-        bind(RestRecoveryAction.class).asEagerSingleton();
-        bind(RestHealthAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestRecoveryAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestHealthAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class).asEagerSingleton();
+        // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
         bind(RestHelpAction.class).asEagerSingleton();
-        bind(org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class).asEagerSingleton();
     }
 }

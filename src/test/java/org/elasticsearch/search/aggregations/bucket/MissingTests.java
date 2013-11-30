@@ -143,6 +143,7 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getFailedShards(), equalTo(0));
+        assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
 
         Missing missing = response.getAggregations().get("missing_tag");
         assertThat(missing, notNullValue());

@@ -368,9 +368,6 @@ public class StatsTests extends AbstractNumericTests {
             }
             fail("Unexpected shard failures!");
         }
-        int uninitializedShards = response.getTotalShards() - response.getSuccessfulShards();
-        if (uninitializedShards > 0) {
-            logger.warn("Uninitialized shards: " + uninitializedShards);
-        }
+        assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }
 }

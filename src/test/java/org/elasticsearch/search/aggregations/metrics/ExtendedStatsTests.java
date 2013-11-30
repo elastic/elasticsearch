@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.junit.Test;
@@ -347,6 +348,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
                 .addAggregation(extendedStats("stats").script("doc['values'].values"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         ExtendedStats stats = searchResponse.getAggregations().get("stats");
@@ -385,4 +387,15 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
     }
 
+
+    private void assertShardExecutionState(SearchResponse response, int expectedFailures) throws Exception {
+        ShardSearchFailure[] failures = response.getShardFailures();
+        if (failures.length != expectedFailures) {
+            for (ShardSearchFailure failure : failures) {
+                logger.error("Shard Failure: {}", failure.failure(), failure.toString());
+            }
+            fail("Unexpected shard failures!");
+        }
+        assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+    }
 }

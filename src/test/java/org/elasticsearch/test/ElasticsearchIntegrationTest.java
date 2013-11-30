@@ -186,6 +186,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
         wipeIndices();
+        if (cluster().size() > 0) {
+            try { // also make sure the "_percolator" index is gone as well
+                assertAcked(client().admin().indices().prepareDelete("_percolator"));
+            } catch (IndexMissingException e) {
+                // ignore
+            }
+        }
         wipeTemplates();
         randomIndexTemplate();
         logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
@@ -229,10 +236,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             wipeIndices(); // wipe after to make sure we fail in the test that
                            // didn't ack the delete
-            try { // also make sure the "_percolator" index is gone as well
-                assertAcked(client().admin().indices().prepareDelete("_percolator"));
-            } catch (IndexMissingException e) {
-                // ignore
+            if (cluster().size() > 0) {
+                try { // also make sure the "_percolator" index is gone as well
+                    assertAcked(client().admin().indices().prepareDelete("_percolator"));
+                } catch (IndexMissingException e) {
+                    // ignore
+                }
             }
             wipeTemplates();
             ensureAllSearchersClosed();

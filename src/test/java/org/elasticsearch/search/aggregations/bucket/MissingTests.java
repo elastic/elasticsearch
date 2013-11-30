@@ -86,6 +86,7 @@ public class MissingTests extends ElasticsearchIntegrationTest {
         }
 
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        ensureGreen(); // wait until we are ready to serve requests
 
     }
 

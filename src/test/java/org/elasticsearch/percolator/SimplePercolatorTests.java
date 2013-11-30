@@ -93,8 +93,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
             .addMapping("doc", mapping)
             .setSettings(builder.put("index.number_of_shards", 1))
             .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         logger.info("--> register a query");
         client().prepareIndex("_percolator", "test", "1")
                 .setSource(jsonBuilder().startObject()
@@ -115,17 +114,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void registerPercolatorAndThenCreateAnIndex() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         logger.info("--> register a query");
         client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
@@ -155,17 +143,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void createIndexAndThenRegisterPercolator() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -208,17 +185,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void percolateOnIndexOperation() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -269,16 +235,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiplePercolators() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -320,17 +276,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void dynamicAddingRemovingQueries() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -400,16 +345,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void percolateWithSizeField() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_size").field("enabled", true).field("stored", "yes").endObject()
                 .endObject().endObject().string();
@@ -442,17 +377,6 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatPercolatingWithTimeToLiveWorks() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("_percolator").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_ttl").field("enabled", true).field("default", "60d").endObject()
                 .startObject("_timestamp").field("enabled", true).endObject()

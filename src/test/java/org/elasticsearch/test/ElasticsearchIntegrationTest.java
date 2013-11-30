@@ -229,6 +229,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             wipeIndices(); // wipe after to make sure we fail in the test that
                            // didn't ack the delete
+            try { // also make sure the "_percolator" index is gone as well
+                assertAcked(client().admin().indices().prepareDelete("_percolator"));
+            } catch (IndexMissingException e) {
+                // ignore
+            }
             wipeTemplates();
             ensureAllSearchersClosed();
             ensureAllFilesClosed();

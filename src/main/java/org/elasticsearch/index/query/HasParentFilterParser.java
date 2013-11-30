@@ -158,7 +158,7 @@ public class HasParentFilterParser implements FilterParser {
             parentFilter = parentsFilter;
         }
         Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
-        Query parentConstantScoreQuery = new ParentConstantScoreQuery(query, parentType, childrenFilter, false);
+        Query parentConstantScoreQuery = new ParentConstantScoreQuery(query, parentType, childrenFilter);
 
         if (filterName != null) {
             parseContext.addNamedQuery(filterName, parentConstantScoreQuery);

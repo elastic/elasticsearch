@@ -142,7 +142,7 @@ public class HasChildQueryParser implements QueryParser {
         if (!deleteByQuery && scoreType != null) {
             query = new ChildrenQuery(parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet);
         } else {
-            query = new ChildrenConstantScoreQuery(innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, true);
+            query = new ChildrenConstantScoreQuery(innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

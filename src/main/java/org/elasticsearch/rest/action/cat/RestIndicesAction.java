@@ -39,11 +39,10 @@ import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestIndicesAction extends BaseRestHandler {
+public class RestIndicesAction extends AbstractCatAction {
 
     @Inject
     public RestIndicesAction(Settings settings, Client client, RestController controller) {
@@ -53,7 +52,13 @@ public class RestIndicesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/indices\n");
+        sb.append("/_cat/indices/{index}\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filteredIndices(indices);
@@ -75,7 +80,7 @@ public class RestIndicesAction extends BaseRestHandler {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 try {
-                                    Table tab = buildTable(concreteIndices, clusterHealthResponse, indicesStatsResponse);
+                                    Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse);
                                     channel.sendResponse(RestTable.buildResponse(tab, request, channel));
                                 } catch (Throwable e) {
                                     onFailure(e);
@@ -116,7 +121,8 @@ public class RestIndicesAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("health");
@@ -128,6 +134,11 @@ public class RestIndicesAction extends BaseRestHandler {
         table.addCell("size/pri", "text-align:right;");
         table.addCell("size/total", "text-align:right;");
         table.endHeaders();
+        return table;
+    }
+
+    private Table buildTable(RestRequest request, String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats) {
+        Table table = getTableWithHeader(request);
 
         for (String index : indices) {
             ClusterIndexHealth indexHealth = health.getIndices().get(index);

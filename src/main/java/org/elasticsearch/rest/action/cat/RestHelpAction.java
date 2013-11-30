@@ -20,42 +20,33 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestHelpAction extends BaseRestHandler {
 
+    StringBuilder sb = new StringBuilder();
+
     @Inject
-    public RestHelpAction(Settings settings, Client client, RestController controller) {
+    public RestHelpAction(Settings settings, Client client, RestController controller, Set<AbstractCatAction> catActions) {
         super(settings, client);
         controller.registerHandler(GET, "/_cat/help", this);
         controller.registerHandler(GET, "/_cat/halp", this);
+        sb.append("Try:\n\n");
+        sb.append("/_cat/help\n");
+        for (AbstractCatAction catAction : catActions) {
+            catAction.documentation(sb);
+        }
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        // Maybe build this list from a classloader or the RestActionModule injector
-
-        StringBuilder s = new StringBuilder();
-        s.append("Try:\n\n");
-        s.append("/_cat/allocation\n");
-        s.append("/_cat/count\n");
-        s.append("/_cat/count/{index}\n");
-        s.append("/_cat/health\n");
-        s.append("/_cat/indices\n");
-        s.append("/_cat/indices/{index}\n");
-        s.append("/_cat/master\n");
-        s.append("/_cat/nodes\n");
-        s.append("/_cat/pending_tasks\n");
-        s.append("/_cat/recovery\n");
-        s.append("/_cat/shards\n");
-        s.append("/_cat/shards/{index}\n");
-        channel.sendResponse(new StringRestResponse(RestStatus.OK, s.toString()));
+        channel.sendResponse(new StringRestResponse(RestStatus.OK, sb.toString()));
     }
 }

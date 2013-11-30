@@ -47,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
  */
-public class RestRecoveryAction extends BaseRestHandler {
+public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
     protected RestRecoveryAction(Settings settings, Client client, RestController restController) {
@@ -57,7 +57,13 @@ public class RestRecoveryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/recovery\n");
+        sb.append("/_cat/recovery/{index}\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filterMetaData(true);
@@ -90,7 +96,7 @@ public class RestRecoveryAction extends BaseRestHandler {
                         }
 
                         try {
-                            channel.sendResponse(RestTable.buildResponse(buildRecoveryTable(clusterStateResponse, primarySizes, replicas), request, channel));
+                            channel.sendResponse(RestTable.buildResponse(buildRecoveryTable(request, clusterStateResponse, primarySizes, replicas), request, channel));
                         } catch (Throwable e) {
                             try {
                                 channel.sendResponse(new XContentThrowableRestResponse(request, e));
@@ -123,15 +129,8 @@ public class RestRecoveryAction extends BaseRestHandler {
 
     }
 
-    /**
-     * buildRecoveryTable will build a table of recovery information suitable
-     * for displaying at the command line.
-     * @param state Current cluster state.
-     * @param primarySizes A Map of {@code index + shardId} strings to store size for all primary shards.
-     * @param recoveringReplicas A Set of {@link ShardStatus} objects for each recovering replica to be displayed.
-     * @return A table containing index, shardId, node, target size, recovered size and percentage for each recovering replica
-     */
-    public static Table buildRecoveryTable(ClusterStateResponse state, Map<String, Long> primarySizes, Set<ShardStatus> recoveringReplicas) {
+    @Override
+    Table getTableWithHeader(RestRequest request) {
         Table t = new Table();
         t.startHeaders().addCell("index")
                 .addCell("shard")
@@ -141,6 +140,21 @@ public class RestRecoveryAction extends BaseRestHandler {
                 .addCell("ip")
                 .addCell("node")
                 .endHeaders();
+        return t;
+    }
+
+    /**
+     * buildRecoveryTable will build a table of recovery information suitable
+     * for displaying at the command line.
+     *
+     * @param request
+     * @param state Current cluster state.
+     * @param primarySizes A Map of {@code index + shardId} strings to store size for all primary shards.
+     * @param recoveringReplicas A Set of {@link org.elasticsearch.action.admin.indices.status.ShardStatus} objects for each recovering replica to be displayed.
+     * @return A table containing index, shardId, node, target size, recovered size and percentage for each recovering replica
+     */
+    public Table buildRecoveryTable(RestRequest request, ClusterStateResponse state, Map<String, Long> primarySizes, Set<ShardStatus> recoveringReplicas) {
+        Table t = getTableWithHeader(request);
         for (ShardStatus status : recoveringReplicas) {
             DiscoveryNode node = state.getState().nodes().get(status.getShardRouting().currentNodeId());
 

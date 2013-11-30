@@ -41,7 +41,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestShardsAction extends BaseRestHandler {
+public class RestShardsAction extends AbstractCatAction {
 
     @Inject
     public RestShardsAction(Settings settings, Client client, RestController controller) {
@@ -51,7 +51,13 @@ public class RestShardsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/shards\n");
+        sb.append("/_cat/shards/{index}\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -67,7 +73,7 @@ public class RestShardsAction extends BaseRestHandler {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         try {
-                            channel.sendResponse(RestTable.buildResponse(buildTable(concreteIndices, clusterStateResponse, indicesStatsResponse), request, channel));
+                            channel.sendResponse(RestTable.buildResponse(buildTable(request, concreteIndices, clusterStateResponse, indicesStatsResponse), request, channel));
                         } catch (Throwable e) {
                             onFailure(e);
                         }
@@ -95,8 +101,8 @@ public class RestShardsAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(String[] concreteIndices, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Set<String> indices = Sets.newHashSet(concreteIndices);
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("index", "default:true;")
@@ -108,7 +114,13 @@ public class RestShardsAction extends BaseRestHandler {
                 .addCell("ip", "default:true;")
                 .addCell("node", "default:true;")
                 .endHeaders();
+        return table;
+    }
 
+    private Table buildTable(RestRequest request, String[] concreteIndices, ClusterStateResponse state, IndicesStatsResponse stats) {
+        Table table = getTableWithHeader(request);
+
+        Set<String> indices = Sets.newHashSet(concreteIndices);
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
             if (!indices.contains(shard.index())) {
                 continue;

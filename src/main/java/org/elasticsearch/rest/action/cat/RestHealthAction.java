@@ -35,7 +35,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestHealthAction extends BaseRestHandler {
+public class RestHealthAction extends AbstractCatAction {
 
     @Inject
     public RestHealthAction(Settings settings, Client client, RestController controller) {
@@ -44,15 +44,19 @@ public class RestHealthAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/health\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
-        final boolean timeStamp = request.paramAsBoolean("ts", true);
 
         client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
             @Override
             public void onResponse(final ClusterHealthResponse health) {
                 try {
-                    channel.sendResponse(RestTable.buildResponse(buildTable(health, timeStamp), request, channel));
+                    channel.sendResponse(RestTable.buildResponse(buildTable(health, request), request, channel));
                 } catch (Throwable t) {
                     onFailure(t);
                 }
@@ -69,28 +73,33 @@ public class RestHealthAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable (final ClusterHealthResponse health, boolean timeStamp) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
+        final boolean timeStamp = request.paramAsBoolean("ts", true);
         Table t;
-
         if (timeStamp) {
             t = new TimestampedTable();
         } else {
             t = new Table();
         }
+        t.startHeaders();
+        t.addCell("cluster");
+        t.addCell("status");
+        t.addCell("nodeTotal", "text-align:right;");
+        t.addCell("nodeData", "text-align:right;");
+        t.addCell("shards", "text-align:right;");
+        t.addCell("pri", "text-align:right;");
+        t.addCell("relo", "text-align:right;");
+        t.addCell("init", "text-align:right;");
+        t.addCell("unassign", "text-align:right;");
+        t.endHeaders();
 
+        return t;
+    }
+
+    private Table buildTable (final ClusterHealthResponse health, final RestRequest request) {
         if (null != health) {
-            t.startHeaders();
-            t.addCell("cluster");
-            t.addCell("status");
-            t.addCell("nodeTotal", "text-align:right;");
-            t.addCell("nodeData", "text-align:right;");
-            t.addCell("shards", "text-align:right;");
-            t.addCell("pri", "text-align:right;");
-            t.addCell("relo", "text-align:right;");
-            t.addCell("init", "text-align:right;");
-            t.addCell("unassign", "text-align:right;");
-            t.endHeaders();
-
+            Table t = getTableWithHeader(request);
             t.startRow();
             t.addCell(health.getClusterName());
             t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
@@ -102,7 +111,8 @@ public class RestHealthAction extends BaseRestHandler {
             t.addCell(health.getInitializingShards());
             t.addCell(health.getUnassignedShards());
             t.endRow();
+            return t;
         }
-        return t;
+        return null;
     }
 }

@@ -46,7 +46,8 @@ import java.util.Locale;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
-public class RestAllocationAction extends BaseRestHandler{
+public class RestAllocationAction extends AbstractCatAction {
+
     @Inject
     public RestAllocationAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -55,7 +56,12 @@ public class RestAllocationAction extends BaseRestHandler{
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/allocation\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filterMetaData(true);
@@ -72,7 +78,7 @@ public class RestAllocationAction extends BaseRestHandler{
                     @Override
                     public void onResponse(NodesStatsResponse stats) {
                         try {
-                            Table tab = buildTable(state, stats);
+                            Table tab = buildTable(request, state, stats);
                             channel.sendResponse(RestTable.buildResponse(tab, request, channel));
                         } catch (Throwable e) {
                             onFailure(e);
@@ -102,7 +108,21 @@ public class RestAllocationAction extends BaseRestHandler{
 
     }
 
-    private Table buildTable(final ClusterStateResponse state, final NodesStatsResponse stats) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
+        final Table table = new Table();
+        table.startHeaders();
+        table.addCell("shards", "text-align:right;");
+        table.addCell("diskUsed", "text-align:right;");
+        table.addCell("diskAvail", "text-align:right;");
+        table.addCell("diskRatio", "text-align:right;");
+        table.addCell("ip");
+        table.addCell("node");
+        table.endHeaders();
+        return table;
+    }
+
+    private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
         final ObjectIntOpenHashMap<String> allocs = new ObjectIntOpenHashMap<String>();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
@@ -115,15 +135,7 @@ public class RestAllocationAction extends BaseRestHandler{
             allocs.addTo(nodeId, 1);
         }
 
-        final Table table = new Table();
-        table.startHeaders();
-        table.addCell("shards", "text-align:right;");
-        table.addCell("diskUsed", "text-align:right;");
-        table.addCell("diskAvail", "text-align:right;");
-        table.addCell("diskRatio", "text-align:right;");
-        table.addCell("ip");
-        table.addCell("node");
-        table.endHeaders();
+        Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();

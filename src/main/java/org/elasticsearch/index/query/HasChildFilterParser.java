@@ -135,7 +135,7 @@ public class HasChildFilterParser implements FilterParser {
         }
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet, false);
+        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet);
 
         if (filterName != null) {
             parseContext.addNamedQuery(filterName, childrenConstantScoreQuery);

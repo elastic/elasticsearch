@@ -31,7 +31,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
@@ -54,18 +53,16 @@ public class ChildrenConstantScoreQuery extends Query {
     private final String childType;
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
-    private final boolean applyAcceptedDocs;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, boolean applyAcceptedDocs) {
+    public ChildrenConstantScoreQuery(Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet) {
         this.parentFilter = parentFilter;
         this.parentType = parentType;
         this.childType = childType;
         this.originalChildQuery = childQuery;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
-        this.applyAcceptedDocs = applyAcceptedDocs;
     }
 
     @Override
@@ -129,15 +126,8 @@ public class ChildrenConstantScoreQuery extends Query {
         private float queryWeight;
 
         public ParentWeight(Filter parentFilter, Filter shortCircuitFilter, SearchContext searchContext, Recycler.V<ObjectOpenHashSet<HashedBytesArray>> collectedUids) {
-            if (applyAcceptedDocs) {
-                // In case filters are cached, we need to apply deletes, since filters from filter cache didn't apply deletes
-                this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
-                this.shortCircuitFilter = shortCircuitFilter != null ? new ApplyAcceptedDocsFilter(shortCircuitFilter) : null;
-            } else {
-                this.parentFilter = parentFilter;
-                this.shortCircuitFilter = shortCircuitFilter;
-
-            }
+            this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
+            this.shortCircuitFilter = shortCircuitFilter;
             this.searchContext = searchContext;
             this.collectedUids = collectedUids;
             this.remaining = collectedUids.v().size();
@@ -170,12 +160,16 @@ public class ChildrenConstantScoreQuery extends Query {
             if (remaining == 0) {
                 return null;
             }
-            if (!applyAcceptedDocs) {
-                acceptDocs = null;
-            }
 
             if (shortCircuitFilter != null) {
-                return ConstantScorer.create(shortCircuitFilter.getDocIdSet(context, acceptDocs), this, queryWeight);
+                DocIdSet docIdSet = shortCircuitFilter.getDocIdSet(context, acceptDocs);
+                if (!DocIdSets.isEmpty(docIdSet)) {
+                    DocIdSetIterator iterator = docIdSet.iterator();
+                    if (iterator != null) {
+                        return ConstantScorer.create(iterator, this, queryWeight);
+                    }
+                }
+                return null;
             }
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
@@ -183,14 +177,15 @@ public class ChildrenConstantScoreQuery extends Query {
                 return null;
             }
 
-            Bits parentsBits = DocIdSets.toSafeBits(context.reader(), parentDocIdSet);
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                DocIdSet docIdSet = new ParentDocSet(context.reader(), parentsBits, collectedUids.v(), idReaderTypeCache);
-                return ConstantScorer.create(docIdSet, this, queryWeight);
-            } else {
-                return null;
+                DocIdSetIterator innerIterator = parentDocIdSet.iterator();
+                if (innerIterator != null) {
+                    ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, collectedUids.v(), idReaderTypeCache);
+                    return ConstantScorer.create(parentDocIdIterator, this, queryWeight);
+                }
             }
+            return null;
         }
 
         @Override
@@ -199,21 +194,25 @@ public class ChildrenConstantScoreQuery extends Query {
             return true;
         }
 
-        private final class ParentDocSet extends MatchDocIdSet {
+        private final class ParentDocIdIterator extends FilteredDocIdSetIterator {
 
             private final ObjectOpenHashSet<HashedBytesArray> parents;
             private final IdReaderTypeCache typeCache;
 
-            ParentDocSet(IndexReader reader, Bits acceptDocs, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
-                super(reader.maxDoc(), acceptDocs);
+            private ParentDocIdIterator(DocIdSetIterator innerIterator, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+                super(innerIterator);
                 this.parents = parents;
                 this.typeCache = typeCache;
             }
 
             @Override
-            protected boolean matchDoc(int doc) {
+            protected boolean match(int doc) {
                 if (remaining == 0) {
-                    shortCircuit();
+                    try {
+                        advance(DocIdSetIterator.NO_MORE_DOCS);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     return false;
                 }
 

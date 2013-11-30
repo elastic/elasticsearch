@@ -163,7 +163,7 @@ public class HasParentQueryParser implements QueryParser {
         if (!deleteByQuery && score) {
             query = new ParentQuery(innerQuery, parentType, childrenFilter);
         } else {
-            query = new ParentConstantScoreQuery(innerQuery, parentType, childrenFilter, true);
+            query = new ParentConstantScoreQuery(innerQuery, parentType, childrenFilter);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

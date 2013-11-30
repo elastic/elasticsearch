@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
 
@@ -33,11 +31,8 @@ import java.io.IOException;
 // Borrowed from ConstantScoreQuery
 class ConstantScorer extends Scorer {
 
-    static ConstantScorer create(DocIdSet docIdSet, Weight weight, float constantScore) throws IOException {
-        if (DocIdSets.isEmpty(docIdSet)) {
-            return null;
-        }
-        return new ConstantScorer(docIdSet.iterator(), weight, constantScore);
+    static ConstantScorer create(DocIdSetIterator iterator, Weight weight, float constantScore) throws IOException {
+        return new ConstantScorer(iterator, weight, constantScore);
     }
 
     private final DocIdSetIterator docIdSetIterator;

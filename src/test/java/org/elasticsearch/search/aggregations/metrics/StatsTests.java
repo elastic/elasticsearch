@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -42,6 +43,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true).subAggregation(stats("stats")))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -68,6 +71,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").field("value"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -86,6 +91,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -106,6 +113,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").field("value"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -124,6 +133,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value").script("_value + 1"))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -144,6 +155,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").field("value").script("_value + inc").param("inc", 1))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -162,6 +175,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("values"))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -182,6 +197,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").field("values").script("_value - 1"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -200,6 +217,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("values").script("_value - dec").param("dec", 1))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -220,6 +239,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").script("doc['value'].value"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -238,6 +259,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").script("doc['value'].value + inc").param("inc", 1))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -259,6 +282,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").script("doc['value'].value + inc").param("inc", 1))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -277,6 +302,8 @@ public class StatsTests extends AbstractNumericTests {
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").script("doc['values'].values"))
                 .execute().actionGet();
+
+        assertShardExecutionState(searchResponse, 0);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
@@ -297,6 +324,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").script("doc['values'].values"))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -316,6 +345,8 @@ public class StatsTests extends AbstractNumericTests {
                 .addAggregation(stats("stats").script("new double[] { doc['value'].value, doc['value'].value - dec }").param("dec", 1))
                 .execute().actionGet();
 
+        assertShardExecutionState(searchResponse, 0);
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
 
         Stats stats = searchResponse.getAggregations().get("stats");
@@ -328,4 +359,18 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+
+    private void assertShardExecutionState(SearchResponse response, int expectedFailures) throws Exception {
+        ShardSearchFailure[] failures = response.getShardFailures();
+        if (failures.length != expectedFailures) {
+            for (ShardSearchFailure failure : failures) {
+                logger.error("Shard Failure: {}", failure.failure(), failure.toString());
+            }
+            fail("Unexpected shard failures!");
+        }
+        int uninitializedShards = response.getTotalShards() - response.getSuccessfulShards();
+        if (uninitializedShards > 0) {
+            logger.warn("Uninitialized shards: " + uninitializedShards);
+        }
+    }
 }

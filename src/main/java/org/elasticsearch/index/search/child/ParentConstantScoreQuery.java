@@ -29,7 +29,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -49,21 +48,14 @@ public class ParentConstantScoreQuery extends Query {
     private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
-    private final boolean applyAcceptedDocs;
 
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentConstantScoreQuery(Query parentQuery, String parentType, Filter childrenFilter, boolean applyAcceptedDocs) {
+    public ParentConstantScoreQuery(Query parentQuery, String parentType, Filter childrenFilter) {
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
-        // In case the childrenFilter is cached.
-        if (applyAcceptedDocs) {
-            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
-        } else {
-            this.childrenFilter = childrenFilter;
-        }
-        this.applyAcceptedDocs = applyAcceptedDocs;
+        this.childrenFilter = childrenFilter;
     }
 
     @Override
@@ -102,20 +94,22 @@ public class ParentConstantScoreQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
-        ChildrenWeight childrenWeight = new ChildrenWeight(searchContext, parents);
+        ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, searchContext, parents);
         searchContext.addReleasable(childrenWeight);
         return childrenWeight;
     }
 
     private final class ChildrenWeight extends Weight implements Releasable {
 
+        private final Filter childrenFilter;
         private final SearchContext searchContext;
         private final Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents;
 
         private float queryNorm;
         private float queryWeight;
 
-        private ChildrenWeight(SearchContext searchContext, Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents) {
+        private ChildrenWeight(Filter childrenFilter, SearchContext searchContext, Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents) {
+            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
             this.searchContext = searchContext;
             this.parents = parents;
         }
@@ -144,23 +138,20 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            if (!applyAcceptedDocs) {
-                acceptDocs = null;
-            }
-
             DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocIdSet)) {
                 return null;
             }
 
-            Bits childrenBits = DocIdSets.toSafeBits(context.reader(), childrenDocIdSet);
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                DocIdSet docIdSet = new ChildrenDocSet(context.reader(), childrenBits, parents.v(), idReaderTypeCache);
-                return ConstantScorer.create(docIdSet, this, queryWeight);
-            } else {
-                return null;
+                DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
+                if (innerIterator != null) {
+                    ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(innerIterator, parents.v(), idReaderTypeCache);
+                    return ConstantScorer.create(childrenDocIdIterator, this, queryWeight);
+                }
             }
+            return null;
         }
 
         @Override
@@ -169,19 +160,19 @@ public class ParentConstantScoreQuery extends Query {
             return true;
         }
 
-        private final class ChildrenDocSet extends MatchDocIdSet {
+        private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
             private final ObjectOpenHashSet<HashedBytesArray> parents;
             private final IdReaderTypeCache idReaderTypeCache;
 
-            ChildrenDocSet(IndexReader reader, Bits acceptDocs, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
-                super(reader.maxDoc(), acceptDocs);
+            ChildrenDocIdIterator(DocIdSetIterator innerIterator, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+                super(innerIterator);
                 this.parents = parents;
                 this.idReaderTypeCache = idReaderTypeCache;
             }
 
             @Override
-            protected boolean matchDoc(int doc) {
+            protected boolean match(int doc) {
                 return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
             }
 

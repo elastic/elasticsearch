@@ -19,6 +19,7 @@
 package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
+import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -74,6 +75,8 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
             childValues[i] = Integer.toString(i);
         }
 
+        IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
+
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
         ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>>();
@@ -85,9 +88,11 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
             document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.YES));
             document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
             if (markParentAsDeleted) {
+                filteredOrDeletedDocs.add(parentDocId);
                 document.add(new StringField("delete", "me", Field.Store.NO));
             }
             if (filterMe) {
+                filteredOrDeletedDocs.add(parentDocId);
                 document.add(new StringField("filter", "me", Field.Store.NO));
             }
             indexWriter.addDocument(document);
@@ -132,8 +137,8 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
         // Delete docs that are marked to be deleted.
         indexWriter.deleteDocuments(new Term("delete", "me"));
+        indexWriter.commit();
 
-        indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
@@ -159,6 +164,33 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                 filterMe = SearchContext.current().filterCache().cache(rawFilterMe);
             } else {
                 filterMe = rawFilterMe;
+            }
+
+            // Simulate a parent update
+            if (random().nextBoolean()) {
+                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                for (int j = 0; j < numberOfUpdates; j++) {
+                    int parentId;
+                    do {
+                        parentId = random().nextInt(numParentDocs);
+                    } while (filteredOrDeletedDocs.contains(parentId));
+
+                    String parentUid = Uid.createUid("parent", Integer.toString(parentId));
+                    indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, parentUid));
+
+                    Document document = new Document();
+                    document.add(new StringField(UidFieldMapper.NAME, parentUid, Field.Store.YES));
+                    document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
+                    indexWriter.addDocument(document);
+                }
+
+                indexReader.close();
+                indexReader = DirectoryReader.open(indexWriter.w, true);
+                searcher = new IndexSearcher(indexReader);
+                engineSearcher = new Engine.SimpleSearcher(
+                        ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
+                );
+                ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
             }
 
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
@@ -202,6 +234,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
             assertTopDocs(actualTopDocsCollector.topDocs(), expectedTopDocsCollector.topDocs());
         }
 
+        indexWriter.close();
         indexReader.close();
         directory.close();
     }

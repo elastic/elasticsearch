@@ -19,6 +19,7 @@
 package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
+import com.carrotsearch.hppc.IntIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -75,6 +76,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
         ObjectObjectOpenHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, Float>>();
+        IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
             String parentValue = parentValues[random().nextInt(parentValues.length)];
@@ -116,6 +118,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                     if (!markParentAsDeleted) {
                         assert !childIdToScore.containsKey(child);
                         childIdToScore.put(child, 1f);
+                        childIdToParentId.put(Integer.valueOf(child), parentDocId);
                     }
                 }
             }
@@ -123,8 +126,8 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
         // Delete docs that are marked to be deleted.
         indexWriter.deleteDocuments(new Term("delete", "me"));
+        indexWriter.commit();
 
-        indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
@@ -132,12 +135,47 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
-        TermFilter childFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
+            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
+            // that deletes are applied at the top level when filters are cached.
+            Filter childrenFilter;
+            if (random().nextBoolean()) {
+                childrenFilter = SearchContext.current().filterCache().cache(rawChildrenFilter);
+            } else {
+                childrenFilter = rawChildrenFilter;
+            }
+
+            // Simulate a child update
+            if (random().nextBoolean()) {
+                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                int[] childIds = childIdToParentId.keys().toArray();
+                for (int j = 0; j < numberOfUpdates; j++) {
+                    int childId = childIds[random().nextInt(childIds.length)];
+                    String childUid = Uid.createUid("child", Integer.toString(childId));
+                    indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, childUid));
+
+                    Document document = new Document();
+                    document.add(new StringField(UidFieldMapper.NAME, childUid, Field.Store.YES));
+                    document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
+                    String parentUid = Uid.createUid("parent", Integer.toString(childIdToParentId.get(childId)));
+                    document.add(new StringField(ParentFieldMapper.NAME, parentUid, Field.Store.NO));
+                    indexWriter.addDocument(document);
+                }
+
+                indexReader.close();
+                indexReader = DirectoryReader.open(indexWriter.w, true);
+                searcher = new IndexSearcher(indexReader);
+                engineSearcher = new Engine.SimpleSearcher(
+                        ParentConstantScoreQueryTests.class.getSimpleName(), searcher
+                );
+                ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+            }
+
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", parentValue)));
-            Query query = new ParentQuery(parentQuery,"parent", childFilter);
+            Query query = new ParentQuery(parentQuery,"parent", childrenFilter);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
             TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);
@@ -175,6 +213,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             assertTopDocs(actualTopDocsCollector.topDocs(), expectedTopDocsCollector.topDocs());
         }
 
+        indexWriter.close();
         indexReader.close();
         directory.close();
     }

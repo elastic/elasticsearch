@@ -18,16 +18,14 @@
 
 package org.elasticsearch.index.search.child;
 
+import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -108,7 +106,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int shortCircuitParentDocSet = random().nextInt(5);
-        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, true);
+        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet);
 
         BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
         searcher.search(query, collector);
@@ -131,6 +129,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             childValues[i] = Integer.toString(i);
         }
 
+        IntOpenHashSet initialDeletedParentIds = new IntOpenHashSet();
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
         ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableSet<String>>();
@@ -141,6 +140,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.YES));
             document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
             if (markParentAsDeleted) {
+                initialDeletedParentIds.add(parentDocId);
                 document.add(new StringField("delete", "me", Field.Store.NO));
             }
             indexWriter.addDocument(document);
@@ -182,7 +182,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         // Delete docs that are marked to be deleted.
         indexWriter.deleteDocuments(new Term("delete", "me"));
 
-        indexWriter.close();
+        indexWriter.commit();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(indexReader);
         Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
@@ -190,22 +190,57 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
-        TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
+            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
+            // that deletes are applied at the top level when filters are cached.
+            Filter parentFilter;
+            if (random().nextBoolean()) {
+                parentFilter = SearchContext.current().filterCache().cache(rawParentFilter);
+            } else {
+                parentFilter = rawParentFilter;
+            }
+
+            // Simulate a parent update
+            if (random().nextBoolean()) {
+                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                for (int j = 0; j < numberOfUpdates; j++) {
+                    int parentId;
+                    do {
+                        parentId = random().nextInt(numParentDocs);
+                    } while (initialDeletedParentIds.contains(parentId));
+
+                    String parentUid = Uid.createUid("parent", Integer.toString(parentId));
+                    indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, parentUid));
+
+                    Document document = new Document();
+                    document.add(new StringField(UidFieldMapper.NAME, parentUid, Field.Store.YES));
+                    document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
+                    indexWriter.addDocument(document);
+                }
+
+                indexReader.close();
+                indexReader = DirectoryReader.open(indexWriter.w, true);
+                searcher = new IndexSearcher(indexReader);
+                engineSearcher = new Engine.SimpleSearcher(
+                        ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
+                );
+                ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+            }
+
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             Query query;
-            boolean applyAcceptedDocs = random().nextBoolean();
-            if (applyAcceptedDocs) {
+            if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, applyAcceptedDocs);
+                query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet);
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, applyAcceptedDocs)
+                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet)
                         )
                 );
             }
@@ -236,6 +271,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             assertBitSet(actualResult, expectedResult, searcher);
         }
 
+        indexWriter.close();
         indexReader.close();
         directory.close();
     }

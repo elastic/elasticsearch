@@ -69,7 +69,7 @@ public class ChildrenQuery extends Query {
     public ChildrenQuery(String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
         this.parentType = parentType;
         this.childType = childType;
-        this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
+        this.parentFilter = parentFilter;
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
@@ -190,7 +190,7 @@ public class ChildrenQuery extends Query {
 
         private ParentWeight(Weight childWeight, Filter parentFilter, SearchContext searchContext, int remaining, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore, Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount) {
             this.childWeight = childWeight;
-            this.parentFilter = parentFilter;
+            this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
             this.searchContext = searchContext;
             this.remaining = remaining;
             this.uidToScore = uidToScore;
@@ -226,7 +226,9 @@ public class ChildrenQuery extends Query {
             }
 
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            DocIdSetIterator parentsIterator = parentsSet.iterator();
+            // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
+            // count down (short circuit) logic will then work as expected.
+            DocIdSetIterator parentsIterator = BitsFilteredDocIdSet.wrap(parentsSet, context.reader().getLiveDocs()).iterator();
             switch (scoreType) {
                 case AVG:
                     return new AvgParentScorer(this, idTypeCache, uidToScore.v(), uidToCount.v(), parentsIterator);
@@ -247,7 +249,6 @@ public class ChildrenQuery extends Query {
             final IdReaderTypeCache idTypeCache;
             final DocIdSetIterator parentsIterator;
 
-            int remaining;
             int currentDocId = -1;
             float currentScore;
 
@@ -256,7 +257,6 @@ public class ChildrenQuery extends Query {
                 this.idTypeCache = idTypeCache;
                 this.parentsIterator = parentsIterator;
                 this.uidToScore = uidToScore;
-                this.remaining = uidToScore.size();
             }
 
             @Override
@@ -279,8 +279,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int nextDoc() throws IOException {
                 if (remaining == 0) {
-                    currentDocId = NO_MORE_DOCS;
-                    return NO_MORE_DOCS;
+                    return currentDocId = NO_MORE_DOCS;
                 }
 
                 while (true) {
@@ -303,8 +302,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int advance(int target) throws IOException {
                 if (remaining == 0) {
-                    currentDocId = NO_MORE_DOCS;
-                    return NO_MORE_DOCS;
+                    return currentDocId = NO_MORE_DOCS;
                 }
 
                 currentDocId = parentsIterator.advance(target);
@@ -341,8 +339,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int nextDoc() throws IOException {
                 if (remaining == 0) {
-                    currentDocId = NO_MORE_DOCS;
-                    return NO_MORE_DOCS;
+                    return currentDocId = NO_MORE_DOCS;
                 }
 
                 while (true) {
@@ -365,8 +362,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int advance(int target) throws IOException {
                 if (remaining == 0) {
-                    currentDocId = NO_MORE_DOCS;
-                    return NO_MORE_DOCS;
+                    return currentDocId = NO_MORE_DOCS;
                 }
 
                 currentDocId = parentsIterator.advance(target);
@@ -425,7 +421,6 @@ public class ChildrenQuery extends Query {
                     break;
                 case AVG:
                     assert false : "AVG has its own collector";
-
                 default:
                     assert false : "Are we missing a score type here? -- " + scoreType;
                     break;

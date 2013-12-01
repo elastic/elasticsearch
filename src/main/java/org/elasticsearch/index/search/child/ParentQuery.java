@@ -46,7 +46,6 @@ import java.util.Set;
  * connects the matching parent docs to the related child documents
  * using the {@link IdReaderTypeCache}.
  */
-// TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
 public class ParentQuery extends Query {
 
     private final Query originalParentQuery;
@@ -278,8 +277,9 @@ public class ParentQuery extends Query {
                 if (uid == null) {
                     continue;
                 }
-                currentScore = uidToScore.get(uid);
-                if (currentScore != 0) {
+                if (uidToScore.containsKey(uid)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
                     return currentChildDoc;
                 }
             }
@@ -295,11 +295,14 @@ public class ParentQuery extends Query {
             if (uid == null) {
                 return nextDoc();
             }
-            currentScore = uidToScore.get(uid);
-            if (currentScore == 0) {
+
+            if (uidToScore.containsKey(uid)) {
+                // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                currentScore = uidToScore.lget();
+                return currentChildDoc;
+            } else {
                 return nextDoc();
             }
-            return currentChildDoc;
         }
 
         @Override

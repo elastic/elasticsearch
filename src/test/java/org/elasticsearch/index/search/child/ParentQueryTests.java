@@ -29,6 +29,8 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -99,6 +101,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             for (int i = 0; i < numChildDocs; i++) {
                 String child = Integer.toString(childDocId++);
                 boolean markChildAsDeleted = rarely();
+                boolean filterMe = rarely();
                 document = new Document();
                 document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("child", child), Field.Store.YES));
                 document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
@@ -106,16 +109,19 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                 if (markChildAsDeleted) {
                     document.add(new StringField("delete", "me", Field.Store.NO));
                 }
+                if (filterMe) {
+                    document.add(new StringField("filter", "me", Field.Store.NO));
+                }
                 indexWriter.addDocument(document);
 
-                if (!markChildAsDeleted) {
+                if (!markParentAsDeleted) {
                     NavigableMap<String, Float> childIdToScore;
                     if (parentValueToChildIds.containsKey(parentValue)) {
                         childIdToScore = parentValueToChildIds.lget();
                     } else {
                         parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<String, Float>());
                     }
-                    if (!markParentAsDeleted) {
+                    if (!markChildAsDeleted && !filterMe) {
                         assert !childIdToScore.containsKey(child);
                         childIdToScore.put(child, 1f);
                         childIdToParentId.put(Integer.valueOf(child), parentDocId);
@@ -136,6 +142,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
         TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
             // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
@@ -145,6 +152,14 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                 childrenFilter = SearchContext.current().filterCache().cache(rawChildrenFilter);
             } else {
                 childrenFilter = rawChildrenFilter;
+            }
+
+            // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
+            Filter filterMe;
+            if (random().nextBoolean()) {
+                filterMe = SearchContext.current().filterCache().cache(rawFilterMe);
+            } else {
+                filterMe = rawFilterMe;
             }
 
             // Simulate a child update
@@ -176,6 +191,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", parentValue)));
             Query query = new ParentQuery(parentQuery,"parent", childrenFilter);
+            query = new XFilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
             TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);

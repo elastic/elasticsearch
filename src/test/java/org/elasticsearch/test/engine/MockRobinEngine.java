@@ -75,10 +75,10 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         try {
             super.close();
         } finally {
-            if (logger.isDebugEnabled()) {
+            if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
                 for (Entry<MockRobinEngine.AssertingSearcher, RuntimeException> entry : MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                    logger.debug("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId);
+                    logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId);
                 }
             }
         }

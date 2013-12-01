@@ -31,7 +31,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -101,6 +103,7 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
             }
             for (int i = 0; i < numChildDocs; i++) {
                 boolean markChildAsDeleted = rarely();
+                boolean filterMe = rarely();
                 String child = Integer.toString(childDocId++);
 
                 document = new Document();
@@ -110,16 +113,19 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
                 if (markChildAsDeleted) {
                     document.add(new StringField("delete", "me", Field.Store.NO));
                 }
+                if (filterMe) {
+                    document.add(new StringField("filter", "me", Field.Store.NO));
+                }
                 indexWriter.addDocument(document);
 
-                if (!markChildAsDeleted) {
+                if (!markParentAsDeleted) {
                     NavigableSet<String> childIds;
                     if (parentValueToChildDocIds.containsKey(parentValue)) {
                         childIds = parentValueToChildDocIds.lget();
                     } else {
                         parentValueToChildDocIds.put(parentValue, childIds = new TreeSet<String>());
                     }
-                    if (!markParentAsDeleted) {
+                    if (!markChildAsDeleted && !filterMe) {
                         childIdToParentId.put(Integer.valueOf(child), parentDocId);
                         childIds.add(child);
                     }
@@ -139,6 +145,7 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
         TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
             // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
@@ -148,6 +155,14 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
                 childrenFilter = SearchContext.current().filterCache().cache(rawChildrenFilter);
             } else {
                 childrenFilter = rawChildrenFilter;
+            }
+
+            // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
+            Filter filterMe;
+            if (random().nextBoolean()) {
+                filterMe = SearchContext.current().filterCache().cache(rawFilterMe);
+            } else {
+                filterMe = rawFilterMe;
             }
 
             // Simulate a child update
@@ -190,6 +205,7 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
                         )
                 );
             }
+            query = new XFilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             searcher.search(query, collector);
             FixedBitSet actualResult = collector.getResult();

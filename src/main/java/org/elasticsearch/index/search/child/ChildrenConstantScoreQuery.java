@@ -173,16 +173,17 @@ public class ChildrenConstantScoreQuery extends Query {
             }
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
-            if (DocIdSets.isEmpty(parentDocIdSet)) {
-                return null;
-            }
-
-            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idReaderTypeCache != null) {
-                DocIdSetIterator innerIterator = parentDocIdSet.iterator();
-                if (innerIterator != null) {
-                    ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, collectedUids.v(), idReaderTypeCache);
-                    return ConstantScorer.create(parentDocIdIterator, this, queryWeight);
+            if (!DocIdSets.isEmpty(parentDocIdSet)) {
+                IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+                // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
+                // count down (short circuit) logic will then work as expected.
+                parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());
+                if (idReaderTypeCache != null) {
+                    DocIdSetIterator innerIterator = parentDocIdSet.iterator();
+                    if (innerIterator != null) {
+                        ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, collectedUids.v(), idReaderTypeCache);
+                        return ConstantScorer.create(parentDocIdIterator, this, queryWeight);
+                    }
                 }
             }
             return null;

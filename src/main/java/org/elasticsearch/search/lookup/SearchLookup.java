@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.lookup;
 
+import org.elasticsearch.search.lookup.termstatistics.TermStatisticsLookup;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -36,14 +38,24 @@ public class SearchLookup {
     final SourceLookup sourceLookup;
 
     final FieldsLookup fieldsLookup;
-
+    
+    final TermStatisticsLookup termStatisticsLookup;
+    
     final ImmutableMap<String, Object> asMap;
 
     public SearchLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         docMap = new DocLookup(mapperService, fieldDataService, types);
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
-        asMap = ImmutableMap.<String, Object>of("doc", docMap, "_doc", docMap, "_source", sourceLookup, "_fields", fieldsLookup);
+        termStatisticsLookup = new TermStatisticsLookup(builder);
+        
+        builder.put("doc", docMap);
+        builder.put("_doc", docMap);
+        builder.put("_source", sourceLookup);
+        builder.put("_fields", fieldsLookup);
+        builder.put("_shard", termStatisticsLookup);
+        asMap = builder.build();
     }
 
     public ImmutableMap<String, Object> asMap() {
@@ -52,6 +64,10 @@ public class SearchLookup {
 
     public SourceLookup source() {
         return this.sourceLookup;
+    }
+    
+    public TermStatisticsLookup termStatistics() {
+        return this.termStatisticsLookup;
     }
 
     public FieldsLookup fields() {
@@ -70,11 +86,13 @@ public class SearchLookup {
         docMap.setNextReader(context);
         sourceLookup.setNextReader(context);
         fieldsLookup.setNextReader(context);
+        termStatisticsLookup.setNextReader(context);
     }
 
     public void setNextDocId(int docId) {
         docMap.setNextDocId(docId);
         sourceLookup.setNextDocId(docId);
         fieldsLookup.setNextDocId(docId);
+        termStatisticsLookup.setNextDocId(docId);
     }
 }

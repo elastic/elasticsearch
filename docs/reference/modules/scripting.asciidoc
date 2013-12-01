@@ -191,6 +191,118 @@ However, `_source` may be faster if you access multiple fields or if the source 
 loaded for other purposes.
 
 [float]
+=== Term statistics and term vectors
+
+
+
+Term statistics and term vectors can be accessed with the `_shard` variable. Statistics over the document collection are computed __per shard__, not per index.
+
+
+[float]
+=== Nomencature:
+
+1. `df`: document frequency. The number of documents a term appears in. Computed per field.
+2. `tf`: term frequency. The number times a term appears in a field in one specific document.
+3. `ttf`: total term frequency. The number of times this term appears in all documents, that is, the sum of `tf` over all documents.  Computed per field.
+
+`df` and `ttf` are computed per shard and therfore these numbers can vary depending on the shard the current document resides in.
+
+
+[float]
+=== Shard statistics:
+
+[cols="<,<",options="header",]
+|===
+|Function |Description
+|`_shard.numDocs()` |Number of documents in shard. Does not take into account deleted documents.
+|`_shard.numDeletedDocs()` |Number of deleted documents in shard. 
+|===
+
+[float]
+=== Field statistics:
+
+Field statistics can be accessed with a subscript operator like this: `_shard['FIELD']`.
+
+[cols="<,<",options="header",]
+|===
+|Function |Description
+|`_shard['FIELD'].getDocCount()` |Number of documents containing the field `FIELD`.
+
+|`_shard['FIELD'].sumttf()`|Sum of `ttf` over all terms that appear in field `FIELD` in all documents.   
+
+|`_shard['FIELD'].sumdf()`|The sum of `df` s over all terms that appear in field `FIELD` in all documents. 
+|===
+
+Field statistics are computed per shard and therfore these numbers can vary depending on the shard the current document resides in.
+
+[float]
+=== Term statistics:
+Term statistics for a field can be accessed with a subscript operator like this: `_shard['FIELD']['TERM']`. This will return null if the field does not exist in this document.
+
+If you do not need the term frequency, call `_shard['FIELD'].get('TERM', 0)` to avoid uneccesary initialization of the frequencies. The flag will have only affect for particular Lucene codecs. `TODO: figure out what that means.`
+
+
+[cols="<,<",options="header",]
+|===
+|Function |Description
+|`_shard['FIELD']['TERM'].df()` |`df` of term `TERM` in field `FIELD`. Will be returned, even if the term is not present in the current document.
+|`_shard['FIELD']['TERM'].ttf()` | The sum of term frequencys of term `TERM` in field `FIELD` over all documents. Will be returned, even if the term is not present in the current document.
+|`_shard['FIELD']['TERM'].freq()` |`tf` of term `TERM` in field `FIELD`. Will be 0 if the term is not present in the current document.
+|===
+
+
+[float]
+=== Term positions:
+
+If you need information on the positions of terms in a field, call `_shard['FIELD'].get('TERM', flag)` where flag can be
+
+1. `_POSITIONS` if you need the positions of the term
+2. `_OFFSETS` if you need the offests of the term and
+3. `_PAYLOADS` if you need the payloads of the term.
+
+You can combine the operators with a `|` if you need more than one info. for example `_shard['FIELD'].get('TERM', _POSITIONS | _PAYLOADS)` will return an object holding the positions and payloads as well as all statistics.
+
+Positions can be accessed with an iterator that returns an object (`POS_OBJECT`) holding position, offsets and payload for each term position. 
+
+
+[cols="<,<",options="header",]
+|===
+|Function |Description
+|`POS_OBJECT.position` |The position of the term.
+|`POS_OBJECT.startOffset` |The start offset of the term.
+|`POS_OBJECT.endOffset` |The end offset of the term.
+|`POS_OBJECT.payload` |The payload of the term.
+|`POS_OBJECT.payloadAsInt(missingValue)` |The payload of the term converted to integer. If the current position has no payload, the `missingValue` will be returned. Call this only if you know that your payloads are integers.
+|`POS_OBJECT.payloadAsFloat(missingValue)` |The payload of the term converted to float. If the current position has no payload, the `missingValue` will be returned. Call this only if you know that your payloads are floats.
+|`POS_OBJECT.payloadAsString()` |The payload of the term converted to string. If the current position has no payload, `null` will be returned. Call this only if you know that your payloads are strings.
+|===
+
+
+Example:
+
+[source,mvel]
+	termInfo = _shard[FIELD].get(TERM,_PAYLOADS); 
+	score = 0;
+	for (pos : termInfo) {
+		score = score + pos.payloadAsInt(0);
+	} 
+	return score;
+
+sums up all payloads for the term `TERM`.
+
+
+If you know that you have to iterate only once over the positions, call `get()` with the flag `_DO_NOT_RECORD`, like this:
+
+[source,mvel]
+_shard[FIELD].get(TERM,_PAYLOADS|…|_DO_NOT_RECORD);
+
+This will avoid unneeded object allocations and improve running time.
+
+If you are familar with the Lucene classes for term vector access, use the `_shard.getTermVectors()` to get a https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields] instance. This method will return null if the term vectors were not stored.
+
+
+
+[float]
 === mvel Built In Functions
 
 There are several built in functions that can be used within scripts.

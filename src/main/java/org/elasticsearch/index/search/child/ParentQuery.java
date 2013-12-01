@@ -58,7 +58,7 @@ public class ParentQuery extends Query {
     public ParentQuery(Query parentQuery, String parentType, Filter childrenFilter) {
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
-        this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
+        this.childrenFilter = childrenFilter;
     }
 
     @Override
@@ -133,7 +133,7 @@ public class ParentQuery extends Query {
             return Queries.NO_MATCH_QUERY.createWeight(searcher);
         }
 
-        ChildWeight childWeight = new ChildWeight(parentQuery.createWeight(searcher), searchContext, uidToScore);
+        ChildWeight childWeight = new ChildWeight(parentQuery.createWeight(searcher), childrenFilter, searchContext, uidToScore);
         searchContext.addReleasable(childWeight);
         return childWeight;
     }
@@ -177,11 +177,13 @@ public class ParentQuery extends Query {
     private class ChildWeight extends Weight implements Releasable {
 
         private final Weight parentWeight;
+        private final Filter childrenFilter;
         private final SearchContext searchContext;
         private final Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
 
-        private ChildWeight(Weight parentWeight, SearchContext searchContext, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore) {
+        private ChildWeight(Weight parentWeight, Filter childrenFilter, SearchContext searchContext, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore) {
             this.parentWeight = parentWeight;
+            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
             this.searchContext = searchContext;
             this.uidToScore = uidToScore;
         }
@@ -287,7 +289,7 @@ public class ParentQuery extends Query {
             if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return currentChildDoc;
             }
-            HashedBytesArray uid = typeCache.idByDoc(currentChildDoc);
+            HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
             if (uid == null) {
                 return nextDoc();
             }

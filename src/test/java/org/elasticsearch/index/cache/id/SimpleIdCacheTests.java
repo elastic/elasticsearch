@@ -271,7 +271,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
             mapperService.merge(documentType.v1(), new CompressedString(defaultMapping), true);
         }
 
-        idCache.setIndexService(new StubIndexService(mapperService));
+        idCache.setIndexService(new StubIndexService(mapperService, null));
         return idCache;
     }
 
@@ -279,12 +279,14 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
         return new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
     }
 
-    private class StubIndexService implements IndexService {
+    public static class StubIndexService implements IndexService {
 
         private final MapperService mapperService;
+        private final IndexAliasesService aliasesService;
 
-        private StubIndexService(MapperService mapperService) {
+        public StubIndexService(MapperService mapperService, IndexAliasesService aliasesService) {
             this.mapperService = mapperService;
+            this.aliasesService = aliasesService;
         }
 
         @Override
@@ -339,7 +341,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
 
         @Override
         public IndexAliasesService aliasesService() {
-            return null;
+            return aliasesService;
         }
 
         @Override

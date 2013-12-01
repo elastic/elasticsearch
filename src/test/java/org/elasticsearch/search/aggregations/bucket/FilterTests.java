@@ -82,6 +82,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        ensureGreen();
     }
 
     @Test

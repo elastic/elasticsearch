@@ -338,6 +338,11 @@ public class ChildrenQuery extends Query {
 
             @Override
             public int nextDoc() throws IOException {
+                if (remaining == 0) {
+                    currentDocId = NO_MORE_DOCS;
+                    return NO_MORE_DOCS;
+                }
+
                 while (true) {
                     currentDocId = parentsIterator.nextDoc();
                     if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
@@ -356,6 +361,11 @@ public class ChildrenQuery extends Query {
 
             @Override
             public int advance(int target) throws IOException {
+                if (remaining == 0) {
+                    currentDocId = NO_MORE_DOCS;
+                    return NO_MORE_DOCS;
+                }
+
                 currentDocId = parentsIterator.advance(target);
                 if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
                     return currentDocId;

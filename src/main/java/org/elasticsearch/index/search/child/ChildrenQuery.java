@@ -54,7 +54,6 @@ import java.util.Set;
  * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
  * a score based on the aggregated child scores and score type.
  */
-// TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
 public class ChildrenQuery extends Query {
 
     private final String parentType;
@@ -292,7 +291,9 @@ public class ChildrenQuery extends Query {
 
                     HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
                     currentScore = uidToScore.get(uid);
-                    if (currentScore != 0) {
+                    if (uidToScore.containsKey(uid)) {
+                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                        currentScore = uidToScore.lget();
                         remaining--;
                         return currentDocId;
                     }
@@ -312,8 +313,9 @@ public class ChildrenQuery extends Query {
                 }
 
                 HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-                currentScore = uidToScore.get(uid);
-                if (currentScore != 0) {
+                if (uidToScore.containsKey(uid)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
                     remaining--;
                     return currentDocId;
                 } else {
@@ -350,10 +352,11 @@ public class ChildrenQuery extends Query {
                     }
 
                     HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-                    currentScore = uidToScore.get(uid);
-                    if (currentScore != 0) {
-                        remaining--;
+                    if (uidToScore.containsKey(uid)) {
+                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                        currentScore = uidToScore.lget();
                         currentScore /= uidToCount.get(uid);
+                        remaining--;
                         return currentDocId;
                     }
                 }
@@ -372,10 +375,11 @@ public class ChildrenQuery extends Query {
                 }
 
                 HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-                currentScore = uidToScore.get(uid);
-                if (currentScore != 0) {
-                    remaining--;
+                if (uidToScore.containsKey(uid)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
                     currentScore /= uidToCount.get(uid);
+                    remaining--;
                     return currentDocId;
                 } else {
                     return nextDoc();

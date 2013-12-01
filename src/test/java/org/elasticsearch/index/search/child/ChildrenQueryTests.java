@@ -158,7 +158,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                 parentFilter = rawParentFilter;
             }
 
-            // Using this in FQ, will invoke / test the Scorer#advance(..)
+            // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             Filter filterMe;
             if (random().nextBoolean()) {
                 filterMe = SearchContext.current().filterCache().cache(rawFilterMe);

@@ -6,7 +6,7 @@ master's node ID, bound IP address, and node name.
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/master?v=true'
+% curl 'localhost:9200/_cat/master?v'
 id                     ip            node
 Ntgn2DcuTjGuXlhKDUD4vA 192.168.56.30 Solarr
 --------------------------------------------------

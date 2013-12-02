@@ -6,7 +6,7 @@ information *spans nodes*.
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices/twi*?v=true'
+% curl 'localhost:9200/_cat/indices/twi*?v'
 health index    pri rep docs docs/del size/pri size/total
 green  twitter    2   0  627        7      2mb        2mb
 green  twitter2   2   0  628        0    2.5mb      2.5mb

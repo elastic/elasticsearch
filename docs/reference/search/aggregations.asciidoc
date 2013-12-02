@@ -1,7 +1,7 @@
 [[search-aggregations]]
 == Aggregations
 
-Aggregations grew out of the <<search-facets, facets>> module and the long expirience of how users use it
+Aggregations grew out of the <<search-facets, facets>> module and the long experience of how users use it
 (and would like to use it) for real-time data analytics purposes. As such, it serves as the next generation
 replacement for the functionality we currently refer to as "faceting".
 
@@ -84,7 +84,7 @@ sub-aggregations will be computed for each of the range buckets that are defined
 
 Some aggregations work on values extracted from the aggregated documents. Typically, the values will be extracted from
 a sepcific document field which is set under the `field` settings for the aggrations. It is also possible to define a
-`<<modules-scripting,script>>` that will generate the values (per document).
+<<modules-scripting,`script`>> that will generate the values (per document).
 
 When both `field` and `script` settings are configured for the aggregation, the script will be treated as a
 `value script`.  While normal scripts are evaluated on a document level (i.e. the script has access to all the data

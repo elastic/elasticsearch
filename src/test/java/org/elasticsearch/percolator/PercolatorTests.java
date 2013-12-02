@@ -848,6 +848,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test1").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 5l);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Percolate doc to index test2");
@@ -855,6 +856,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test2").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 5l);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Percolate doc to index test1 and test2");
@@ -862,6 +864,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test1", "test2").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 10l);
         assertThat(response.getMatches(), arrayWithSize(10));
 
         logger.info("--> Percolate doc to index test2 and test3, with ignore missing");
@@ -870,6 +873,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIgnoreIndices(IgnoreIndices.MISSING)
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 5l);
         assertThat(response.getMatches(), arrayWithSize(5));
 
         logger.info("--> Adding aliases");

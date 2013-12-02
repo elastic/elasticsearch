@@ -19,6 +19,8 @@
 
 package org.elasticsearch.percolator;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -37,6 +39,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -89,10 +93,10 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
         .endObject()
         .endObject().endObject();
 
-        client().admin().indices().prepareCreate("test")
-            .addMapping("doc", mapping)
-            .setSettings(builder.put("index.number_of_shards", 1))
-            .execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("doc", mapping)
+                .setSettings(builder.put("index.number_of_shards", 1))
+                .execute().actionGet());
         ensureGreen();
         logger.info("--> register a query");
         client().prepareIndex("_percolator", "test", "1")
@@ -102,6 +106,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
+        waitForPercolatorIndexAllocated(1);
 
         PercolateResponse percolate = client().preparePercolate("test", "doc").setSource(jsonBuilder().startObject()
                 .startObject("doc").field("filingcategory", "s").endObject()
@@ -122,7 +127,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(2).execute().actionGet();
+        waitForPercolatorIndexAllocated(0);
 
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -153,7 +158,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        waitForPercolatorIndexAllocated(1);
 
         for (int i = 0; i < 10; i++) {
             PercolateResponse percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
@@ -173,11 +178,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> delete the index");
 
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        wipeIndices("test");
 
         logger.info("--> make sure percoalted queries for it have been deleted as well");
         assertThat(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
@@ -196,7 +197,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        waitForPercolatorIndexAllocated(1);
 
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
@@ -236,8 +237,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void multiplePercolators() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         logger.info("--> register a query 1");
         client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
@@ -246,8 +246,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
-
+        waitForPercolatorIndexAllocated(1);
         logger.info("--> register a query 2");
         client().prepareIndex("_percolator", "test", "bubu")
                 .setSource(jsonBuilder().startObject()
@@ -287,8 +286,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
-
+        waitForPercolatorIndexAllocated(1);
         PercolateResponse percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
@@ -362,8 +360,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
-
+        waitForPercolatorIndexAllocated(2);
         logger.info("--> percolate a document");
         PercolateResponse percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject()
                 .startObject("doc").startObject("type1")
@@ -397,8 +394,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
             ).setRefresh(true).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
-
+        waitForPercolatorIndexAllocated(2);
         PercolateResponse percolateResponse = client().preparePercolate("test", "type1").setSource(jsonBuilder()
                 .startObject()
                     .startObject("doc")
@@ -407,5 +403,11 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                 .endObject()
         ).execute().actionGet();
         assertThat(percolateResponse.getMatches(), hasItem("kuku"));
+    }
+
+    private void waitForPercolatorIndexAllocated(int baseShards) {
+        ClusterHealthResponse clusterIndexHealths = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(baseShards + cluster().size()).execute().actionGet();
+        assertThat(clusterIndexHealths.isTimedOut(), is(false));
+        assertThat(clusterIndexHealths.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 }

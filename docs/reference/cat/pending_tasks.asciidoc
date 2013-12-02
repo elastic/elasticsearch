@@ -2,7 +2,8 @@
 == Cluster Pending Tasks
 
 `pending_tasks` provides the same information as the
-`/_cluster/pending_tasks` API in a convenient tabular format.
+<<cluster-pending,`/_cluster/pending_tasks`>> API in a
+convenient tabular format.
 
 [source,shell]
 --------------------------------------------------

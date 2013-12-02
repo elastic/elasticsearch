@@ -174,7 +174,9 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(routingNodeEntry3.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(7));
 
-
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down a node - make sure we don't have 2 clusters if we test network
+                .get();
         logger.info("Closing server1");
         // kill the first server
         cluster().stopRandomNode(TestCluster.nameFilter(server_1));
@@ -339,7 +341,9 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(routingNodeEntry3.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(3));
 
-
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down a node - make sure we don't have 2 clusters if we test network
+                .get();
         logger.info("Closing server1");
         // kill the first server
         cluster().stopRandomNode(TestCluster.nameFilter(server_1));

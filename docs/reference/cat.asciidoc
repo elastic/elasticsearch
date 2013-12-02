@@ -25,7 +25,7 @@ verbose output.
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/master?v=true'
+% curl 'localhost:9200/_cat/master?v'
 id                     ip        node
 EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
 --------------------------------------------------

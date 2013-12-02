@@ -13,7 +13,7 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
 
     private String field;
     private String script;
-    private String scriptLang;
+    private String lang;
     private Map<String, Object> params;
 
     /**
@@ -58,12 +58,12 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
      * <p/>
      * Also see {@link #script(String)}.
      *
-     * @param scriptLang    The language of the script.
-     * @return              This builder (fluent interface support)
+     * @param lang    The language of the script.
+     * @return        This builder (fluent interface support)
      */
     @SuppressWarnings("unchecked")
-    public B scriptLang(String scriptLang) {
-        this.scriptLang = scriptLang;
+    public B lang(String lang) {
+        this.lang = lang;
         return (B) this;
     }
 
@@ -107,8 +107,8 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
         if (script != null) {
             builder.field("script", script);
         }
-        if (scriptLang != null) {
-            builder.field("script_lang", scriptLang);
+        if (lang != null) {
+            builder.field("lang", lang);
         }
         if (this.params != null) {
             builder.field("params").map(this.params);

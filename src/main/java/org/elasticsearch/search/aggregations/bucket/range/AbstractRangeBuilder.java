@@ -12,7 +12,7 @@ import java.util.List;
 /**
  *
  */
-public abstract class RangeBuilderBase<B extends RangeBuilderBase<B>> extends ValuesSourceAggregationBuilder<B> {
+public abstract class AbstractRangeBuilder<B extends AbstractRangeBuilder<B>> extends ValuesSourceAggregationBuilder<B> {
 
     protected static class Range implements ToXContent {
 
@@ -44,7 +44,7 @@ public abstract class RangeBuilderBase<B extends RangeBuilderBase<B>> extends Va
 
     protected List<Range> ranges = Lists.newArrayList();
 
-    protected RangeBuilderBase(String name, String type) {
+    protected AbstractRangeBuilder(String name, String type) {
         super(name, type);
     }
 

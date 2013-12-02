@@ -71,7 +71,7 @@ public class HistogramParser implements Aggregator.Parser {
                     field = parser.text();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("script_lang".equals(currentFieldName) || "scriptLang".equals(currentFieldName)) {
+                } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else if ("format".equals(currentFieldName)) {
                     format = parser.text();

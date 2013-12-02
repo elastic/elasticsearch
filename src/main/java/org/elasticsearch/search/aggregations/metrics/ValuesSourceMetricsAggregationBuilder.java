@@ -13,7 +13,7 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
     private String field;
     private String script;
-    private String scriptLang;
+    private String lang;
     private Map<String, Object> params;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
@@ -33,8 +33,8 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     }
 
     @SuppressWarnings("unchecked")
-    public B scriptLang(String scriptLang) {
-        this.scriptLang = scriptLang;
+    public B lang(String lang) {
+        this.lang = lang;
         return (B) this;
     }
 
@@ -67,8 +67,8 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
             builder.field("script", script);
         }
 
-        if (scriptLang != null) {
-            builder.field("script_lang", scriptLang);
+        if (lang != null) {
+            builder.field("lang", lang);
         }
 
         if (this.params != null && !this.params.isEmpty()) {

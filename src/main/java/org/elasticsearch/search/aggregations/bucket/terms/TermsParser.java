@@ -84,7 +84,7 @@ public class TermsParser implements Aggregator.Parser {
                     field = parser.text();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("script_lang".equals(currentFieldName) || "scriptLang".equals(currentFieldName)) {
+                } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                     valueType = Terms.ValueType.resolveType(parser.text());

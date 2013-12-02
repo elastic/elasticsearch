@@ -1,14 +1,14 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.RangeBuilderBase;
+import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class DateRangeBuilder extends RangeBuilderBase<DateRangeBuilder> {
+public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
 
     private String format;
 

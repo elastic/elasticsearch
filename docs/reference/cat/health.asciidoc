@@ -9,7 +9,7 @@ timestamping.
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/health
 1384308967 18:16:07 foo green 3 3 3 3 0 0 0
-% curl '192.168.56.10:9200/_cat/health?v=1&ts=0'
+% curl '192.168.56.10:9200/_cat/health?v&ts=0'
 cluster status nodeTotal nodeData shards pri relo init unassign
 foo     green          3        3      3   3    0    0        0
 --------------------------------------------------

@@ -15,8 +15,8 @@ of the recovery:
 --------------------------------------------------
 % curl -XPUT 192.168.56.30:9200/_settings -d'{"number_of_replicas":1}'
 {"ok":true,"acknowledged":true}
-% curl '192.168.56.30:9200/_cat/recovery?v=true'
-index shard   target recovered     % ip            node 
+% curl '192.168.56.30:9200/_cat/recovery?v'
+index shard   target recovered     % ip            node
 wiki1 2     68083830   7865837 11.6% 192.168.56.20 Adam II
 wiki2 1      2542400    444175 17.5% 192.168.56.20 Adam II
 wiki2 2      3242108    329039 10.1% 192.168.56.10 Jarella

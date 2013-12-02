@@ -171,7 +171,7 @@ public class ChildrenQuery extends Query {
         } else if (size <= shortCircuitParentDocSet) {
             parentFilter = new ParentIdsFilter(parentType, uidToScore.v().keys, uidToScore.v().allocated);
         } else {
-            parentFilter = this.parentFilter;
+            parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
         ParentWeight parentWeight = new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, searchContext, size, uidToScore, uidToCount);
         searchContext.addReleasable(parentWeight);
@@ -190,7 +190,7 @@ public class ChildrenQuery extends Query {
 
         private ParentWeight(Weight childWeight, Filter parentFilter, SearchContext searchContext, int remaining, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore, Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount) {
             this.childWeight = childWeight;
-            this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
+            this.parentFilter = parentFilter;
             this.searchContext = searchContext;
             this.remaining = remaining;
             this.uidToScore = uidToScore;

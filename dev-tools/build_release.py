@@ -53,8 +53,9 @@ Once it's done it will print all the remaining steps.
     - RPM for RPM building ($ apt-get install rpm)
     - S3 keys exported via ENV Variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
 """
+env = os.environ
 
-LOG = '/tmp/elasticsearch_release.log'
+LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -72,7 +73,6 @@ def run(command, quiet=False):
       print(msg)
     raise RuntimeError(msg)
 
-env = os.environ
 try:
   JAVA_HOME = env['JAVA_HOME']
 except KeyError:

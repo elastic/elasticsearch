@@ -73,7 +73,7 @@ public class IpRangeParser implements Aggregator.Parser {
                     field = parser.text();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("script_lang".equals(currentFieldName) || "scriptLang".equals(currentFieldName)) {
+                } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {

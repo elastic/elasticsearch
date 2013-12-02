@@ -1,6 +1,6 @@
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
-import org.elasticsearch.search.aggregations.bucket.range.RangeBuilderBase;
+import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.util.regex.Pattern;
@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class IPv4RangeBuilder extends RangeBuilderBase<IPv4RangeBuilder> {
+public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
     public static final long MAX_IP = 4294967296l;
     private static final Pattern MASK_PATTERN = Pattern.compile("[\\.|/]");

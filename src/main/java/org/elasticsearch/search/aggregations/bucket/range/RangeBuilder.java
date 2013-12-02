@@ -3,7 +3,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 /**
  *
  */
-public class RangeBuilder extends RangeBuilderBase<RangeBuilder> {
+public class RangeBuilder extends AbstractRangeBuilder<RangeBuilder> {
 
     public RangeBuilder(String name) {
         super(name, InternalRange.TYPE.name());

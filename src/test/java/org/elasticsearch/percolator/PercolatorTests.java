@@ -558,7 +558,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
                 .execute().actionGet();
-        assertThat(response.getMatches(), arrayWithSize(1));
+        assertMatchCount(response, 1l);
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
@@ -579,6 +579,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setIndices("test").setDocumentType("type")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
                 .execute().actionGet();
+        assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 

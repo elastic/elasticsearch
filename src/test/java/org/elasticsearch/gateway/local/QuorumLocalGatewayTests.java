@@ -137,7 +137,9 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
-
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down nodes - make sure we don't have 2 clusters if we test network
+                .get();
         logger.info("--> restart all nodes");
         cluster().fullRestart(new RestartCallback() {
             @Override

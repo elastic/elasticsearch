@@ -168,8 +168,9 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            return scoreCombiner.combine(subQueryBoost, scorer.score(),
-                    function.score(scorer.docID(), scorer.score()), maxBoost);
+            float score = scorer.score();
+            return scoreCombiner.combine(subQueryBoost, score,
+                    function.score(scorer.docID(), score), maxBoost);
         }
 
         @Override

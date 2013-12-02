@@ -73,7 +73,7 @@ public class ChildSearchShortCircuitBenchmark {
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         try {
             client.admin().indices().create(createIndexRequest(indexName)).actionGet();
-            client.admin().indices().preparePutMapping(indexName).setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
+            client.admin().indices().preparePutMapping(indexName).setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("child")
                     .startObject("_parent").field("type", "parent").endObject()
                     .endObject().endObject()).execute().actionGet();
             Thread.sleep(5000);

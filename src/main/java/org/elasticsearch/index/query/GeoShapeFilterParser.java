@@ -49,7 +49,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  * "field" : {
  *     "relation" : "intersects",
  *     "shape" : {
- *         "type" : "polygon",
+ *         "type" : "Polygon",
  *         "coordinates" : [
  *              [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
  *         ]

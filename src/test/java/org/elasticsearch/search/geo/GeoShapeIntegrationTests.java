@@ -70,7 +70,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
-                .field("type", "point")
+                .field("type", "Point")
                 .startArray("coordinates").value(-30).value(-30).endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
@@ -78,7 +78,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Document 2")
                 .startObject("location")
-                .field("type", "point")
+                .field("type", "Point")
                 .startArray("coordinates").value(-45).value(-50).endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
@@ -121,7 +121,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
                 .field("name", "Blakely Island")
                 .startObject("location")
-                .field("type", "polygon")
+                .field("type", "Polygon")
                 .startArray("coordinates").startArray()
                 .startArray().value(-122.83).value(48.57).endArray()
                 .startArray().value(-122.77).value(48.56).endArray()
@@ -163,7 +163,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
-                .field("type", "point")
+                .field("type", "Point")
                 .startArray("coordinates").value(-30).value(-30).endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
@@ -237,8 +237,8 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         ensureYellow();
 
-        String p1 = "\"location1\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
-        String p2 = "\"location2\" : {\"type\":\"polygon\", \"coordinates\":[[[-20,-20],[20,-20],[20,20],[-20,20],[-20,-20]]]}";
+        String p1 = "\"location1\" : {\"type\":\"Polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String p2 = "\"location2\" : {\"type\":\"Polygon\", \"coordinates\":[[[-20,-20],[20,-20],[20,20],[-20,20],[-20,-20]]]}";
         String o1 = "{" + p1 + ", " + p2 + "}";
 
         client().prepareIndex("test", "type1", "1").setSource(o1).execute().actionGet();
@@ -271,7 +271,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
-                .field("type", "envelope")
+                .field("type", "Envelope")
                 .startArray("coordinates").startArray().value(-45.0).value(45).endArray().startArray().value(45).value(-45).endArray().endArray()
                 .endObject()
                 .endObject()).execute().actionGet();

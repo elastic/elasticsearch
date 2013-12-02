@@ -236,7 +236,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                     .endObject()
                 .endObject()
                 .field("bbox", "foobar")
-                .field("type", "point")
+                .field("type", "Point")
                 .field("bubu", "foobar")
                 .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .startObject("nested").startArray("coordinates").value(200.0).value(0.0).endArray().endObject()

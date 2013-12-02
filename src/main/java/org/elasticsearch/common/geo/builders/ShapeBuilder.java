@@ -492,14 +492,14 @@ public abstract class ShapeBuilder implements ToXContent {
      * Enumeration that lists all {@link GeoShapeType}s that can be handled
      */
     public static enum GeoShapeType {
-        POINT("point"),
-        MULTIPOINT("multipoint"),
-        LINESTRING("linestring"),
-        MULTILINESTRING("multilinestring"),
-        POLYGON("polygon"),
-        MULTIPOLYGON("multipolygon"),
-        ENVELOPE("envelope"),
-        CIRCLE("circle");
+        POINT("Point"),
+        MULTIPOINT("MultiPoint"),
+        LINESTRING("LineString"),
+        MULTILINESTRING("MultiLineString"),
+        POLYGON("Polygon"),
+        MULTIPOLYGON("MultiPolygon"),
+        ENVELOPE("Envelope"),
+        CIRCLE("Circle");
 
         protected final String shapename;
 
@@ -508,7 +508,7 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         public static GeoShapeType forName(String geoshapename) {
-            String typename = geoshapename.toLowerCase(Locale.ROOT);
+            String typename = geoshapename;
             for (GeoShapeType type : values()) {
                 if(type.shapename.equals(typename)) {
                     return type;

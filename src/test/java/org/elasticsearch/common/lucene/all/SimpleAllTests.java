@@ -19,6 +19,11 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.payloads.PayloadHelper;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -27,6 +32,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -39,6 +45,51 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleAllTests extends ElasticsearchTestCase {
+
+    @Test
+    public void testBoostOnEagerTokenizer() throws Exception {
+        AllEntries allEntries = new AllEntries();
+        allEntries.addText("field1", "all", 2.0f);
+        allEntries.addText("field2", "your", 1.0f);
+        allEntries.addText("field1", "boosts", 0.5f);
+        allEntries.reset();
+        // whitespace analyzer's tokenizer reads characters eagerly on the contrary to the standard tokenizer
+        final TokenStream ts = AllTokenStream.allTokenStream("any", allEntries, new WhitespaceAnalyzer(Lucene.VERSION));
+        final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+        final PayloadAttribute payloadAtt = ts.addAttribute(PayloadAttribute.class);
+        ts.reset();
+        for (int i = 0; i < 3; ++i) {
+            assertTrue(ts.incrementToken());
+            final String term;
+            final float boost;
+            switch (i) {
+            case 0:
+                term = "all";
+                boost = 2;
+                break;
+            case 1:
+                term = "your";
+                boost = 1;
+                break;
+            case 2:
+                term = "boosts";
+                boost = 0.5f;
+                break;
+            default:
+                throw new AssertionError();
+            }
+            assertEquals(term, termAtt.toString());
+            final BytesRef payload = payloadAtt.getPayload();
+            if (payload == null || payload.length == 0) {
+                assertEquals(boost, 1f, 0.001f);
+            } else {
+                assertEquals(4, payload.length);
+                final float b = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
+                assertEquals(boost, b, 0.001f);
+            }
+        }
+        assertFalse(ts.incrementToken());
+    }
 
     @Test
     public void testAllEntriesRead() throws Exception {

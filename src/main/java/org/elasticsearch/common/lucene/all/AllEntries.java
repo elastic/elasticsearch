@@ -40,12 +40,18 @@ public class AllEntries extends Reader {
     public static class Entry {
         private final String name;
         private final FastStringReader reader;
+        private final int startOffset;
         private final float boost;
 
-        public Entry(String name, FastStringReader reader, float boost) {
+        public Entry(String name, FastStringReader reader, int startOffset, float boost) {
             this.name = name;
             this.reader = reader;
+            this.startOffset = startOffset;
             this.boost = boost;
+        }
+
+        public int startOffset() {
+            return startOffset;
         }
 
         public String name() {
@@ -75,7 +81,15 @@ public class AllEntries extends Reader {
         if (boost != 1.0f) {
             customBoost = true;
         }
-        Entry entry = new Entry(name, new FastStringReader(text), boost);
+        final int lastStartOffset;
+        if (entries.isEmpty()) {
+            lastStartOffset = -1;
+        } else {
+            final Entry last = entries.get(entries.size() - 1);
+            lastStartOffset = last.startOffset() + last.reader().length();
+        }
+        final int startOffset = lastStartOffset + 1; // +1 because we insert a space between tokens
+        Entry entry = new Entry(name, new FastStringReader(text), startOffset, boost);
         entries.add(entry);
     }
 
@@ -129,8 +143,22 @@ public class AllEntries extends Reader {
         return fields;
     }
 
-    public Entry current() {
-        return this.current;
+    // compute the boost for a token with the given startOffset
+    public float boost(int startOffset) {
+        int lo = 0, hi = entries.size() - 1;
+        while (lo <= hi) {
+            final int mid = (lo + hi) >>> 1;
+            final int midOffset = entries.get(mid).startOffset();
+            if (startOffset < midOffset) {
+                hi = mid - 1;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        final int index = Math.max(0, hi); // protection against broken token streams
+        assert entries.get(index).startOffset() <= startOffset;
+        assert index == entries.size() - 1 || entries.get(index + 1).startOffset() > startOffset;
+        return entries.get(index).boost();
     }
 
     @Override
@@ -186,7 +214,7 @@ public class AllEntries extends Reader {
     @Override
     public void close() {
         if (current != null) {
-            current.reader().close();
+            // no need to close, these are readers on strings
             current = null;
         }
     }

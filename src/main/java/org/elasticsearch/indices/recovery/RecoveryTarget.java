@@ -220,9 +220,7 @@ public class RecoveryTarget extends AbstractComponent {
                 return;
             }
             stopWatch.stop();
-            if (logger.isDebugEnabled()) {
-                logger.debug("recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
-            } else if (logger.isTraceEnabled()) {
+            if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
@@ -237,6 +235,8 @@ public class RecoveryTarget extends AbstractComponent {
                 sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
                 logger.trace(sb.toString());
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
             }
             removeAndCleanOnGoingRecovery(recoveryStatus);
             listener.onRecoveryDone();

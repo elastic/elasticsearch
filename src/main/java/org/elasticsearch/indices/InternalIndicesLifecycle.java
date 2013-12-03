@@ -101,6 +101,16 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
+    public void afterIndexShardPostRecovery(IndexShard indexShard) {
+        for (Listener listener : listeners) {
+            try {
+                listener.afterIndexShardPostRecovery(indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard post recovery callback", t, indexShard.shardId());
+            }
+        }
+    }
+
     public void afterIndexShardStarted(IndexShard indexShard) {
         for (Listener listener : listeners) {
             try {

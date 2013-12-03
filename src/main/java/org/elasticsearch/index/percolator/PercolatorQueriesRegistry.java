@@ -219,7 +219,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         }
 
         @Override
-        public void afterIndexShardStarted(IndexShard indexShard) {
+        public void afterIndexShardPostRecovery(IndexShard indexShard) {
             if (hasPercolatorType(indexShard)) {
                 // percolator index has started, fetch what we can from it and initialize the indices
                 // we have
@@ -237,7 +237,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         private void loadQueries(IndexShard shard) {
             try {
                 shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
-                Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries");
+                // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
+                Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE);
                 try {
                     Query query = new XConstantScoreQuery(
                             indexCache.filter().cache(

@@ -20,7 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
-import com.google.common.base.Preconditions;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 
@@ -31,72 +32,25 @@ import org.elasticsearch.common.util.LongArray;
  *  a multiple of 2 for faster identification of buckets.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongHash {
+public final class LongHash extends AbstractHash {
 
-    // Open addressing typically requires having smaller load factors compared to linked lists because
-    // collisions may result into worse lookup performance.
-    private static final float DEFAULT_MAX_LOAD_FACTOR = 0.6f;
-
-    private final float maxLoadFactor;
-    private long size, maxSize;
     private LongArray keys;
-    private LongArray ids;
-    private long mask;
 
     // Constructor with configurable capacity and default maximum load factor.
-    public LongHash(long capacity) {
-        this(capacity, DEFAULT_MAX_LOAD_FACTOR);
+    public LongHash(long capacity, PageCacheRecycler recycler) {
+        this(capacity, DEFAULT_MAX_LOAD_FACTOR, recycler);
     }
 
     //Constructor with configurable capacity and load factor.
-    public LongHash(long capacity, float maxLoadFactor) {
-        Preconditions.checkArgument(capacity >= 0, "capacity must be >= 0");
-        Preconditions.checkArgument(maxLoadFactor > 0 && maxLoadFactor < 1, "maxLoadFactor must be > 0 and < 1");
-        this.maxLoadFactor = maxLoadFactor;
-        long buckets = 1L + (long) (capacity / maxLoadFactor);
-        buckets = Math.max(1, Long.highestOneBit(buckets - 1) << 1); // next power of two
-        assert buckets == Long.highestOneBit(buckets);
-        maxSize = (long) (buckets * maxLoadFactor);
-        assert maxSize >= capacity;
-        size = 0;
-        keys = BigArrays.newLongArray(buckets);
-        ids = BigArrays.newLongArray(buckets);
-        mask = buckets - 1;
-    }
-
-    /**
-     * Return the number of allocated slots to store this hash table.
-     */
-    public long capacity() {
-        return keys.size();
-    }
-
-    /**
-     * Return the number of longs in this hash table.
-     */
-    public long size() {
-        return size;
+    public LongHash(long capacity, float maxLoadFactor, PageCacheRecycler recycler) {
+        super(capacity, maxLoadFactor, recycler);
+        keys = BigArrays.newLongArray(capacity(), recycler, false);
     }
 
     private static long hash(long value) {
         // Don't use the value directly. Under some cases eg dates, it could be that the low bits don't carry much value and we would like
         // all bits of the hash to carry as much value
         return MurmurHash3.hash(value);
-    }
-
-    private static long slot(long hash, long mask) {
-        return hash & mask;
-    }
-
-    private static long nextSlot(long curSlot, long mask) {
-        return (curSlot + 1) & mask; // linear probing
-    }
-
-    /**
-     * Get the id associated with key at <code>0 &lte; index &lte; capacity()</code> or -1 if this slot is unused.
-     */
-    public long id(long index) {
-        return ids.get(index) - 1;
     }
 
     /**
@@ -109,12 +63,12 @@ public final class LongHash {
     /**
      * Get the id associated with <code>key</code>
      */
-    public long get(long key) {
+    public long find(long key) {
         final long slot = slot(hash(key), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
-            final long id = ids.get(index);
-            if (id == 0L || keys.get(index) == key) {
-                return id - 1;
+            final long id = id(index);
+            if (id == -1 || keys.get(index) == key) {
+                return id;
             }
         }
     }
@@ -123,14 +77,28 @@ public final class LongHash {
         assert size < maxSize;
         final long slot = slot(hash(key), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
-            final long curId = ids.get(index);
-            if (curId == 0) { // means unset
-                ids.set(index, id + 1);
+            final long curId = id(index);
+            if (curId == -1) { // means unset
+                id(index, id);
                 keys.set(index, key);
                 ++size;
                 return id;
             } else if (keys.get(index) == key) {
-                return - curId;
+                return -1 - curId;
+            }
+        }
+    }
+
+    private void reset(long key, long id) {
+        final long slot = slot(hash(key), mask);
+        for (long index = slot; ; index = nextSlot(index, mask)) {
+            final long curId = id(index);
+            if (curId == -1) { // means unset
+                id(index, id);
+                keys.set(index, key);
+                break;
+            } else {
+                assert keys.get(index) != key;
             }
         }
     }
@@ -148,47 +116,27 @@ public final class LongHash {
         return set(key, size);
     }
 
-    private void grow() {
-        // The difference of this implementation of grow() compared to standard hash tables is that we are growing in-place, which makes
-        // the re-mapping of keys to slots a bit more tricky.
-        assert size == maxSize;
-        final long prevSize = size;
-        final long buckets = keys.size();
-        // Resize arrays
-        final long newBuckets = buckets << 1;
-        assert newBuckets == Long.highestOneBit(newBuckets) : newBuckets; // power of 2
-        keys = BigArrays.resize(keys, newBuckets);
-        ids = BigArrays.resize(ids, newBuckets);
-        mask = newBuckets - 1;
-        size = 0;
-        // First let's remap in-place: most data will be put in its final position directly
-        for (long i = 0; i < buckets; ++i) {
-            final long id = ids.set(i, 0);
-            if (id > 0) {
-                final long key = keys.set(i, 0);
-                final long newId = set(key, id - 1);
-                assert newId == id - 1 : newId + " " + (id - 1);
-            }
-        }
-        // The only entries which have not been put in their final position in the previous loop are those that were stored in a slot that
-        // is < slot(key, mask). This only happens when slot(key, mask) returned a slot that was close to the end of the array and colision
-        // resolution has put it back in the first slots. This time, collision resolution will have put them at the beginning of the newly
-        // allocated slots. Let's re-add them to make sure they are in the right slot. This 2nd loop will typically exit very early.
-        for (long i = buckets; i < newBuckets; ++i) {
-            final long id = ids.set(i, 0);
-            if (id > 0) {
-                --size; // we just removed an entry
-                final long key = keys.set(i, 0);
-                final long newId = set(key, id - 1); // add it back
-                assert newId == id - 1 : newId + " " + (id - 1);
-                assert newId == get(key);
-            } else {
-                break;
-            }
-        }
-        assert size == prevSize;
-        maxSize = (long) (newBuckets * maxLoadFactor);
-        assert size < maxSize;
+    @Override
+    protected void resizeKeys(long capacity) {
+        keys = BigArrays.resize(keys, capacity);
     }
-    
+
+    @Override
+    protected void removeAndAdd(long index, long id) {
+        final long key = keys.set(index, 0);
+        reset(key, id);
+    }
+
+    @Override
+    public boolean release() {
+        boolean success = false;
+        try {
+            super.release();
+            success = true;
+        } finally {
+            Releasables.release(success, keys);
+        }
+        return true;
+    }
+
 }

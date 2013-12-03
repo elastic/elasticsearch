@@ -50,11 +50,12 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
     @Override
     public V<T> obtain(int sizing) {
         Stack<T> stack = threadLocal.get();
-        T o = stack.pop();
+        final T o = stack.pop();
         if (o == null) {
-            o = c.newInstance(sizing);
+            return new TV<T>(stack, c, c.newInstance(sizing), false);
+        } else {
+            return new TV<T>(stack, c, o, true);
         }
-        return new TV<T>(stack, c, o);
     }
 
     static class TV<T> implements Recycler.V<T> {
@@ -62,11 +63,13 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
         final Stack<T> stack;
         final C<T> c;
         T value;
+        final boolean recycled;
 
-        TV(Stack<T> stack, C<T> c, T value) {
+        TV(Stack<T> stack, C<T> c, T value, boolean recycled) {
             this.stack = stack;
             this.c = c;
             this.value = value;
+            this.recycled = recycled;
         }
 
         @Override
@@ -76,11 +79,11 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
 
         @Override
         public boolean isRecycled() {
-            return true;
+            return recycled;
         }
 
         @Override
-        public void release() {
+        public boolean release() {
             assert Thread.currentThread() == stack.thread;
             if (value == null) {
                 throw new ElasticSearchIllegalStateException("recycler entry already released...");
@@ -88,6 +91,7 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
             c.clear(value);
             stack.push(value);
             value = null;
+            return true;
         }
     }
 

@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -174,6 +175,8 @@ public abstract class SearchContext implements Releasable {
     public abstract ScriptService scriptService();
 
     public abstract CacheRecycler cacheRecycler();
+
+    public abstract PageCacheRecycler pageCacheRecycler();
 
     public abstract FilterCache filterCache();
 

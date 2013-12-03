@@ -29,6 +29,8 @@ import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -146,6 +148,7 @@ public final class InternalNode implements Node {
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new Version.Module(version));
         modules.add(new CacheRecyclerModule(settings));
+        modules.add(new PageCacheRecyclerModule(settings));
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
@@ -364,6 +367,7 @@ public final class InternalNode implements Node {
 
         injector.getInstance(NodeEnvironment.class).close();
         injector.getInstance(CacheRecycler.class).close();
+        injector.getInstance(PageCacheRecycler.class).close();
         Injectors.close(injector);
 
         CachedStreams.clear();

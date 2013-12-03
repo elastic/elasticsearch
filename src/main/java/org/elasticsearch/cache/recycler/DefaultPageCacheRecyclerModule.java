@@ -17,13 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.common.recycler;
+package org.elasticsearch.cache.recycler;
 
-public class QueueRecyclerTests extends AbstractRecyclerTests {
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
-    @Override
-    protected Recycler<byte[]> newRecycler() {
-        return new QueueRecycler<byte[]>(RECYCLER_C, randomIntBetween(5, 10));
+/**
+ */
+public class DefaultPageCacheRecyclerModule extends AbstractModule {
+
+    private final Settings settings;
+
+    public DefaultPageCacheRecyclerModule(Settings settings) {
+        this.settings = settings;
     }
 
+    @Override
+    protected void configure() {
+        bind(PageCacheRecycler.class).asEagerSingleton();
+    }
 }

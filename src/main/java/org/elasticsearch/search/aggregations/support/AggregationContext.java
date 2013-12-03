@@ -25,6 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -65,6 +66,10 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     public CacheRecycler cacheRecycler() {
         return searchContext.cacheRecycler();
+    }
+
+    public PageCacheRecycler pageCacheRecycler() {
+        return searchContext.pageCacheRecycler();
     }
 
     public AtomicReaderContext currentReader() {

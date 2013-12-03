@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -104,34 +105,40 @@ public class AggregationPhase implements SearchPhase {
         }
 
         Aggregator[] aggregators = context.aggregations().aggregators();
-        List<Aggregator> globals = new ArrayList<Aggregator>();
-        for (int i = 0; i < aggregators.length; i++) {
-            if (aggregators[i] instanceof GlobalAggregator) {
-                globals.add(aggregators[i]);
+        boolean success = false;
+        try {
+            List<Aggregator> globals = new ArrayList<Aggregator>();
+            for (int i = 0; i < aggregators.length; i++) {
+                if (aggregators[i] instanceof GlobalAggregator) {
+                    globals.add(aggregators[i]);
+                }
             }
-        }
 
-        // optimize the global collector based execution
-        if (!globals.isEmpty()) {
-            AggregationsCollector collector = new AggregationsCollector(globals, context.aggregations().aggregationContext());
-            Query query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
-            Filter searchFilter = context.searchFilter(context.types());
-            if (searchFilter != null) {
-                query = new XFilteredQuery(query, searchFilter);
+            // optimize the global collector based execution
+            if (!globals.isEmpty()) {
+                AggregationsCollector collector = new AggregationsCollector(globals, context.aggregations().aggregationContext());
+                Query query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+                Filter searchFilter = context.searchFilter(context.types());
+                if (searchFilter != null) {
+                    query = new XFilteredQuery(query, searchFilter);
+                }
+                try {
+                    context.searcher().search(query, collector);
+                } catch (Exception e) {
+                    throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
+                }
+                collector.postCollection();
             }
-            try {
-                context.searcher().search(query, collector);
-            } catch (Exception e) {
-                throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
-            }
-            collector.postCollection();
-        }
 
-        List<InternalAggregation> aggregations = new ArrayList<InternalAggregation>(aggregators.length);
-        for (Aggregator aggregator : context.aggregations().aggregators()) {
-            aggregations.add(aggregator.buildAggregation(0));
+            List<InternalAggregation> aggregations = new ArrayList<InternalAggregation>(aggregators.length);
+            for (Aggregator aggregator : context.aggregations().aggregators()) {
+                aggregations.add(aggregator.buildAggregation(0));
+            }
+            context.queryResult().aggregations(new InternalAggregations(aggregations));
+            success = true;
+        } finally {
+            Releasables.release(success, aggregators);
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations));
 
     }
 

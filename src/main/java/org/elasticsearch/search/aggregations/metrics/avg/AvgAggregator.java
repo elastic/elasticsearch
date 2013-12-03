@@ -19,17 +19,18 @@
 
 package org.elasticsearch.search.aggregations.metrics.avg;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 
@@ -49,8 +50,8 @@ public class AvgAggregator extends Aggregator {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            counts = BigArrays.newLongArray(initialSize);
-            sums = BigArrays.newDoubleArray(initialSize);
+            counts = BigArrays.newLongArray(initialSize, context.pageCacheRecycler(), true);
+            sums = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), true);
         }
     }
 
@@ -108,6 +109,11 @@ public class AvgAggregator extends Aggregator {
         protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new AvgAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
+    }
+
+    @Override
+    public void doRelease() {
+        Releasables.release(counts, sums);
     }
 
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -63,14 +64,17 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final CacheRecycler cacheRecycler;
 
+    private final PageCacheRecycler pageCacheRecycler;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, CacheRecycler cacheRecycler) {
+                                  ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
     }
 
     @Override
@@ -114,7 +118,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                         .filteringAliases(request.filteringAlias())
                         .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
-                scriptService, cacheRecycler
+                scriptService, cacheRecycler, pageCacheRecycler
         );
         SearchContext.setCurrent(context);
 

@@ -21,18 +21,19 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.LongHash;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ public class HistogramAggregator extends BucketsAggregator {
         this.computeEmptyBuckets = computeEmptyBuckets;
         this.histogramFactory = histogramFactory;
 
-        bucketOrds = new LongHash(initialCapacity);
+        bucketOrds = new LongHash(initialCapacity, aggregationContext.pageCacheRecycler());
     }
 
     @Override
@@ -129,7 +130,10 @@ public class HistogramAggregator extends BucketsAggregator {
         return histogramFactory.create(name, (List<HistogramBase.Bucket>) Collections.EMPTY_LIST, order, emptyBucketInfo, formatter, keyed);
     }
 
-
+    @Override
+    public void doRelease() {
+        Releasables.release(bucketOrds);
+    }
 
     public static class Factory extends ValueSourceAggregatorFactory<NumericValuesSource> {
 

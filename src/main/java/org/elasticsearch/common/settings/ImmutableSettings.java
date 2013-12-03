@@ -34,10 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -287,6 +284,16 @@ public class ImmutableSettings implements Settings {
     @Override
     public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(settings), defaultValue);
+    }
+
+    @Override
+    public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
+    }
+
+    @Override
+    public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
     }
 
     @Override

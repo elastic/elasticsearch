@@ -27,6 +27,7 @@ import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -88,6 +89,8 @@ public class DefaultSearchContext extends SearchContext {
     private final ScriptService scriptService;
 
     private final CacheRecycler cacheRecycler;
+
+    private final PageCacheRecycler pageCacheRecycler;
 
     private final IndexShard indexShard;
 
@@ -170,7 +173,7 @@ public class DefaultSearchContext extends SearchContext {
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, CacheRecycler cacheRecycler) {
+                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -178,6 +181,7 @@ public class DefaultSearchContext extends SearchContext {
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -418,6 +422,10 @@ public class DefaultSearchContext extends SearchContext {
 
     public CacheRecycler cacheRecycler() {
         return cacheRecycler;
+    }
+
+    public PageCacheRecycler pageCacheRecycler() {
+        return pageCacheRecycler;
     }
 
     public FilterCache filterCache() {

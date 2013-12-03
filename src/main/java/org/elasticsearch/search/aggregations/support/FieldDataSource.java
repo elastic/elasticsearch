@@ -166,7 +166,7 @@ public abstract class FieldDataSource {
                     bytes.clear();
                     bytes.reinit();
                     for (int i = 0; i < numValues; ++i) {
-                        bytes.add(super.nextValue(), super.hashCode());
+                        bytes.add(super.nextValue(), super.currentValueHash());
                     }
                     numUniqueValues = bytes.size();
                     sortedIds = bytes.sort(BytesRef.getUTF8SortedAsUnicodeComparator());
@@ -178,6 +178,11 @@ public abstract class FieldDataSource {
                 public BytesRef nextValue() {
                     bytes.get(sortedIds[pos++], spare);
                     return spare;
+                }
+
+                @Override
+                public int currentValueHash() {
+                    return spare.hashCode();
                 }
 
                 @Override

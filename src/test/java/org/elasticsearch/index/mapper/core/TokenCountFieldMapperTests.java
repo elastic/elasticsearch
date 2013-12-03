@@ -46,7 +46,7 @@ public class TokenCountFieldMapperTests extends ElasticsearchTestCase {
                     .startObject("properties")
                         .startObject("tc")
                             .field("type", "token_count")
-                            .field("tokenizer", "keyword")
+                            .field("analyzer", "keyword")
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
@@ -57,7 +57,7 @@ public class TokenCountFieldMapperTests extends ElasticsearchTestCase {
                     .startObject("properties")
                         .startObject("tc")
                             .field("type", "token_count")
-                            .field("tokenizer", "standard")
+                            .field("analyzer", "standard")
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();

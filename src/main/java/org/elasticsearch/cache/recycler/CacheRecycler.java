@@ -20,6 +20,7 @@
 package org.elasticsearch.cache.recycler;
 
 import com.carrotsearch.hppc.*;
+import com.google.common.base.Strings;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -62,7 +63,7 @@ public class CacheRecycler extends AbstractComponent {
     @Inject
     public CacheRecycler(Settings settings) {
         super(settings);
-        String type = settings.get("type", Type.SOFT_THREAD_LOCAL.name());
+        final Type type = Type.parse(settings.get("type"));
         int limit = settings.getAsInt("limit", 10);
         int smartSize = settings.getAsInt("smart_size", 1024);
 
@@ -252,27 +253,10 @@ public class CacheRecycler extends AbstractComponent {
         return sizing > 0 ? sizing : 256;
     }
 
-    private <T> Recycler<T> build(String type, int limit, int smartSize, Recycler.C<T> c) {
+    private <T> Recycler<T> build(Type type, int limit, int smartSize, Recycler.C<T> c) {
         Recycler<T> recycler;
         try {
-            // default to soft_thread_local
-            final Type t = type == null ? Type.SOFT_THREAD_LOCAL : Type.valueOf(type.toUpperCase(Locale.ROOT));
-            switch (t) {
-                case SOFT_THREAD_LOCAL:
-                recycler = new SoftThreadLocalRecycler<T>(c, limit);
-                break;
-                case THREAD_LOCAL:
-                recycler = new ThreadLocalRecycler<T>(c, limit);
-                break;
-                case  QUEUE:
-                recycler = new QueueRecycler<T>(c);
-                break;
-                case NONE:
-                recycler = new NoneRecycler<T>(c);
-                break;
-                default:
-                    throw new ElasticSearchIllegalArgumentException("no type support [" + type + "] for recycler");
-            }
+            recycler = type.build(c, limit);
             if (smartSize > 0) {
                 recycler = new Recycler.Sizing<T>(recycler, smartSize);
             }
@@ -284,9 +268,53 @@ public class CacheRecycler extends AbstractComponent {
     }
 
     public static enum Type {
-        SOFT_THREAD_LOCAL,
-        THREAD_LOCAL,
-        QUEUE,
-        NONE;
+        SOFT_THREAD_LOCAL {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
+                return new SoftThreadLocalRecycler<T>(c, limit);
+            }
+            @Override
+            boolean perThread() {
+                return true;
+            }
+        },
+        THREAD_LOCAL {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
+                return new ThreadLocalRecycler<T>(c, limit);
+            }
+            @Override
+            boolean perThread() {
+                return true;
+            }
+        },
+        QUEUE {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
+                return new QueueRecycler<T>(c, limit);
+            }
+        },
+        NONE {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
+                return new NoneRecycler<T>(c);
+            }
+        };
+
+        public static Type parse(String type) {
+            if (Strings.isNullOrEmpty(type)) {
+                return SOFT_THREAD_LOCAL;
+            }
+            try {
+                return Type.valueOf(type.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ElasticSearchIllegalArgumentException("no type support [" + type + "]");
+            }
+        }
+
+        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit);
+        boolean perThread() {
+            return false;
+        }
     }
 }

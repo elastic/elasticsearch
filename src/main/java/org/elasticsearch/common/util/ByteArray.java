@@ -17,13 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.common.recycler;
+package org.elasticsearch.common.util;
 
-public class QueueRecyclerTests extends AbstractRecyclerTests {
+import org.apache.lucene.util.BytesRef;
 
-    @Override
-    protected Recycler<byte[]> newRecycler() {
-        return new QueueRecycler<byte[]>(RECYCLER_C, randomIntBetween(5, 10));
-    }
+/**
+ * Abstraction of an array of byte values.
+ */
+public interface ByteArray extends BigArray {
+
+    /**
+     * Get an element given its index.
+     */
+    public abstract byte get(long index);
+
+    /**
+     * Set a value at the given index and return the previous value.
+     */
+    public abstract byte set(long index, byte value);
+
+    /**
+     * Get a reference to a slice.
+     */
+    public abstract void get(long index, int len, BytesRef ref);
+
+    /**
+     * Bulk set.
+     */
+    public abstract void set(long index, byte[] buf, int offset, int len);
 
 }

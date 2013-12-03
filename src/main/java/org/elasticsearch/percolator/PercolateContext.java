@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
@@ -93,6 +94,7 @@ public class PercolateContext extends SearchContext {
     private final IndexFieldDataService fieldDataService;
     private final IndexShard indexShard;
     private final CacheRecycler cacheRecycler;
+    private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
     private String[] types;
 
@@ -111,7 +113,7 @@ public class PercolateContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
 
-    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler) {
+    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         this.request = request;
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -120,6 +122,7 @@ public class PercolateContext extends SearchContext {
         this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
@@ -471,6 +474,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public CacheRecycler cacheRecycler() {
         return cacheRecycler;
+    }
+
+    @Override
+    public PageCacheRecycler pageCacheRecycler() {
+        return pageCacheRecycler;
     }
 
     @Override

@@ -32,11 +32,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -123,12 +123,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     private void computeSizeInBytes() {
-        if (size.endsWith("%")) {
-            double percent = Double.parseDouble(size.substring(0, size.length() - 1));
-            sizeInBytes = (long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
-        } else {
-            sizeInBytes = ByteSizeValue.parseBytesSizeValue(size).bytes();
-        }
+        this.sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
     }
 
     public void addReaderKeyToClean(Object readerKey) {

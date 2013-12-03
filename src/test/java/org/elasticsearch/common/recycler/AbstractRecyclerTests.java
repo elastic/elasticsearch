@@ -45,14 +45,18 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
     public void testReuse() {
         Recycler<byte[]> r = newRecycler();
         Recycler.V<byte[]> o = r.obtain();
+        assertFalse(o.isRecycled());
         final byte[] b1 = o.v();
         o.release();
         o = r.obtain();
         final byte[] b2 = o.v();
         if (o.isRecycled()) {
             assertSame(b1, b2);
+        } else {
+            assertNotSame(b1, b2);
         }
         o.release();
+        r.close();
     }
 
     public void testClear() {
@@ -65,6 +69,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
             assertEquals(0, o.v()[i]);
         }
         o.release();
+        r.close();
     }
 
     public void testDoubleRelease() {
@@ -81,6 +86,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         final Recycler.V<byte[]> v2 = r.obtain();
         final Recycler.V<byte[]> v3 = r.obtain();
         assertNotSame(v2.v(), v3.v());
+        r.close();
     }
 
 }

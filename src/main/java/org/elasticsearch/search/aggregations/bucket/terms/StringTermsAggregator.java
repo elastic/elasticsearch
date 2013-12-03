@@ -79,6 +79,7 @@ public class StringTermsAggregator extends BucketsAggregator {
                 continue;
             }
             final int hash = values.currentValueHash();
+            assert hash == bytes.hashCode();
             int bucketOrdinal = bucketOrds.add(bytes, hash);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;

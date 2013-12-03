@@ -127,7 +127,7 @@ public class RestTable {
         return display;
     }
 
-    private static int[] buildHelpWidths(Table table, RestRequest request, boolean verbose) {
+    public static int[] buildHelpWidths(Table table, RestRequest request, boolean verbose) {
         int[] width = new int[2];
         for (Table.Cell cell : table.getHeaders()) {
             String v = renderValue(request, cell.value);
@@ -170,7 +170,7 @@ public class RestTable {
         return width;
     }
 
-    private static void pad(Table.Cell cell, int width, RestRequest request, StringBuilder out) {
+    public static void pad(Table.Cell cell, int width, RestRequest request, StringBuilder out) {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);

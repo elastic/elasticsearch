@@ -10,6 +10,6 @@ them to lower case. While it is functionally equivalent to the
 combination of
 <<analysis-letter-tokenizer,Letter
 Tokenizer>> and
-<<analysis-lowercase-tokenizer,Lower
+<<analysis-lowercase-tokenfilter,Lower
 Case Token Filter>>, there is a performance advantage to doing the two
 tasks at once, hence this (redundant) implementation.

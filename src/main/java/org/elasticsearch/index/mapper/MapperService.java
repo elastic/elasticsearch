@@ -151,10 +151,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}]", dynamic, defaultMappingLocation, defaultMappingUrl);
-        } else if (logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled()) {
             logger.trace("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
+        } else if (logger.isDebugEnabled()) {
+            logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}]", dynamic, defaultMappingLocation, defaultMappingUrl);
         }
     }
 

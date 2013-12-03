@@ -24,6 +24,7 @@ import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
@@ -64,6 +65,7 @@ import java.util.List;
 class TestSearchContext extends SearchContext {
 
     final CacheRecycler cacheRecycler;
+    final PageCacheRecycler pageCacheRecycler;
     final IdCache idCache;
     final IndexService indexService;
     final FilterCache filterCache;
@@ -71,8 +73,9 @@ class TestSearchContext extends SearchContext {
     ContextIndexSearcher searcher;
     int size;
 
-    TestSearchContext(CacheRecycler cacheRecycler, IdCache idCache, IndexService indexService, FilterCache filterCache) {
+    TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, IdCache idCache, IndexService indexService, FilterCache filterCache) {
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
         this.idCache = idCache;
         this.indexService = indexService;
         this.filterCache = filterCache;
@@ -291,6 +294,11 @@ class TestSearchContext extends SearchContext {
     @Override
     public CacheRecycler cacheRecycler() {
         return cacheRecycler;
+    }
+
+    @Override
+    public PageCacheRecycler pageCacheRecycler() {
+        return pageCacheRecycler;
     }
 
     @Override

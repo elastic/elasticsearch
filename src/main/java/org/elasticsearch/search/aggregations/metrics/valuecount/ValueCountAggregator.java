@@ -19,16 +19,17 @@
 
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 
@@ -51,7 +52,7 @@ public class ValueCountAggregator extends Aggregator {
         if (valuesSource != null) {
             // expectedBucketsCount == 0 means it's a top level bucket
             final long initialSize = expectedBucketsCount < 2 ? 1 : expectedBucketsCount;
-            counts = BigArrays.newLongArray(initialSize);
+            counts = BigArrays.newLongArray(initialSize, context.pageCacheRecycler(), true);
         }
     }
 
@@ -82,6 +83,11 @@ public class ValueCountAggregator extends Aggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalValueCount(name, 0l);
+    }
+
+    @Override
+    public void doRelease() {
+        Releasables.release(counts);
     }
 
     public static class Factory extends ValueSourceAggregatorFactory.LeafOnly<BytesValuesSource> {

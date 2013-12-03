@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -67,13 +68,16 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     private final CacheRecycler cacheRecycler;
 
+    private final PageCacheRecycler pageCacheRecycler;
+
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler) {
+                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
     }
 
     @Override
@@ -164,7 +168,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
-                scriptService, cacheRecycler);
+                scriptService, cacheRecycler, pageCacheRecycler);
         SearchContext.setCurrent(context);
 
         try {

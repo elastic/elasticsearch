@@ -23,42 +23,53 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
 public class QueueRecycler<T> extends Recycler<T> {
 
     final Queue<T> queue;
+    final AtomicInteger size;
+    final int maxSize;
 
-    public QueueRecycler(C<T> c) {
-        this(c, ConcurrentCollections.<T>newQueue());
+    public QueueRecycler(C<T> c, int maxSize) {
+        this(c, ConcurrentCollections.<T>newQueue(), maxSize);
     }
 
-    public QueueRecycler(C<T> c, Queue<T> queue) {
+    public QueueRecycler(C<T> c, Queue<T> queue, int maxSize) {
         super(c);
         this.queue = queue;
+        this.maxSize = maxSize;
+        // we maintain size separately because concurrent queue implementations typically have linear-time size() impls
+        this.size = new AtomicInteger();
     }
 
     @Override
     public void close() {
+        assert queue.size() == size.get();
         queue.clear();
+        size.set(0);
     }
 
     @Override
     public V<T> obtain(int sizing) {
-        T v = queue.poll();
+        final T v = queue.poll();
         if (v == null) {
-            v = c.newInstance(sizing);
+            return new QV(c.newInstance(sizing), false);
         }
-        return new QV(v);
+        size.decrementAndGet();
+        return new QV(v, true);
     }
 
     class QV implements Recycler.V<T> {
 
         T value;
+        final boolean recycled;
 
-        QV(T value) {
+        QV(T value, boolean recycled) {
             this.value = value;
+            this.recycled = recycled;
         }
 
         @Override
@@ -68,17 +79,22 @@ public class QueueRecycler<T> extends Recycler<T> {
 
         @Override
         public boolean isRecycled() {
-            return true;
+            return recycled;
         }
 
         @Override
-        public void release() {
+        public boolean release() {
             if (value == null) {
                 throw new ElasticSearchIllegalStateException("recycler entry already released...");
             }
-            c.clear(value);
-            queue.offer(value);
+            if (size.incrementAndGet() <= maxSize) {
+                c.clear(value);
+                queue.offer(value);
+            } else {
+                size.decrementAndGet();
+            }
             value = null;
+            return true;
         }
     }
 }

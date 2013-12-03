@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.recycler;
 
+import org.elasticsearch.common.lease.Releasable;
+
 /**
  */
 public abstract class Recycler<T> {
@@ -50,18 +52,21 @@ public abstract class Recycler<T> {
 
     public static interface C<T> {
 
+        /** Create a new empty instance of the given size. */
         T newInstance(int sizing);
 
+        /** Clear the data. This operation is called when the data-structure is released. */
         void clear(T value);
     }
 
-    public static interface V<T> {
+    public static interface V<T> extends Releasable {
 
+        /** Reference to the value. */
         T v();
 
+        /** Whether this instance has been recycled (true) or newly allocated (false). */
         boolean isRecycled();
 
-        void release();
     }
 
     protected final C<T> c;

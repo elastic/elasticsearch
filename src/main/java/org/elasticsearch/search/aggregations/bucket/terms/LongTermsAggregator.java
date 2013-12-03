@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -51,7 +52,7 @@ public class LongTermsAggregator extends BucketsAggregator {
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = new LongHash(estimatedBucketCount);
+        bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
     }
 
     @Override
@@ -121,6 +122,11 @@ public class LongTermsAggregator extends BucketsAggregator {
     @Override
     public LongTerms buildEmptyAggregation() {
         return new LongTerms(name, order, valuesSource.formatter(), requiredSize, Collections.<InternalTerms.Bucket>emptyList());
+    }
+
+    @Override
+    public void doRelease() {
+        Releasables.release(bucketOrds);
     }
 
 }

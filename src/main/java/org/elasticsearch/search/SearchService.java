@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -100,6 +101,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final CacheRecycler cacheRecycler;
 
+    private final PageCacheRecycler pageCacheRecycler;
+
     private final DfsPhase dfsPhase;
 
     private final QueryPhase queryPhase;
@@ -118,7 +121,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Inject
     public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
-                         ScriptService scriptService, CacheRecycler cacheRecycler, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
+                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -126,6 +129,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
@@ -477,7 +481,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler);
+        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler, pageCacheRecycler);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());

@@ -38,7 +38,7 @@ public final class BigDoubleArrayList extends AbstractBigArray {
     private double[][] pages;
 
     public BigDoubleArrayList(int pageSize, long initialCapacity) {
-        super(pageSize);
+        super(pageSize, null, true);
         pages = new double[numPages(initialCapacity)][];
     }
 

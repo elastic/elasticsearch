@@ -21,8 +21,11 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 
 import java.util.Arrays;
+
+import static org.elasticsearch.common.util.BigArrays.OBJECT_PAGE_SIZE;
 
 /**
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -30,21 +33,15 @@ import java.util.Arrays;
  */
 final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T> {
 
-    /**
-     * Page size, 16KB of memory per page.
-     */
-    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-    
-
     private Object[][] pages;
 
     /** Constructor. */
-    public BigObjectArray(long size) {
-        super(PAGE_SIZE);
+    public BigObjectArray(long size, PageCacheRecycler recycler) {
+        super(OBJECT_PAGE_SIZE, recycler, true);
         this.size = size;
         pages = new Object[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = new Object[pageSize()];
+            pages[i] = newObjectPage(i);
         }
     }
 
@@ -79,10 +76,11 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = new Object[pageSize()];
+            pages[i] = newObjectPage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
+            releasePage(i);
         }
         this.size = newSize;
     }

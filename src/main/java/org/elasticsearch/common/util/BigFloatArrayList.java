@@ -36,7 +36,7 @@ public final class BigFloatArrayList extends AbstractBigArray {
     private float[][] pages;
 
     public BigFloatArrayList(int pageSize, long initialCapacity) {
-        super(pageSize);
+        super(pageSize, null, true);
         pages = new float[numPages(initialCapacity)][];
     }
 

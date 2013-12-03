@@ -50,10 +50,11 @@ public class SoftThreadLocalRecycler<T> extends Recycler<T> {
             threadLocal.set(new SoftReference<ThreadLocalRecycler.Stack<T>>(stack));
         }
 
-        T o = stack.pop();
+        final T o = stack.pop();
         if (o == null) {
-            o = c.newInstance(sizing);
+            return new ThreadLocalRecycler.TV<T>(stack, c, c.newInstance(sizing), false);
+        } else {
+            return new ThreadLocalRecycler.TV<T>(stack, c, o, true);
         }
-        return new ThreadLocalRecycler.TV<T>(stack, c, o);
     }
 }

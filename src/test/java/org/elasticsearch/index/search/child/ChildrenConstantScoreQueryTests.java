@@ -30,6 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -326,6 +327,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final Index index = new Index(indexName);
         final IdCache idCache = new SimpleIdCache(index, ImmutableSettings.EMPTY);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
+        final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool());
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
@@ -339,7 +341,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(cacheRecycler, idCache, indexService, filterCache);
+        return new TestSearchContext(cacheRecycler, pageCacheRecycler, idCache, indexService, filterCache);
     }
 
 }

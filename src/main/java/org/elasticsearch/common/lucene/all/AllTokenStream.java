@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.all;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.util.BytesRef;
 
@@ -42,11 +43,13 @@ public final class AllTokenStream extends TokenFilter {
 
     private final AllEntries allEntries;
 
+    private final OffsetAttribute offsetAttribute;
     private final PayloadAttribute payloadAttribute;
 
     AllTokenStream(TokenStream input, AllEntries allEntries) {
         super(input);
         this.allEntries = allEntries;
+        offsetAttribute = addAttribute(OffsetAttribute.class);
         payloadAttribute = addAttribute(PayloadAttribute.class);
     }
 
@@ -59,14 +62,12 @@ public final class AllTokenStream extends TokenFilter {
         if (!input.incrementToken()) {
             return false;
         }
-        if (allEntries.current() != null) {
-            float boost = allEntries.current().boost();
-            if (boost != 1.0f) {
-                encodeFloat(boost, payloadSpare.bytes, payloadSpare.offset);
-                payloadAttribute.setPayload(payloadSpare);
-            } else {
-                payloadAttribute.setPayload(null);
-            }
+        final float boost = allEntries.boost(offsetAttribute.startOffset());
+        if (boost != 1.0f) {
+            encodeFloat(boost, payloadSpare.bytes, payloadSpare.offset);
+            payloadAttribute.setPayload(payloadSpare);
+        } else {
+            payloadAttribute.setPayload(null);
         }
         return true;
     }

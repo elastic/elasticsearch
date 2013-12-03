@@ -38,7 +38,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestCountAction extends BaseRestHandler {
+public class RestCountAction extends AbstractCatAction {
 
     @Inject
     protected RestCountAction(Settings settings, Client client, RestController restController) {
@@ -48,7 +48,13 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/count\n");
+        sb.append("/_cat/count/{index}\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         CountRequest countRequest = new CountRequest(indices);
         countRequest.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
@@ -67,7 +73,7 @@ public class RestCountAction extends BaseRestHandler {
             @Override
             public void onResponse(CountResponse countResponse) {
                 try {
-                    channel.sendResponse(RestTable.buildResponse(buildTable(countResponse), request, channel));
+                    channel.sendResponse(RestTable.buildResponse(buildTable(request, countResponse), request, channel));
                 } catch (Throwable t) {
                     onFailure(t);
                 }
@@ -84,13 +90,17 @@ public class RestCountAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(CountResponse response) {
-
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new TimestampedTable();
         table.startHeaders();
         table.addCell("count", "desc:the document count");
         table.endHeaders();
+        return table;
+    }
 
+    private Table buildTable(RestRequest request, CountResponse response) {
+        Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(response.getCount());
         table.endRow();

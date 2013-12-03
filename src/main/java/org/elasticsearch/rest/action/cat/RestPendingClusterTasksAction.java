@@ -34,7 +34,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestPendingClusterTasksAction extends BaseRestHandler {
+public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Inject
     public RestPendingClusterTasksAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -42,13 +42,18 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/pending_tasks\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new ActionListener<PendingClusterTasksResponse>() {
             @Override
             public void onResponse(PendingClusterTasksResponse pendingClusterTasks) {
                 try {
-                    Table tab = buildTable(pendingClusterTasks);
+                    Table tab = buildTable(request, pendingClusterTasks);
                     channel.sendResponse(RestTable.buildResponse(tab, request, channel));
                 } catch (Throwable e) {
                     onFailure(e);
@@ -66,15 +71,20 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(PendingClusterTasksResponse tasks) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
-
         t.startHeaders();
         t.addCell("insertOrder", "text-align:right;desc:Task insertion order");
         t.addCell("timeInQueue", "text-align:right;desc:How long task has been in queue");
         t.addCell("priority", "desc:Task priority");
         t.addCell("source", "desc:Task source");
         t.endHeaders();
+        return t;
+    }
+
+    private Table buildTable(RestRequest request, PendingClusterTasksResponse tasks) {
+        Table t = getTableWithHeader(request);
 
         for (PendingClusterTask task : tasks) {
             t.startRow();

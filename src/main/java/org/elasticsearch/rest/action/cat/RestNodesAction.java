@@ -45,7 +45,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestNodesAction extends BaseRestHandler {
+public class RestNodesAction extends AbstractCatAction {
 
     @Inject
     public RestNodesAction(Settings settings, Client client, RestController controller) {
@@ -54,7 +54,12 @@ public class RestNodesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/nodes\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filterMetaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -112,11 +117,8 @@ public class RestNodesAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
-        boolean fullId = req.paramAsBoolean("full_id", false);
-
-        String masterId = state.getState().nodes().masterNodeId();
-
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("nodeId");
@@ -138,6 +140,14 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("master");
         table.addCell("name");
         table.endHeaders();
+        return table;
+    }
+
+    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
+        boolean fullId = req.paramAsBoolean("full_id", false);
+
+        String masterId = state.getState().nodes().masterNodeId();
+        Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : state.getState().nodes()) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());

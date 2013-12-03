@@ -34,7 +34,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestMasterAction extends BaseRestHandler {
+public class RestMasterAction extends AbstractCatAction {
 
     @Inject
     public RestMasterAction(Settings settings, Client client, RestController controller) {
@@ -43,7 +43,12 @@ public class RestMasterAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/master\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filterMetaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -53,7 +58,7 @@ public class RestMasterAction extends BaseRestHandler {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 try {
-                    channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse), request, channel));
+                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse), request, channel));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -70,14 +75,19 @@ public class RestMasterAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(ClusterStateResponse state) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id")
                 .addCell("ip")
                 .addCell("node")
                 .endHeaders();
+        return table;
+    }
 
+    private Table buildTable(RestRequest request, ClusterStateResponse state) {
+        Table table = getTableWithHeader(request);
         String masterId = state.getState().nodes().masterNodeId();
         String masterIp = ((InetSocketTransportAddress) state.getState().nodes().get(masterId).address()).address().getAddress().getHostAddress();
         String masterName = state.getState().nodes().masterNode().name();

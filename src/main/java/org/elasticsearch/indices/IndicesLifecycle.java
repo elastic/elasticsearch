@@ -86,6 +86,10 @@ public interface IndicesLifecycle {
 
         }
 
+        public void afterIndexShardPostRecovery(IndexShard indexShard) {
+
+        }
+
         /**
          * Called after the index shard has been started.
          */

@@ -50,6 +50,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
@@ -159,6 +160,10 @@ public interface IndexShard extends IndexShardComponent {
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt();
+
+    void readAllowed() throws IllegalIndexShardStateException;
+
+    void readAllowed(Mode mode) throws IllegalIndexShardStateException;
 
     public enum Mode {
         READ,

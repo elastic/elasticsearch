@@ -20,9 +20,11 @@
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.*;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
+import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -43,11 +45,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
     /**
      * @return Returns the value associated with the given key or the default value
-     *         for the key type, if the key is not associated with any value.
-     *         <p/>
-     *         <b>Important note:</b> For primitive type values, the value returned for a non-existing
-     *         key may not be the default value of the primitive type (it may be any value previously
-     *         assigned to that slot).
+     * for the key type, if the key is not associated with any value.
+     * <p/>
+     * <b>Important note:</b> For primitive type values, the value returned for a non-existing
+     * key may not be the default value of the primitive type (it may be any value previously
+     * assigned to that slot).
      */
     public VType get(KType key) {
         return map.get(key);
@@ -107,10 +109,46 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
+     * Returns a direct iterator over the keys.
+     */
+    public UnmodifiableIterator<KType> keysIt() {
+        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
+        return new UnmodifiableIterator<KType>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public KType next() {
+                return iterator.next().value;
+            }
+        };
+    }
+
+    /**
      * @return Returns a container with all values stored in this map.
      */
     public ObjectContainer<VType> values() {
         return map.values();
+    }
+
+    /**
+     * Returns a direct iterator over the keys.
+     */
+    public UnmodifiableIterator<VType> valuesIt() {
+        final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
+        return new UnmodifiableIterator<VType>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public VType next() {
+                return iterator.next().value;
+            }
+        };
     }
 
     @Override

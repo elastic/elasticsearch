@@ -34,7 +34,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +41,7 @@ import java.util.Set;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * This class holds all {@link DiscoveryNode} in the cluster and provides convinience methods to
+ * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
 public class DiscoveryNodes implements Iterable<DiscoveryNode> {
@@ -50,13 +49,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
     private final ImmutableOpenMap<String, DiscoveryNode> nodes;
-
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
-
     private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
 
     private final String masterNodeId;
-
     private final String localNodeId;
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId) {
@@ -69,18 +65,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     @Override
     public UnmodifiableIterator<DiscoveryNode> iterator() {
-        final Iterator<ObjectCursor<DiscoveryNode>> cursor = nodes.values().iterator();
-        return new UnmodifiableIterator<DiscoveryNode>() {
-            @Override
-            public boolean hasNext() {
-                return cursor.hasNext();
-            }
-
-            @Override
-            public DiscoveryNode next() {
-                return cursor.next().value;
-            }
-        };
+        return nodes.valuesIt();
     }
 
     /**

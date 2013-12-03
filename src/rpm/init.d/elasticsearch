@@ -53,7 +53,7 @@ checkJava() {
     if [ -x "$JAVA_HOME/bin/java" ]; then
         JAVA="$JAVA_HOME/bin/java"
     else
-        JAVA=$(which java)
+        JAVA=`which java`
     fi
 
     if [ ! -x "$JAVA" ]; then

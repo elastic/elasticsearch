@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
-import org.elasticsearch.search.aggregations.bucket.LongHash;
+import org.elasticsearch.common.util.BigArraysTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.Iterator;
@@ -38,7 +38,7 @@ public class LongHashTests extends ElasticsearchTestCase {
         final long[] idToValue = new long[values.length];
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        final LongHash longHash = new LongHash(randomIntBetween(0, 100), maxLoadFactor);
+        final LongHash longHash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randomCacheRecycler());
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {
             final Long value = randomFrom(values);
@@ -54,7 +54,7 @@ public class LongHashTests extends ElasticsearchTestCase {
         assertEquals(valueToId.size(), longHash.size());
         for (Iterator<LongLongCursor> iterator = valueToId.iterator(); iterator.hasNext(); ) {
             final LongLongCursor next = iterator.next();
-            assertEquals(next.value, longHash.get(next.key));
+            assertEquals(next.value, longHash.find(next.key));
         }
 
         for (long i = 0; i < longHash.capacity(); ++i) {
@@ -63,6 +63,7 @@ public class LongHashTests extends ElasticsearchTestCase {
                 assertEquals(idToValue[(int) id], longHash.key(i));
             }
         }
+        longHash.release();
     }
 
 }

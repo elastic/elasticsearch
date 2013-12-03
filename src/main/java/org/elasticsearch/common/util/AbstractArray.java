@@ -17,13 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.common.recycler;
+package org.elasticsearch.common.util;
 
-public class QueueRecyclerTests extends AbstractRecyclerTests {
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.lease.Releasable;
+
+abstract class AbstractArray implements Releasable {
+
+    public final PageCacheRecycler recycler;
+    public final boolean clearOnResize;
+    private boolean released = false;
+
+    AbstractArray(PageCacheRecycler recycler, boolean clearOnResize) {
+        this.recycler = recycler;
+        this.clearOnResize = clearOnResize;
+    }
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
-        return new QueueRecycler<byte[]>(RECYCLER_C, randomIntBetween(5, 10));
+    public boolean release() {
+        assert !released : "double release";
+        released = true;
+        return true; // nothing to release by default
     }
 
 }

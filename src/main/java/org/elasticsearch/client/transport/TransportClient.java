@@ -53,6 +53,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
@@ -289,6 +290,7 @@ public class TransportClient extends AbstractClient {
         }
 
         injector.getInstance(CacheRecycler.class).close();
+        injector.getInstance(PageCacheRecycler.class).close();
 
         CachedStreams.clear();
     }

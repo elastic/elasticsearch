@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -66,12 +67,15 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     private final CacheRecycler cacheRecycler;
 
+    private final PageCacheRecycler pageCacheRecycler;
+
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
     }
 
     @Override
@@ -180,7 +184,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             SearchContext.setCurrent(new DefaultSearchContext(0,
                     new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()),
                     null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
-                    scriptService, cacheRecycler));
+                    scriptService, cacheRecycler, pageCacheRecycler));
             try {
                 ParsedQuery parsedQuery = queryParserService.parseQuery(request.source());
                 valid = true;

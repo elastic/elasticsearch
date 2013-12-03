@@ -19,16 +19,17 @@
 
 package org.elasticsearch.search.aggregations.metrics.sum;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 
@@ -46,7 +47,7 @@ public class SumAggregator extends Aggregator {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            sums = BigArrays.newDoubleArray(initialSize);
+            sums = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), true);
         }
     }
 
@@ -102,5 +103,10 @@ public class SumAggregator extends Aggregator {
         protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new SumAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
+    }
+
+    @Override
+    public void doRelease() {
+        Releasables.release(sums);
     }
 }

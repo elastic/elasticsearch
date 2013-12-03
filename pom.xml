@@ -977,6 +977,9 @@
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <!-- end excludes for valid system-out -->
+                                <!-- start excludes for Unsafe -->
+                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
+                                <!-- end excludes for Unsafe -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->

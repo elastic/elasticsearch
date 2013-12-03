@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -62,7 +63,7 @@ public class StringTermsAggregator extends BucketsAggregator {
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.includeExclude = includeExclude;
-        bucketOrds = new BytesRefHash();
+        bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
     }
 
     @Override
@@ -83,7 +84,7 @@ public class StringTermsAggregator extends BucketsAggregator {
             }
             final int hash = values.currentValueHash();
             assert hash == bytes.hashCode();
-            int bucketOrdinal = bucketOrds.add(bytes, hash);
+            long bucketOrdinal = bucketOrds.add(bytes, hash);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
             }
@@ -105,7 +106,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     @Override
     public StringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
-        final int size = Math.min(bucketOrds.size(), shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
         OrdinalBucket spare = null;
@@ -133,6 +134,11 @@ public class StringTermsAggregator extends BucketsAggregator {
         return new StringTerms(name, order, requiredSize, Collections.<InternalTerms.Bucket>emptyList());
     }
 
+    @Override
+    public void doRelease() {
+        Releasables.release(bucketOrds);
+    }
+
     /**
      * Extension of StringTermsAggregator that caches bucket ords using terms ordinals.
      */
@@ -155,7 +161,10 @@ public class StringTermsAggregator extends BucketsAggregator {
             ordinals = bytesValues.ordinals();
             final long maxOrd = ordinals.getMaxOrd();
             if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
-                ordinalToBucket = BigArrays.newLongArray(BigArrays.overSize(maxOrd));
+                if (ordinalToBucket != null) {
+                    ordinalToBucket.release();
+                }
+                ordinalToBucket = BigArrays.newLongArray(BigArrays.overSize(maxOrd), context().pageCacheRecycler(), false);
             }
             ordinalToBucket.fill(0, maxOrd, -1L);
         }
@@ -181,6 +190,11 @@ public class StringTermsAggregator extends BucketsAggregator {
 
                 collectBucket(doc, bucketOrd);
             }
+        }
+
+        @Override
+        public void doRelease() {
+            Releasables.release(bucketOrds, ordinalToBucket);
         }
     }
 

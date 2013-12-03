@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.min;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -46,7 +47,7 @@ public class MinAggregator extends Aggregator {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            mins = BigArrays.newDoubleArray(initialSize);
+            mins = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
     }
@@ -103,5 +104,10 @@ public class MinAggregator extends Aggregator {
         protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new MinAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
+    }
+
+    @Override
+    public void doRelease() {
+        Releasables.release(mins);
     }
 }

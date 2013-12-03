@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -27,7 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class Aggregator {
+public abstract class Aggregator implements Releasable {
 
     /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
@@ -148,6 +150,22 @@ public abstract class Aggregator {
         }
         doPostCollection();
     }
+
+    /** Called upon release of the aggregator. */
+    @Override
+    public boolean release() {
+        boolean success = false;
+        try {
+            doRelease();
+            success = true;
+        } finally {
+            Releasables.release(success, subAggregators);
+        }
+        return true;
+    }
+
+    /** Release instance-specific data. */
+    protected void doRelease() {}
 
     /**
      * Can be overriden by aggregator implementation to be called back when the collection phase ends.

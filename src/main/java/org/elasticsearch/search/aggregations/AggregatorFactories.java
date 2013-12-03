@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -64,7 +65,7 @@ public class AggregatorFactories {
                 ObjectArray<Aggregator> aggregators;
 
                 {
-                    aggregators = BigArrays.newObjectArray(estimatedBucketsCount);
+                    aggregators = BigArrays.newObjectArray(estimatedBucketsCount, context.pageCacheRecycler());
                     aggregators.set(0, first);
                     for (long i = 1; i < estimatedBucketsCount; ++i) {
                         aggregators.set(i, factory.create(parent.context(), parent, estimatedBucketsCount));
@@ -105,6 +106,11 @@ public class AggregatorFactories {
                 @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return first.buildEmptyAggregation();
+                }
+
+                @Override
+                public void doRelease() {
+                    Releasables.release(aggregators);
                 }
             };
         }

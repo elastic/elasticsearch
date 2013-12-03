@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,12 +36,12 @@ import java.util.Arrays;
  */
 public abstract class BucketsAggregator extends Aggregator {
 
-    protected LongArray docCounts;
+    private LongArray docCounts;
 
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
-        docCounts = BigArrays.newLongArray(estimatedBucketsCount);
+        docCounts = BigArrays.newLongArray(estimatedBucketsCount, context.pageCacheRecycler(), true);
     }
 
     /**
@@ -98,6 +99,18 @@ public abstract class BucketsAggregator extends Aggregator {
                     : subAggregators[i].buildAggregation(bucketOrd);
         }
         return new InternalAggregations(Arrays.asList(aggregations));
+    }
+
+    @Override
+    public final boolean release() {
+        boolean success = false;
+        try {
+            super.release();
+            success = true;
+        } finally {
+            Releasables.release(success, docCounts);
+        }
+        return true;
     }
 
 }

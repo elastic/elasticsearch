@@ -21,7 +21,9 @@ package org.elasticsearch.common.util;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 
 import java.util.Arrays;
 
@@ -31,6 +33,11 @@ public enum BigArrays {
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
+    public static final int BYTE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_BYTE;
+    public static final int INT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_INT;
+    public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
+    public static final int DOUBLE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_DOUBLE;
+    public static final int OBJECT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Returns the next size to grow when working with parallel arrays that may have different page sizes or number of bytes per element. */
     public static long overSize(long minTargetSize) {
@@ -64,11 +71,56 @@ public enum BigArrays {
         return index == (int) index;
     }
 
-    private static class IntArrayWrapper implements IntArray {
+    private static class ByteArrayWrapper extends AbstractArray implements ByteArray {
+
+        private final byte[] array;
+
+        ByteArrayWrapper(byte[] array, PageCacheRecycler recycler, boolean clearOnResize) {
+            super(recycler, clearOnResize);
+            this.array = array;
+        }
+
+        @Override
+        public long size() {
+            return array.length;
+        }
+
+        @Override
+        public byte get(long index) {
+            assert indexIsInt(index);
+            return array[(int) index];
+        }
+
+        @Override
+        public byte set(long index, byte value) {
+            assert indexIsInt(index);
+            final byte ret = array[(int) index];
+            array[(int) index] = value;
+            return ret;
+        }
+
+        @Override
+        public void get(long index, int len, BytesRef ref) {
+            assert indexIsInt(index);
+            ref.bytes = array;
+            ref.offset = (int) index;
+            ref.length = len;
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert indexIsInt(index);
+            System.arraycopy(buf, offset, array, (int) index, len);
+        }
+
+    }
+
+    private static class IntArrayWrapper extends AbstractArray implements IntArray {
 
         private final int[] array;
 
-        IntArrayWrapper(int[] array) {
+        IntArrayWrapper(int[] array, PageCacheRecycler recycler, boolean clearOnResize) {
+            super(recycler, clearOnResize);
             this.array = array;
         }
 
@@ -99,11 +151,12 @@ public enum BigArrays {
 
     }
 
-    private static class LongArrayWrapper implements LongArray {
+    private static class LongArrayWrapper extends AbstractArray implements LongArray {
 
         private final long[] array;
 
-        LongArrayWrapper(long[] array) {
+        LongArrayWrapper(long[] array, PageCacheRecycler recycler, boolean clearOnResize) {
+            super(recycler, clearOnResize);
             this.array = array;
         }
 
@@ -140,11 +193,12 @@ public enum BigArrays {
         }
     }
 
-    private static class DoubleArrayWrapper implements DoubleArray {
+    private static class DoubleArrayWrapper extends AbstractArray implements DoubleArray {
 
         private final double[] array;
 
-        DoubleArrayWrapper(double[] array) {
+        DoubleArrayWrapper(double[] array, PageCacheRecycler recycler, boolean clearOnResize) {
+            super(recycler, clearOnResize);
             this.array = array;
         }
 
@@ -182,11 +236,12 @@ public enum BigArrays {
 
     }
 
-    private static class ObjectArrayWrapper<T> implements ObjectArray<T> {
+    private static class ObjectArrayWrapper<T> extends AbstractArray implements ObjectArray<T> {
 
         private final Object[] array;
 
-        ObjectArrayWrapper(Object[] array) {
+        ObjectArrayWrapper(Object[] array, PageCacheRecycler recycler) {
+            super(recycler, true);
             this.array = array;
         }
 
@@ -213,13 +268,55 @@ public enum BigArrays {
 
     }
 
+    /** Allocate a new {@link ByteArray} of the given capacity. */
+    public static ByteArray newByteArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
+        if (size <= BYTE_PAGE_SIZE) {
+            return new ByteArrayWrapper(new byte[(int) size], recycler, clearOnResize);
+        } else {
+            return new BigByteArray(size, recycler, clearOnResize);
+        }
+    }
+
+    /** Allocate a new {@link ByteArray} of the given capacity. */
+    public static ByteArray newByteArray(long size) {
+        return newByteArray(size, null, true);
+    }
+
+    /** Resize the array to the exact provided size. */
+    public static ByteArray resize(ByteArray array, long size) {
+        if (array instanceof BigByteArray) {
+            ((BigByteArray) array).resize(size);
+            return array;
+        } else {
+            AbstractArray arr = (AbstractArray) array;
+            final ByteArray newArray = newByteArray(size, arr.recycler, arr.clearOnResize);
+            final byte[] rawArray = ((ByteArrayWrapper) array).array;
+            newArray.set(0, rawArray, 0, (int) Math.min(rawArray.length, newArray.size()));
+            return newArray;
+        }
+    }
+
+    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    public static ByteArray grow(ByteArray array, long minSize) {
+        if (minSize <= array.size()) {
+            return array;
+        }
+        final long newSize = overSize(minSize, BYTE_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_BYTE);
+        return resize(array, newSize);
+    }
+
+    /** Allocate a new {@link IntArray} of the given capacity. */
+    public static IntArray newIntArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
+        if (size <= INT_PAGE_SIZE) {
+            return new IntArrayWrapper(new int[(int) size], recycler, clearOnResize);
+        } else {
+            return new BigIntArray(size, recycler, clearOnResize);
+        }
+    }
+
     /** Allocate a new {@link IntArray} of the given capacity. */
     public static IntArray newIntArray(long size) {
-        if (size <= BigIntArray.PAGE_SIZE) {
-            return new IntArrayWrapper(new int[(int) size]);
-        } else {
-            return new BigIntArray(size);
-        }
+        return newIntArray(size, null, true);
     }
 
     /** Resize the array to the exact provided size. */
@@ -228,7 +325,8 @@ public enum BigArrays {
             ((BigIntArray) array).resize(size);
             return array;
         } else {
-            final IntArray newArray = newIntArray(size);
+            AbstractArray arr = (AbstractArray) array;
+            final IntArray newArray = newIntArray(size, arr.recycler, arr.clearOnResize);
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
@@ -241,17 +339,22 @@ public enum BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, BigIntArray.PAGE_SIZE, RamUsageEstimator.NUM_BYTES_INT);
+        final long newSize = overSize(minSize, INT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_INT);
         return resize(array, newSize);
     }
 
     /** Allocate a new {@link LongArray} of the given capacity. */
-    public static LongArray newLongArray(long size) {
-        if (size <= BigLongArray.PAGE_SIZE) {
-            return new LongArrayWrapper(new long[(int) size]);
+    public static LongArray newLongArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
+        if (size <= LONG_PAGE_SIZE) {
+            return new LongArrayWrapper(new long[(int) size], recycler, clearOnResize);
         } else {
-            return new BigLongArray(size);
+            return new BigLongArray(size, recycler, clearOnResize);
         }
+    }
+
+    /** Allocate a new {@link LongArray} of the given capacity. */
+    public static LongArray newLongArray(long size) {
+        return newLongArray(size, null, true);
     }
 
     /** Resize the array to the exact provided size. */
@@ -260,7 +363,8 @@ public enum BigArrays {
             ((BigLongArray) array).resize(size);
             return array;
         } else {
-            final LongArray newArray = newLongArray(size);
+            AbstractArray arr = (AbstractArray) array;
+            final LongArray newArray = newLongArray(size, arr.recycler, arr.clearOnResize);
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
@@ -273,17 +377,22 @@ public enum BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, BigLongArray.PAGE_SIZE, RamUsageEstimator.NUM_BYTES_LONG);
+        final long newSize = overSize(minSize, LONG_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_LONG);
         return resize(array, newSize);
     }
 
-    /** Allocate a new {@link LongArray} of the given capacity. */
-    public static DoubleArray newDoubleArray(long size) {
-        if (size <= BigLongArray.PAGE_SIZE) {
-            return new DoubleArrayWrapper(new double[(int) size]);
+    /** Allocate a new {@link DoubleArray} of the given capacity. */
+    public static DoubleArray newDoubleArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
+        if (size <= LONG_PAGE_SIZE) {
+            return new DoubleArrayWrapper(new double[(int) size], recycler, clearOnResize);
         } else {
-            return new BigDoubleArray(size);
+            return new BigDoubleArray(size, recycler, clearOnResize);
         }
+    }
+
+    /** Allocate a new {@link DoubleArray} of the given capacity. */
+    public static DoubleArray newDoubleArray(long size) {
+        return newDoubleArray(size, null, true);
     }
 
     /** Resize the array to the exact provided size. */
@@ -292,7 +401,8 @@ public enum BigArrays {
             ((BigDoubleArray) array).resize(size);
             return array;
         } else {
-            final DoubleArray newArray = newDoubleArray(size);
+            AbstractArray arr = (AbstractArray) array;
+            final DoubleArray newArray = newDoubleArray(size, arr.recycler, arr.clearOnResize);
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
@@ -305,17 +415,22 @@ public enum BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, BigDoubleArray.PAGE_SIZE, RamUsageEstimator.NUM_BYTES_DOUBLE);
+        final long newSize = overSize(minSize, DOUBLE_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_DOUBLE);
         return resize(array, newSize);
     }
 
-    /** Allocate a new {@link LongArray} of the given capacity. */
-    public static <T> ObjectArray<T> newObjectArray(long size) {
-        if (size <= BigLongArray.PAGE_SIZE) {
-            return new ObjectArrayWrapper<T>(new Object[(int) size]);
+    /** Allocate a new {@link ObjectArray} of the given capacity. */
+    public static <T> ObjectArray<T> newObjectArray(long size, PageCacheRecycler recycler) {
+        if (size <= OBJECT_PAGE_SIZE) {
+            return new ObjectArrayWrapper<T>(new Object[(int) size], recycler);
         } else {
-            return new BigObjectArray<T>(size);
+            return new BigObjectArray<T>(size, recycler);
         }
+    }
+
+    /** Allocate a new {@link ObjectArray} of the given capacity. */
+    public static <T> ObjectArray<T> newObjectArray(long size) {
+        return newObjectArray(size, null);
     }
 
     /** Resize the array to the exact provided size. */
@@ -324,7 +439,7 @@ public enum BigArrays {
             ((BigObjectArray<?>) array).resize(size);
             return array;
         } else {
-            final ObjectArray<T> newArray = newObjectArray(size);
+            final ObjectArray<T> newArray = newObjectArray(size, ((AbstractArray) array).recycler);
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
@@ -337,7 +452,7 @@ public enum BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, BigObjectArray.PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        final long newSize = overSize(minSize, OBJECT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return resize(array, newSize);
     }
 

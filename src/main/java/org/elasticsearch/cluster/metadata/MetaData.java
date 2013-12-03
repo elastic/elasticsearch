@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -794,24 +795,8 @@ public class MetaData implements Iterable<IndexMetaData> {
 
 
     @Override
-    public Iterator<IndexMetaData> iterator() {
-        final Iterator<ObjectCursor<IndexMetaData>> cursor = indices.values().iterator();
-        return new Iterator<IndexMetaData>() {
-            @Override
-            public boolean hasNext() {
-                return cursor.hasNext();
-            }
-
-            @Override
-            public IndexMetaData next() {
-                return cursor.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("Remove not supported");
-            }
-        };
+    public UnmodifiableIterator<IndexMetaData> iterator() {
+        return indices.valuesIt();
     }
 
     public static boolean isGlobalStateEquals(MetaData metaData1, MetaData metaData2) {

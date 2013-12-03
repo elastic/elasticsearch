@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -185,6 +186,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
+    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         Settings settings = settingsBuilder()
                 .put(super.indexSettings())

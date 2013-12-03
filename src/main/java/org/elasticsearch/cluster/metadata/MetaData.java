@@ -24,18 +24,15 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
+import com.google.common.collect.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -928,24 +925,8 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     @Override
-    public Iterator<IndexMetaData> iterator() {
-        final Iterator<ObjectCursor<IndexMetaData>> cursor = indices.values().iterator();
-        return new Iterator<IndexMetaData>() {
-            @Override
-            public boolean hasNext() {
-                return cursor.hasNext();
-            }
-
-            @Override
-            public IndexMetaData next() {
-                return cursor.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException("Remove not supported");
-            }
-        };
+    public UnmodifiableIterator<IndexMetaData> iterator() {
+        return indices.valuesIt();
     }
 
     public static boolean isGlobalStateEquals(MetaData metaData1, MetaData metaData2) {

@@ -684,6 +684,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.POST_RECOVERY, reason);
             state = IndexShardState.POST_RECOVERY;
         }
+        indicesLifecycle.afterIndexShardPostRecovery(this);
         return this;
     }
 
@@ -727,6 +728,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.POST_RECOVERY);
             state = IndexShardState.POST_RECOVERY;
         }
+        indicesLifecycle.afterIndexShardPostRecovery(this);
         startScheduledTasksIfNeeded();
         engine.enableGcDeletes(true);
     }

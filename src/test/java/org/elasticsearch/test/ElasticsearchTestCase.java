@@ -29,9 +29,12 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.engine.MockRobinEngine;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
@@ -52,6 +55,8 @@ import java.util.concurrent.TimeUnit;
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
+
+    private static Thread.UncaughtExceptionHandler defaultHandler;
     
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -168,6 +173,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
                 ensureAllSearchersClosed();
             }
         });
+        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
+    }
+
+    @AfterClass
+    public static void resetUncaughtExceptionHandler() {
+       Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
     }
 
     public static boolean maybeDocValues() {
@@ -215,5 +227,76 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
     }
-    
-  }
+
+    static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+
+        private final Thread.UncaughtExceptionHandler parent;
+        private final ESLogger logger = Loggers.getLogger(getClass());
+
+        private ElasticsearchUncaughtExceptionHandler(Thread.UncaughtExceptionHandler parent) {
+            this.parent = parent;
+        }
+
+
+        @Override
+        public void uncaughtException(Thread t, Throwable e) {
+            if (e instanceof EsRejectedExecutionException) {
+                if (e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
+                    return; // ignore the EsRejectedExecutionException when a node shuts down
+                }
+            } else if (e instanceof OutOfMemoryError) {
+                if (e.getMessage().contains("unable to create new native thread")) {
+                   printStackDump(logger);
+                }
+            }
+            parent.uncaughtException(t, e);
+        }
+
+    }
+
+    protected static final void printStackDump(ESLogger logger) {
+        // print stack traces if we can't create any native thread anymore
+        Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
+        logger.error(formatThreadStacks(allStackTraces));
+    }
+
+    /**
+     * Dump threads and their current stack trace.
+     */
+    private static String formatThreadStacks(Map<Thread,StackTraceElement[]> threads) {
+        StringBuilder message = new StringBuilder();
+        int cnt = 1;
+        final Formatter f = new Formatter(message, Locale.ENGLISH);
+        for (Map.Entry<Thread,StackTraceElement[]> e : threads.entrySet()) {
+            if (e.getKey().isAlive())
+                f.format(Locale.ENGLISH, "\n  %2d) %s", cnt++, threadName(e.getKey())).flush();
+            if (e.getValue().length == 0) {
+                message.append("\n        at (empty stack)");
+            } else {
+                for (StackTraceElement ste : e.getValue()) {
+                    message.append("\n        at ").append(ste);
+                }
+            }
+        }
+        return message.toString();
+    }
+
+    private static String threadName(Thread t) {
+        return "Thread[" +
+                "id=" + t.getId() +
+                ", name=" + t.getName() +
+                ", state=" + t.getState() +
+                ", group=" + groupName(t.getThreadGroup()) +
+                "]";
+    }
+
+    private static String groupName(ThreadGroup threadGroup) {
+        if (threadGroup == null) {
+            return "{null group}";
+        } else {
+            return threadGroup.getName();
+        }
+    }
+
+
+}

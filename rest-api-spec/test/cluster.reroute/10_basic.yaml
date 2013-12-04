@@ -2,5 +2,3 @@
 "Basic sanity check":
   - do:
       cluster.reroute: {}
-
-  - is_true: ok

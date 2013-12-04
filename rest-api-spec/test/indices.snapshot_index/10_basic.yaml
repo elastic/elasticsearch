@@ -2,5 +2,3 @@
 "snapshot_index test":
   - do:
       indices.snapshot_index: {}
-  
-  - is_true: ok

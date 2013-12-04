@@ -2,5 +2,3 @@
 "stats test":
   - do:
       indices.stats: {}
-  
-  - is_true: ok

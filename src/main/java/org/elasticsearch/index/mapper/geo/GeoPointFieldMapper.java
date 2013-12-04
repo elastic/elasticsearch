@@ -213,8 +213,6 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                 } else if (fieldName.equals("geohash_prefix")) {
                     builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                     if (XContentMapValues.nodeBooleanValue(fieldNode)) {
-                        // automatically set geohash to true as well...
-                        // TODO: Should we do this in the builder
                         builder.enableGeoHash(true);
                     }
                 } else if (fieldName.equals("precision_step")) {
@@ -318,6 +316,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public boolean isEnableLatLon() {
         return enableLatLon;
+    }
+
+    public boolean isEnableGeohashPrefix() {
+        return enableGeohashPrefix;
     }
 
     @Override

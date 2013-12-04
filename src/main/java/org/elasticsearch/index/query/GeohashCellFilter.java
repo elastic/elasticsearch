@@ -41,12 +41,12 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A gehash filter filters {@link GeoPoint}s by their geohashes. Basically the a
+ * A geohash cell filter that filters {@link GeoPoint}s by their geohashes. Basically the a
  * Geohash prefix is defined by the filter and all geohashes that are matching this
  * prefix will be returned. The <code>neighbors</code> flag allows to filter
  * geohashes that surround the given geohash. In general the neighborhood of a
  * geohash is defined by its eight adjacent cells.<br />
- * The structure of the {@link GeohashFilter} is defined as:
+ * The structure of the {@link GeohashCellFilter} is defined as:
  * <pre>
  * &quot;geohash_bbox&quot; {
  *     &quot;field&quot;:&quot;location&quot;,
@@ -55,7 +55,7 @@ import java.util.List;
  * }
  * </pre>
  */
-public class GeohashFilter {
+public class GeohashCellFilter {
 
     public static final String NAME = "geohash_cell";
     public static final String NEIGHBORS = "neighbors";
@@ -95,62 +95,62 @@ public class GeohashFilter {
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
         // i.e. by filing up with z's.
-        private String fieldname;
+        private String field;
         private String geohash;
         private int levels = -1;
         private boolean neighbors;
 
-        public Builder(String fieldname) {
-            this(fieldname, null, false);
+        public Builder(String field) {
+            this(field, null, false);
         }
 
-        public Builder(String fieldname, GeoPoint point) {
-            this(fieldname, point.geohash(), false);
+        public Builder(String field, GeoPoint point) {
+            this(field, point.geohash(), false);
         }
 
-        public Builder(String fieldname, String geohash) {
-            this(fieldname, geohash, false);
+        public Builder(String field, String geohash) {
+            this(field, geohash, false);
         }
 
-        public Builder(String fieldname, String geohash, boolean neighbors) {
+        public Builder(String field, String geohash, boolean neighbors) {
             super();
-            this.fieldname = fieldname;
+            this.field = field;
             this.geohash = geohash;
             this.neighbors = neighbors;
         }
 
-        public Builder setPoint(GeoPoint point) {
+        public Builder point(GeoPoint point) {
             this.geohash = point.getGeohash();
             return this;
         }
 
-        public Builder setPoint(double lat, double lon) {
+        public Builder point(double lat, double lon) {
             this.geohash = GeoHashUtils.encode(lat, lon);
             return this;
         }
 
-        public Builder setGeohash(String geohash) {
+        public Builder geohash(String geohash) {
             this.geohash = geohash;
             return this;
         }
 
-        public Builder setPrecision(int levels) {
+        public Builder precision(int levels) {
             this.levels = levels;
             return this;
         }
 
-        public Builder setPrecision(String precision) {
+        public Builder precision(String precision) {
             double meters = DistanceUnit.parse(precision, DistanceUnit.METERS, DistanceUnit.METERS);
-            return setPrecision(GeoUtils.geoHashLevelsForPrecision(meters));
+            return precision(GeoUtils.geoHashLevelsForPrecision(meters));
         }
-        
-        public Builder setNeighbors(boolean neighbors) {
+
+        public Builder neighbors(boolean neighbors) {
             this.neighbors = neighbors;
             return this;
         }
 
-        public Builder setField(String fieldname) {
-            this.fieldname = fieldname;
+        public Builder field(String field) {
+            this.field = field;
             return this;
         }
 
@@ -163,7 +163,7 @@ public class GeohashFilter {
             if(levels > 0) {
                 builder.field(PRECISION, levels);
             }
-            builder.field(fieldname, geohash);
+            builder.field(field, geohash);
 
             builder.endObject();
         }
@@ -229,6 +229,10 @@ public class GeohashFilter {
                 }
             }
 
+            if (geohash == null) {
+                throw new QueryParsingException(parseContext.index(), "no geohash value provided to geohash_cell filter");
+            }
+
             MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
             if (smartMappers == null || !smartMappers.hasMapper()) {
                 throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
@@ -240,6 +244,9 @@ public class GeohashFilter {
             }
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+            if (!geoMapper.isEnableGeohashPrefix()) {
+                throw new QueryParsingException(parseContext.index(), "can't execute geohash_cell on field [" + fieldName + "], geohash_prefix is not enabled");
+            }
 
             if(levels > 0) {
                 int len = Math.min(levels, geohash.length());

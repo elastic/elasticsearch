@@ -59,8 +59,7 @@ import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoBoundingBoxFilter;
-import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -80,7 +79,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         disjointSupport = testRelationSupport(SpatialOperation.IsDisjointTo);
         withinSupport = testRelationSupport(SpatialOperation.IsWithin);
     }
-    
+
     private static byte[] unZipData(String path) throws IOException {
         InputStream is = Streams.class.getResourceAsStream(path);
         if (is == null) {
@@ -103,27 +102,27 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         try {
             // self intersection polygon
             ShapeBuilder.newPolygon()
-                .point(-10, -10)
-                .point(10, 10)
-                .point(-10, 10)
-                .point(10, -10)
-                .close().build();
+                    .point(-10, -10)
+                    .point(10, 10)
+                    .point(-10, 10)
+                    .point(10, -10)
+                    .close().build();
             assert false : "Self intersection not detected";
         } catch (InvalidShapeException e) {
         }
 
         // polygon with hole
         ShapeBuilder.newPolygon()
-            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-            .hole()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                 .close().close().build();
 
         try {
             // polygon with overlapping hole
             ShapeBuilder.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                    .hole()
                     .point(-5, -5).point(-5, 11).point(5, 11).point(5, -5)
                     .close().close().build();
 
@@ -134,8 +133,8 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         try {
             // polygon with intersection holes
             ShapeBuilder.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                    .hole()
                     .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                     .close()
                     .hole()
@@ -149,14 +148,14 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         try {
             // Common line in polygon
             ShapeBuilder.newPolygon()
-                .point(-10, -10)
-                .point(-10, 10)
-                .point(-5, 10)
-                .point(-5, -5)
-                .point(-5, 20)
-                .point(10, 20)
-                .point(10, -10)
-                .close().build();
+                    .point(-10, -10)
+                    .point(-10, 10)
+                    .point(-5, 10)
+                    .point(-5, -5)
+                    .point(-5, 20)
+                    .point(10, 20)
+                    .point(10, -10)
+                    .close().build();
             assert false : "Self intersection not detected";
         } catch (InvalidShapeException e) {
         }
@@ -179,7 +178,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         // Multipolygon: polygon with hole and polygon within the whole
         ShapeBuilder.newMultiPolygon()
-            .polygon()
+                .polygon()
                 .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
                 .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
@@ -238,9 +237,9 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
         // the second polygon of size 4x4 equidistant from all sites
         MultiPolygonBuilder polygon = ShapeBuilder.newMultiPolygon()
-        .polygon()
-            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-            .hole()
+                .polygon()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                 .close()
                 .close()
@@ -249,7 +248,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                 .close();
 
         BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
-        
+
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -307,8 +306,8 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         // Create a polygon that fills the empty area of the polygon defined above
         PolygonBuilder inverse = ShapeBuilder.newPolygon()
-            .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-            .hole()
+                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
+                .hole()
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
                 .close()
                 .close();
@@ -347,8 +346,8 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         // Create a polygon crossing longitude 180.
         builder = ShapeBuilder.newPolygon()
-            .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
-            .close();
+                .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
+                .close();
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
@@ -357,7 +356,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Create a polygon crossing longitude 180 with hole.
         builder = ShapeBuilder.newPolygon()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
-                .hole().point(175, -5).point(185,-5).point(185,5).point(175,5).close()
+                .hole().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close()
                 .close();
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
@@ -465,54 +464,44 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testGeoHashFilter() throws IOException {
+    public void testGeohashCellFilter() throws IOException {
         String geohash = randomhash(10);
-        logger.info("Testing geohash boundingbox filter for [{}]", geohash);
+        logger.info("Testing geohash_cell filter for [{}]", geohash);
 
         List<String> neighbors = GeoHashUtils.neighbors(geohash);
         List<String> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
-       
+
         logger.info("Neighbors {}", neighbors);
         logger.info("Parent Neighbors {}", parentNeighbors);
 
-        String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("location")
-                .startObject("properties")
-                .startObject("pin")
-                .field("type", "geo_point")
-                .field("geohash_prefix", true)
-                .field("latlon", false)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
         ensureYellow();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,latlon=false").execute().actionGet();
 
         // Index a pin
-        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("{\"pin\":\"" + geohash + "\"}").execute().actionGet();
+        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
 
         // index neighbors
         for (int i = 0; i < neighbors.size(); i++) {
-            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("{\"pin\":\"" + neighbors.get(i) + "\"}").execute().actionGet();
+            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("pin", neighbors.get(i)).execute().actionGet();
         }
 
         // Index parent cell
-        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("{\"pin\":\"" + geohash.substring(0, geohash.length() - 1) + "\"}").execute().actionGet();
+        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("pin", geohash.substring(0, geohash.length() - 1)).execute().actionGet();
 
         // index neighbors
         for (int i = 0; i < parentNeighbors.size(); i++) {
-            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("{\"pin\":\"" + parentNeighbors.get(i) + "\"}").execute().actionGet();
+            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("pin", parentNeighbors.get(i)).execute().actionGet();
         }
 
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
 
         // Result of this geohash search should contain the geohash only
         SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"pin\": \"" + geohash + "\", \"neighbors\": false}}").execute().actionGet();
+        assertHitCount(results1, 1);
+
+        // test the same, just with the builder
+        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter(geoHashCellFilter("pin", geohash, false)).execute().actionGet();
         assertHitCount(results1, 1);
 
         // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors

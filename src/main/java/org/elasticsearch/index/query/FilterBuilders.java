@@ -358,10 +358,10 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
+     * @param name The geo point field name.
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname) {
-        return new GeohashFilter.Builder(fieldname);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name) {
+        return new GeohashCellFilter.Builder(name);
     }
 
     /**
@@ -369,11 +369,11 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
+     * @param name The geo point field name.
      * @param geohash The Geohash to filter
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash) {
-        return new GeohashFilter.Builder(fieldname, geohash);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, String geohash) {
+        return new GeohashCellFilter.Builder(name, geohash);
     }
 
     /**
@@ -381,11 +381,11 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
-     * @param point a geopoint within the geohash bucket
+     * @param name The geo point field name.
+     * @param point a geo point within the geohash bucket
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, GeoPoint point) {
-        return new GeohashFilter.Builder(fieldname, point);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, GeoPoint point) {
+        return new GeohashCellFilter.Builder(name, point);
     }
 
     /**
@@ -393,12 +393,12 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name
+     * @param name The geo point field name
      * @param geohash The Geohash to filter
      * @param neighbors should the neighbor cell also be filtered
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash, boolean neighbors) {
-        return new GeohashFilter.Builder(fieldname, geohash, neighbors);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, String geohash, boolean neighbors) {
+        return new GeohashCellFilter.Builder(name, geohash, neighbors);
     }
     
     /**

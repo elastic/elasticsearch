@@ -80,7 +80,6 @@ public class RestMainAction extends BaseRestHandler {
                     }
 
                     builder.startObject();
-                    builder.field("ok", true);
                     builder.field("status", status.getStatus());
                     if (settings.get("name") != null) {
                         builder.field("name", settings.get("name"));

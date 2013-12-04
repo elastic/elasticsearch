@@ -8,5 +8,3 @@
       indices.optimize:
         index: testing
         max_num_segments: 1
-
-  - is_true: ok

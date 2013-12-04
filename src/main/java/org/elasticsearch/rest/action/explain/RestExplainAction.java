@@ -110,8 +110,7 @@ public class RestExplainAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.OK, response.isExists())
-                            .field(Fields._INDEX, explainRequest.index())
+                    builder.field(Fields._INDEX, explainRequest.index())
                             .field(Fields._TYPE, explainRequest.type())
                             .field(Fields._ID, explainRequest.id())
                             .field(Fields.MATCHED, response.isMatch());
@@ -161,7 +160,6 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");

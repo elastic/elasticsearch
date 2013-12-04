@@ -147,7 +147,6 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
             river.start();
 
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            builder.field("ok", true);
 
             builder.startObject("node");
             builder.field("id", clusterService.localNode().id());

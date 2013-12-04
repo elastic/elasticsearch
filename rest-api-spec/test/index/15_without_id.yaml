@@ -7,7 +7,6 @@
           type:   test
           body:   { foo: bar }
 
- - is_true:   ok
  - is_true:   _id
  - match:   { _index:   test_1 }
  - match:   { _type:    test   }
@@ -25,4 +24,3 @@
  - match:   { _id:      $id    }
  - match:   { _version: 1      }
  - match:   { _source: { foo: bar }}
-

@@ -116,7 +116,6 @@ public class RestNodesInfoAction extends BaseRestHandler {
                     response.settingsFilter(settingsFilter);
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("ok", true);
                     response.toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));

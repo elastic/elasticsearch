@@ -8,7 +8,6 @@
           id:     1
           body:   { foo: bar }
 
- - is_true:   ok
  - match:   { _version: 1 }
 
  - do:

@@ -211,7 +211,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                     if (logger.isDebugEnabled()) {
                         logger.debug("recovery completed from [{}], took [{}]", shardGateway, timeValueMillis(recoveryStatus.time()));
-                    } else if (logger.isTraceEnabled()) {
+                    }
+                    if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();
                         sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryStatus.time())).append("]\n");
                         sb.append("    index    : files           [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took[").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("]\n");

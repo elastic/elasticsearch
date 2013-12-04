@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class EsAbortPolicy implements XRejectedExecutionHandler {
 
     private final CounterMetric rejected = new CounterMetric();
+    public static final String SHUTTING_DOWN_KEY = "(shutting down)";
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
@@ -51,7 +52,7 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
         rejected.inc();
         StringBuilder sb = new StringBuilder("rejected execution ");
         if (executor.isShutdown()) {
-            sb.append("(shutting down) ");
+            sb.append(SHUTTING_DOWN_KEY + " ");
         } else {
             if (executor.getQueue() instanceof SizeBlockingQueue) {
                 sb.append("(queue capacity ").append(((SizeBlockingQueue) executor.getQueue()).capacity()).append(") ");

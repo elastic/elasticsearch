@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -1953,6 +1954,54 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         if (holder.get() != null) {
             throw holder.get();
         }
+    }
+
+    @Test
+    public void testHasChildQueryWithNestedInnerObjects() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                )
+                .addMapping("parent", "objects", "type=nested")
+                .addMapping("child", "_parent", "type=parent")
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "parent", "p1")
+                .setSource(jsonBuilder().startObject().field("p_field", "1").startArray("objects")
+                        .startObject().field("i_field", "1").endObject()
+                        .startObject().field("i_field", "2").endObject()
+                        .startObject().field("i_field", "3").endObject()
+                        .startObject().field("i_field", "4").endObject()
+                        .startObject().field("i_field", "5").endObject()
+                        .startObject().field("i_field", "6").endObject()
+                        .endArray().endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "parent", "p2")
+                .setSource(jsonBuilder().startObject().field("p_field", "2").startArray("objects")
+                        .startObject().field("i_field", "1").endObject()
+                        .startObject().field("i_field", "2").endObject()
+                        .endArray().endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        String scoreMode = ScoreType.values()[randomInt(ScoreType.values().length)].name().toLowerCase(Locale.ROOT);
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "blue")).scoreType(scoreMode), notFilter(termFilter("p_field", "3"))))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "red")).scoreType(scoreMode), notFilter(termFilter("p_field", "3"))))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

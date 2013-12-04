@@ -48,7 +48,10 @@ final class ParentIdsFilter extends Filter {
     private final Object[] keys;
     private final boolean[] allocated;
 
-    public ParentIdsFilter(String parentType, Object[] keys, boolean[] allocated) {
+    private final Filter nonNestedDocsFilter;
+
+    public ParentIdsFilter(String parentType, Object[] keys, boolean[] allocated, Filter nonNestedDocsFilter) {
+        this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
         this.keys = keys;
         this.allocated = allocated;
@@ -64,6 +67,15 @@ final class ParentIdsFilter extends Filter {
         TermsEnum termsEnum = terms.iterator(null);
         BytesRef uidSpare = new BytesRef();
         BytesRef idSpare = new BytesRef();
+
+        if (acceptDocs == null) {
+            acceptDocs = context.reader().getLiveDocs();
+        }
+
+        FixedBitSet nonNestedDocs = null;
+        if (nonNestedDocsFilter != null) {
+            nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs);
+        }
 
         DocsEnum docsEnum = null;
         FixedBitSet result = null;
@@ -82,14 +94,20 @@ final class ParentIdsFilter extends Filter {
                     docId = docsEnum.nextDoc();
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                         result = new FixedBitSet(context.reader().maxDoc());
-                        result.set(docId);
                     } else {
                         continue;
                     }
+                } else {
+                    docId = docsEnum.nextDoc();
+                    if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                        continue;
+                    }
                 }
-                for (docId = docsEnum.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    result.set(docId);
+                if (nonNestedDocs != null && !nonNestedDocs.get(docId)) {
+                    docId = nonNestedDocs.nextSetBit(docId);
                 }
+                result.set(docId);
+                assert docsEnum.advance(docId + 1) == DocIdSetIterator.NO_MORE_DOCS : "DocId " + docId + " should have been the last one but docId " + docsEnum.docID() + " exists.";
             }
         }
         return result;

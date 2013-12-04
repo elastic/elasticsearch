@@ -1,14 +1,21 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
-A fuzzy query that uses similarity based on Levenshtein (edit
-distance) algorithm. This maps to Lucene's `FuzzyQuery`.
+A fuzzy query that uses similarity based on the Levenshtein (edit distance) algorithm for text,
+and ranges for numeric and date data. This maps to Lucene's `FuzzyQuery` for text.
+Maximum edit distance is determined via the `min_similarity` parameter,
+which can only take the values 1 or 2 for text for performance reasons.
 
-Warning: this query is not very scalable with its default prefix length
-of 0 - in this case, *every* term will be enumerated and cause an edit
-score calculation or `max_expansions` is not set.
+Users should be warned, performance can easily degrade when using this query on an index with a
+large number of terms, especially when a `min_similarity` of 2 is set.
+Execution speed can be dramatically improved through the use of the `prefix_length` and
+`max_expansions` settings, described later in this document.
 
-Here is a simple example:
+It should also be noted that `min_similarity` can also take a `float` value, which is
+converted to an integer edit distance based based on the text's properties, but that this is deprecated.
+Please use only integer values for `min_similarity`.
+
+Here is a simple example of matching text with a `fuzzy` query:
 
 [source,js]
 --------------------------------------------------
@@ -17,8 +24,7 @@ Here is a simple example:
 }
 --------------------------------------------------
 
-More complex settings can be set (the values here are the default
-values):
+More complex settings can be seen below (the values here are the defaults):
 
 [source,js]
 --------------------------------------------------
@@ -27,20 +33,17 @@ values):
             "user" : {
                 "value" : "ki",
                 "boost" : 1.0,
-                "min_similarity" : 0.5,
+                "min_similarity" : 1,
                 "prefix_length" : 0
             }
         }
     }
 --------------------------------------------------
 
-The `max_expansions` parameter (unbounded by default) controls the
-number of terms the fuzzy query will expand to.
-
 [float]
 ==== Numeric / Date Fuzzy
 
-`fuzzy` query on a numeric field will result in a range query "around"
+A `fuzzy` query on a numeric field will result in a range query "around"
 the value using the `min_similarity` value. For example:
 
 [source,js]
@@ -77,3 +80,19 @@ For example, for dates, a fuzzy factor of "1d" will result in
 multiplying whatever fuzzy value provided in the min_similarity by it.
 Note, this is explicitly supported since query_string query only allowed
 for similarity valued between 0.0 and 1.0.
+
+==== Performance Tuning
+
+The default settings for this query prefer correct behavior over speed. Given an index
+with a large number of terms, performance can quickly degrade. The `prefix_length` and `max_expansions`
+parameters can be used to remedy performance problems in larger datasets by significantly
+reducing the search space at cost of not matching some valid documents.
+
+The `prefix_length` parameter restricts matches to those that share an exact prefix with the query `value`.
+The number of matching characters is controlled with this parameter.
+Using `prefix_length` greatly shortens the search space at the expense of not detecting edits that occur at the start of the term.
+
+The `max_expansions` parameter controls the number of alternate versions of the input term to look for.
+When the query is executed only a set number of permutations, by default 50, are actually matched.
+The lower the value of `max_expansions` the faster the query will be. The trade-off here is that some documents that
+should match may not be returned due to their specific edit not being a part of the expansion list.

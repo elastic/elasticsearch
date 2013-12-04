@@ -38,10 +38,12 @@ definition, or the default search analyzer.
 string types it should be a value between `0.0` and `1.0`) to constructs
 fuzzy queries for each term analyzed. The `prefix_length` and
 `max_expansions` can be set in this case to control the fuzzy process.
+Please see the documentation for the <<query-dsl-fuzzy,fuzzy>> query type for
+more information on `max_expansions` and `prefix_length`.
+
 If the fuzzy option is set the query will use `constant_score_rewrite`
-as its <<query-dsl-multi-term-rewrite,rewrite
-method>> the `rewrite` parameter allows to control how the query will get
-rewritten.
+as its <<query-dsl-multi-term-rewrite,rewrite method>>
+the `rewrite` parameter controls how the query will get rewritten.
 
 Here is an example when providing additional parameters (note the slight
 change in structure, `message` is the field name):

@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -108,7 +109,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int shortCircuitParentDocSet = random().nextInt(5);
-        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet);
+        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null);
 
         BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
         searcher.search(query, collector);
@@ -248,15 +249,16 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
+            Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet);
+                query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet)
+                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
                         )
                 );
             }

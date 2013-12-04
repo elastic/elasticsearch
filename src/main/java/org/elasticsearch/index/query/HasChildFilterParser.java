@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -134,8 +135,13 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
+        Filter nonNestedDocsFilter = null;
+        if (parentDocMapper.hasNestedObjects()) {
+            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+        }
+
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet);
+        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
 
         if (filterName != null) {
             parseContext.addNamedQuery(filterName, childrenConstantScoreQuery);

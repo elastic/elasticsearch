@@ -53,16 +53,18 @@ public class ChildrenConstantScoreQuery extends Query {
     private final String childType;
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
+    private final Filter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet) {
+    public ChildrenConstantScoreQuery(Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
         this.parentFilter = parentFilter;
         this.parentType = parentType;
         this.childType = childType;
         this.originalChildQuery = childQuery;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
+        this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
     @Override
@@ -106,7 +108,7 @@ public class ChildrenConstantScoreQuery extends Query {
             BytesRef id = collectedUids.v().iterator().next().value.toBytesRef();
             shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
         } else if (remaining <= shortCircuitParentDocSet) {
-            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v().keys, collectedUids.v().allocated);
+            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v().keys, collectedUids.v().allocated, nonNestedDocsFilter);
         }
 
         ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, searchContext, collectedUids);

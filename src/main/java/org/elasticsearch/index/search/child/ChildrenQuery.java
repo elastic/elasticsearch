@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
@@ -43,6 +44,8 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -62,17 +65,19 @@ public class ChildrenQuery extends Query {
     private final ScoreType scoreType;
     private final Query originalChildQuery;
     private final int shortCircuitParentDocSet;
+    private final Filter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
+    public ChildrenQuery(String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
+        this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
     @Override
@@ -164,12 +169,20 @@ public class ChildrenQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
-        Filter parentFilter;
+        final Filter parentFilter;
         if (size == 1) {
             BytesRef id = uidToScore.v().keys().iterator().next().value.toBytesRef();
-            parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+            if (nonNestedDocsFilter != null) {
+                List<Filter> filters = Arrays.asList(
+                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
+                        nonNestedDocsFilter
+                );
+                parentFilter = new AndFilter(filters);
+            } else {
+                parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+            }
         } else if (size <= shortCircuitParentDocSet) {
-            parentFilter = new ParentIdsFilter(parentType, uidToScore.v().keys, uidToScore.v().allocated);
+            parentFilter = new ParentIdsFilter(parentType, uidToScore.v().keys, uidToScore.v().allocated, nonNestedDocsFilter);
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }

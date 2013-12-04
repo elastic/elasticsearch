@@ -263,6 +263,8 @@ public class PercolatorService extends AbstractComponent {
                         MapperService mapperService = documentIndexService.mapperService();
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
+                        // the document parsing exists the "doc" object, so we need to set the new current field.
+                        currentFieldName = parser.currentName();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     SearchParseElement element = hlElements.get(currentFieldName);

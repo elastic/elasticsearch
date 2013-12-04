@@ -120,7 +120,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         String format = params.param("format", "detailed");
-        if ("detailed".equals(format)) {
+        if ("detailed".equals(format) || "yaml".equals(format)) {
             builder.startArray("tokens");
             for (AnalyzeToken token : tokens) {
                 builder.startObject();

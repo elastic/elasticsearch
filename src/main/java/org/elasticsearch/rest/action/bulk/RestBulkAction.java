@@ -125,7 +125,6 @@ public class RestBulkAction extends BaseRestHandler {
                             builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
                             builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
                         } else {
-                            builder.field(Fields.OK, true);
                             if (itemResponse.getResponse() instanceof DeleteResponse) {
                                 DeleteResponse deleteResponse = itemResponse.getResponse();
                                 if (deleteResponse.isNotFound()) {
@@ -181,7 +180,6 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString FOUND = new XContentBuilderString("found");

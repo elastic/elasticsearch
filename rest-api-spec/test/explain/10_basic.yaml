@@ -20,6 +20,4 @@
               match_all: {}
 
   - is_true: matched
-  - is_true: ok
   - match: { explanation.value: 1 }
-

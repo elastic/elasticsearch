@@ -131,7 +131,6 @@ public class RestUpdateAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field(Fields.OK, true)
                             .field(Fields._INDEX, response.getIndex())
                             .field(Fields._TYPE, response.getType())
                             .field(Fields._ID, response.getId())
@@ -166,7 +165,6 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");

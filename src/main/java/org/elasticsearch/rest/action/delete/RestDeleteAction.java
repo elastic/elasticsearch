@@ -80,7 +80,6 @@ public class RestDeleteAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field(Fields.OK, true)
                             .field(Fields.FOUND, !result.isNotFound())
                             .field(Fields._INDEX, result.getIndex())
                             .field(Fields._TYPE, result.getType())
@@ -109,7 +108,6 @@ public class RestDeleteAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString FOUND = new XContentBuilderString("found");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");

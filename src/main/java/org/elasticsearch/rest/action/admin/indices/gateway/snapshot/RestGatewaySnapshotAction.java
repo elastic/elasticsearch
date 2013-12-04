@@ -61,7 +61,6 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("ok", true);
 
                     buildBroadcastShardsHeader(builder, response);
 

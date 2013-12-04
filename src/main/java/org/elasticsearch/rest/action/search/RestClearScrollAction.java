@@ -61,7 +61,6 @@ public class RestClearScrollAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.OK, response.isSucceeded());
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Throwable e) {
@@ -85,11 +84,5 @@ public class RestClearScrollAction extends BaseRestHandler {
             return Strings.EMPTY_ARRAY;
         }
         return Strings.splitStringByCommaToArray(scrollIds);
-    }
-
-    static final class Fields {
-
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
-
     }
 }

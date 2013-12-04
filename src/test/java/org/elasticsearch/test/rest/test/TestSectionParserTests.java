@@ -262,13 +262,12 @@ public class TestSectionParserTests extends AbstractParserTests {
                 "  - do:\n" +
                 "      cluster.node_info: {}\n" +
                 "  \n" +
-                "  - is_true: ok\n" +
                 "  - is_true: nodes\n" +
                 "  - is_true: cluster_name\n");
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
         TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("node_info test"));
-        assertThat(testSection.getExecutableSections().size(), equalTo(4));
+        assertThat(testSection.getExecutableSections().size(), equalTo(3));
     }
 }

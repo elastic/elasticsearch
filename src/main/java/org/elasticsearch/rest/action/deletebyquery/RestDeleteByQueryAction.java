@@ -100,8 +100,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     RestStatus restStatus = result.status();
-                    builder.startObject().field("ok", restStatus == RestStatus.OK);
-
+                    builder.startObject();
                     builder.startObject("_indices");
                     for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
                         builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
@@ -115,7 +114,6 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endObject();
-
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
                 } catch (Throwable e) {

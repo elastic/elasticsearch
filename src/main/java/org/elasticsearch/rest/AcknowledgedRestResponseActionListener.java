@@ -41,7 +41,6 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
         try {
             XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
             builder.startObject()
-                    .field(Fields.OK, true)
                     .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
             addCustomFields(builder, response);
             builder.endObject();
@@ -60,7 +59,6 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
     }
 
     static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
     }
 }

@@ -32,8 +32,6 @@
             match:
               foo: bar
 
-  - is_true: ok
-
   - do:
       indices.refresh: {}
 

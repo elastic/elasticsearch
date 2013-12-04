@@ -20,7 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
-import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -129,7 +129,7 @@ import static org.hamcrest.Matchers.equalTo;
  * </p>
  */
 @Ignore
-@IntegrationTests
+@AbstractRandomizedTest.IntegrationTests
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
 
@@ -170,26 +170,34 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     
     @Before
     public final void before() throws IOException {
-        final Scope currentClusterScope = getCurrentClusterScope();
-        switch (currentClusterScope) {
-        case GLOBAL:
-            clearClusters();
-            currentCluster = GLOBAL_CLUSTER;
-            break;
-        case SUITE:
-            currentCluster = buildAndPutCluster(currentClusterScope, false);
-            break;
-        case TEST:
-            currentCluster = buildAndPutCluster(currentClusterScope, true);
-            break;
-        default:
-           assert false : "Unknown Scope: [" + currentClusterScope + "]";
+        assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
+        try {
+            final Scope currentClusterScope = getCurrentClusterScope();
+            switch (currentClusterScope) {
+            case GLOBAL:
+                clearClusters();
+                currentCluster = GLOBAL_CLUSTER;
+                break;
+            case SUITE:
+                currentCluster = buildAndPutCluster(currentClusterScope, false);
+                break;
+            case TEST:
+                currentCluster = buildAndPutCluster(currentClusterScope, true);
+                break;
+            default:
+               assert false : "Unknown Scope: [" + currentClusterScope + "]";
+            }
+            currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
+            wipeIndices();
+            wipeTemplates();
+            randomIndexTemplate();
+            logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
+        } catch (OutOfMemoryError e) {
+            if (e.getMessage().contains("unable to create new native thread")) {
+                ElasticsearchTestCase.printStackDump(logger);
+            }
+            throw e;
         }
-        currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
-        wipeIndices();
-        wipeTemplates();
-        randomIndexTemplate();
-        logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
     }
 
     public TestCluster buildAndPutCluster(Scope currentClusterScope, boolean createIfExists) throws IOException {
@@ -234,6 +242,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
+        } catch (OutOfMemoryError e) {
+            if (e.getMessage().contains("unable to create new native thread")) {
+                ElasticsearchTestCase.printStackDump(logger);
+            }
+            throw e;
         } finally {
             currentCluster.afterTest();
             currentCluster = null;

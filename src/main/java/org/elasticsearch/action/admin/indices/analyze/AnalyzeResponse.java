@@ -119,37 +119,17 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        String format = params.param("format", "detailed");
-        if ("detailed".equals(format) || "yaml".equals(format)) {
-            builder.startArray("tokens");
-            for (AnalyzeToken token : tokens) {
-                builder.startObject();
-                builder.field("token", token.getTerm());
-                builder.field("start_offset", token.getStartOffset());
-                builder.field("end_offset", token.getEndOffset());
-                builder.field("type", token.getType());
-                builder.field("position", token.getPosition());
-                builder.endObject();
-            }
-            builder.endArray();
-        } else if ("text".equals(format)) {
-            StringBuilder sb = new StringBuilder();
-            int lastPosition = 0;
-            for (AnalyzeToken token : tokens) {
-                if (lastPosition != token.getPosition()) {
-                    if (lastPosition != 0) {
-                        sb.append("\n").append(token.getPosition()).append(": \n");
-                    }
-                    lastPosition = token.getPosition();
-                }
-                sb.append('[')
-                        .append(token.getTerm()).append(":")
-                        .append(token.getStartOffset()).append("->").append(token.getEndOffset()).append(":")
-                        .append(token.getType())
-                        .append("]\n");
-            }
-            builder.field("tokens", sb);
+        builder.startArray("tokens");
+        for (AnalyzeToken token : tokens) {
+            builder.startObject();
+            builder.field("token", token.getTerm());
+            builder.field("start_offset", token.getStartOffset());
+            builder.field("end_offset", token.getEndOffset());
+            builder.field("type", token.getType());
+            builder.field("position", token.getPosition());
+            builder.endObject();
         }
+        builder.endArray();
         return builder;
     }
 

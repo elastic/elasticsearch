@@ -48,11 +48,3 @@ mapping for `obj1.field1` (and if not, the default index analyzer).
 
 Also, the text can be provided as part of the request body, and not as a
 parameter.
-
-[float]
-[[format]]
-=== Format
-
-By default, the format the tokens are returned in are in json and its
-called `detailed`. The `text` format value provides the analyzed data in
-a text stream that is a bit more readable.

@@ -109,8 +109,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private final Object mutex = new Object();
-
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
+
+    private final boolean sendRefreshMapping;
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
@@ -127,6 +128,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
+
+        this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
     }
 
     @Override
@@ -374,9 +377,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             if (typesToRefresh != null) {
-                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
-                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
+                if (sendRefreshMapping) {
+                    nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
+                }
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
@@ -394,6 +399,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             seenMappings.put(new Tuple<String, String>(index, mappingType), true);
         }
 
+        // refresh mapping can happen for 2 reasons. The first is less urgent, and happens when the mapping on this
+        // node is ahead of what there is in the cluster state (yet an update-mapping has been sent to it already,
+        // it just hasn't been processed yet and published). Eventually, the mappings will converge, and the refresh
+        // mapping sent is more of a safe keeping (assuming the update mapping failed to reach the master, ...)
+        // the second case is where the parsing/merging of the mapping from the metadata doesn't result in the same
+        // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
+        // merge version of it, which it does when refreshing the mappings), and warn log it.
         boolean requiresRefresh = false;
         try {
             if (!mapperService.hasMapping(mappingType)) {
@@ -403,7 +415,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we don't apply default, since it has been applied when the mappings were parsed initially
                 mapperService.merge(mappingType, mappingSource, false);
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-                    // this might happen when upgrading from 0.15 to 0.16
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
                 }
@@ -418,7 +429,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     mapperService.merge(mappingType, mappingSource, false);
                     if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                         requiresRefresh = true;
-                        // this might happen when upgrading from 0.15 to 0.16
                         logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     }
                 }

@@ -2494,4 +2494,82 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
     }
+
+    @Test
+    public void testFastVectorHighlighterPhraseBoost() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        phraseBoostTestCase("fvh");
+    }
+
+    @Test
+    public void testPostingsHighlighterPhraseBoost() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        phraseBoostTestCase("postings");
+    }
+
+    /**
+     * Test phrase boosting over normal term matches.  Note that this will never pass with the plain highlighter
+     * because it doesn't support the concept of terms having a different weight based on position.
+     * @param highlighterType highlighter to test
+     */
+    private void phraseBoostTestCase(String highlighterType) {
+        ensureGreen();
+        StringBuilder text = new StringBuilder();
+        text.append("words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk\n");
+        for (int i = 0; i<10; i++) {
+            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
+        }
+        text.append("highlight words together\n");
+        for (int i = 0; i<10; i++) {
+            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
+        }
+        index("test", "type1", "1", "field1", text.toString());
+        refresh();
+
+        // Match queries
+        phraseBoostTestCaseForClauses(highlighterType, 100f,
+                matchQuery("field1", "highlight words together"),
+                matchPhraseQuery("field1", "highlight words together"));
+
+        // Query string with a single field
+        phraseBoostTestCaseForClauses(highlighterType, 100f,
+                queryString("highlight words together").field("field1"),
+                queryString("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+
+        // Query string with a single field without dismax
+        phraseBoostTestCaseForClauses(highlighterType, 100f,
+                queryString("highlight words together").field("field1").useDisMax(false),
+                queryString("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true));
+
+        // Query string with more than one field
+        phraseBoostTestCaseForClauses(highlighterType, 100f,
+                queryString("highlight words together").field("field1").field("field2"),
+                queryString("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
+
+        // Query string boosting the field
+        phraseBoostTestCaseForClauses(highlighterType, 1f,
+                queryString("highlight words together").field("field1"),
+                queryString("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
+    }
+
+    private <P extends QueryBuilder & BoostableQueryBuilder> void
+            phraseBoostTestCaseForClauses(String highlighterType, float boost, QueryBuilder terms, P phrase) {
+        Matcher<String> highlightedMatcher = either(containsString("<em>highlight words together</em>")).or(
+                containsString("<em>highlight</em> <em>words</em> <em>together</em>"));
+        SearchRequestBuilder search = client().prepareSearch("test").setHighlighterRequireFieldMatch(true)
+                .setHighlighterOrder("score").setHighlighterType(highlighterType)
+                .addHighlightedField("field1", 100, 1);
+
+        // Try with a bool query
+        phrase.boost(boost);
+        SearchResponse response = search.setQuery(boolQuery().must(terms).should(phrase)).get();
+        assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+        phrase.boost(1);
+        // Try with a boosting query
+        response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(boost).negativeBoost(1)).get();
+        assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+        // Try with a boosting query using a negative boost
+        response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(1).negativeBoost(1/boost)).get();
+        assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+    }
 }

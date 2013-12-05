@@ -83,15 +83,15 @@ public class RestHealthAction extends AbstractCatAction {
             t = new Table();
         }
         t.startHeaders();
-        t.addCell("cluster");
-        t.addCell("status");
-        t.addCell("nodeTotal", "text-align:right;");
-        t.addCell("nodeData", "text-align:right;");
-        t.addCell("shards", "text-align:right;");
-        t.addCell("pri", "text-align:right;");
-        t.addCell("relo", "text-align:right;");
-        t.addCell("init", "text-align:right;");
-        t.addCell("unassign", "text-align:right;");
+        t.addCell("cluster", "desc:cluster name");
+        t.addCell("status", "desc:health status");
+        t.addCell("nodeTotal", "text-align:right;desc:total number of nodes");
+        t.addCell("nodeData", "text-align:right;desc:number of nodes that can store data");
+        t.addCell("shards", "text-align:right;desc:total number of shards");
+        t.addCell("pri", "text-align:right;desc:number of primary shards");
+        t.addCell("relo", "text-align:right;desc:number of relocating nodes");
+        t.addCell("init", "text-align:right;desc:number of initializing nodes");
+        t.addCell("unassign", "text-align:right;desc:number of unassigned shards");
         t.endHeaders();
 
         return t;

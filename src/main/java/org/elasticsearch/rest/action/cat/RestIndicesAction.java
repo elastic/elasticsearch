@@ -125,14 +125,14 @@ public class RestIndicesAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("health");
-        table.addCell("index");
-        table.addCell("pri", "text-align:right;");
-        table.addCell("rep", "text-align:right;");
-        table.addCell("docs", "text-align:right;");
-        table.addCell("docs/del", "text-align:right;");
-        table.addCell("size/pri", "text-align:right;");
-        table.addCell("size/total", "text-align:right;");
+        table.addCell("health", "desc:current health status");
+        table.addCell("index", "desc:index name");
+        table.addCell("pri", "text-align:right;desc:number of primary shards");
+        table.addCell("rep", "text-align:right;desc:number of replica shards");
+        table.addCell("docs", "text-align:right;desc:available docs");
+        table.addCell("docs/del", "text-align:right;desc:deleted docs");
+        table.addCell("size/pri", "text-align:right;desc:store size of primaries");
+        table.addCell("size/total", "text-align:right;desc:store size of primaries & replicas");
         table.endHeaders();
         return table;
     }

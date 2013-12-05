@@ -79,9 +79,9 @@ public class RestMasterAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("id")
-                .addCell("ip")
-                .addCell("node")
+                .addCell("id", "desc:node id")
+                .addCell("ip", "desc:node transport ip address ")
+                .addCell("node", "desc:node name")
                 .endHeaders();
         return table;
     }

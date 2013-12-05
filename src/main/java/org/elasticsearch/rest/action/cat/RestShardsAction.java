@@ -105,14 +105,14 @@ public class RestShardsAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("index", "default:true;")
-                .addCell("shard", "default:true;")
-                .addCell("p/r", "default:true;")
-                .addCell("state", "default:true;")
-                .addCell("docs", "text-align:right;")
-                .addCell("store", "text-align:right;")
-                .addCell("ip", "default:true;")
-                .addCell("node", "default:true;")
+                .addCell("index", "default:true;desc:index name")
+                .addCell("shard", "default:true;desc:shard name")
+                .addCell("p/r", "default:true;desc:primary or replica")
+                .addCell("state", "default:true;desc:shard state")
+                .addCell("docs", "text-align:right;desc:number of docs in shard")
+                .addCell("store", "text-align:right;desc:store size of shard (how much disk it uses)")
+                .addCell("ip", "default:true;desc:ip of node where it lives")
+                .addCell("node", "default:true;desc:name of node where it lives")
                 .endHeaders();
         return table;
     }

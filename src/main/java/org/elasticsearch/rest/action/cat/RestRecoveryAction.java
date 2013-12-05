@@ -132,13 +132,13 @@ public class RestRecoveryAction extends AbstractCatAction {
     @Override
     Table getTableWithHeader(RestRequest request) {
         Table t = new Table();
-        t.startHeaders().addCell("index")
-                .addCell("shard")
-                .addCell("target", "text-align:right;")
-                .addCell("recovered", "text-align:right;")
-                .addCell("%", "text-align:right;")
-                .addCell("ip")
-                .addCell("node")
+        t.startHeaders().addCell("index", "desc:index name")
+                .addCell("shard", "desc:shard name")
+                .addCell("target", "text-align:right;desc:bytes of source shard")
+                .addCell("recovered", "text-align:right;desc:bytes recovered so far")
+                .addCell("%", "text-align:right;desc:percent recovered so far")
+                .addCell("ip", "desc:node ip where source shard lives")
+                .addCell("node", "desc:node name where source shard lives")
                 .endHeaders();
         return t;
     }

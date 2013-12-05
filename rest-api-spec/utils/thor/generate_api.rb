@@ -120,7 +120,7 @@ module Elasticsearch
       def generate
         self.class.source_root File.expand_path('../', __FILE__)
 
-        @output = options[:output]
+        @output = Pathname(options[:output])
 
         rest_actions = Utils.__parse_java_source(options[:elasticsearch].to_s)
 

@@ -25,23 +25,37 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatAction extends BaseRestHandler {
 
-    private static final String CAT = "=^.^=\n";
+    private static final String CAT = "=^.^=";
+    private static final String CAT_NL = CAT + "\n";
+    private final String HELP;
 
     @Inject
-    public RestCatAction(Settings settings, Client client, RestController controller) {
+    public RestCatAction(Settings settings, Client client, RestController controller, Set<AbstractCatAction> catActions) {
         super(settings, client);
         controller.registerHandler(GET, "/_cat", this);
+        StringBuilder sb = new StringBuilder();
+        sb.append(CAT).append(" try:\n");
+        for (AbstractCatAction catAction : catActions) {
+            catAction.documentation(sb);
+        }
+        HELP = sb.toString();
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         try {
-            channel.sendResponse(new StringRestResponse(RestStatus.OK, CAT));
+            boolean helpWanted = request.paramAsBoolean("h", false);
+            if (helpWanted) {
+                channel.sendResponse(new StringRestResponse(RestStatus.OK, HELP));
+            } else {
+                channel.sendResponse(new StringRestResponse(RestStatus.OK, CAT_NL));
+            }
         } catch (Throwable t) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, t));

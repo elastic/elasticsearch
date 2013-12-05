@@ -12,6 +12,10 @@ to find relationships in the data is tedious.  Human eyes, especially
 when looking at an ssh terminal, need compact and aligned text.  The
 cat API aims to meet this need.
 
+All the cat commands accept a query string parameter `h` to see all
+the headers and info they provide, and the `/_cat?h` command lists all
+the available commands.
+
 [float]
 [[common-parameters]]
 == Common parameters
@@ -45,7 +49,7 @@ by all the shards, not number of documents).  The `/_cat/indices` API
 is ideal.  We only need to tweak two things.  First, we want to turn
 off human mode.  We'll use a byte-level resolution.  Then we'll pipe
 our output into `sort` using the appropriate column, which in this
-case is the eigth one.
+case is the eight one.
 
 [source,shell]
 --------------------------------------------------

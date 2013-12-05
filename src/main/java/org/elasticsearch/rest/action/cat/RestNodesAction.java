@@ -121,24 +121,24 @@ public class RestNodesAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("nodeId");
-        table.addCell("pid");
-        table.addCell("ip");
-        table.addCell("port");
+        table.addCell("nodeId", "desc:unique node id");
+        table.addCell("pid", "desc:process id");
+        table.addCell("ip", "desc:ip address");
+        table.addCell("port", "desc:bound transport port");
 
-        table.addCell("es");
-        table.addCell("jdk");
-        table.addCell("diskAvail", "text-align:right;");
-        table.addCell("heapPercent", "text-align:right;");
-        table.addCell("heapMax", "text-align:right;");
-        table.addCell("ramPercent", "text-align:right;");
-        table.addCell("ramMax", "text-align:right;");
+        table.addCell("es", "desc:es version");
+        table.addCell("jdk", "desc:jdk version");
+        table.addCell("diskAvail", "text-align:right;desc:available disk space");
+        table.addCell("heapPercent", "text-align:right;desc:used heap ratio");
+        table.addCell("heapMax", "text-align:right;desc:max configured heap");
+        table.addCell("ramPercent", "text-align:right;desc:used machine memory ratio");
+        table.addCell("ramMax", "text-align:right;desc:total machine memory");
 
-        table.addCell("load", "text-align:right;");
-        table.addCell("uptime", "text-align:right;");
-        table.addCell("data/client");
-        table.addCell("master");
-        table.addCell("name");
+        table.addCell("load", "text-align:right;desc:most recent load avg");
+        table.addCell("uptime", "text-align:right;desc:node uptime");
+        table.addCell("data/client", "desc:d:data node, c:client node");
+        table.addCell("master", "desc:m:master-eligible, *:current master");
+        table.addCell("name", "desc:node name");
         table.endHeaders();
         return table;
     }
@@ -189,7 +189,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : stats.getOs().getLoadAverage()[0]);
             table.addCell(stats == null ? null : stats.getJvm().uptime());
-            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);
+            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
             table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
             table.addCell(node.name());
 

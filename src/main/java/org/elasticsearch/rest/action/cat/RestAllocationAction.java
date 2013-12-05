@@ -112,12 +112,12 @@ public class RestAllocationAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
-        table.addCell("shards", "text-align:right;");
-        table.addCell("diskUsed", "text-align:right;");
-        table.addCell("diskAvail", "text-align:right;");
-        table.addCell("diskRatio", "text-align:right;");
-        table.addCell("ip");
-        table.addCell("node");
+        table.addCell("shards", "text-align:right;desc:number of shards on node");
+        table.addCell("diskUsed", "text-align:right;desc:disk used (total, not just ES)");
+        table.addCell("diskAvail", "text-align:right;desc:disk available");
+        table.addCell("diskRatio", "text-align:right;desc:percent disk used");
+        table.addCell("ip", "desc:ip of node");
+        table.addCell("node", "desc:name of node");
         table.endHeaders();
         return table;
     }

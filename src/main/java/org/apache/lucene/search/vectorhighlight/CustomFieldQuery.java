@@ -25,6 +25,8 @@ import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -66,10 +68,36 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
-        if (sourceQuery instanceof DisjunctionMaxQuery) {
+        assert Lucene.VERSION == Version.LUCENE_46 : "LUCENE-5361";
+        if( sourceQuery instanceof BooleanQuery ){
+            BooleanQuery bq = (BooleanQuery)sourceQuery;
+            if (bq.getBoost() == 1) {
+                for( BooleanClause clause : bq.getClauses() ) {
+                    if(!clause.isProhibited()) {
+                        flatten(clause.getQuery(), reader, flatQueries);
+                    }
+                }
+            } else {
+                for( BooleanClause clause : bq.getClauses() ) {
+                    if(!clause.isProhibited()) {
+                        Query cloned = clause.getQuery().clone();
+                        cloned.setBoost(cloned.getBoost() * bq.getBoost());
+                        flatten(cloned, reader, flatQueries);
+                    }
+                }
+            }
+        } else if (sourceQuery instanceof DisjunctionMaxQuery) {
             DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) sourceQuery;
-            for (Query query : dmq) {
-                flatten(query, reader, flatQueries);
+            if (dmq.getBoost() == 1) {
+                for (Query query : dmq) {
+                    flatten(query, reader, flatQueries);
+                }
+            } else {
+                for (Query query : dmq) {
+                    Query clone = query.clone();
+                    clone.setBoost(clone.getBoost() * dmq.getBoost());
+                    flatten(clone, reader, flatQueries);
+                }
             }
         } else if (sourceQuery instanceof SpanTermQuery) {
             TermQuery termQuery = new TermQuery(((SpanTermQuery) sourceQuery).getTerm());

@@ -1990,7 +1990,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        String scoreMode = ScoreType.values()[randomInt(ScoreType.values().length)].name().toLowerCase(Locale.ROOT);
+        String scoreMode = ScoreType.values()[randomInt(ScoreType.values().length) - 1].name().toLowerCase(Locale.ROOT);
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(QueryBuilders.hasChildQuery("child", termQuery("c_field", "blue")).scoreType(scoreMode), notFilter(termFilter("p_field", "3"))))
                 .execute().actionGet();

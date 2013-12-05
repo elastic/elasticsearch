@@ -222,6 +222,5 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class).asEagerSingleton();
         // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
-        bind(RestHelpAction.class).asEagerSingleton();
     }
 }

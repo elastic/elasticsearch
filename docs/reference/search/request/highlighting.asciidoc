@@ -77,6 +77,9 @@ will be used instead of the plain highlighter.  The fast vector highlighter:
   increases the size of the index
 * Can combine matches from multiple fields into one result.  See
   `matched_fields`
+* Can assign different weights to matches at different positions allowing
+  for things like phrase matches being sorted above term matches when
+  highlighting a Boosting Query that boosts phrase matches over term matches
 
 Here is an example of setting the `content` field to allow for
 highlighting using the fast vector highlighter on it (this will cause

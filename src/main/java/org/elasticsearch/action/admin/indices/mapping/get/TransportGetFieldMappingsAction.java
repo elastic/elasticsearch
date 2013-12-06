@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
@@ -168,21 +169,68 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, String[] fields,
                                                                                boolean includeDefaults) throws ElasticSearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<String, FieldMappingMetaData>();
+        ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : fields) {
-            FieldMapper fieldMapper = documentMapper.mappers().smartNameFieldMapper(field);
-            if (fieldMapper != null) {
-                try {
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    builder.startObject();
-                    fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
-                    builder.endObject();
-                    fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.names().fullName(), builder.bytes()));
-                } catch (IOException e) {
-                    throw new ElasticSearchException("failed to serialize XContent of field [" + field + "]", e);
+            if (Regex.isMatchAllPattern(field)) {
+                for (FieldMapper fieldMapper : allFieldMappers) {
+                    addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, includeDefaults);
+                }
+            } else if (Regex.isSimpleMatchPattern(field)) {
+                // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
+                // also make sure we only store each mapper once.
+                boolean[] resolved = new boolean[allFieldMappers.size()];
+                for (int i = 0; i < allFieldMappers.size(); i++) {
+                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                    if (Regex.simpleMatch(field, fieldMapper.names().fullName())) {
+                        addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, includeDefaults);
+                        resolved[i] = true;
+                    }
+                }
+                for (int i = 0; i < allFieldMappers.size(); i++) {
+                    if (resolved[i]) {
+                        continue;
+                    }
+                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                    if (Regex.simpleMatch(field, fieldMapper.names().indexName())) {
+                        addFieldMapper(fieldMapper.names().indexName(), fieldMapper, fieldMappings, includeDefaults);
+                        resolved[i] = true;
+                    }
+                }
+                for (int i = 0; i < allFieldMappers.size(); i++) {
+                    if (resolved[i]) {
+                        continue;
+                    }
+                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                    if (Regex.simpleMatch(field, fieldMapper.names().name())) {
+                        addFieldMapper(fieldMapper.names().name(), fieldMapper, fieldMappings, includeDefaults);
+                        resolved[i] = true;
+                    }
+                }
+
+            } else {
+                // not a pattern
+                FieldMapper fieldMapper = documentMapper.mappers().smartNameFieldMapper(field);
+                if (fieldMapper != null) {
+                    addFieldMapper(field, fieldMapper, fieldMappings, includeDefaults);
                 }
             }
         }
         return fieldMappings.immutableMap();
+    }
+
+    private void addFieldMapper(String field, FieldMapper fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
+        if (fieldMappings.containsKey(field)) {
+            return;
+        }
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.startObject();
+            fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.names().fullName(), builder.bytes()));
+        } catch (IOException e) {
+            throw new ElasticSearchException("failed to serialize XContent of field [" + field + "]", e);
+        }
     }
 
 

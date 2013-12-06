@@ -36,6 +36,25 @@ Accept-Encoding). Defaults to `false`.
 
 |`http.compression_level` |Defines the compression level to use.
 Defaults to `6`.
+
+|`http.cors.enabled` |Enable or disable cross-origin resource sharing,
+i.e. whether a browser on another origin can do requests to
+Elasticsearch. Defaults to `true`.
+
+|`http.cors.allow-origin` |Which origins to allow. Defaults to `*`,
+i.e. any origin.
+
+|`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
+determine CORS settings. `max-age` defines how long the result should
+be cached for. Defaults to `1728000` (20 days)
+
+|`http.cors.allow-methods` |Which methods to allow. Defaults to
+`OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+
+|`http.cors.allow-headers` |Which headers to allow. Defaults to
+`X-Requested-With, Content-Type, Content-Length`.
+
+
 |=======================================================================
 
 It also uses the common

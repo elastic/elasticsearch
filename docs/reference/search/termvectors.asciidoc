@@ -41,6 +41,14 @@ If the requested information wasn't stored in the index, it will be
 omitted without further warning. See <<mapping-types,type mapping>>
 for how to configure your index to store term vectors.
 
+[WARNING]
+======
+Start and end offsets assume UTF-16 encoding is being used. If you want to use
+these offsets in order to get the original text that produced this token, you
+should make sure that the string you are taking a sub-string of is also encoded
+using UTF-16.
+======
+
 [float]
 ==== Term statistics
 

@@ -1704,6 +1704,36 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertSecondHit(searchResponse, hasId("1"));
     }
 
+    @Test
+    public void testQueryStringWithSlopAndFields() {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "customer", "1").setSource("desc", "one two three").get();
+        client().prepareIndex("test", "product", "2").setSource("desc", "one two three").get();
+        refresh();
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("desc")).get();
+            assertHitCount(searchResponse, 2);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").field("product.desc")).get();
+            assertHitCount(searchResponse, 1);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one three\"~5").field("product.desc")).get();
+            assertHitCount(searchResponse, 1);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("customer.desc")).get();
+            assertHitCount(searchResponse, 1);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("\"one two\"").defaultField("customer.desc")).get();
+            assertHitCount(searchResponse, 1);
+        }
+    }
+
     private static FilterBuilder rangeFilter(String field, Object from, Object to) {
         if (randomBoolean()) {
             if (randomBoolean()) {

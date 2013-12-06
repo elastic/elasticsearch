@@ -1,0 +1,964 @@
+Elasticsearch Changelog
+
+See also http://www.elasticsearch.org/downloads/
+
+
+= elasticsearch 1.0.0.RC1
+
+== Breaking changes
+
+== Features
+
+* #3920 Added a term count field to be returned in search results
+* #3750 FastVectorHighlighter supports combining of fields
+
+== Enhancements
+
+* #4344 FsStats: Expose total number of I/O operations
+* #4343 FsStats: Expose a total section summing up all data.paths stats
+* #4342 Added indices.cluster.send_refresh_mapping setting in case of extreme mapping updates
+* #4335 geohash_cell filter fails if mapping is not configured correctly
+
+== Bug fixes
+
+* #4341 Query_ has_child query could return wrong results
+* #4330 Fix hashcode method of FieldDataSource.Bytes.SortedAndUnique, preventing collisions
+* #4325 Fixed percolation request parsing problem
+* #4315 Fixed per-field boosting of the _all field
+
+
+
+= elasticsearch 1.0.0.beta2
+
+== Breaking changes
+
+* #4199 Java client: FilterBuilder and QueryBuilder throw ElasticSearchIllegalArgumentException
+
+== Features
+
+* #3826 Snapshot/Restore API – Phase 1
+* #3300 Aggregation Module – Phase 1
+* #4245 Aggregations: Support in the Percolate API
+
+== Enhancements
+
+* #4241 Lucene: Upgrade to Lucene 4.6.0
+* #4267 Aggegrations: Terms aggregator supports filtering terms by a regex
+* #4242 Aggregations: Support for shard_size to terms aggregations
+* #4169 Open/close index API supports new acknowledgement mechanism
+* #4114 Indices aliases API uses new acknowledgement mechanism
+* #4228 PUT Mapping API uses new acknowledgement mechanism
+* #3727 PUT Mapping API: A date format can now be updated
+* #4220 Bulk API supports shard timeout like the index API
+* #4209 Query: A field data based TermsFilter has been added
+* #4175 Script fields: Native scripts support primitive arrays as values
+* #4162 Transport client: TransportClient.connectedNodes() contains latest node info when using SimpleNodeSampler
+* #4156 Scroll search: The SearchContext object could allocate an oversized array
+* #4251 Cat API: Add support for pending tasks
+* #4151 Cat API: Remove heap used from _cat/nodes and added RAM percentage
+* #4262 Cat API: Add h parameter to apis, allowing to return columns and descriptions
+* #4233 Nodes info: Added mlockall setting to process info output
+* #4145 Nodes JVM stats: Expose maximum heap settings and heap usage in percent of JVM memory
+* #4101 Index Stats: Add support for segments stats
+* #4134 Lucene: mmapfs is now the default store for 64-bit Linux in order to adhere with Lucene defaults
+* #4121 Postings highlighter now supports the highlight_query functionality
+* #4034 Deprecate numeric_range filter, add a field data execution option to range filter
+* #4282 Updated maven RPM plugin to 2.1-alpha-3
+* #4281 Updated maven Jar plugin to 2.4
+* #4280 Updated maven Resources plugin to 2.6
+* #4279 Updated maven Compiler plugin to 3.1
+* #4278 Updated maven Assembly plugin to 2.4
+* #4277 Updated maven Eclipse plugin to 2.9
+* #4276 Updated maven Source plugin to 2.2.1
+* #4275 Updated maven Surefire plugin to 2.16
+* #4274 Updated maven Dependency plugin to 2.8
+* #4266 Updated maven Shade plugin to 2.2, supports to shade test artifact as well
+* #4164 Query: Multi_match now supports simple values in fields field
+
+== Bug fixes
+
+* #4306 Query: has_child filter and query could yield inconsistent results
+* #4313 Query: has_parent query could yield inconsistent results
+* #4303 Query: minScore was not inclusive
+* #4298 Query: AllTermQuery explanations were not accurate
+* #4291 Query: has_child query with score_mode=avg can emit infinity as score
+* #4273 Query: Fetch/Count could fail if executed on a relocated shard.
+* #4135 Query: has_child query could result in NullPointerException if number of results exceed certain limit
+* #4130 Query: Wrong result on bool filter with must_not and geo_distance
+* #4166 Query: Indices filter did not support _name parameter
+* #2416 Query: Indices filter parsed for indices to which it should not apply
+* #4124 Mapping: _default_ mapping not applied when using separate master/data nodes
+* #4113 Mapping: External method to set rootTypeParsers in DocumentMapperParser was incorrect
+* #4106 Highlighting: Hit object cache gets reset per hit
+* #4116 Highlighting: Postings highlighter doesn’t return snippets when using "path":"just_name"
+* #4089 Rivers did not start correctly
+* #3840 Rivers: River instance not created after successful creation of _meta document
+* #4296 Cat API: _cat/indices waited for cluster health timeout on missing index
+* #4270 Fielddata: Ensuring using correct field data format
+* #4237 Startup: Prefer local primary shards to relocating primary shards during startup
+* #4147 Shard startup: IndexShardGatewayService should not call post_recovery if shard is in STARTED state
+* #4153 Index: BulkProcessor: Fixing a possible deadlock
+* #4235 Index templates: Loading templates via templates/ directory has been fixed
+* #4232 Robin engine: Fixed a NullPointerException in RobinEngine.acquireSearcher() if engine was already closed
+* #4223 Translog: Fixed a NullPointerException in FsTranslog when reverting transient log
+* #4203 Nodes stats: Running the node stats API, while a shard is moving onto the node, logs an exception
+* #4196 Warmer API: Creating an empty warmup query could lead to exceptions
+* #4186 PluginsService: Preventing a possible NullPointerException when starting elasticsearch with a different user
+* #4127 Windows startup: Using JAVA_OPTS could fail in service.bat
+* #4112 Aliases: Unable to create a nested filtered alias on a dataless master
+* #3989 Multi term vector request never returns if the shards for all requested documents are non existent
+* #4293 Maven: OOM when building with java6
+
+
+
+= elasticsearch 1.0.0.beta1
+
+== Breaking changes
+
+* #4038 Reject put mapping requests when the root node does not have the same name as the type
+* #3849 Prohibit adding a parent type mapping to an existing type
+* #3848 Reject indexing requests which specify a parent, if no parent type is defined
+* #3681 Remove get index templates deprecated methods (affects Java API only)
+* #3680 Remove RestActions#splitXXX(String) methods in favor of strings#splitStringByCommaToArray (affects Java API only)
+* #3644 Rename matched_filters to matched_queries and added support for named queries  #3581 &
+* #3432 #3541 Add option to disable printing out a human readable version of size and time values like “1mb” & “2m”. The human readable values are now turned off by default
+* #3330 Rename existsAliases to aliasesExist
+* #3217 Close/Open Index API support multiple indices and wildcard on index names  (affects Java API only)
+* #3188 Add a minimum_should_match parameter when Common query has only high frequent terms
+* #3173 Distributed percolator engine
+* #3172 Get mapping response always returns the index name as root node
+* #3124 Change Version comparison methods to be more readable  (affects Java API only)
+* #3024 Inline string query boosting (i.e., “field:value^7″)  was ignored if one specified a query level boost 
+* #3977 Completion Suggester: Reject non-integer weights on indexing
+* #3685 Deb/RPM: Disable immediate restart on package upgrade
+* #3689 Flush API: remove refresh flag
+* #3690 Optimize API: Remove refresh flag
+* #3531 Thread Pool: Remove blocking type option
+
+== Features
+
+* #3173 Distributed percolator engine
+* #3574 Distributed percolator: Add document highlighter to percolate api
+* #3506 Distributed percolator: Add scoring support to percolate api
+* #3488 Distributed percolator: Add multi percolate api
+* #3440 Distributed percolator: Add size option to percolate api
+* #3430 Distributed percolator: Add count percolate api
+* #3380 Distributed percolator: Percolating existing document api
+* #3883 Distributed percolator: Add more percolate statistics
+* #3851 Distributed percolator: Add facet support to percolate api.
+* #3420 Distributed percolator: Improve alias support in the percolate api
+* #4090 Distributed percolator: Percolate queries are stored under the “.percolate” type
+* #4050 _cat API: Add _cat/health
+* #4014 _cat API: Add _cat/allocation
+* #3969 _cat API: Add _cat/recovery API endpoint
+* #4020 _cat API: Add heap used percentage to _cat/nodes
+* #4016 _cat API: Add ip and node name to _cat/recovery
+* #3941 GetFieldMapping API
+* #3806 Disk-based field data
+* #3716 Added scripts to simplify running Elasticsearch as a service on Windows
+* #3704 #4042 #4103 New highlighter based on lucene postings highlighter
+* #3657 Clear Scroll API
+* #3480 Shard allocation to take into account free disk space
+* #3442 Add highlighting to support to suggestions
+* #3423 #3872 #3892 #3464 Function score query
+* #3404 Add version support to get and mget APIs
+* #3376 Completion prefix suggestion
+* #3368 Add pending cluster tasks API
+* #3301 #3886 More fine grained control over _source retrieval, in get, mget, get_source, explain & search API
+* #3114 #3536 Term vector API to return the term vectors for one or more documents
+* #4062 Automatic reload file based scripts when changed
+* #3630 Allow to highlighting using different queries than the search query
+* #2982 Add support for update to bulk api
+* #3195 Add doc_as_upsert option to the update API
+* #3154 Add a created flag to IndexResponse & UpdateResponse
+* #3859 Enable delimited payload token filter
+* #3100 Add indices aliases exists api
+* #3077 Add delete index alias api for deleting a single alias.
+* #3076 Add endpoint to add one specific index alias
+* #3075 Add get index alias api that allows get specific aliases
+* #2962 Support sort_mode average for geo distance sorting
+* #1170 Added support for random sort
+
+== Enhancements
+
+* #3775 The standard analyzer now uses an empty stop word list by default. Existing indices are not affected
+* #4058 URI routing parameter support with multi search API
+* #4053 URI routing parameter support with Bulk API
+* #3996 URI routing parameter support with Bulk API
+* #4004 Expose the Path, dev and mount options of the file stats via the Java API
+* #3786 Generic cluster state update ack mechanism
+* #3995 Update cluster settings api to support acknowledgements
+* #3985 Cluster reroute api to support acknowledgements
+* #3984 Delete mapping api to support acknowledgements
+* #3983 Update index settings api to support acknowledgements
+* #3833 Delete warmer api to support acknowledgements
+* #3831 Put warmer api to support acknowledgements
+* #3962 Introduce stop timeout and start type for windows service
+* #3914 Rename and document “index.mapping.date.parse_upper_inclusive” setting for date fields
+* #3913 Add support for Lucene SuggestStopFilter
+* #3910 Added a  generic count down mechanism, to simplify the implementation of multiple APIs 
+* #3888 Set queue sizes by default on bulk/index thread pools
+* #3858 Migrate from Trove to Hppc
+* #3853 Upgrade to Lucene 4.5
+* #3838 Better handling of empty  filters while parsing
+* #3828 Support year units in date math expressions
+* #3822 Parent / child queries now also work with the count, delete by query and explain APIs
+* #3821 Add support for "shard_size" for terms & terms_stats facets
+* #3814 Accept dynamic templates with only a match type criteria
+* #3790 Add version support for analyzers to allow backward compatibility in future releases
+* #3758 Cat shards/indices don’t properly handle index parameter
+* #3752 Allow _boost field to be indexed and stored in mapping
+* #3736 Discovery to support a timeout waiting for other nodes to processing new cluster state
+* #3713 Add “node.mode” with “local” or “network” options
+* #3710 Better handling of /_all/_search when no indices exist
+* #3698 Add dedicated Suggest Thread Pool
+* #3673 span_near query should accept slop = -1 (bis)
+* #3659 Include ARMHF Version of Java in JDK_DIRS
+* #3648 CompletionSuggest should throw an exception if input string contains a reserved character.
+* #3643 Allow to control the number of processors sizes are based on
+* #3638 BytesStreamOutput default size should be 2k instead of 32k
+* #3636 Not allowing index names in request body for multi-get/search/bulk when indices are already given in url
+* #3634 On Solaris, default LZF compress type (for transport) can cause segfault
+* #3631 FlushNotAllowedEngineException during optimize
+* #3623 Make the acceptable compression overhead used by MultiOrdinals configurable and default to FASTEST
+* #3605 Remove o.e.common.UUID and replace it with a simplified version
+* #3596 StackOverflow in completion suggester when using long input strings
+* #3582 Install site plugin with custom url doesn’t filter directory
+* #3573 Improve refresh logic when replica move to started
+* #3546 Smarter default for index.index_concurrency, based on the number of available cores with an upper bound
+* #3545 Bound processor size based calculations to 32 as safety measure not to create too many threads
+* #3524 Better exception handling in actions when forking to a thread pool
+* #3522 Expose statistics for completion suggest
+* #3499 Make RestSearchAction#parseSearchXXX(RestRequest) public
+* #3498 Raise default DeleteIndex timeout
+* #3489 More helpful error when specifying side=BACK on edge n-gram tokenizer/tokenfilter
+* #3483 Change default operation_threading to thread_per_shard to improve scalability
+* #3473 Suggest should ignore empty shards
+* #3465 Support FuzzySuggester for completion suggest
+* #3461 Expose IndexWriter#setUseCompundFile via Engine settings.
+* #3454 Improve filtering by _parent field
+* #3441 Streamline Search / Broadcast (count, suggest, refresh, …) APIs header
+* #3439 Add client method to get a specific index template
+* #3435 HighlightBuilder should be consistent with SearchContextHighlight.Field options
+* #3434 Added index templates REST support for HEAD and a 404 status code if not existing
+* #3427 Search on a shard group while relocation may fail in some rare cases
+* #3421 Plugin Manager should support -remove group/artifact/version naming
+* #3417 Reroute eagerly on shard started events
+* #3413 Delete API ack to wait also for actual deletion of shards from disk
+* #3411 Forbid usage of new StringReader(String)
+* #3410 Improve how aliases are handled in the cluster state.
+* #3409 Use Analyzer.tokenStream(fieldName, text) instead of Analyzer.tokenStream(fieldName, new FastStringReader(text))
+* #3400 Open/Close indices to support acknowledgement from other nodes
+* #3399 auto_expand_replicas causing very large amount of cluster state changes when a node joins or leaves the cluster – causing the master to become unresponsive
+* #3392 RegexpQueryBuilder should implement MultiTermQueryBuilder
+* #3370 Add Git build info when we build a distribution
+* #3369 Expose recursion level for Hunspell token filter (post Lucene 4.4 upgrade)
+* #3366 Add optimize thread pool (size 1) dedicated to perform explicit optimize API
+* #3365 Cluster State Update APIs (master node) to respect master_timeout better
+* #3361 Zen Discovery Cluster Events to have Priority.URGENT
+* #3357 Highlighting doesn’t work with term vectors enabled and some complex queries
+* #3320 _bulk response for delete operations lack the "found" field
+* #3279 (Java) Using primitive arrays instead of Object with map/builder
+* #3258 Add a score_mode to the rescore
+* #3233 Lookup Terms Filter ignores the routing parameter
+* #3231 Add Arabic/PersianNormalizationFilters from Lucene
+* #3229 Geohash filter format
+* #3220 Merge integer field data implementations together
+* #3219 Lookup Terms Filter _cache parameter not being taken into account
+* #3218 Geohash filter
+* #3205 Expose fielddata “fields” param in standard in indicesStatsRequest
+* #3199 Suggest API infrastructure exposes more information for plugins
+* #3191 Expose timeout in nodes_info REST API
+* #3186 Compress PagedBytesAtomicFieldData’s termOrdToBytesOffset
+* #3185 Pack the ordinals in field data for single valued fields
+* #3171 Introduce a dedicate JAVA get mapping and get warmers API and use it to improved performance of existing REST API 
+* #3167 custom_score could support a filter directly
+* #3166 Allow specifying the compound format ration via the “index.compound_format” settings
+* #3141 Missing/exists filters should also work for objects
+* #3112 Update the plugin manager’s help
+* #3103 Store _version as a numeric doc values field
+* #3097 No matched_filters being returned when using named filters
+* #3089 Make suggest API implementations pluggable
+* #3059 Integrate forbiddenAPIs checks into ElasticSearch
+* #3047 Date parsing is locale dependant with no way to configure
+* #3011 Add more informative toString method to StoreDirectory
+* #2993 REST Get Source API 
+* #2967 Update API doesn’t support both script and doc
+* #2963 Return proper status code in case of failure for delete by query api
+* #2540 Allow plugins to add HTTP headers to responses.
+* #2532 enable GET /_template to show all templates
+* #2132 Allow using multiple predefined date formats 
+* #1171 Highlighting returning an excerpt even with no highlights
+* #3340 Add the pattern_capture token filter
+* #3013 Expose LimitTokenCountFilter in ElasticSearch
+* #2969 Have the hunspell filters do dedup by default
+* #3550 Completion Suggester: Allow payload to be a value
+* #3035 Use Recovery Throttling by default
+* #3033 Use Merge Throttling by default in
+* #3032 Raise Search ThreadPool Size to 3x availableProcessors
+* #3031 Allow to disable allocation on the index level
+* #2924 elasticsearch.yml doesn’t accept _lo_ or _lo0_ for network.host
+* #3723 Delete Template: When deleting with * and no templates exists, don’t 404
+* #3118 Highlighting: Add NGramTokenizer and NGramTokenFilter to broken chains
+* #3491 Allow to change _source exclude/include at runtime
+* #3384 Allow to update/merge the dynamic flag
+* #3270 Mget: the fields parameter should accept a string
+* #3034 Improve has_parent & has_child filter execution
+* #3028 Improve memory usage of the parent-child id cache
+* #3026 Make parent/child score mode naming consistent
+* #3628 Plugin Manager: add silent mode
+* #3074 Common terms query parameters inconsistent
+* #2400 Support SpanMultiTermQueryWrapper
+* #3748 REST: Add newline to response when using pretty flag
+* #3904 Segments API: Support merge id on segments (groups segments being merged)
+* #896 Support “missing” specific handling for sorting, include _last, _first, and custom value (for string values)
+* #3044 Support nested sorting for sorting by script and geo distance sorting
+* #3020 Nested filter with nested sorting doesn’t use missing value.
+* #3241 Terms Filter Lookup: Allow to disable caching of lookup terms
+* #3240 Terms Filter Lookup: When on cache key defined, use terms values as key to filter cache
+* #3216 Terms Filter Lookup: Failure when no mappings for the terms field exists (no data indexed)
+* #3954 Have a separate transport channel for recovery
+* #3362 Add a dedicated ping transport channel
+
+== Bug fixes
+
+* #4093 Fix for LUCENE-5330 pruning the IndexWriter queue
+* #4100 Added a protection against double closing of xContent builders
+* #4094 Allow setting “indices.recovery.concurrent_small_file_streams” dynamically
+* #4073 Configuring a keep words token filter to load words from file results in error message
+* #4061 Fix possible NPE in ClusterState.toString()
+* #4045 Error when using aliases on a MoreLikeThisQuery
+* #4019 Fix bug in TransportShardReplicationOperationAction retry mechanism
+* #4009 Not resending shard started messages when shard state is POST_RECOVERY and master died before processing the previous one
+* #3979 The +index pattern without a wildcard in the index list is handled inconsistently
+* #3965 NullPointerException using “has_child” filter after upgrade to v0.90.5
+* #3955 has_child can cause an infinite loop (100% CPU) when used in bool query
+* #3931 Awareness attributes can’t be reset once they are set.
+* #3929 Settings queue_size on index/bulk TP can cause rejection failures when executed over network
+* #3928 service.bat incorrectly assumes JRE will have a ‘client’ directory
+* #3906 service.bat fails if ES_HOME contains whitespaces and parentheses
+* #3898 No results are found with specific use case when using a custom word_delimiter filter
+* #3884 elasticsearch-service-x64 unable to reflect ES_HEAP_SIZE
+* #3882 “bin/plugin –install” reports success for aborted installations
+* #3881 Multiple tokens at the same position not working correctly with match query if AND operator is used
+* #3878 Search using BooleanQueryBuilder and GeoShapeQueryBuilder results in “Current context not an ARRAY but OBJECT”
+* #3873 Get term vector api broken for missing payloads
+* #3847 plugin -remove deletes bin directory
+* #3808 pattern_capture token filter does not throw error with patterns missing.
+* #3797 multi_match lenient query with boosted field crashes with NullPointerException
+* #3785 service.bat doesn’t properly set the memory limits for installed services
+* #3783 Use the new index UUID to ensure mapping update events from older indices are not applied to new indices with the same name
+* #3778 Quickly deleting and creating an index with the same name could cause errors due to lingering shard state change events
+* #3769 Update Operation might hang (rarely) when retrying on invalid shard state
+* #3760 Incorrect JVM_DLL environment variable definition in service.bat
+* #3754 Boost doesn’t seem to work for prefix queries
+* #3746 Missing completion fields in nodes stats
+* #3739 service.bat should handle JRE not just JDK for starting Elasticsearch
+* #3725 service.bat fails unexpectedly if JAVA_HOME contains spaces
+* #3717 Geo-distance sorting should accept the “sort_mode” parameter
+* #3712 Elasticsearch startup script doesn’t work from directory with spaces in path
+* #3706 NestedFieldComparator misses to copy slot if root doc has docID==0 and ‘Avg’ is used
+* #3697 Briefly delete manifested mapping type on a node without reason
+* #3691 ElasticSearch shell script fails due to unsupported syntax on non-Bash shells
+* #3677 Alias filter not applied when using ‘multi-index’ syntax with wild card in URL
+* #3667 Rare race condition when introducing new fields into a mapping
+* #3661 JsonGenerationException thrown in SuggestResponse#toString method
+* #3652 CompletionStats can cause resource leak since requested searchers are not closed
+* #3629 Validate query api parses wrong date range query when using “now”
+* #3626 Explain api parses wrong date range query when using “now”
+* #3625 Count api parses wrong date range query when using “now”
+* #3619 NullPointerException in CompletionStats
+* #3610 BalancedShardsAllocator prematurely modifies "unassigned" shards list
+* #3601 NullPointerException when closing an already closed index
+* #3591 ArrayIndexOutOfBoundsException when using empty preference parameter
+* #3587 SimpleHTMLEncoder to not encode non-ASCII chars
+* #3585 Count and Search API status codes are inconsistent (count does not return 400)
+* #3580 Forced awareness fails to balance shards
+* #3560 Cluster Setting update can hang if gets settings which are not dynamically updatable
+* #3555 NullPointerException during concurrent merges
+* #3551 Plugin Manager can not download _site plugins from github
+* #3544 Wrong analyzer used when indexing dynamic property
+* #3540 Date math not working correctly due to lower casing
+* #3538 Dynamic templates from an index template are skipped if a new type already have dynamic templates
+* #3526 Setting index/bulk thread pools with queue_size can cause replica shard failures
+* #3521 Match all query re-use could cause scoring inconsistencies
+* #3515 NullPointerException during discovery
+* #3513 Errors (like StackOverflow) can cause a search context to not be released
+* #3508 A previous dynamic change to mapping may cause a Put Mapping request to return prematurely
+* #3507 Concurrent Put Mapping API to multiple indices/types may return prematurely
+* #3503 Phrase queries automatically generated by query string ignore boosts
+* #3487 PutMapping requests were prematurely acknowledged if other nodes were quicker than master
+* #3486 FastVectorHighlighter fails with StackOverflow on terms with large TermFrequency
+* #3479 Null pointer exception for POST mode facets if facet_filter accepts no documents
+* #3477 Failure to execute search request with empty top level filter
+* #3476 _default_ mapping change is validated is if it was a normal type
+* #3474 When replacing an existing _default_ type, the old one get merged into the new
+* #3470 NPE in BytesRefOrdValComparator
+* #3469 Multi-field and suggest api error
+* #3463 Plugin script does not exit with exit code != 0 on error
+* #3453 MLT returns all documents if non of the fields in the document are supported
+* #3452 Older version of start-stop-daemon don’t support –status
+* #3448 Null pointer exceptions when bulk updates max out their retry on conflict
+* #3447 Retry on conflict execution of updates *within* bulk request was off by one
+* #3444 Using parent property in update API with doc_as_upsert=true does not work
+* #3425 Pid file not properly overwritten
+* #3419 Query/Filter Facet should support 64bit counter, not 32
+* #3402 MoreLikeThisFieldQueryBuilder defaulted failOnUnsupportedField inconsistently to the REST api
+* #3396 Dynamically updating index.gc_deletes not working
+* #3374 FuzzyLikeThisFieldQueryBuilder defaulted failOnUnsupportedField inconsistently to the REST api
+* #3364 Hang when modifying the cluster state and an uncaught exception is thrown
+* #3363 NullPointerException when trying to add single alias without index or alias
+* #3359 Can’t use empty replacement string in pattern_replace filter
+* #3356 Missing filter works differently in top-level versus filtered query
+* #3342 Thai language analyzer ignores stopwords configuration setting
+* #3317 Fix offsets handling of the n-gram and edge n-gram tokenizers and token filters
+* #3313 Closing an index right after it has been creating leaves it in an unopenable state
+* #3310 Setting a geo_shape field to null caused errors while parsing
+* #3309 Script based sorting is applied only after pagination
+* #3290 The top_children, has_child and has_parent query can cause error when cached.
+* #3288 Partial fields filtering may return false matches and doesn’t allow selecting complete objects
+* #3284 Debian package dependencies can result in java uninstallation
+* #3276 Parent is ignored in exists request
+* #3267 Mget aborting request if index missing
+* #3257 The parent option is ignored in delete requests
+* #3252 Error on MoreLikeThis API with Non Stored Numeric Fields
+* #3247 Invalid “ElasticSearchIllegalArgumentException[The required text option is missing]” Error
+* #3246 Index Warmer Setting is not dynamic anymore on 0.90.1
+* #3242 Geoshape filter can’t handle multiple shapes
+* #3237 IndexUpgraderMergePolicy doesn’t assign a field number to _version correctly
+* #3232 Deleting or closing an index doesn’t clean the memory properly
+* #3211 ElasticSearch 0.90 fails when “highlight” contains a field of type “long”
+* #3204 Indices stats “fielddata”  param was used to control idCache stats, not fieldData
+* #3200 Don’t reset TokenStreams twice when highlighting
+* #3189 Field data should support more than 2B ordinals per segment
+* #3177 NPE in query execution of boolean filter in 0.90.1
+* #3174 Timestamp index settings incorrectly stored
+* #3168 MVEL infinite loop in its error handling causing cluster to degrade
+* #3144 has_child & has_parent queries don’t take deletes into account
+* #3142 FVH can result in massive CPU & RAM usage if MultPhraseQuery is large
+* #3140 FVH produces StringArrayIndexOutOfBounds if stored field is used
+* #3139 has_parent query returning no results with multi level child docs.
+* #3111 Update api doesn’t support versioning
+* #3109 Highlighting does not fail when the field to highlight is absent
+* #3091 Dates passed to the script terms facet are now in the default time zone
+* #3088 “No index mapper found for field” error  while bulk indexing
+* #3078 String sorting incorrect after reindex
+* #3051 ArrayIndexOutOfBoundsException in org.elasticsearch.index.fielddata.ScriptDocValues.Strings
+* #3039 Mlt api doesn’t serialize routing
+* #3037 Phrase suggest direct generator possibly not obeying min_word_len 0.90
+* #3012 DFS modes can cause undefined behaviour in 0.90
+* #3008 NPE when using java client with DFS_QUERY_THEN_FETCH
+* #3000 Get doc fails for some array fields
+* #2991 BytesRefOrdValComparator ignores highest value in a segment during binarySearch
+* #2984 PrimaryBalance in BalancedShardsAllocator can trigger unneeded relocation
+* #2975 Percolating an item of a type that has a default _ttl mapping configured throws an error
+* #2973 BalancedShardAllocator looses custom settings if un-related settings changed
+* #2953 TransportAnalyzeAction causes StringIndexOutOfBoundsException on first attempt to analyze a numeric field
+* #2944 Source exclusion mapping prevents geo shape coordinates to be returned in query result source field
+* #2829 _source includes/excludes has no effect when getting documents by ID
+* #2515 Debian package is now lintian compatible
+* #3669 CompletionFieldMapper ignores path: just_name
+* #3478 Elasticsearch (0.90.2) fails in large core (Ex: ~48) machine
+* #3006 Highlighting: Highlighter still fails if broken analysis chains are used with fast vector highlighter
+* #3949 Java API: Setting track scores does not affect scan search type
+* #2971 Parent-Child: Properly cache parent child queries
+* #3707 Plugins: Automatic detection of site plugins fails to copy over the content to "_site"
+* #3063 Query DSL: External terms doesn’t work with _id field
+* #3007 Query DSL: field_masking_span query parser not registered
+* #2994 Query DSL: span_near query not working
+* #2979 Query DSL: Wrong result on bool filter with ‘must’ and ‘should’ clauses
+* #3901 Query String: Support multiple fields regexp queries
+* #3073 Regresion: geo distance filter – filters out proper geohashes
+* #3161 Thread pool: rename capacity to queue_size in node info response
+* #2952 TransportAnalyzeAction causes IllegalArgumentException: NumericTokenStream does not support CharTermAttribute
+
+
+
+= elasticsearch 0.90.7
+
+== Regressions
+
+* #4078 #4079 Remove Index Reader warmer introduced in 0.90.6 as it is not a good default behavior for all use cases. This will be reimplemented as an opt in feature
+
+== Enhancements
+
+* #4145 Expose maximum heap settings + heap usage in percent in JVM memory stats
+* #4121 Postings highlighter to support highlighting a query other than the search query
+* #4101 Index Stats: Add support for segment count stats
+
+== Bug fixes
+
+* #4130 Query DSL: Wrong result on bool filter with ‘must_not’ and ‘geo_distance’
+* #4153 A potential deadlock in the BulkProcessor when client fails while sending the request to the cluster
+* #4147 IndexShardGatewayService should not call post_recovery if shard is in STARTED state
+* #4135 NPE for has_child query if number of results exceed certain limit
+* #4127 Using JAVA_OPTS might fail on certain in inputs in service.bat
+* #4124 _default_ mapping not applied when using separate master/data nodes
+* #4116 Postings highlighter doesn’t return snippets when using “path”:”just_name”
+* #4113 External method to set rootTypeParsers in DocumentMapperParser incorrect
+* #4112 Unable to create a nested filtered alias on a dataless master
+* #4106 Highlight hit object cache gets reset per hit, resulting in a performance penalty
+* #4103 The new Postings highlighter may result in wrong highlighting
+* #4100 Protection against double closing a XContentBuilder
+* #4094 indices.recovery.concurrent_small_file_streams is not dynamically settable
+* #4093 A work around for Lucene bug which causes increased memory usage when using the RAM Directory
+* #3840 #4089 Fixed a racing condition causing rivers to potentially not start
+* #4073 Fixed an issue preventing the  keep words token filter to load words from a file
+* #4045 Potentially failing to resolve aliases in  MoreLikeThisQuery
+* #4028 NPE when percolating a document that contains a completion field
+* #2986 Add an URI param to set track_scores  in search requests
+
+
+
+= elasticsearch 0.90.6
+
+== Breaking changes
+
+* #3849 Handling of the _parent field: Rejecting documents without parent field set as well as prohibit adding a parent mapping at runtime as well as 
+* #3848 Reject indexing requests which specify a parent, if no parent type is defined
+* #3977 Completion Suggester: Reject non-integer weights on indexing to prevent rounding
+
+== Features
+
+* #3941 Added a GetFieldMapping API, which allows to return the mapping for a single field
+* #3703 #4042 A new highlighter based on Lucene postings highlighter has been added
+
+== Enhancements
+
+* #4062 Automatic script reload, allows to reload scripts without restarting the node
+* #4058 Multi Search API: Support global routing parameter in the URI
+* #3996 MultiGet API: Support global routing parameter in the URI
+* #4053 Bulk API: Support global routing parameter in the URI
+* #4004 Nodes stats API: Path, dev and mount cannot be retrieved using the Java API
+* #3786 Generic cluster state update ack mechanism to wait for acknowledgements in the cluster state from other nodes
+* #3995 Update cluster settings api to support acknowledgements
+* #3985 Cluster reroute api to support acknowledgements
+* #3984 Delete mapping api to support acknowledgements
+* #3983 Update index settings api to support acknowledgements
+* #3833 Delete warmer api to support acknowledgements
+* #3831 Put warmer api to support acknowledgements
+* #3962 Windows service: Introduce stop timeout and start type
+* #3914 Date Mapping: Renamed index.mapping.date.parse_upper_inclusive to mapping.date.round_ceil
+* #3913 Add support for Lucene SuggestStopFilter in the StopFilter using the remove_trailing parameter
+* #3910 Add generic count down mechanism when waiting for several events to complete
+* #3888 Set queue sizes by default on bulk/index thread pools
+* #3858 Migrate from Trove to Hppc for internal collection handling
+* #3967 Upgrade to Lucene 4.5.1
+* #3838 Better logic for ignoring empty filters when parsing in order to fall back to useful defaults
+* #3828 Date math: Support year units in expressions
+* #3822 Parent / child queries now also work in count, explain and delete-by-query APIs
+* #3821 Terms/Terms stats facet: Add support for shard_size parameter to be more exact
+* #3814 Dynamic Templates: Specifying a match mapping type criteria is sufficient
+* #3790 Internal analyzer handling: Allow to load different pre built analyzers depending on its version
+* #3752 The _boost field can now be indexed and stored in the mapping (to allow sorting by it)
+* #3736 Discovery supports a timeout waiting for other nodes to process a new cluster state
+* #3673 span_near query allows to configure no slop
+* #3630 Highlighting is supported against non-search queries(like rescore)
+* #3199 Internal Suggest API now carries index and shard id information
+* #1171 Highlighting can now return excerpts even with no highlights
+* #3723 Delete Template: When deleting with * and no templates exists, do not return an error
+* #3748 REST: Add newline to response when using pretty flag
+* #3904 Segments API: Support merge id on segments (groups segments being merged, useful for monitoring)
+* #3392 span_multi term query now supports regexp queries
+* #3954 Transport: Have a separate channel for recovery to ensure this events are prioritized properly
+
+== Bug fixes
+
+* #3928 Windows: service.bat incorrectly assumes JRE will have a client/ directory
+* #3906 Windows: service.bat fails if ES_HOME contains whitespaces and parentheses
+* #3884 Windows: elasticsearch-service-x64 unable to reflect ES_HEAP_SIZE
+* #3785 Windows: service.bat doesn’t properly set the memory limits for installed services
+* #3760 Windows: Incorrect JVM_DLL environment variable definition in service.bat
+* #3739 Windows: service.bat should handle JRE not just JDK for starting Elasticsearch
+* #3725 Windows: service.bat fails unexpectedly if JAVA_HOME contains spaces
+* #4019 Fix bug in TransportShardReplicationOperationAction retry mechanism to prevent requests to hang
+* #4009 Resent shard started messages when shard state is POST_RECOVERY and master died before processing
+* #3979 The +index pattern without a wildcard in the index list was handled inconsistently
+* #3965 Fixed a NullPointerException using has_child filter after upgrade to v0.90.5
+* #3955 A has_child query could cause an infinite loop (100% CPU) when used in bool query
+* #3931 Awareness attributes could not be reset once they were set
+* #3929 Settings queue_size on index/bulk thread pools could cause rejection failures when executed over network
+* #3898 No results are found with specific use case when using a custom word_delimiter filter
+* #3892 function_score query: Decay functions did not allow date math
+* #3882 bin/plugin --install reports success for aborted installations
+* #3881 match_query now supports stacked tokens (for example produces by synonym filters)
+* #3878 GeoShapeQueryBuilder.toXContent() was not closing all opened objects properly
+* #3872 Naming in function_score was fixed
+* #3847 plugin -remove could delete the bin/ directory
+* #3808 pattern_capture token filter did not return an error with patterns missing.
+* #3797 NullPointerException in multi_match query when using lenient and field weight was fixed
+* #3783 Prevent applying mapping updates, if the index was deleted and created in the meantime
+* #3778 Deleting and creating an index quickly could cause lingering shard state events
+* #3769 Update API: An operation could hang rarely when retrying on invalid shard state
+* #3754 Boost did not work for prefix queries (fixed upstream in Lucene 4.5)
+* #3746 Nodes Stats API: Missing completion fields
+* #3717 Geo-distance sorting did not accept the sort_mode parameter
+* #3629 Date range query parsing was wrong when using "now": Validate query API
+* #3626 Date range query parsing was wrong when using "now": Explain API
+* #3625 Date range query parsing was wrong when using "now": Count API
+* #3587 SimpleHTMLEncoder to not encode non-ASCII chars (fixed upstream in Lucene 4.5)
+* #3949 Search API (Java): Setting track_scores does not affect scan search type
+* #3901 Query String: Support multiple fields regexp queries
+
+
+
+= elasticsearch 0.90.5
+
+== Features
+
+* #3716 Running Elasticsearch as a service on Windows
+
+== Enhancements
+
+* #3713 Add node.mode with local or network
+* #3710 Better handling of /_all/_search when no indices exist
+* #3631 FlushNotAllowedEngineException during optimize
+
+== Bug fixes
+
+* #3712 Elasticsearch startup script doesn’t work from directory with spaces in path
+* #3706 NestedFieldComparator misses to copy slot if root doc has docID==0 and Avg is used
+* #3677 Alias filter not applied when using multi-index syntax with wild card in URL
+* #3707 Plugins: Automatic detection of site plugins fails to copy over the content to _site
+
+
+
+= elasticsearch 0.90.4
+
+== Breaking changes
+
+* #3680 Remove RestActions#splitXXX(String) methods
+* #3685 Debian & RPM packages: Disable immediate restart on package upgrade
+* #3689 Flush API: Removed the refresh flag
+* #3690 Optimize API: Removed the refresh flag
+* #3531 Thread Pool: Removed blocking type option
+
+== Features
+
+* #3423 Function scoring. Do not miss the great explanation at the github issue
+* #3657 An API to clear scroll requests has been added
+* #3480 Shard allocation takes  free disk space into account
+* #3442 Suggestions can be highlighted in the phrase suggester
+* #1170 Random ordering (as part of the new function scoring)
+
+== Enhancements
+
+* #3698 A dedicated suggest thread pool has been added
+* #3659 Debian package: Support for ARMHF in JDK_DIRS
+* #3653 Rename IndexShard#searcher() to IndexShard#acquireSearcher()
+* #3648 CompletionSuggest throws an exception if input string contains a reserved character
+* #3643 Thread pools: Allow to control the number of processors sizes are based on
+* #3638 BytesStreamOutput default size should be 2k instead of 32k
+* #3636 Optionally ignore index names in request body for multi-get/search/bulk when indices are already given in url
+* #3634 Use different LZF compression on Solaris to prevent segfaults
+* #3623 Make the acceptable compression overhead used by MultiOrdinals configurable and default to FASTEST
+* #3605 Remove org.elasticsearch.common.UUID and replace it with a simplified version
+* #3596 Preventing possible stack overflow in completion suggester when using long input strings
+* #3581 Support _name for queries as already supported by filters
+* #3573 Improved refresh logic when replica move to started
+* #3546 Smarter default to index.index_concurrency
+* #3545 Bound processor size based calculations to a maximum of 32
+* #3432 Add option to disable printing out readable size and time values
+* #3541 Renamed readable_format flag to human
+* #3524 Improved exception handling in actions when forking to a thread pool
+* #3499 Make RestSearchAction#parseSearchXXX(RestRequest) public
+* #3498 Raised default timeout for deleting an index
+* #3489 Improved backwards compatibility handling for NGram / EdgeNGram analysis
+* #3483 Changed default operation_threading from single_thread to thread_per_shard
+* #3473 Suggest ignores empty shards
+* #3465 Completion suggestion: Support FuzzySuggester
+* #3550 Completion suggestion: Allow payload to be an arbitrary value 
+* #3522 Completion suggestion: Statistics for completion suggest are exposed now
+* #3461 Expose IndexWriter#setUseCompoundFile() via engine settings.
+* #3454 Improved filtering by _parent field
+* #3628 Plugin Manager: Support silent mode
+* #3421 Plugin Manager: Support -remove group/artifact/version naming scheme
+* #3582 Plugin Manager: Install site plugin with custom url doesn’t filter directory
+* #2532 Index template: Enable GET /_template to show all templates
+* #3439 Index template: Add client method to get a specific index template
+* #3491 Mapping: Changing _source excludes/includes is now possible at runtime
+
+== Bug fixes
+
+* #3697 Briefly delete manifested mapping type on a node without reason
+* #3691 Debian package: Init script fails due to unsupported syntax on non-Bash shells
+* #3667 Rare race condition when introducing new fields into a mapping
+* #3661 JsonGenerationException thrown in SuggestResponse#toString method
+* #3652 CompletionStats: A resource leak was fixed, since requested searchers were not closed
+* #3619 CompletionStats: Possible NullPointerException was fixed
+* #3610 BalancedShardsAllocator prematurely modified unassigned shards list
+* #3601 Closing an already closed index lead to a NullPointerException
+* #3591 ArrayIndexOutOfBoundsException when using empty preference parameter
+* #3580 Forced awareness fails to balance shards
+* #3560 Cluster settings update could hang if received settings which were not dynamically updatable
+* #3555 NullPointerException during concurrent merges
+* #3551 Plugin Manager can not download _site plugins from github
+* #3544 Wrong analyzer used when indexing dynamic property
+* #3540 Date math not working correctly due to lower casing
+* #3538 Dynamic templates from an index template could be skipped if a new type already have dynamic templates
+* #3526 Setting index/bulk thread pools with queue_size could cause replica shard failures
+* #3521 Removed static versions of MatchAllDocsQuery
+* #3515 NullPointerException during discovery
+* #3513 Certain exceptions could result in an unreleased search context
+* #3507 Concurrent Put Mapping API to multiple indices/types could return prematurely
+* #3503 Phrase queries automatically generated by query string ignored boosts
+* #3487 Put mapping requests were prematurely acknowledged if other nodes were quicker than master
+* #3486 FastVectorHighlighter failed with StackOverflow on terms with large TermFrequency
+* #3479 A NullPointerException for POST mode facets was fixed if facet_filter accepts no documents
+* #3477 An empty top level filter lead to failed search requests
+* #3476 Changing the _default_ mapping was validated is if it was a normal type
+* #3474 When replacing an existing _default_ type, the old one gets now correctly merged into the new mapping
+* #3470 A possible NullPointerException in BytesRefOrdValComparator was fixed
+* #3469 Prevent Phrase Suggester from failing on missing fields
+* #3464 Inconsistent usage of ScriptScoreFunction in FiltersFunctionScoreQuery
+* #3463 The bin/plugin shell script did not exit with a useful exit code on error
+* #3453 More-Like-This query returned all documents if non of the fields in the document are supported
+* #3452 Debian package: Older version of start-stop-daemon did not support --status parameter
+* #3242 Geoshape filter could not handle multiple shapes
+* #3669 CompletionFieldMapper ignored path: just_name
+* #3478 Many cores could lead to huge thread pools
+
+
+
+= elasticsearch 0.90.3
+
+== Breaking changes
+
+* #3330 Java Client: Renamed IndicesAdminClient.existsAliases() to IndicesAdminClient.aliasesExist()
+
+== Features
+
+* #3197 Support for the pattern replace char filter has been added
+* #3368 A new API to check if there are pending cluster tasks has been added
+* #3376 A new completion suggestion based on prefix suggestions has been added (this is experiemental)
+
+== Enhancements
+
+* #3097 Support for named filters has been added
+* #3190 The has_child query has been optimized to execute faster when matching parent count is low
+* #3220 Integer field data implementations have been merged
+* #3258 The rescore query now supports a score_mode
+* #3270 Mget fields parameter can now be a string or an array
+* #3279 XContentParser/Generator now can handle simple arrays
+* #3320 Bulk deletes now contain a found field
+* #3361 Zen discovery cluster events now have an urgent priority
+* #3362 An own channel for pings has been added in order to be independent from huge cluster state updates
+* #3365 Cluster state update APIs now respect the master_timeout much better
+* #3366 A new dedicated thread pool for the optimize API has been added
+* #3357 FastVectorHighlighter now supports complex queries (such as multi phrase queries with two terms at the same position)
+* #3369 The recursion level of the hunspell filter is now configurable in the mapping
+* #3370 Every distribution now contains information about its git build
+* #3384 The dynamic flag in the root object mapper can now be configured dynamically on runtime
+* #3399 Less cluster state changes if auto_expand_replicas is set
+* #3400 Open/Close index API now supports an ackknowledgement from other nodes instead of simply waiting for the change in the cluster state
+* #3409 Whenever analyzing strings, elasticsearch now uses Lucene methods introduced with Lucene 4.4, which reuse internal data structures
+* #3411 In addition, the formerly used methods have been deprecated
+* #3410 Improved alias handling in the cluster state (much faster if you have tens of thousands of aliases)
+* #3413 The delete API now waits until a shard is removed from disk
+* #3417 Rerouting of shards now happens on a shard started event
+* #3434 The Index Template API now is more RESTful, supports HEAD and returns a proper 404 if it does not exist
+* #3435 HighlightBuilder is now consistent with REST API
+* #3441 The header response (including the successful/failed shards) has been streamlined between different requests
+
+== Bug fixes
+
+* #3174 Timestamp index settings in a mapping are now correctly returned
+* #3189 Field data now supports more than 2B ordinals per segment
+* #3200 TokenStreams were reset twice when highlighting
+* #3242 The geo_shape filter now handles multiple shapes per document correctly
+* #3245 The PluginManager now parses parameters correctly again (regression from 0.90.1)
+* #3253 Calling the PluginManager while having a non-existing plugins directory is now handled
+* #3246 The index warmer setting to is now configurable at runtime
+* #3247 The order of fields in a suggest request can now be arbitrary
+* #3252 More-like-this now correctly returns an error message if used with numeric fields (that error can be simply ignored as well)
+* #3257 The parent option is now taken into account for delete requests
+* #3265 The Update APIs doc_as_upsert option is now taken into account correctly
+* #3267 Mget requests do not abort completely anymore if any index is missing
+* #3276 Parent is taken into account in exists request
+* #3284 Removed java dependency from debian package, so arbitrarily installed java can be used
+* #3288 Partial fields filtering could return false matches
+* #3290 Caching of top_children, has_child and has_parent queryies could lead to a ClassCastException
+* #3309 Script based sorting was applied after pagination
+* #3313 Unallocated indexes cannot be closed immediately to prevent indices which cannot be opened anymore
+* #3342 Thai analyzer now makes use of stopwords
+* #3356 Unset top level filter now behaves the same as inside a filtered query
+* #3359 Pattern replace filter now has an empty default set to ensure same behaviour on upgrades
+* #3363 Alias validation on adding aliases has been improved
+* #3364 Uncaught exceptions on cluster state updates could lead to hanging request
+* #3374 FuzzyLikeThisFieldQueryBuilder defaults are now consistent with the REST API
+* #3381 Updatting a mapping with ignore_conflicts could hang and timeout
+* #3396 Setting index.gc_deletes on runtime is working properly now
+* #3402 MoreLikeThisFieldQueryBuilder defaults are now consistent with the REST API
+* #3419 Query/Filter facet counter is now 64bit
+* #3425 The pid file was not properly overwritten if it already existed
+* #3427 Search in a shard group while relocation final flip happens could have failed
+* #3444 UpsertRequests now contain all metadata fields (parent, routing, etc.)
+* #3447 Retry_on_conflict setting in a bulk request could lead to an NPE
+
+
+
+= elasticsearch 0.90.2
+
+== Breaking changes
+
+* #3188 Add a minimum_should_match parameter when Common query has only high frequent terms
+* #3124 Change Version methods to be more readable
+
+== Features
+
+* #3195 Add doc_as_upsert option to update api
+
+== Enhancements
+
+* #3231 Add Arabic/PersianNormalizationFilters from Lucene
+* #3202 Add Lucene CommonGrams/CommonGramsQuery token fiter
+* #3229 Geohash enhancements for geopoints: Geohash filter format
+* #3218 Geohash enhancements for geopoints: Geohash filter
+* #3205 Expose fielddata “fields” param in standard in indicesStatsRequest
+* #3191 Expose timeout in nodes_info REST API
+* #3186 Compress PagedBytesAtomicFieldData’s termOrdToBytesOffset
+* #3185 Pack the ordinals in field data for single valued fields
+* #3167 custom_score could support a filter directly
+* #3166 Merge Settings are misleading
+* #3141 missing/exists filters should also work for objects
+* #3112 Update plugin manager
+* #2132 Can’t define multiple predefined date formats using "||"
+* #3241 Terms Filter Lookup: Allow to disable caching of lookup terms
+* #3240 Terms Filter Lookup: When on cache key defined, use terms values as key to filter cache
+* #3216 Terms Filter Lookup: Failure when no mappings for the terms field exists (no data indexed)
+* #3233 Terms Filter Lookup: Lookup Terms Filter ignores the routing parameter
+* #3219 Terms Filter Lookup: _cache parameter not being taken into account
+
+== Bug fixes
+
+* #3232 Deleting or closing an index doesn’t clean the memory properly
+* #3211 ElasticSearch 0.90 fails when “highlight” contains a field of type “long”
+* #3204 “fielddata” qs param setting idCache, not fieldData
+* #3177 NPE in query execution of boolean filter in 0.90.1
+* #3144 has_child & has_parent queries don’t take deletes into account
+* #3142 FVH can result in massive CPU & RAM usage if MultPhraseQuery is large
+* #3140 FVH produces StringArrayIndexOutOfBounds if stored field is used
+* #3139 has_parent query returning no results with multi level child docs.
+* #2944 source exclusion mapping prevents geo shape coordinates to be returned in query result source field
+* #2515 Improved Debian package 
+* #3073 Regresion: geo distance filter – filters out proper geohashes
+* #3161 Thread pool: rename "capacity" to "queue_size"
+* #3317 Fix offsets handling of the n-gram and edge n-gram tokenizers and token filters
+
+
+
+= elasticsearch 0.90.1
+
+== Upgrade notes
+
+* The 0.90.1 release is based on Lucene 4.3. We recommend testing the upgrade before doing it in production.
+* Upgrading from 0.20 requires a full cluster restart.
+* In order to be able to downgrade to pre-0.90, stop indexing new data, issue a flush request, do the upgrade and only enable indexing of new data once you are certain that you no longer need to downgrade.  Once new data has been indexed, downgrading is no longer possible. To be extra safe, back up your data before upgrading.
+
+== Breaking changes
+
+* #3024 MatchQueryParser doesn’t allow field boosting on query when included in a _GET request
+* #3015 Make GetField behavior more consitent for multivalued fields.
+
+== Features
+
+* #3100 Aliases: Add indices aliases exists api
+* #3077 Aliases: Add delete index alias api for deleting a single alias.
+* #3076 Aliases: Add endpoint to add one specific index alias
+* #3075 Aliases: Add get index alias api that allows get specific aliases
+* #2982 Bulk: Add support for update to bulk api
+* #2962 Sorting: Support sort_mode average for geo distance sorting
+
+== Enhancements
+
+* #3059 Integrate forbiddenAPIs checks into ElasticSearch
+* #3047 Date parsing is locale dependant with no way to configure
+* #3011 Add more informative toString method to StoreDirectory
+* #2995 Rest Get Source
+* #2993 Rest Get Source
+* #2967 Update API doesn’t support both script and doc
+* #2540 Open up HTTP headers
+* #3013 Analysis: Expose LimitTokenCountFilter in ElasticSearch
+* #2969 Analysis: Have the hunspell filters do dedup by default
+* #3035 Config: Use Recovery Throttling by default in 0.90.1
+* #3033 Config: Use Merge Throttling by default in 0.90.1
+* #3032 Config: Raise Search ThreadPool Size to 3x availableProcessors
+* #3031 Config: Allow to disable allocation on the index level
+* #2924 Config: elasticsearch.yml doesn’t accept _lo_ or _lo0_ for network.host
+* #3118 Highlighting: Add NGramTokenizer and NGramTokenFilter to broken chains
+* #3034 Parent-Child: Improve has_parent & has_child filter execution
+* #3028 Parent-Child: Improve memory usage id cache
+* #3026 Parent-Child: Make score mode naming consistent
+* #3074 Query DSL: Common terms query parameters inconsistent
+* #2400 Query DSL: Support SpanMultiTermQueryWrapper
+* #3044 Sorting: Also support nested sorting for sorting by script and geo distance sorting
+* #3020 Sorting: Nested filter with nested sorting doesn’t use missing value.
+
+== Bug fixes
+
+* #3091 Dates passed to the script terms facet are now in the default time zone
+* #3088 “no index mapper found for field” bulk indexing in 0.90
+* #3078 String sorting incorrect after reindex
+* #3051 ArrayIndexOutOfBoundsException in org.elasticsearch.index.fielddata.ScriptDocValues.Strings
+* #3039 Mlt api doesn’t serialize routing
+* #3037 Phrase suggest direct generator possibly not obeying min_word_len 0.90
+* #3012 DFS modes can cause undefined behaviour in 0.90
+* #3008 NPE when using java client with DFS_QUERY_THEN_FETCH
+* #3000 Get doc fails for some array fields
+* #2991 BytesRefOrdValComparator ignores highest value in a segment during binarySearch
+* #2984 PrimaryBalance in BalancedShardsAllocator can trigger unneeded relocation
+* #2975 Percolating an item of a type that has a default _ttl mapping configured throws an error
+* #2973 BalancedShardAllocator looses custom settings if un-related settings changed
+* #2953 TransportAnalyzeAction causes StringIndexOutOfBoundsException on first attempt to analyze a numeric field
+* #2829 _source includes/excludes has no effect when getting documents by ID
+* #3006 Highlighting: Highlighter still fails if broken analysis chains are used with fast vector highlighter
+* #2971 Parent-Child: Properly cache parent child queries
+* #3063 Query DSL: External terms doesn’t work with _id field
+* #3007 Query DSL: field_masking_span query parser not registered
+* #2994 Query DSL: span_near query not working
+* #2979 Query DSL: Wrong result on bool filter with ‘must’ and ‘should’ clauses
+* #2952 TransportAnalyzeAction causes IllegalArgumentException: NumericTokenStream does not support CharTermAttribute
+
+
+
+= elasticsearch 0.90.0
+
+== Upgrade notes
+
+* This is the first stable release based on Lucene 4. We recommend testing the upgrade before doing it in production.
+* Upgrading from 0.20 requires a full cluster restart.
+* In order to be able to downgrade, stop indexing new data, issue a flush request, do the upgrade and only enable indexing of new data once you are certain that you no longer need to downgrade.  Once new data has been indexed, downgrading is no longer possible. To be extra safe, back up your data before upgrading.
+
+== Breaking changes
+
+* #2918 minimum_should_match applied to wrong query in multi_match
+
+== Features
+
+* #2899 PolygonBuilder does not support holes
+* #2889 Expose field level field data statistics
+* #2874 Allow FieldData loading to be filtered
+
+== Enhancements
+
+* #2945 Use Lucene Version that was used to create the index in Analysis
+* #2911 XContentBuilder doesn’t handle Java Calendar
+* #2907 Empty response when updating cluster settings
+* #2900 Make the has_child and has_parent filter support caching
+* #2895 Add UNICODE_CHARACTER_CLASS flag to Regex flag parsing
+* #2893 Better error message when using bloom codec
+* #2887 Missing FilterBuilder.toString()
+* #2890 Clear Cache API: Streamline option names
+* #2906 Search Stats: Add current open searches
+
+== Bug fixes
+
+* #2920 Error on Script Based Sorting
+* #2896 NullPointerException in count and search with preference set to _primary
+* #2886 The clear_cache API doesn’t clear fielddata cache by default
+* #2882 Fielddata stats incorrect for multi-value fields
+* #2878 Terms facets may return negative “other” count for script field
+* #2873 0.90 RC2 can no longer fetch template
+* #2686 Get template does not seem to return warmers
+* #1072 fragment_size doesn’t work with quoted phrase
+* #2931 StringIndexOutOfBoundsException[String index out of range: -8] while Highlighting

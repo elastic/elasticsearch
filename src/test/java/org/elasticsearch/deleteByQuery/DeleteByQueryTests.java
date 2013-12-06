@@ -120,10 +120,10 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
                     .setSource("foo", "bar").get();
         }
         refresh();
-        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.fieldQuery("_id", Integer.toString(between(0, numDocs - 1)))).get(), 1);
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchQuery("_id", Integer.toString(between(0, numDocs - 1)))).get(), 1);
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs);
         client().prepareDeleteByQuery("test")
-                .setQuery(QueryBuilders.fieldQuery("_id", Integer.toString(between(0, numDocs - 1))))
+                .setQuery(QueryBuilders.matchQuery("_id", Integer.toString(between(0, numDocs - 1))))
                 .execute().actionGet();
         refresh();
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs - 1);

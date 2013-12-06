@@ -39,28 +39,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Creates a text query with type "BOOLEAN" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textQuery(String, Object)} instead
-     */
-    public static MatchQueryBuilder text(String name, Object text) {
-        return textQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "BOOLEAN" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchQuery(String, Object)}
-     */
-    public static MatchQueryBuilder textQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
-    }
-
-    /**
      * Creates a match query with type "BOOLEAN" for the provided field name and text.
      *
      * @param name The field name.
@@ -260,89 +238,6 @@ public abstract class QueryBuilders {
      */
     public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
         return new FuzzyQueryBuilder(name, value);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name The name of the field
-     */
-    public static FieldQueryBuilder fieldQuery(String name, String query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, int query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, long query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, float query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, double query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, boolean query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, Object query) {
-        return new FieldQueryBuilder(name, query);
     }
 
     /**

@@ -423,7 +423,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         String key = "DE";
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(fieldQuery("_id", key))
+                .setQuery(matchQuery("_id", key))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);

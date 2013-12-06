@@ -203,6 +203,9 @@ public class QueryStringQueryParser implements QueryParser {
         qpSettings.queryTypes(parseContext.queryTypes());
         Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
         if (query != null) {
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
             return query;
         }
 

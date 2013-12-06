@@ -29,6 +29,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -849,6 +850,9 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private void applySlop(Query q, int slop) {
+        if (q instanceof XFilteredQuery) {
+            applySlop(((XFilteredQuery)q).getQuery(), slop);
+        }
         if (q instanceof PhraseQuery) {
             ((PhraseQuery) q).setSlop(slop);
         } else if (q instanceof MultiPhraseQuery) {

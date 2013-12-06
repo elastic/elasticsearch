@@ -125,7 +125,7 @@ public class QueryStringQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     qpSettings.queryString(parser.text());
                 } else if ("default_field".equals(currentFieldName) || "defaultField".equals(currentFieldName)) {
-                    qpSettings.defaultField(parseContext.indexName(parser.text()));
+                    qpSettings.defaultField(parser.text());
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
@@ -201,7 +201,6 @@ public class QueryStringQueryParser implements QueryParser {
         }
 
         qpSettings.queryTypes(parseContext.queryTypes());
-
         Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
         if (query != null) {
             return query;

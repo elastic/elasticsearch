@@ -23,7 +23,7 @@
 * http://code.google.com/p/terrastore/wiki/Search_Integration[Terrastore Search]:
   http://code.google.com/p/terrastore/[Terrastore] integration module with elasticsearch.
 
-* https://github.com/infochimps/wonderdog[Wonderdog]:
+* https://github.com/infochimps-labs/wonderdog[Wonderdog]:
   Hadoop bulk loader into elasticsearch.
 
 * http://geeks.aretotally.in/play-framework-module-elastic-search-distributed-searching-with-json-http-rest-or-java[Play!Framework]:

@@ -203,4 +203,43 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
             }
         }
     }
+
+    /**
+     * Test case for issue #4361: https://github.com/elasticsearch/elasticsearch/issues/4361
+     */
+    @Test
+    public void testMatchedWithShould() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("content", "Lorem ipsum dolor sit amet").get();
+        client().prepareIndex("test", "type1", "2").setSource("content", "consectetur adipisicing elit").get();
+        refresh();
+
+        // Execute search 5 times to load it in cache
+        for (int i = 0; i < 5; i++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(
+                            boolQuery()
+                                    .minimumNumberShouldMatch(1)
+                                    .should(queryString("dolor").queryName("dolor"))
+                                    .should(queryString("elit").queryName("elit"))
+                    )
+                    .setPreference("_primary")
+                    .get();
+
+            assertHitCount(searchResponse, 2l);
+            for (SearchHit hit : searchResponse.getHits()) {
+                if (hit.id().equals("1")) {
+                    assertThat(hit.matchedQueries().length, equalTo(1));
+                    assertThat(hit.matchedQueries(), hasItemInArray("dolor"));
+                } else if (hit.id().equals("2")) {
+                    assertThat(hit.matchedQueries().length, equalTo(1));
+                    assertThat(hit.matchedQueries(), hasItemInArray("elit"));
+                } else {
+                    fail("Unexpected document returned with id " + hit.id());
+                }
+            }
+        }
+    }
 }

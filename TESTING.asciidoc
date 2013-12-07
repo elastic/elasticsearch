@@ -166,3 +166,45 @@ even if tests are passing.
 ------------------------------
 mvn test -Dtests.output=always
 ------------------------------
+
+== Testing the REST layer
+
+The available integration tests make use of the java API to communicate with
+the elasticsearch nodes, using the internal binary transport (port 9300 by
+default).
+The REST layer is tested through specific tests that are shared between all
+the elasticsearch official clients and can be found on the
+https://github.com/elasticsearch/elasticsearch-rest-api-spec[elasticsearch-rest-api-spec project].
+They consist of
+https://github.com/elasticsearch/elasticsearch-rest-api-spec/tree/master/test[YAML files]
+that describe the operations to be executed and the obtained results that
+need to be tested.
+
+`ElasticsearchRestTests` is the executable test class that runs all the
+yaml suites available through a git submodule within the `rest-spec` folder.
+The submodule gets automatically initialized through maven right before
+running tests (generate-test-resources phase).
+The REST tests cannot be run without the files pulled from the submodule,
+thus if the `rest-spec` folder is empty on your working copy, it means
+that it needs to be initialized with the following command:
+
+------------------------------
+git submodule update --init
+------------------------------
+
+The following are the options supported by the REST tests runner:
+
+* `tests.rest[true|false|host:port]`: determines whether the REST tests need
+to be run and if so whether to rely on an external cluster (providing host
+and port) or fire a test cluster (default)
+* `tests.rest.suite`: comma separated paths of the test suites to be run
+(by default loaded from /rest-spec/test). It is possible to run only a subset
+of the tests providing a sub-folder or even a single yaml file (the default
+/rest-spec/test prefix is optional when files are loaded from classpath)
+e.g. -Dtests.rest.suite=index,get,create/10_with_id
+* `tests.rest.spec`: REST spec path (default /rest-spec/api)
+* `tests.iters`: runs multiple iterations
+* `tests.seed`: seed to base the random behaviours on
+* `tests.appendseed[true|false]`: enables adding the seed to each test
+section's description (default false)
+* `tests.cluster_seed`: seed used to create the test cluster (if enabled)

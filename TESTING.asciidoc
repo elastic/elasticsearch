@@ -18,19 +18,19 @@ mvn clean package -DskipTests
 
 == Other test options
 
-To disable and enable netty transport, set the `ES_TEST_LOCAL`
+To disable and enable network transport, set the `ES_TEST_LOCAL`
 environment variable.
 
-Use netty transport:
+Use network transport (default):
 
 ------------------------------------
-export ES_TEST_LOCAL=true && mvn test
+export ES_TEST_LOCAL=false && mvn test
 ------------------------------------
 
 Use local transport:
 
 -------------------------------------
-export ES_TEST_LOCAL=false && mvn test
+export ES_TEST_LOCAL=true && mvn test
 -------------------------------------
 
 Wait on mapping changes:

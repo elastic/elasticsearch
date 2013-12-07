@@ -1,10 +1,14 @@
 package org.elasticsearch.indices.mapping;
 
+import com.google.common.base.Predicate;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
@@ -20,6 +24,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -32,24 +37,51 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void dynamicUpdates() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
+                                .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        long recCount = 20;
+        int recCount = 200;
+        final CountDownLatch latch = new CountDownLatch(recCount);
         for (int rec = 0; rec < recCount; rec++) {
-            client().prepareIndex("test", "type", "rec" + rec).setSource("field" + rec, "some_value").execute().actionGet();
+            client().prepareIndex("test", "type", "rec" + rec).setSource("field" + rec, "some_value").execute(new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    logger.error("failed to index in test", e);
+                    latch.countDown();
+                }
+            });
         }
+        latch.await();
+        logger.info("wait till the mappings have been processed...");
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
+                return pendingTasks.pendingTasks().isEmpty();
+            }
+        });
+
+        logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        logger.info("Searching");
         CountResponse response = client().prepareCount("test").execute().actionGet();
-        assertThat(response.getCount(), equalTo(recCount));
+        assertThat(response.getCount(), equalTo((long) recCount));
+
+        logger.info("checking all the fields are in the mappings");
+        String source = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type").source().string();
+        for (int rec = 0; rec < recCount; rec++) {
+            assertThat(source, containsString("\"field" + rec + "\""));
+        }
     }
 
     @Test(expected = MergeMappingException.class)

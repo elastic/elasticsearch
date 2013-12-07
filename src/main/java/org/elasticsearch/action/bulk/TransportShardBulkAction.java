@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -567,11 +568,18 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (documentMapper == null) { // should not happen
                 return;
             }
+            IndexMetaData metaData = clusterService.state().metaData().index(index);
+            if (metaData == null) {
+                return;
+            }
+
+            // we generate the order id before we get the mapping to send and refresh the source, so
+            // if 2 happen concurrently, we know that the later order will include the previous one
+            long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
             documentMapper.refreshSource();
 
-            IndexMetaData metaData = clusterService.state().metaData().index(index);
-
-            final MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(index, metaData.uuid(), type, documentMapper.mappingSource());
+            DiscoveryNode node = clusterService.localNode();
+            final MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(index, metaData.uuid(), type, documentMapper.mappingSource(), orderId, node != null ? node.id() : null);
             mappingUpdatedAction.execute(request, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override
                 public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {

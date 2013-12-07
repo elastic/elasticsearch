@@ -199,7 +199,8 @@ matches. The `size` and `query` option are required for this option. Defaults to
 documentation how to define facets.
 * `highlight` - Allows highlight definitions to be included. The document being percolated is being highlight for each
 matching query. This allows you to see how each match is highlighting the document being percolated. See highlight
-documentation on how to define highlights.
+documentation on how to define highlights. The `size` option is required for highlighting, the performance of highlighting
+ in the percolate api depends of how many matches are being highlighted.
 
 [float]
 === Dedicated percolator index

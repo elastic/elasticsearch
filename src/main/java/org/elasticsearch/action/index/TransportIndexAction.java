@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -272,9 +273,13 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             if (documentMapper == null) { // should not happen
                 return;
             }
+            // we generate the order id before we get the mapping to send and refresh the source, so
+            // if 2 happen concurrently, we know that the later order will include the previous one
+            long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
             documentMapper.refreshSource();
+            DiscoveryNode node = clusterService.localNode();
             final MappingUpdatedAction.MappingUpdatedRequest mappingRequest =
-                    new MappingUpdatedAction.MappingUpdatedRequest(request.index(), indexMetaData.uuid(), request.type(), documentMapper.mappingSource());
+                    new MappingUpdatedAction.MappingUpdatedRequest(request.index(), indexMetaData.uuid(), request.type(), documentMapper.mappingSource(), orderId, node != null ? node.id() : null);
             logger.trace("Sending mapping updated to master: {}", mappingRequest);
             mappingUpdatedAction.execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override

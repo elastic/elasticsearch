@@ -38,7 +38,6 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,9 +48,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
@@ -61,15 +60,20 @@ import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlag
  */
 public class MetaDataMappingService extends AbstractComponent {
 
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
-
     private final IndicesService indicesService;
 
-    private final BlockingQueue<MappingTask> refreshOrUpdateQueue = ConcurrentCollections.newBlockingQueue();
+    // the mutex protect all the refreshOrUpdate variables!
+    private final Object refreshOrUpdateMutex = new Object();
+    private final List<MappingTask> refreshOrUpdateQueue = new ArrayList<MappingTask>();
+    private long refreshOrUpdateInsertOrder;
+    private long refreshOrUpdateProcessedInsertOrder;
 
     @Inject
-    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
+    public MetaDataMappingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -96,12 +100,16 @@ public class MetaDataMappingService extends AbstractComponent {
     static class UpdateTask extends MappingTask {
         final String type;
         final CompressedString mappingSource;
+        final long order; // -1 for unknown
+        final String nodeId; // null fr unknown
         final ClusterStateUpdateListener listener;
 
-        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, ClusterStateUpdateListener listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, long order, String nodeId, ClusterStateUpdateListener listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
+            this.order = order;
+            this.nodeId = nodeId;
             this.listener = listener;
         }
     }
@@ -111,9 +119,26 @@ public class MetaDataMappingService extends AbstractComponent {
      * as possible so we won't create the same index all the time for example for the updates on the same mapping
      * and generate a single cluster change event out of all of those.
      */
-    ClusterState executeRefreshOrUpdate(final ClusterState currentState) throws Exception {
-        List<MappingTask> allTasks = new ArrayList<MappingTask>();
-        refreshOrUpdateQueue.drainTo(allTasks);
+    ClusterState executeRefreshOrUpdate(final ClusterState currentState, final long insertionOrder) throws Exception {
+        final List<MappingTask> allTasks = new ArrayList<MappingTask>();
+
+        synchronized (refreshOrUpdateMutex) {
+            if (refreshOrUpdateQueue.isEmpty()) {
+                return currentState;
+            }
+
+            // we already processed this task in a bulk manner in a previous cluster event, simply ignore
+            // it so we will let other tasks get in and processed ones, we will handle the queued ones
+            // later on in a subsequent cluster state event
+            if (insertionOrder < refreshOrUpdateProcessedInsertOrder) {
+                return currentState;
+            }
+
+            allTasks.addAll(refreshOrUpdateQueue);
+            refreshOrUpdateQueue.clear();
+
+            refreshOrUpdateProcessedInsertOrder = refreshOrUpdateInsertOrder;
+        }
 
         if (allTasks.isEmpty()) {
             return currentState;
@@ -132,32 +157,61 @@ public class MetaDataMappingService extends AbstractComponent {
                 tasksPerIndex.put(task.index, indexTasks);
             }
             indexTasks.add(task);
-
         }
 
         boolean dirty = false;
         MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
         for (Map.Entry<String, List<MappingTask>> entry : tasksPerIndex.entrySet()) {
             String index = entry.getKey();
-            List<MappingTask> tasks = entry.getValue();
+            final IndexMetaData indexMetaData = mdBuilder.get(index);
+            if (indexMetaData == null) {
+                // index got deleted on us, ignore...
+                logger.debug("[{}] ignoring tasks - index meta data doesn't exist", index);
+                continue;
+            }
+            // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
+            // the latest (based on order) update mapping one per node
+            List<MappingTask> allIndexTasks = entry.getValue();
+            List<MappingTask> tasks = new ArrayList<MappingTask>();
+            for (MappingTask task : allIndexTasks) {
+                if (!indexMetaData.isSameUUID(task.indexUUID)) {
+                    logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
+                    continue;
+                }
+                boolean add = true;
+                // if its an update task, make sure we only process the latest ordered one per node
+                if (task instanceof UpdateTask) {
+                    UpdateTask uTask = (UpdateTask) task;
+                    // we can only do something to compare if we have the order && node
+                    if (uTask.order != -1 && uTask.nodeId != null) {
+                        for (int i = 0; i < tasks.size(); i++) {
+                            MappingTask existing = tasks.get(i);
+                            if (existing instanceof UpdateTask) {
+                                UpdateTask eTask = (UpdateTask) existing;
+                                // if we have the order, and the node id, then we can compare, and replace if applicable
+                                if (eTask.order != -1 && eTask.nodeId != null) {
+                                    if (eTask.nodeId.equals(uTask.nodeId) && uTask.order > eTask.order) {
+                                        // a newer update task, we can replace so we execute it one!
+                                        tasks.set(i, uTask);
+                                        add = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (add) {
+                    tasks.add(task);
+                }
+            }
+
             boolean removeIndex = false;
             // keep track of what we already refreshed, no need to refresh it again...
             Set<String> processedRefreshes = Sets.newHashSet();
             try {
                 for (MappingTask task : tasks) {
-                    final IndexMetaData indexMetaData = mdBuilder.get(index);
-                    if (indexMetaData == null) {
-                        // index got deleted on us, ignore...
-                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't exist", index, task);
-                        continue;
-                    }
-
-                    if (!indexMetaData.isSameUUID(task.indexUUID)) {
-                        // index got deleted on us, ignore...
-                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
-                        continue;
-                    }
-
                     if (task instanceof RefreshTask) {
                         RefreshTask refreshTask = (RefreshTask) task;
                         try {
@@ -249,13 +303,24 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (removeIndex) {
                     indicesService.removeIndex(index, "created for mapping processing");
                 }
-                for (Object task : tasks) {
+            }
+        }
+
+        // fork sending back updates, so we won't wait to send them back on the cluster state, there
+        // might be a few of those...
+        threadPool.generic().execute(new Runnable() {
+            @Override
+            public void run() {
+                for (Object task : allTasks) {
                     if (task instanceof UpdateTask) {
-                        ((UpdateTask) task).listener.onResponse(new ClusterStateUpdateResponse(true));
+                        UpdateTask uTask = (UpdateTask) task;
+                        ClusterStateUpdateResponse response = new ClusterStateUpdateResponse(true);
+                        uTask.listener.onResponse(response);
                     }
                 }
             }
-        }
+        });
+
 
         if (!dirty) {
             return currentState;
@@ -267,7 +332,11 @@ public class MetaDataMappingService extends AbstractComponent {
      * Refreshes mappings if they are not the same between original and parsed version
      */
     public void refreshMapping(final String index, final String indexUUID, final String... types) {
-        refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
+        final long insertOrder;
+        synchronized (refreshOrUpdateMutex) {
+            insertOrder = ++refreshOrUpdateInsertOrder;
+            refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
+        }
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {
@@ -276,13 +345,17 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return executeRefreshOrUpdate(currentState);
+                return executeRefreshOrUpdate(currentState, insertOrder);
             }
         });
     }
 
-    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final ClusterStateUpdateListener listener) {
-        refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, listener));
+    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final long order, final String nodeId, final ClusterStateUpdateListener listener) {
+        final long insertOrder;
+        synchronized (refreshOrUpdateMutex) {
+            insertOrder = ++refreshOrUpdateInsertOrder;
+            refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, order, nodeId, listener));
+        }
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {
@@ -291,7 +364,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                return executeRefreshOrUpdate(currentState);
+                return executeRefreshOrUpdate(currentState, insertOrder);
             }
         });
     }

@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -48,6 +49,7 @@ import java.io.IOException;
  */
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
+    private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
 
     @Inject
@@ -55,6 +57,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                                 MetaDataMappingService metaDataMappingService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
+    }
+
+    public long generateNextMappingUpdateOrder() {
+        return mappingUpdateOrderGen.incrementAndGet();
     }
 
     @Override
@@ -80,7 +86,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Override
     protected void masterOperation(final MappingUpdatedRequest request, final ClusterState state, final ActionListener<MappingUpdatedResponse> listener) throws ElasticSearchException {
-        metaDataMappingService.updateMapping(request.index(), request.indexUUID(), request.type(), request.mappingSource(), new ClusterStateUpdateListener() {
+        metaDataMappingService.updateMapping(request.index(), request.indexUUID(), request.type(), request.mappingSource(), request.order, request.nodeId, new ClusterStateUpdateListener() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new MappingUpdatedResponse());
@@ -112,15 +118,19 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String type;
         private CompressedString mappingSource;
+        private long order = -1; // -1 means not set...
+        private String nodeId = null; // null means not set
 
         MappingUpdatedRequest() {
         }
 
-        public MappingUpdatedRequest(String index, String indexUUID, String type, CompressedString mappingSource) {
+        public MappingUpdatedRequest(String index, String indexUUID, String type, CompressedString mappingSource, long order, String nodeId) {
             this.index = index;
             this.indexUUID = indexUUID;
             this.type = type;
             this.mappingSource = mappingSource;
+            this.order = order;
+            this.nodeId = nodeId;
         }
 
         public String index() {
@@ -139,6 +149,20 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             return mappingSource;
         }
 
+        /**
+         * Returns -1 if not set...
+         */
+        public long order() {
+            return this.order;
+        }
+
+        /**
+         * Returns null for not set.
+         */
+        public String nodeId() {
+            return this.nodeId;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -153,6 +177,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
                 indexUUID = in.readString();
             }
+            if (in.getVersion().after(Version.V_0_90_7)) {
+                order = in.readLong();
+                nodeId = in.readOptionalString();
+            }
         }
 
         @Override
@@ -163,6 +191,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             mappingSource.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
                 out.writeString(indexUUID);
+            }
+            if (out.getVersion().after(Version.V_0_90_7)) {
+                out.writeLong(order);
+                out.writeOptionalString(nodeId);
             }
         }
 

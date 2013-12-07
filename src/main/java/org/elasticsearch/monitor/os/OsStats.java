@@ -116,6 +116,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString SYS = new XContentBuilderString("sys");
         static final XContentBuilderString USER = new XContentBuilderString("user");
+        static final XContentBuilderString USAGE = new XContentBuilderString("usage");
         static final XContentBuilderString IDLE = new XContentBuilderString("idle");
         static final XContentBuilderString STOLEN = new XContentBuilderString("stolen");
 
@@ -165,6 +166,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             builder.field(Fields.SYS, cpu.sys());
             builder.field(Fields.USER, cpu.user());
             builder.field(Fields.IDLE, cpu.idle());
+            builder.field(Fields.USAGE, cpu.user() + cpu.sys());
             builder.field(Fields.STOLEN, cpu.stolen());
             builder.endObject();
         }

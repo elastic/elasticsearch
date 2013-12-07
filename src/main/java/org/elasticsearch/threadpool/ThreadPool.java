@@ -155,6 +155,14 @@ public class ThreadPool extends AbstractComponent {
         return new ThreadPoolInfo(infos);
     }
 
+    public Info info(String name) {
+        ExecutorHolder holder = executors.get(name);
+        if (holder == null) {
+            return null;
+        }
+        return holder.info;
+    }
+
     public ThreadPoolStats stats() {
         List<ThreadPoolStats.Stats> stats = new ArrayList<ThreadPoolStats.Stats>();
         for (ExecutorHolder holder : executors.values()) {

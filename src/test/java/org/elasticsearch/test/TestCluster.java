@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -78,6 +79,24 @@ public final class TestCluster implements Iterable<Client> {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
+    /**
+     * The random seed for the shared  test cluster used in the current JVM.
+     */
+    public static final long SHARED_CLUSTER_SEED = clusterSeed();
+
+    /**
+     * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
+     */
+    public static final String TESTS_CLUSTER_SEED = "tests.cluster_seed";
+
+    private static long clusterSeed() {
+        String property = System.getProperty(TESTS_CLUSTER_SEED);
+        if (!Strings.hasLength(property)) {
+            return System.nanoTime();
+        }
+        return SeedUtils.parseSeed(property);
+    }
+
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap();
 
@@ -107,6 +126,10 @@ public final class TestCluster implements Iterable<Client> {
 
     TestCluster(long clusterSeed, String clusterName) {
         this(clusterSeed, -1, clusterName, NodeSettingsSource.EMPTY);
+    }
+
+    public TestCluster(long clusterSeed, int numNodes, String clusterName) {
+        this(clusterSeed, numNodes, clusterName, NodeSettingsSource.EMPTY);
     }
 
     TestCluster(long clusterSeed, int numNodes, String clusterName, NodeSettingsSource nodeSettingsSource) {
@@ -164,7 +187,7 @@ public final class TestCluster implements Iterable<Client> {
         return builder.build();
     }
 
-    static String clusterName(String prefix, String childVMId, long clusterSeed) {
+    public static String clusterName(String prefix, String childVMId, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
         builder.append('-').append(NetworkUtils.getLocalAddress().getHostName());
         builder.append("-CHILD_VM=[").append(childVMId).append(']');
@@ -379,7 +402,7 @@ public final class TestCluster implements Iterable<Client> {
         return null;
     }
 
-    void close() {
+    public void close() {
         ensureOpen();
         if (this.open.compareAndSet(true, false)) {
             IOUtils.closeWhileHandlingException(nodes.values());
@@ -554,7 +577,7 @@ public final class TestCluster implements Iterable<Client> {
     /**
      * This method should be executed before each test to reset the cluster to it's initial state.
      */
-    synchronized void beforeTest(Random random, double transportClientRatio) {
+    public synchronized void beforeTest(Random random, double transportClientRatio) {
         reset(random, true, transportClientRatio);
     }
 
@@ -619,7 +642,7 @@ public final class TestCluster implements Iterable<Client> {
     /**
      * This method should be executed during tearDown
      */
-    synchronized void afterTest() {
+    public synchronized void afterTest() {
         wipeDataDirectories();
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
 

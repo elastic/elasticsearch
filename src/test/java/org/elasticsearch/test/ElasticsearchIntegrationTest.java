@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ExceptionsHelper;
@@ -68,6 +67,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
+import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -123,7 +124,7 @@ import static org.hamcrest.Matchers.equalTo;
  *     This class supports the following system properties (passed with -Dkey=value to the application)
  *   <ul>
  *   <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
- *   <li>-D{@value #TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
+ *   <li>-D{@value TestCluster#TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
  *   <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
  *   </ul>
  * </p>
@@ -132,23 +133,12 @@ import static org.hamcrest.Matchers.equalTo;
 @AbstractRandomizedTest.IntegrationTests
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
-
-    /**
-     * The random seed for the shared  test cluster used in the current JVM.
-     */
-    public static final long SHARED_CLUSTER_SEED = clusterSeed();
-
-    private static final TestCluster GLOBAL_CLUSTER = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+    private static final TestCluster GLOBAL_CLUSTER = new TestCluster(SHARED_CLUSTER_SEED, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
 
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
      */
     public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
-
-    /**
-     * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
-     */
-    public static final String TESTS_CLUSTER_SEED = "tests.cluster_seed";
 
     /**
      * Key used to retrieve the index random seed from the index settings on a running node.
@@ -830,7 +820,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             };
         }
 
-        return new TestCluster(currentClusterSeed, numNodes, TestCluster.clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
+        return new TestCluster(currentClusterSeed, numNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
     }
 
     /**
@@ -859,14 +849,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         double transportClientRatio() default -1;
     }
     
-    private static long clusterSeed() {
-        String property = System.getProperty(TESTS_CLUSTER_SEED);
-        if (property == null || property.isEmpty()) {
-            return System.nanoTime();
-        }
-        return SeedUtils.parseSeed(property);
-    }
-
     /**
      *  Returns the client ratio configured via
      */

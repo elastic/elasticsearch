@@ -35,6 +35,8 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <rest.pull.skip>false</rest.pull.skip>
+        <rest.init.skip>false</rest.init.skip>
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -63,6 +65,12 @@
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
             <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.3.1</version>
             <scope>test</scope>
         </dependency>
 
@@ -313,6 +321,14 @@
                     <include>**/*.*</include>
                 </includes>
             </testResource>
+            <testResource>
+                <directory>${basedir}/rest-spec</directory>
+                <targetPath>rest-spec</targetPath>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
+                </includes>
+            </testResource>
         </testResources>
 
         <plugins>
@@ -396,6 +412,7 @@
                             <systemProperties>
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.appendseed>${tests.appendseed}</tests.appendseed>
                                 <tests.iters>${tests.iters}</tests.iters>
                                 <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                                 <tests.failfast>${tests.failfast}</tests.failfast>
@@ -412,6 +429,9 @@
                                 <tests.integration>${tests.integration}</tests.integration>
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                                <tests.rest>${tests.rest}</tests.rest>
+                                <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                                <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -1002,14 +1022,50 @@
                         <goals>
                             <goal>exec</goal>
                         </goals>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-version</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>Init Rest Spec</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${rest.init.skip}</skip>
+                            <executable>git</executable>
+                            <arguments>
+                                <argument>submodule</argument>
+                                <argument>update</argument>
+                                <argument>--init</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>Pull Rest Spec</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${rest.pull.skip}</skip>
+                            <executable>git</executable>
+                            <arguments>
+                                <argument>submodule</argument>
+                                <argument>foreach</argument>
+                                <argument>git</argument>
+                                <argument>pull</argument>
+                                <argument>origin</argument>
+                                <argument>master</argument>
+                            </arguments>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-version</argument>
-                    </arguments>
-                </configuration>
+
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -1026,7 +1082,14 @@
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include> <!-- inner classes -->
+                                <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
+                            <excludes>
+                                <!-- we only distribute the REST tests runner, not the executable test  -->
+                                <exclude>org/elasticsearch/test/rest/ElasticsearchRestTests.class</exclude>
+                                <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
+                                <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

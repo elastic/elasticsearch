@@ -78,7 +78,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat(response.getCount(), equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
-        String source = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type").source().string();
+        String source = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type").source().string();
         for (int rec = 0; rec < recCount; rec++) {
             assertThat(source, containsString("\"field" + rec + "\""));
         }

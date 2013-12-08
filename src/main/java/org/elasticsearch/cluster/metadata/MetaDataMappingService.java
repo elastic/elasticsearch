@@ -356,7 +356,7 @@ public class MetaDataMappingService extends AbstractComponent {
             insertOrder = ++refreshOrUpdateInsertOrder;
             refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, order, nodeId, listener));
         }
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "] / node [" + nodeId + "], order [" + order + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {
                 listener.onFailure(t);

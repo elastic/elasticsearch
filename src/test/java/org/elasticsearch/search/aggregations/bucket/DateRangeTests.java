@@ -42,6 +42,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -109,7 +110,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -154,7 +156,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("2012-03-15"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -200,7 +203,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("2012-03-15"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -245,7 +249,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("2012-02-15||+1M"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -290,7 +295,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("r3", date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -345,7 +351,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -399,7 +406,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(min("min")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -462,7 +470,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -518,7 +527,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -574,7 +584,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -627,7 +638,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -673,7 +685,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -735,7 +748,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -781,7 +795,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(min("min")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -837,7 +852,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -884,7 +900,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("2012-03-15"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -931,7 +948,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(date(3, 15)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateRange range = response.getAggregations().get("range");
         assertThat(range, notNullValue());

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,6 +38,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -88,7 +90,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -113,7 +116,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .order(Terms.Order.TERM_ASC)) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -136,8 +140,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .field("value")
                         .order(Terms.Order.TERM_ASC))
                 .execute().actionGet();
-
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -162,7 +165,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .order(Terms.Order.TERM_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -187,7 +191,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("values")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -214,7 +219,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -241,7 +247,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .script("_value + 1"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -264,7 +271,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .field("values"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -292,7 +300,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .script("_value - 1"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -320,7 +329,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .script("floor(_value / 1000 + 1)"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -360,7 +370,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -394,7 +405,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .script("doc['value'].value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -418,7 +430,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -444,7 +457,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .script("doc['values'].values"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -494,7 +508,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -530,7 +545,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -547,7 +563,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

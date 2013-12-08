@@ -40,6 +40,7 @@ import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -91,7 +92,8 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                 .addAggregation(filter("tag1").filter(termFilter("tag", "tag1")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
@@ -107,7 +109,8 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                         .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());

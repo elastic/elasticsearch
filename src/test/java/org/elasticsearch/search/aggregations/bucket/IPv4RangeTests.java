@@ -39,6 +39,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -87,7 +88,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -131,7 +133,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addMaskRange("10.0.0.128/25"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -167,7 +170,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("r3", "10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -213,7 +217,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -268,7 +273,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -323,7 +329,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -385,7 +392,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -431,7 +439,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -478,7 +487,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -532,7 +542,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -578,7 +589,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -632,7 +644,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -678,7 +691,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -734,7 +748,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -781,7 +796,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("10.0.0.200"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());

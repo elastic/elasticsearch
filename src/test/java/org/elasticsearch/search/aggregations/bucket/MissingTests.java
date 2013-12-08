@@ -37,6 +37,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -98,7 +99,8 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Missing missing = response.getAggregations().get("missing_tag");
         assertThat(missing, notNullValue());
@@ -114,7 +116,8 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Missing missing = response.getAggregations().get("missing_tag");
         assertThat(missing, notNullValue());
@@ -128,7 +131,8 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Missing missing = response.getAggregations().get("missing_tag");
         assertThat(missing, notNullValue());
@@ -143,7 +147,8 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                         .subAggregation(avg("avg_value").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
         assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
 
         Missing missing = response.getAggregations().get("missing_tag");
@@ -173,7 +178,8 @@ public class MissingTests extends ElasticsearchIntegrationTest {
                         .subAggregation(missing("sub_missing")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Missing topMissing = response.getAggregations().get("top_missing");
         assertThat(topMissing, notNullValue());

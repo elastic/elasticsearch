@@ -91,8 +91,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile ByteSizeValue indexingBufferSize;
-    private volatile int termIndexInterval;
-    private volatile int termIndexDivisor;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
 
@@ -172,8 +170,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         this.gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueSeconds(60)).millis();
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
-        this.termIndexInterval = indexSettings.getAsInt(INDEX_TERM_INDEX_INTERVAL, IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
-        this.termIndexDivisor = indexSettings.getAsInt(INDEX_TERM_INDEX_DIVISOR, 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
         this.codecName = indexSettings.get(INDEX_CODEC, "default");
 
         this.threadPool = threadPool;
@@ -1349,8 +1345,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setMergePolicy(mergePolicy);
             config.setSimilarity(similarityService.similarity());
             config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
-            config.setTermIndexInterval(termIndexInterval);
-            config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
             config.setCodec(codecService.codec(codecName));
             /* We set this timeout to a highish value to work around
@@ -1390,8 +1384,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
-    public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
@@ -1414,27 +1406,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
 
-            int termIndexInterval = settings.getAsInt(INDEX_TERM_INDEX_INTERVAL, RobinEngine.this.termIndexInterval);
-            int termIndexDivisor = settings.getAsInt(INDEX_TERM_INDEX_DIVISOR, RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, RobinEngine.this.codecName);
             boolean requiresFlushing = false;
-            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor || indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName) || failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
+            if (indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName) || failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
                 rwl.readLock().lock();
                 try {
-                    if (termIndexInterval != RobinEngine.this.termIndexInterval) {
-                        logger.info("updating index.term_index_interval from [{}] to [{}]", RobinEngine.this.termIndexInterval, termIndexInterval);
-                        RobinEngine.this.termIndexInterval = termIndexInterval;
-                        indexWriter.getConfig().setTermIndexInterval(termIndexInterval);
-                    }
-                    if (termIndexDivisor != RobinEngine.this.termIndexDivisor) {
-                        logger.info("updating index.term_index_divisor from [{}] to [{}]", RobinEngine.this.termIndexDivisor, termIndexDivisor);
-                        RobinEngine.this.termIndexDivisor = termIndexDivisor;
-                        indexWriter.getConfig().setReaderTermsIndexDivisor(termIndexDivisor);
-                        // we want to apply this right now for readers, even "current" ones
-                        requiresFlushing = true;
-                    }
                     if (indexConcurrency != RobinEngine.this.indexConcurrency) {
                         logger.info("updating index.index_concurrency from [{}] to [{}]", RobinEngine.this.indexConcurrency, indexConcurrency);
                         RobinEngine.this.indexConcurrency = indexConcurrency;

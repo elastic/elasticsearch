@@ -40,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -90,7 +91,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -125,7 +127,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .order(DateHistogram.Order.KEY_ASC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -148,7 +151,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .order(DateHistogram.Order.KEY_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -171,7 +175,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .order(DateHistogram.Order.COUNT_ASC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -194,7 +199,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .order(DateHistogram.Order.COUNT_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -215,7 +221,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                     .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -257,7 +264,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -302,7 +310,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -326,7 +335,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -350,7 +360,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(stats("stats").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -374,7 +385,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(stats("stats").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -397,7 +409,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -439,7 +452,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").field("dates").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -480,7 +494,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .order(DateHistogram.Order.COUNT_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -524,7 +539,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -577,7 +593,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -635,7 +652,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").script("doc['date'].value").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -670,7 +688,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -711,7 +730,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").script("doc['dates'].values").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -761,7 +781,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(max("max")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -813,7 +834,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -829,7 +851,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         DateHistogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

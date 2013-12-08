@@ -42,6 +42,7 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -109,7 +110,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(1000))
                         .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -150,7 +152,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("ring3", 1000))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -193,7 +196,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(1000))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -236,7 +240,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(1000))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -279,7 +284,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .subAggregation(terms("cities").field("city")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());

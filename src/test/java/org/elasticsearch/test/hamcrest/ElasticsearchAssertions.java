@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuild
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -376,4 +378,21 @@ public class ElasticsearchAssertions {
         }
     }
 
+    /**
+     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
+     * any of the shards threw an exception and if the response is serializeable.
+     */
+    public static SearchResponse assertSearchResponse(SearchRequestBuilder request) {
+        return assertSearchResponse(request.get());
+    }
+
+    /**
+     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
+     * any of the shards threw an exception and if the response is serializeable.
+     */
+    public static SearchResponse assertSearchResponse(SearchResponse response) {
+        assertNoFailures(response);
+        assertThat("One or more shards were not successful but didn't trigger a failure", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+        return response;
+    }
 }

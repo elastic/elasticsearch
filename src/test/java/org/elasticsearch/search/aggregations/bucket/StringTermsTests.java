@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -90,7 +91,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -116,7 +117,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").include("val00.+"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -138,7 +139,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").include("val00.+").exclude("(val000|val001)"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -160,7 +161,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").exclude("val0[1-9]+.+"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -187,7 +188,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").include("VAL00.+", Pattern.CASE_INSENSITIVE))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -210,7 +211,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").include("val00.+").exclude("( val000 | VAL001 )#this is a comment", Pattern.CASE_INSENSITIVE | Pattern.COMMENTS))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -233,7 +234,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value").exclude("val0[1-9]+.+", 0))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -258,7 +259,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .order(Terms.Order.TERM_ASC)) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -281,7 +282,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .order(Terms.Order.TERM_ASC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -305,7 +306,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .order(Terms.Order.TERM_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -329,7 +330,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(count("count").field("values")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -355,7 +356,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(count("count")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -381,7 +382,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("'foo_' + _value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -404,7 +405,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("_value.substring(0,3)"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -424,7 +425,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("values"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -451,7 +452,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("'foo_' + _value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -497,7 +498,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(count("count")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -529,7 +530,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("doc['value'].value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -551,7 +552,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("doc['value'].value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -574,7 +575,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(count("count")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -599,7 +600,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .script("doc['values'].values"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -626,7 +627,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .subAggregation(count("count")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -660,7 +661,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -677,7 +678,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .field("value"))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

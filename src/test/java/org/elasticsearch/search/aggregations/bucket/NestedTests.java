@@ -42,6 +42,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -106,7 +107,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -160,7 +162,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                         .subAggregation(terms("values").field("nested.value").size(100)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         long docCount = 0;
         long[] counts = new long[numParents + 6];
@@ -209,7 +212,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(max("max_value").field("nested.value"))))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         LongTerms values = response.getAggregations().get("top_values");
         assertThat(values, notNullValue());

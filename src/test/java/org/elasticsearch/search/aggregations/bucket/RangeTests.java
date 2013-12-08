@@ -38,6 +38,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -85,7 +86,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -124,7 +126,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom("r3", 6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -164,7 +167,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -217,7 +221,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(avg("avg")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -270,7 +275,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -322,7 +328,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -375,7 +382,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -433,7 +441,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -488,7 +497,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -528,7 +538,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(avg("avg")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -579,7 +590,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(1000))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -611,7 +623,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -668,7 +681,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -725,7 +739,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -766,7 +781,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(6))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -806,7 +822,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
                         .addUnboundedFrom(4))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());

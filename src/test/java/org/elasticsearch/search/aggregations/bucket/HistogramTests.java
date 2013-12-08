@@ -40,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -107,7 +108,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -128,7 +130,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval).order(Histogram.Order.KEY_ASC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -149,7 +152,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval).order(Histogram.Order.KEY_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -170,7 +174,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval).order(Histogram.Order.COUNT_ASC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -197,7 +202,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval).order(Histogram.Order.COUNT_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -225,7 +231,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -257,7 +264,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -289,7 +297,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -327,7 +336,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -365,7 +375,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(stats("stats")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -403,7 +414,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                         .subAggregation(stats("stats").field("value")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -440,7 +452,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").script("_value + 1").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         final int numBuckets = (numDocs + 1) / interval - 2 / interval + 1;
         final long[] counts = new long[(numDocs + 1) / interval + 1];
@@ -467,7 +480,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("values").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -488,7 +502,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("values").interval(interval).order(Histogram.Order.KEY_DESC))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -509,7 +524,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("values").script("_value + 1").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         final int numBuckets = (numDocs + 2) / interval - 2 / interval + 1;
         final long[] counts = new long[(numDocs + 2) / interval + 1];
@@ -542,7 +558,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .subAggregation(terms("values").order(Terms.Order.TERM_ASC)))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         final int numBuckets = (numDocs + 2) / interval - 2 / interval + 1;
         final long[] counts = new long[(numDocs + 2) / interval + 1];
@@ -584,7 +601,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").script("doc['value'].value").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -606,7 +624,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -637,7 +656,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").script("doc['values'].values").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -659,7 +679,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .subAggregation(sum("sum")))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -693,7 +714,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -709,7 +731,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("value").interval(interval))
                 .execute().actionGet();
 
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertSearchResponse(response);
+
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

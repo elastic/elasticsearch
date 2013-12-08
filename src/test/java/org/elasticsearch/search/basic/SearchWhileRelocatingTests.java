@@ -70,31 +70,38 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
         assertHitCount(client().prepareSearch().get(), (long) (numDocs));
-        final int numIters = atLeast(3);
+        final int numIters = atLeast(10);
         for (int i = 0; i < numIters; i++) {
-            allowNodes("test", between(1, 3));
-            client().admin().cluster().prepareReroute().get();
             final AtomicBoolean stop = new AtomicBoolean(false);
             final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<Throwable>();
-            final Thread t = new Thread() {
-                public void run() {
-                    try {
-                        while (!stop.get()) {
-                            SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                            assertHitCount(sr, (long) (numDocs));
-                            final SearchHits sh = sr.getHits();
-                            assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
-                                    equalTo((long) (sh.getHits().length)));
+            Thread[] threads = new Thread[atLeast(1)];
+            for (int j = 0; j < threads.length; j++) {
+                threads[j] = new Thread() {
+                    public void run() {
+                        try {
+                            while (!stop.get()) {
+                                SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
+                                assertHitCount(sr, (long) (numDocs));
+                                final SearchHits sh = sr.getHits();
+                                assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
+                                        equalTo((long) (sh.getHits().length)));
+                            }
+                        } catch (Throwable t) {
+                            thrownExceptions.add(t);
                         }
-                    } catch (Throwable t) {
-                        thrownExceptions.add(t);
                     }
-                }
-            };
-            t.start();
+                };
+            }
+            for (int j = 0; j < threads.length; j++) {
+                threads[j].start();
+            }
+            allowNodes("test", between(1, 3));
+            client().admin().cluster().prepareReroute().get();
             ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).execute().actionGet();
             stop.set(true);
-            t.join();
+            for (int j = 0; j < threads.length; j++) {
+                threads[j].join();
+            }
             assertThat(resp.isTimedOut(), equalTo(false));
 
             if (!thrownExceptions.isEmpty()) {

@@ -97,10 +97,13 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         private final ShardId shardId;
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
+        private final int initialRefCount;
 
         public AssertingSearcher(Searcher searcher, ShardId shardId) {
             this.searcher = searcher;
             this.shardId = shardId;
+            initialRefCount = searcher.reader().getRefCount();
+            assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
             INFLIGHT_ENGINE_SEARCHERS.put(this, new RuntimeException("Unreleased Searcher, source [" + searcher.source() + "]"));
         }
 
@@ -124,6 +127,10 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
                     firstReleaseStack = new RuntimeException("Searcher Released first here, source [" + searcher.source() + "]");
                 }
             }
+            final int refCount = searcher.reader().getRefCount();
+            // this assert seems to be paranoid but given LUCENE-5362 we better add some assertions here to make sure we catch any potential
+            // problems.
+            assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already closed. Initial refCount was: [" + initialRefCount + "]";
             try {
                 return searcher.release();
             } catch (RuntimeException ex) {

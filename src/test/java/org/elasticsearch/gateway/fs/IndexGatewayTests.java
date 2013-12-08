@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.fs;
 
 import com.carrotsearch.randomizedtesting.annotations.Nightly;
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -45,6 +46,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -363,17 +365,21 @@ public class IndexGatewayTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        assertAcked(client().admin().indices().create(createIndexRequest("test")).actionGet());
 
         cluster().stopRandomNode();
-
         cluster().startNode(nodeSettings(0));
-        Thread.sleep(500);
-        try {
-            client().admin().indices().create(createIndexRequest("test")).actionGet();
-            assert false : "index should exists";
-        } catch (IndexAlreadyExistsException e) {
-            // all is well
-        }
+        assertTrue("index should exists", awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                try {
+                    client().admin().indices().create(createIndexRequest("test")).actionGet();
+                    return false;
+                } catch (IndexAlreadyExistsException e) {
+                    // all is well
+                    return true;
+                }
+            }
+        }));
     }
 }

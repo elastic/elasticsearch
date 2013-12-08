@@ -53,12 +53,6 @@ settings API:
 `index.refresh_interval`::
     The async refresh interval of a shard.
 
-`index.term_index_interval`::
-    The Lucene index term interval. Only applies to newly created docs.
-
-`index.term_index_divisor`::
-    The Lucene reader term index divisor.
-
 `index.index_concurrency`::
     Defaults to `8`.
 

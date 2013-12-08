@@ -77,8 +77,6 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS, Validator.POSITIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR, Validator.INTEGER_GTE_2);
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_COMPOUND_FORMAT);
-        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_INTERVAL, Validator.POSITIVE_INTEGER);
-        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_DIVISOR, Validator.POSITIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_INDEX_CONCURRENCY, Validator.NON_NEGATIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_COMPOUND_ON_FLUSH, Validator.BOOLEAN);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_GC_DELETES, Validator.TIME);

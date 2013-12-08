@@ -56,6 +56,10 @@ The repository contains some utilities in the `utils` directory:
 
 Run `bundle install` and then `thor list` in the _utils_ folder.
 
+The full command to generate the api spec is:
+
+    thor api:spec:generate --output=myfolder --elasticsearch=/path/to/es
+
 ## License
 
 This software is licensed under the Apache 2 license.

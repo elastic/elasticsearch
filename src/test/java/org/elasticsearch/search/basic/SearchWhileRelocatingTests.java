@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -49,6 +50,7 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
         testSearchAndRelocateConcurrently(0);
     }
 
+    @TestLogging("org.elasticsearch.action.search.type:TRACE")
     @Test
     public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
         testSearchAndRelocateConcurrently(1);

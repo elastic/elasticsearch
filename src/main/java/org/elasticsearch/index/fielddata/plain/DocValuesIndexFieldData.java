@@ -24,10 +24,10 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -93,8 +93,9 @@ public abstract class DocValuesIndexFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            final Settings fdSettings = type.getSettings();
+        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
+            final FieldMapper.Names fieldNames = mapper.names();
+            final Settings fdSettings = mapper.fieldDataType().getSettings();
             final Map<String, Settings> filter = fdSettings.getGroups("filter");
             if (filter != null && !filter.isEmpty()) {
                 throw new ElasticSearchIllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.name() + "]");

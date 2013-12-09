@@ -248,7 +248,7 @@ public enum DistanceUnit {
         public final double value;
         public final DistanceUnit unit;
 
-        private Distance(double value, DistanceUnit unit) {
+        public Distance(double value, DistanceUnit unit) {
             super();
             this.value = value;
             this.unit = unit;

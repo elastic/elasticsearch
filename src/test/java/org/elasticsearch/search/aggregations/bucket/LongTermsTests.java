@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -81,6 +80,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, highCardBuilders);
         createIndex("idx_unmapped");
+        ensureSearchable();
     }
 
     @Test
@@ -538,8 +538,6 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value"))
@@ -556,8 +554,6 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value"))

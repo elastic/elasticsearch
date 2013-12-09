@@ -438,9 +438,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus ensureGreen() {
+    public ClusterHealthStatus ensureGreen(String...indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
@@ -480,14 +480,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
-    public ClusterHealthStatus ensureYellow() {
+    public ClusterHealthStatus ensureYellow(String...indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
         }
         return actionGet.getStatus();
+    }
+
+
+    /**
+     * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each
+     * shard is available on the cluster.
+     */
+    protected ClusterHealthStatus ensureSearchable(String...indices) {
+        // this is just a temporary thing but it's easier to change if it is encapsulated.
+        return ensureYellow(indices);
     }
 
     /**

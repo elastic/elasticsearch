@@ -72,6 +72,7 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
                     .endObject()));
         }
         indexRandom(true, builders);
+        ensureSearchable();
     }
 
     public abstract void testEmptyAggregation() throws Exception;

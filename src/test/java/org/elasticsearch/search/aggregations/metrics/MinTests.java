@@ -57,8 +57,6 @@ public class MinTests extends AbstractNumericTests {
 
     @Test
     public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForGreenStatus().execute().actionGet();
-
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("value"))

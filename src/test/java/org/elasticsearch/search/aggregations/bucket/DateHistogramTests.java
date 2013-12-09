@@ -83,6 +83,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 indexDoc(3, 2, 4),  // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
                 indexDoc(3, 23, 6)); // date: Mar 23, dates: Mar 23, Apr 24
+        ensureSearchable();
     }
 
     @Test
@@ -828,8 +829,6 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForGreenStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();
@@ -845,8 +844,6 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForGreenStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.MONTH))
                 .execute().actionGet();

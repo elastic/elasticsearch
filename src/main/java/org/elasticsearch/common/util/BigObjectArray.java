@@ -19,63 +19,57 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 
 /**
- * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+ * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigLongArray extends AbstractBigArray implements LongArray {
+final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T> {
 
     /**
      * Page size, 16KB of memory per page.
      */
-    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
+    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     
 
-    private long[][] pages;
+    private Object[][] pages;
 
     /** Constructor. */
-    public BigLongArray(long size) {
+    public BigObjectArray(long size) {
         super(PAGE_SIZE);
         this.size = size;
-        pages = new long[numPages(size)][];
+        pages = new Object[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = new long[pageSize()];
+            pages[i] = new Object[pageSize()];
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public long get(long index) {
+    public T get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage];
+        return (T) pages[pageIndex][indexInPage];
     }
 
     @Override
-    public long set(long index, long value) {
+    public T set(long index, T value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        final long ret = page[indexInPage];
+        final Object[] page = pages[pageIndex];
+        @SuppressWarnings("unchecked")
+        final T ret = (T) page[indexInPage];
         page[indexInPage] = value;
         return ret;
     }
 
     @Override
-    public long increment(long index, long inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage] += inc;
-    }
-
-    @Override
     protected int numBytesPerElement() {
-        return RamUsageEstimator.NUM_BYTES_LONG;
+        return RamUsageEstimator.NUM_BYTES_INT;
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
@@ -85,28 +79,12 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = new long[pageSize()];
+            pages[i] = new Object[pageSize()];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
         }
         this.size = newSize;
-    }
-
-    @Override
-    public void fill(long fromIndex, long toIndex, long value) {
-        Preconditions.checkArgument(fromIndex <= toIndex);
-        final int fromPage = pageIndex(fromIndex);
-        final int toPage = pageIndex(toIndex - 1);
-        if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
-        } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
-            for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
-            }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
-        }
     }
 
 }

@@ -21,22 +21,24 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 /**
+ * Field data atomic impl for geo points with lossy compression.
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
+public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
     private final int numDocs;
 
     protected long size = -1;
 
-    public GeoPointDoubleArrayAtomicFieldData(int numDocs) {
+    public GeoPointCompressedAtomicFieldData(int numDocs) {
         this.numDocs = numDocs;
     }
 
@@ -54,13 +56,15 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         return new ScriptDocValues.GeoPoints(getGeoPointValues());
     }
 
-    static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
+    static class WithOrdinals extends GeoPointCompressedAtomicFieldData {
 
-        private final BigDoubleArrayList lon, lat;
+        private final GeoPointFieldMapper.Encoding encoding;
+        private final PagedMutable lon, lat;
         private final Ordinals ordinals;
 
-        public WithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, Ordinals ordinals) {
+        public WithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, Ordinals ordinals) {
             super(numDocs);
+            this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
             this.ordinals = ordinals;
@@ -84,25 +88,27 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
             }
             return size;
         }
 
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesWithOrdinals(lon, lat, ordinals.ordinals());
+            return new GeoPointValuesWithOrdinals(encoding, lon, lat, ordinals.ordinals());
         }
 
         public static class GeoPointValuesWithOrdinals extends GeoPointValues {
 
-            private final BigDoubleArrayList lon, lat;
+            private final GeoPointFieldMapper.Encoding encoding;
+            private final PagedMutable lon, lat;
             private final Ordinals.Docs ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
 
-            GeoPointValuesWithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, Ordinals.Docs ordinals) {
+            GeoPointValuesWithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, Ordinals.Docs ordinals) {
                 super(ordinals.isMultiValued());
+                this.encoding = encoding;
                 this.lon = lon;
                 this.lat = lat;
                 this.ordinals = ordinals;
@@ -112,7 +118,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             public GeoPoint nextValue() {
                 final long ord = ordinals.nextOrd();
                 assert ord > 0;
-                return scratch.reset(lat.get(ord), lon.get(ord));
+                return encoding.decode(lat.get(ord), lon.get(ord), scratch);
             }
 
             @Override
@@ -126,14 +132,16 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
     /**
      * Assumes unset values are marked in bitset, and docId is used as the index to the value array.
      */
-    public static class SingleFixedSet extends GeoPointDoubleArrayAtomicFieldData {
+    public static class SingleFixedSet extends GeoPointCompressedAtomicFieldData {
 
-        private final BigDoubleArrayList lon, lat;
+        private final GeoPointFieldMapper.Encoding encoding;
+        private final PagedMutable lon, lat;
         private final FixedBitSet set;
         private final long numOrds;
 
-        public SingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, FixedBitSet set, long numOrds) {
+        public SingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, FixedBitSet set, long numOrds) {
             super(numDocs);
+            this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
             this.set = set;
@@ -158,27 +166,28 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
 
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesSingleFixedSet(lon, lat, set);
+            return new GeoPointValuesSingleFixedSet(encoding, lon, lat, set);
         }
 
 
         static class GeoPointValuesSingleFixedSet extends GeoPointValues {
 
-            private final BigDoubleArrayList lon;
-            private final BigDoubleArrayList lat;
+            private final GeoPointFieldMapper.Encoding encoding;
+            private final PagedMutable lat, lon;
             private final FixedBitSet set;
             private final GeoPoint scratch = new GeoPoint();
 
 
-            GeoPointValuesSingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, FixedBitSet set) {
+            GeoPointValuesSingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set) {
                 super(false);
+                this.encoding = encoding;
                 this.lon = lon;
                 this.lat = lat;
                 this.set = set;
@@ -192,7 +201,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
             @Override
             public GeoPoint nextValue() {
-                return scratch.reset(lat.get(docId), lon.get(docId));
+                return encoding.decode(lat.get(docId), lon.get(docId), scratch);
             }
         }
     }
@@ -200,13 +209,15 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
     /**
      * Assumes all the values are "set", and docId is used as the index to the value array.
      */
-    public static class Single extends GeoPointDoubleArrayAtomicFieldData {
+    public static class Single extends GeoPointCompressedAtomicFieldData {
 
-        private final BigDoubleArrayList lon, lat;
+        private final GeoPointFieldMapper.Encoding encoding;
+        private final PagedMutable lon, lat;
         private final long numOrds;
 
-        public Single(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, long numOrds) {
+        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, long numOrds) {
             super(numDocs);
+            this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
             this.numOrds = numOrds;
@@ -230,27 +241,27 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + (lon.sizeInBytes() + lat.sizeInBytes());
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + (lon.ramBytesUsed() + lat.ramBytesUsed());
             }
             return size;
         }
 
-
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesSingle(lon, lat);
+            return new GeoPointValuesSingle(encoding, lon, lat);
         }
 
         static class GeoPointValuesSingle extends GeoPointValues {
 
-            private final BigDoubleArrayList lon;
-            private final BigDoubleArrayList lat;
+            private final GeoPointFieldMapper.Encoding encoding;
+            private final PagedMutable lon, lat;
 
             private final GeoPoint scratch = new GeoPoint();
 
 
-            GeoPointValuesSingle(BigDoubleArrayList lon, BigDoubleArrayList lat) {
+            GeoPointValuesSingle(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat) {
                 super(false);
+                this.encoding = encoding;
                 this.lon = lon;
                 this.lat = lat;
             }
@@ -263,7 +274,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
             @Override
             public GeoPoint nextValue() {
-                return scratch.reset(lat.get(docId), lon.get(docId));
+                return encoding.decode(lat.get(docId), lon.get(docId), scratch);
             }
         }
     }

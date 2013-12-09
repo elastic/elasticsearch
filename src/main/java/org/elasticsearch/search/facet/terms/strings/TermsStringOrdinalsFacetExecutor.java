@@ -27,8 +27,8 @@ import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.IntArrays;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -249,7 +249,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
             this.maxOrd = values.ordinals().getMaxOrd();
-            this.counts = IntArrays.allocate(maxOrd);
+            this.counts = BigArrays.newIntArray(maxOrd);
         }
 
         final void onOrdinal(int docId, long ordinal) {

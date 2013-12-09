@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
-import java.io.IOException;
-
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+
+import java.io.IOException;
 
 /**
  *
@@ -33,7 +33,7 @@ public class GeoPoint {
 
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
-    
+
     private double lat;
     private double lon;
 
@@ -133,7 +133,13 @@ public class GeoPoint {
     public String toString() {
         return "[" + lat + ", " + lon + "]";
     }
-    
+
+    public static GeoPoint parseFromLatLon(String latLon) {
+        GeoPoint point = new GeoPoint();
+        point.resetFromString(latLon);
+        return point;
+    }
+
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}:
      * 

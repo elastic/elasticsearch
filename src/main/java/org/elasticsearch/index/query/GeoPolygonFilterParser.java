@@ -157,12 +157,12 @@ public class GeoPolygonFilterParser implements FilterParser {
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper mapper = smartMappers.mapper();
-        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+        FieldMapper<?> mapper = smartMappers.mapper();
+        if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
         Filter filter = new GeoPolygonFilter(points.toArray(new GeoPoint[points.size()]), indexFieldData);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

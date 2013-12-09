@@ -24,7 +24,8 @@ import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
-import org.elasticsearch.common.util.BigIntArray;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
@@ -44,7 +45,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
 
-    private volatile BigIntArray hashes;
+    private volatile IntArray hashes;
     private long size = -1;
 
     private final FST<Long> fst;
@@ -95,7 +96,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         if (needsHashes) {
             if (hashes == null) {
                 BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
-                BigIntArray hashes = new BigIntArray(ordinals.getMaxOrd());
+                IntArray hashes = BigArrays.newIntArray(ordinals.getMaxOrd());
                 // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
                 // empty strings twice. ie. them merge fails for long output.
                 hashes.set(0, new BytesRef().hashCode());
@@ -164,9 +165,9 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
     
     static final class HashedBytesValues extends BytesValues {
-        private final BigIntArray hashes;
+        private final IntArray hashes;
 
-        HashedBytesValues(FST<Long> fst, Docs ordinals, BigIntArray hashes) {
+        HashedBytesValues(FST<Long> fst, Docs ordinals, IntArray hashes) {
             super(fst, ordinals);
             this.hashes = hashes;
         }

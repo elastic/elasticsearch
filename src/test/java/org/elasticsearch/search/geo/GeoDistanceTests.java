@@ -38,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -54,7 +55,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleDistanceTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
+                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -205,7 +207,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDistanceSortingMVFields() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
+                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
                 .endObject().endObject().string();
 
         client().admin().indices().prepareCreate("test")
@@ -259,7 +262,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
@@ -271,7 +274,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
@@ -286,7 +289,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         // Order: Desc, Mode: min
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
@@ -298,7 +301,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
@@ -306,7 +309,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
@@ -320,7 +323,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery())
@@ -336,7 +339,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
+                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
                 .endObject().endObject().string();
 
         client().admin().indices().prepareCreate("test")
@@ -405,27 +409,27 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse1 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistance(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultDistance1, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES)));
+        assertThat(resultDistance1, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
 
         SearchResponse searchResponse2 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distance(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultDistance2, equalTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES)));
+        assertThat(resultDistance2, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
 
         SearchResponse searchResponse3 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultArcDistance3, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
+        assertThat(resultArcDistance3, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse4 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distanceInKm(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultDistance4, equalTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
+        assertThat(resultDistance4, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse5 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + (target_lat) + "," + (target_long + 360) + ")").execute().actionGet();
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultArcDistance5, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
+        assertThat(resultArcDistance5, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
 
         SearchResponse searchResponse6 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm(" + (target_lat + 360) + "," + (target_long) + ")").execute().actionGet();
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
-        assertThat(resultArcDistance6, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
+        assertThat(resultArcDistance6, closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
     }
 
     @Test
@@ -437,7 +441,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                     .field("type", "nested")
                     .startObject("properties")
                         .startObject("name").field("type", "string").endObject()
-                        .startObject("location").field("type", "geo_point").field("lat_lon", true).endObject()
+                        .startObject("location").field("type", "geo_point").field("lat_lon", true)
+                        .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject()
                     .endObject()
                 .endObject()
                 .endObject()
@@ -504,7 +509,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
@@ -516,7 +521,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
@@ -531,7 +536,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         // Order: Desc, Mode: min
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
@@ -543,7 +548,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
@@ -551,7 +556,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(searchResponse, 4);
         assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
-        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
@@ -568,7 +573,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 0.01d));
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(
@@ -611,6 +616,9 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                                 .field("geohash", true)
                                 .field("geohash_precision", 24)
                                 .field("lat_lon", true)
+                                .startObject("fielddata")
+                                    .field("format", randomFrom(Arrays.asList("array", "compressed")))
+                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject()

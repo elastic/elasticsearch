@@ -235,11 +235,11 @@ public class GeohashFilter {
             }
 
             FieldMapper<?> mapper = smartMappers.mapper();
-            if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+            if (!(mapper instanceof GeoPointFieldMapper)) {
                 throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
             }
 
-            GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+            GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
             if(levels > 0) {
                 int len = Math.min(levels, geohash.length());

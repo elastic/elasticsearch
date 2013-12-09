@@ -26,48 +26,48 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Arrays;
 
 /**
- * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+ * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigLongArray extends AbstractBigArray implements LongArray {
+final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     /**
      * Page size, 16KB of memory per page.
      */
-    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
+    public static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_DOUBLE;
     
 
-    private long[][] pages;
+    private double[][] pages;
 
     /** Constructor. */
-    public BigLongArray(long size) {
+    public BigDoubleArray(long size) {
         super(PAGE_SIZE);
         this.size = size;
-        pages = new long[numPages(size)][];
+        pages = new double[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = new long[pageSize()];
+            pages[i] = new double[pageSize()];
         }
     }
 
     @Override
-    public long get(long index) {
+    public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         return pages[pageIndex][indexInPage];
     }
 
     @Override
-    public long set(long index, long value) {
+    public double set(long index, double value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        final long ret = page[indexInPage];
+        final double[] page = pages[pageIndex];
+        final double ret = page[indexInPage];
         page[indexInPage] = value;
         return ret;
     }
 
     @Override
-    public long increment(long index, long inc) {
+    public double increment(long index, double inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         return pages[pageIndex][indexInPage] += inc;
@@ -75,7 +75,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsageEstimator.NUM_BYTES_LONG;
+        return RamUsageEstimator.NUM_BYTES_INT;
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
@@ -85,7 +85,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = new long[pageSize()];
+            pages[i] = new double[pageSize()];
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -94,7 +94,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     @Override
-    public void fill(long fromIndex, long toIndex, long value) {
+    public void fill(long fromIndex, long toIndex, double value) {
         Preconditions.checkArgument(fromIndex <= toIndex);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);

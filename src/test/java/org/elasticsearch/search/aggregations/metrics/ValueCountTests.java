@@ -61,7 +61,6 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
         }
         client().admin().indices().prepareFlush().execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
-        ensureGreen();
     }
 
     @Test

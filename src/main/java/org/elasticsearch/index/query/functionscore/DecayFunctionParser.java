@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper.GeoStringFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -147,8 +147,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // dates and time need special handling
         if (mapper instanceof DateFieldMapper) {
             return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper);
-        } else if (mapper instanceof GeoStringFieldMapper) {
-            return parseGeoVariable(fieldName, parser, parseContext, (GeoStringFieldMapper) mapper);
+        } else if (mapper instanceof GeoPointFieldMapper) {
+            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper);
         } else if (mapper instanceof NumberFieldMapper<?>) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper);
         } else {
@@ -193,7 +193,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     }
 
     private ScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            GeoStringFieldMapper mapper) throws IOException {
+            GeoPointFieldMapper mapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();

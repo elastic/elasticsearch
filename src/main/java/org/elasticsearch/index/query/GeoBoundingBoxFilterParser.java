@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchParseException;
-
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -126,10 +125,10 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
-        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+        if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
         Filter filter;
         if ("indexed".equals(type)) {

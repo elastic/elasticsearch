@@ -43,8 +43,8 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new FSTBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
+        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
+            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
         }
     }
 

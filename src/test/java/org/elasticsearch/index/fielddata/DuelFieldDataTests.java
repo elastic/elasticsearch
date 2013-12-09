@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import com.google.common.collect.Lists;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.CompositeReaderContext;
@@ -26,7 +27,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.junit.Test;
 
 import java.util.*;
@@ -337,6 +342,59 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     }
 
+    public void testDuelGeoPoints() throws Exception {
+        Random random = getRandom();
+        int atLeast = atLeast(random, 1000);
+        int maxValuesPerDoc = randomIntBetween(1, 3);
+        for (int i = 0; i < atLeast; i++) {
+            Document d = new Document();
+            d.add(new StringField("_id", "" + i, Field.Store.NO));
+            final int numValues = randomInt(maxValuesPerDoc);
+            for (int j = 0; j < numValues; ++j) {
+                final double lat = randomDouble() * 180 - 90;
+                final double lon = randomDouble() * 360 - 180;
+                d.add(new StringField("geopoint", lat + "," + lon, Field.Store.NO));
+            }
+            writer.addDocument(d);
+            if (random.nextInt(10) == 0) {
+                refreshReader();
+            }
+        }
+        AtomicReaderContext context = refreshReader();
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
+        final Distance precision = new Distance(1, randomFrom(DistanceUnit.values()));
+        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "array")), Type.GeoPoint);
+        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "compressed").put("precision", precision)), Type.GeoPoint);
+
+        ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
+        while (!list.isEmpty()) {
+            Entry<FieldDataType, Type> left;
+            Entry<FieldDataType, Type> right;
+            if (list.size() > 1) {
+                left = list.remove(random.nextInt(list.size()));
+                right = list.remove(random.nextInt(list.size()));
+            } else {
+                right = left = list.remove(0);
+            }
+            ifdService.clear();
+            IndexGeoPointFieldData<?> leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT));
+
+            ifdService.clear();
+            IndexGeoPointFieldData<?> rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT));
+
+            duelFieldDataGeoPoint(random, context, leftFieldData, rightFieldData, precision);
+            duelFieldDataGeoPoint(random, context, rightFieldData, leftFieldData, precision);
+
+            DirectoryReader perSegment = DirectoryReader.open(writer, true);
+            CompositeReaderContext composite = perSegment.getContext();
+            List<AtomicReaderContext> leaves = composite.leaves();
+            for (AtomicReaderContext atomicReaderContext : leaves) {
+                duelFieldDataGeoPoint(random, atomicReaderContext, leftFieldData, rightFieldData, precision);
+            }
+            perSegment.close();
+        }
+    }
+
     private void assertOrder(AtomicFieldData.Order order, IndexFieldData<?> data, AtomicReaderContext context) throws Exception {
         AtomicFieldData<?> leftData = randomBoolean() ? data.load(context) : data.loadDirect(context);
         assertThat(leftData.getBytesValues(randomBoolean()).getOrder(), is(order));
@@ -438,6 +496,44 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
     }
 
+    private static void duelFieldDataGeoPoint(Random random, AtomicReaderContext context, IndexGeoPointFieldData<?> left, IndexGeoPointFieldData<?> right, Distance precision) throws Exception {
+        AtomicGeoPointFieldData<?> leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
+        AtomicGeoPointFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
+
+        assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
+
+        int numDocs = leftData.getNumDocs();
+        GeoPointValues leftValues = leftData.getGeoPointValues();
+        GeoPointValues rightValues = rightData.getGeoPointValues();
+        for (int i = 0; i < numDocs; ++i) {
+            final int numValues = leftValues.setDocument(i);
+            assertEquals(numValues, rightValues.setDocument(i));
+            List<GeoPoint> leftPoints = Lists.newArrayList();
+            List<GeoPoint> rightPoints = Lists.newArrayList();
+            for (int j = 0; j < numValues; ++j) {
+                GeoPoint l = leftValues.nextValue();
+                leftPoints.add(new GeoPoint(l.getLat(), l.getLon()));
+                GeoPoint r = rightValues.nextValue();
+                rightPoints.add(new GeoPoint(r.getLat(), r.getLon()));
+            }
+            for (GeoPoint l : leftPoints) {
+                assertTrue("Couldn't find " + l + " among " + rightPoints, contains(l, rightPoints, precision));
+            }
+            for (GeoPoint r : rightPoints) {
+                assertTrue("Couldn't find " + r + " among " + leftPoints, contains(r, leftPoints, precision));
+            }
+        }
+    }
+
+    private static boolean contains(GeoPoint point, List<GeoPoint> set, Distance precision) {
+        for (GeoPoint r : set) {
+            final double distance = GeoDistance.PLANE.calculate(point.getLat(), point.getLon(), r.getLat(), r.getLon(), DistanceUnit.METERS);
+            if (new Distance(distance, DistanceUnit.METERS).compareTo(precision) <= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static class Preprocessor {
 
@@ -467,7 +563,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
 
     private static enum Type {
-        Float(AtomicFieldData.Order.NUMERIC), Double(AtomicFieldData.Order.NUMERIC), Integer(AtomicFieldData.Order.NUMERIC), Long(AtomicFieldData.Order.NUMERIC), Bytes(AtomicFieldData.Order.BYTES);
+        Float(AtomicFieldData.Order.NUMERIC), Double(AtomicFieldData.Order.NUMERIC), Integer(AtomicFieldData.Order.NUMERIC), Long(AtomicFieldData.Order.NUMERIC), Bytes(AtomicFieldData.Order.BYTES), GeoPoint(AtomicFieldData.Order.NONE);
 
         private final AtomicFieldData.Order order;
         Type(AtomicFieldData.Order order) {

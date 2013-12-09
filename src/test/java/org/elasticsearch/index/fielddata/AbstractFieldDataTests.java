@@ -66,6 +66,8 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
             mapper = MapperBuilders.shortField(fieldName).fieldDataSettings(type.getSettings()).build(context);
         } else if (type.getType().equals("byte")) {
             mapper = MapperBuilders.byteField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("geo_point")) {
+            mapper = MapperBuilders.geoPointField(fieldName).fieldDataSettings(type.getSettings()).build(context);
         } else {
             throw new UnsupportedOperationException(type.getType());
         }

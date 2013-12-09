@@ -49,6 +49,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private static final String ARRAY_FORMAT = "array";
     private static final String PAGED_BYTES_FORMAT = "paged_bytes";
     private static final String FST_FORMAT = "fst";
+    private static final String COMPRESSED_FORMAT = "compressed";
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
@@ -108,6 +109,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
                 .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointDoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", COMPRESSED_FORMAT), new GeoPointCompressedIndexFieldData.Builder())
+
                 .immutableMap();
     }
 
@@ -226,7 +229,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }
 
-                    fieldData = builder.build(index, indexSettings, fieldNames, type, cache);
+                    fieldData = builder.build(index, indexSettings, mapper, cache);
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             }

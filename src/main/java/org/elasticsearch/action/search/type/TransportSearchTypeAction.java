@@ -279,30 +279,29 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
             } else {
                 ShardRouting nextShard = shardIt.nextOrNull();
-                if (nextShard != null) {
-                    // trace log this exception
-                    if (logger.isTraceEnabled()) {
-                        if (t != null) {
-                            if (shard != null) {
-                                logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                            } else {
-                                logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
-                            }
-                        }
-                    }
+                final boolean lastShard = nextShard == null;
+                // trace log this exception
+                if (logger.isTraceEnabled() && t != null) {
+                    logger.trace(executionFailureMsg(shard, shardIt, request, lastShard), t);
+                }
+                if (!lastShard) {
                     performFirstPhase(shardIndex, shardIt, nextShard);
                 } else {
                     // no more shards active, add a failure
-                    if (logger.isDebugEnabled()) {
+                    if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                         if (t != null && !TransportActions.isShardNotAvailableException(t)) {
-                            if (shard != null) {
-                                logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                            } else {
-                                logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
-                            }
+                            logger.debug(executionFailureMsg(shard, shardIt, request, lastShard), t);
                         }
                     }
                 }
+            }
+        }
+
+        private String executionFailureMsg(@Nullable ShardRouting shard, final ShardIterator shardIt, SearchRequest request, boolean lastShard) {
+            if (shard != null) {
+                return shard.shortSummary() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
+            } else {
+                return shardIt.shardId() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
             }
         }
 

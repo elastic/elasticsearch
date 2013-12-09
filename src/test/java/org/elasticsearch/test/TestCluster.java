@@ -26,6 +26,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -322,6 +323,15 @@ public final class TestCluster implements Iterable<Client> {
     }
 
     /**
+     * Returns a transport client
+     */
+    public synchronized Client transportClient() {
+        ensureOpen();
+        // randomly return a transport client going to one of the nodes in the cluster
+        return getOrBuildRandomNode().transportClient();
+    }
+
+    /**
      * Returns a node client to a given node.
      */
     public synchronized Client client(String nodeName) {
@@ -378,6 +388,7 @@ public final class TestCluster implements Iterable<Client> {
         private InternalNode node;
         private Client client;
         private Client nodeClient;
+        private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final ClientFactory clientFactory;
         private final String name;
@@ -410,9 +421,29 @@ public final class TestCluster implements Iterable<Client> {
                 throw new RuntimeException("already closed");
             }
             if (nodeClient == null) {
-                nodeClient = node.client();
+                Client maybeNodeClient = client(random);
+                if (client instanceof NodeClient) {
+                    nodeClient = maybeNodeClient;
+                } else {
+                    nodeClient = node.client();
+                }
             }
             return nodeClient;
+        }
+
+        Client transportClient() {
+            if (closed.get()) {
+                throw new RuntimeException("already closed");
+            }
+            if (transportClient == null) {
+                Client maybeTransportClient = client(random);
+                if (maybeTransportClient instanceof TransportClient) {
+                    transportClient = maybeTransportClient;
+                } else {
+                    transportClient = TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
+                }
+            }
+            return transportClient;
         }
 
         void resetClient() {
@@ -426,6 +457,10 @@ public final class TestCluster implements Iterable<Client> {
             if (nodeClient != null) {
                 nodeClient.close();
                 nodeClient = null;
+            }
+            if (transportClient != null) {
+                transportClient.close();
+                transportClient = null;
             }
         }
 

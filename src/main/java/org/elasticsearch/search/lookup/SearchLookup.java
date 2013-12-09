@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.search.lookup.termstatistics.TermStatisticsLookup;
+import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -39,7 +39,7 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
     
-    final TermStatisticsLookup termStatisticsLookup;
+    final ShardTermsLookup shardTermsLookup;
     
     final ImmutableMap<String, Object> asMap;
 
@@ -48,13 +48,13 @@ public class SearchLookup {
         docMap = new DocLookup(mapperService, fieldDataService, types);
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
-        termStatisticsLookup = new TermStatisticsLookup(builder);
+        shardTermsLookup = new ShardTermsLookup(builder);
         
         builder.put("doc", docMap);
         builder.put("_doc", docMap);
         builder.put("_source", sourceLookup);
         builder.put("_fields", fieldsLookup);
-        builder.put("_shard", termStatisticsLookup);
+        builder.put("_shard", shardTermsLookup);
         asMap = builder.build();
     }
 
@@ -66,8 +66,8 @@ public class SearchLookup {
         return this.sourceLookup;
     }
     
-    public TermStatisticsLookup termStatistics() {
-        return this.termStatisticsLookup;
+    public ShardTermsLookup shardTerms() {
+        return this.shardTermsLookup;
     }
 
     public FieldsLookup fields() {
@@ -86,13 +86,13 @@ public class SearchLookup {
         docMap.setNextReader(context);
         sourceLookup.setNextReader(context);
         fieldsLookup.setNextReader(context);
-        termStatisticsLookup.setNextReader(context);
+        shardTermsLookup.setNextReader(context);
     }
 
     public void setNextDocId(int docId) {
         docMap.setNextDocId(docId);
         sourceLookup.setNextDocId(docId);
         fieldsLookup.setNextDocId(docId);
-        termStatisticsLookup.setNextDocId(docId);
+        shardTermsLookup.setNextDocId(docId);
     }
 }

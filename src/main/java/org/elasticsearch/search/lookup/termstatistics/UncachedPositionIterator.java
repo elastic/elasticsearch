@@ -25,9 +25,9 @@ import org.elasticsearch.ElasticSearchException;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class UnrecordedPositionIterator extends PositionIterator {
+public class UncachedPositionIterator extends PositionIterator {
 
-    public UnrecordedPositionIterator(ScriptTerm termInfo) {
+    public UncachedPositionIterator(ScriptTerm termInfo) {
         super(termInfo);
     }
 
@@ -36,12 +36,10 @@ public class UnrecordedPositionIterator extends PositionIterator {
         if (!hasNext()) {
             return null;
         }
-        if (docsAndPos != null) {
-            try {
-                initTermPosition(docsAndPos);
-            } catch (IOException e) {
-                throw new RuntimeException();
-            }
+        try {
+            initTermPosition(docsAndPos);
+        } catch (IOException e) {
+            throw new ElasticSearchException("Exception while calling next(): ",e);
         }
         curIteratorPos++;
         return termPosition;
@@ -52,7 +50,7 @@ public class UnrecordedPositionIterator extends PositionIterator {
         int nextPos = docsAndPos.nextPosition();
         if (shouldRetrievePositions()) {
             termPosition.position = nextPos;
-        } 
+        }
         if (shouldRetrieveOffsets()) {
             termPosition.startOffset = docsAndPos.startOffset();
             termPosition.endOffset = docsAndPos.endOffset();
@@ -75,21 +73,22 @@ public class UnrecordedPositionIterator extends PositionIterator {
     }
 
     @Override
-    void init() throws IOException {
+    protected void init() throws IOException {
         curIteratorPos = 0;
+        freq = scriptTerm.tf();
     }
 
     @Override
     public Iterator<TermPosition> reset() {
         if (curIteratorPos != 0) {
             throw new ElasticSearchException(
-                    "No more positions to return! If you want to iterate more that once, remove _DO_NOT_RECORD flag or call record() explicitely.");
+                    "No more positions to return! If you want to iterate more that once, add _CACHE flag or call record() explicitely.");
         }
         return this;
     }
 
     @Override
-    void initDocsAndPos() throws IOException {
+    protected void initDocsAndPos() throws IOException {
         if (scriptTerm.docsEnum instanceof DocsAndPositionsEnum) {
             docsAndPos = (DocsAndPositionsEnum) scriptTerm.docsEnum;
         } else {

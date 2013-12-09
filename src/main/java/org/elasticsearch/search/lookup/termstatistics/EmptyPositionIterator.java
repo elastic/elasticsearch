@@ -38,7 +38,8 @@ public class EmptyPositionIterator extends PositionIterator {
     }
 
     @Override
-    void init() throws IOException {
+    protected void init() throws IOException {
+        freq = scriptTerm.tf();
     }
 
     @Override
@@ -48,7 +49,7 @@ public class EmptyPositionIterator extends PositionIterator {
     }
 
     @Override
-    void initDocsAndPos() throws IOException {
+    protected void initDocsAndPos() throws IOException {
     }
 
 }

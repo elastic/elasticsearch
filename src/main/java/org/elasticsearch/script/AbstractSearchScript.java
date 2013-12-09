@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.search.lookup.termstatistics.TermStatisticsLookup;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -28,6 +26,7 @@ import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
 
 import java.util.Map;
 
@@ -93,8 +92,8 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     /**
      * Allows to access statistics on terms and fields.
      */
-    protected final TermStatisticsLookup termStatistics() {
-        return lookup.termStatistics();
+    protected final ShardTermsLookup shardTerms() {
+        return lookup.shardTerms();
     }
 
     /**

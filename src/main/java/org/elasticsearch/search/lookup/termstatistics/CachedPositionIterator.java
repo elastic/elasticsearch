@@ -29,11 +29,11 @@ import java.util.Iterator;
 /*
  * Can iterate over the positions of a term an arbotrary number of times. 
  * */
-public class RecordedPositionIterator extends UnrecordedPositionIterator {
+public class CachedPositionIterator extends UncachedPositionIterator {
 
-    public RecordedPositionIterator(ScriptTerm termInfo) {
+    public CachedPositionIterator(ScriptTerm termInfo) {
         super(termInfo);
-        unrecorded = new UnrecordedPositionIterator(termInfo);
+        uncached = new UncachedPositionIterator(termInfo);
     }
 
     // all payloads of the term in the current document in one bytes array.
@@ -50,7 +50,7 @@ public class RecordedPositionIterator extends UnrecordedPositionIterator {
 
     final IntsRef endOffsets = new IntsRef(0);
 
-    final UnrecordedPositionIterator unrecorded;
+    final UncachedPositionIterator uncached;
 
     @Override
     public Iterator<TermPosition> reset() {
@@ -77,14 +77,11 @@ public class RecordedPositionIterator extends UnrecordedPositionIterator {
     }
 
     private void record() throws IOException {
-        unrecorded.init();
+        uncached.init();
         TermPosition termPosition;
-        int freq = scriptTerm.freq();
-        initPosMem(freq);
-        initPayloadsMem(freq);
-        initOffsetsMem(freq);
+        initMemory();
         for (int i = 0; i < freq; i++) {
-            termPosition = unrecorded.next();
+            termPosition = uncached.next();
             if (shouldRetrievePositions()) {
                 positions.ints[i] = termPosition.position;
             }
@@ -98,24 +95,25 @@ public class RecordedPositionIterator extends UnrecordedPositionIterator {
         }
     }
 
-    @Override
-    void initDocsAndPos() throws IOException {
-        super.initDocsAndPos();
-        unrecorded.initDocsAndPos();
+    private void initMemory() {
+        initPosMem(freq);
+        initPayloadsMem(freq);
+        initOffsetsMem(freq);
     }
-    
-    
+
+    @Override
+    protected void initDocsAndPos() throws IOException {
+        super.initDocsAndPos();
+        uncached.initDocsAndPos();
+    }
+
     private void initOffsetsMem(int freq) {
-        if (startOffsets.ints.length < freq) {
-            startOffsets.grow(freq);
-            endOffsets.grow(freq);
-        }
+        startOffsets.grow(freq);
+        endOffsets.grow(freq);
     }
 
     private void initPosMem(int freq) {
-        if (positions.ints.length < freq) {
-            positions.grow(freq);
-        }
+        positions.grow(freq);
     }
 
     private void initPayloadsMem(int freq) {
@@ -148,7 +146,8 @@ public class RecordedPositionIterator extends UnrecordedPositionIterator {
      * Must be called when moving to a new document.
      */
     @Override
-    void init() throws IOException {
+    protected void init() throws IOException {
+        freq = scriptTerm.tf();
         curIteratorPos = 0;
         record();
     }

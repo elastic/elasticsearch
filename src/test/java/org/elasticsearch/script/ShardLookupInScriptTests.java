@@ -41,10 +41,10 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
+public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
-    String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS";
-    String includeAllWithoutRecordFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _DO_NOT_RECORD";
+    String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _CACHE";
+    String includeAllWithoutRecordFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS ";
     private HashMap<String, List<Object>> expectedEndOffsetsArray;
     private HashMap<String, List<Object>> expectedPayloadsArray;
     private HashMap<String, List<Object>> expectedPositionsArray;
@@ -148,9 +148,9 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         // check term frequencies for 'a'
-        String scriptFieldScript = "termInfo = _shard['int_payload_field']['c']; termInfo.freq()";
+        String scriptFieldScript = "termInfo = _shard['int_payload_field']['c']; termInfo.tf()";
         scriptFieldScript = "1";
-        String scoreScript = "termInfo = _shard['int_payload_field']['b']; termInfo.freq()";
+        String scoreScript = "termInfo = _shard['int_payload_field']['b']; termInfo.tf()";
         Map<String, Object> expectedResultsField = new HashMap<String, Object>();
         expectedResultsField.put("1", 1);
         expectedResultsField.put("2", 1);
@@ -183,7 +183,7 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
 
         // should throw an exception, we cannot call with different flags twice
         // if the flags of the second call were not included in the first call.
-        String script = "termInfo = _shard['int_payload_field']['b']; return _shard['int_payload_field'].get('b', _POSITIONS).freq();";
+        String script = "termInfo = _shard['int_payload_field']['b']; return _shard['int_payload_field'].get('b', _POSITIONS).tf();";
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
@@ -195,7 +195,7 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         }
 
         // Should not throw an exception this way round
-        script = "termInfo = _shard['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _shard['int_payload_field']['b'].freq();";
+        script = "termInfo = _shard['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _shard['int_payload_field']['b'].tf();";
         client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
     }
 
@@ -299,7 +299,6 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         String script = "termInfo = _shard['int_payload_field'].get('" + term + "'," + flags
                 + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} ;_shard['int_payload_field'].get('" + term + "',"
                 + flags + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")}";
-        System.out.println(script);
         return script;
     }
 
@@ -307,21 +306,18 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         String script = "termInfo = _shard['int_payload_field'].get('" + term + "'," + flags
                 + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} array=[]; for (pos : termInfo) {array.add(pos." + what
                 + ")} return array;";
-        System.out.println(script);
         return script;
     }
 
     private String createPositionsArrayScript(String field, String term, String flags, String what) {
         String script = "termInfo = _shard['" + field + "'].get('" + term + "'," + flags
                 + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} return array;";
-        System.out.println(script);
         return script;
     }
 
     private String createPositionsArrayScriptDefaultGet(String field, String term, String what) {
         String script = "termInfo = _shard['" + field + "']['" + term + "']; array=[]; for (pos : termInfo) {array.add(pos." + what
                 + ")} return array;";
-        System.out.println(script);
         return script;
     }
 
@@ -507,7 +503,7 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         checkValueInEachDoc(0, script, 6);
 
         // check term frequencies for 'a'
-        script = "termInfo = _shard['float_payload_field']['a']; if (termInfo != null) {termInfo.freq()}";
+        script = "termInfo = _shard['float_payload_field']['a']; if (termInfo != null) {termInfo.tf()}";
         Map<String, Object> expectedResults = new HashMap<String, Object>();
         expectedResults.put("1", 2);
         expectedResults.put("2", 0);
@@ -541,7 +537,7 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
-        script = "termInfo = _shard['non_existent_field']['non_existent_term']; if (termInfo != null) {termInfo.freq()}";
+        script = "termInfo = _shard['non_existent_field']['non_existent_term']; if (termInfo != null) {termInfo.tf()}";
         expectedResults.put("1", 0);
         expectedResults.put("2", 0);
         expectedResults.put("3", 0);
@@ -624,7 +620,7 @@ public class TermVectorsInScriptTests extends ElasticsearchIntegrationTest {
             assertThat(
                     fail.reason()
                             .indexOf(
-                                    "No more positions to return! If you want to iterate more that once, remove _DO_NOT_RECORD flag or call record() explicitely."),
+                                    "No more positions to return! If you want to iterate more that once, add _CACHE flag or call record() explicitely."),
                     Matchers.greaterThan(-1));
         }
     }

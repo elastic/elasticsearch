@@ -19,52 +19,53 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.ElasticSearchException;
-
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public abstract class MinimalMap implements Map {
+public abstract class MinimalMap<K, V> implements Map<K, V> {
 
     public boolean isEmpty() {
-        throw new ElasticSearchException("entrySet() not supported!");
+        throw new UnsupportedOperationException("entrySet() not supported!");
     }
 
-    public Object put(Object key, Object value) {
-        throw new ElasticSearchException("put() not supported!");
+    public V put(K key, V value) {
+        throw new UnsupportedOperationException("put(Object, Object) not supported!");
     }
 
-    public void putAll(Map m) {
-        throw new ElasticSearchException("putAll() not supported!");
+    public void putAll(Map<? extends K, ? extends V> m) {
+        throw new UnsupportedOperationException("putAll(Map<? extends K, ? extends V>) not supported!");
     }
 
-    public Object remove(Object key) {
-        throw new ElasticSearchException("remove() not supported!");
+    public V remove(Object key) {
+        throw new UnsupportedOperationException("remove(Object) not supported!");
     }
 
     public void clear() {
-        throw new ElasticSearchException("clear() not supported!");
+        throw new UnsupportedOperationException("clear() not supported!");
     }
 
-    public Set<String> keySet() {
-        throw new ElasticSearchException("keySet() not supported!");
+    public Set<K> keySet() {
+        throw new UnsupportedOperationException("keySet() not supported!");
     }
 
-    public Collection<Object> values() {
-        throw new ElasticSearchException("values() not supported!");
+    public Collection<V> values() {
+        throw new UnsupportedOperationException("values() not supported!");
     }
 
-    public Set<Entry<String, Object>> entrySet() {
-        throw new ElasticSearchException("entrySet() not supported!");
+    public Set<Entry<K, V>> entrySet() {
+        throw new UnsupportedOperationException("entrySet() not supported!");
     }
 
     public boolean containsValue(Object value) {
-        throw new ElasticSearchException("containsValue() not supported!");
+        throw new UnsupportedOperationException("containsValue(Object) not supported!");
     }
 
     public int size() {
-        throw new ElasticSearchException("size() not supported!");
+        throw new UnsupportedOperationException("size() not supported!");
     }
 
+    public boolean containsKey(Object k) {
+        throw new UnsupportedOperationException("containsKey(Object) not supported!");
+    }
 }

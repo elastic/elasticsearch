@@ -22,6 +22,7 @@ package org.elasticsearch.search.lookup.termstatistics;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.lucene.search.EmptyScorer;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -36,7 +37,7 @@ public class ScriptTerm implements Iterable<TermPosition> {
     DocsEnum docsEnum;
 
     // Stores if positions, offsets and payloads are requested, see
-    // TermVectorsLookup
+    // ShardLookup
     final private int flags;
 
     final private String fieldName;
@@ -45,82 +46,64 @@ public class ScriptTerm implements Iterable<TermPosition> {
 
     final private PositionIterator iterator;
 
-    // indexStats holds the searcher and readers
-    final private TermStatisticsLookup shardStats;
-
     // for lucene calls
     final private Term identifier;
 
-    private TermStatistics termStats = null;
+    final private TermStatistics termStats;
 
-    private boolean termStatsInitialized = false;
+    private int docId;
 
-    static private EmptyDocsEnum EMPTY_DOCS_ENUM = new EmptyDocsEnum();
+    static private EmptyScorer EMPTY_DOCS_ENUM = new EmptyScorer(null);
 
     // get the document frequency of the term
     public long df() throws IOException {
-        initTermStats();
         return termStats.docFreq();
-    }
-
-    private void initTermStats() throws IOException {
-        // lazy init the term stats. we would save the if if we simply
-        // initialized the term stats whenever the parent reader is set.
-        // however,in this case the term statistics would be initialized always
-        // and we might not need them...
-        if (termStatsInitialized == false) {
-            termStats = shardStats.getIndexSearcher().termStatistics(identifier,
-                    TermContext.build(shardStats.getReaderContext(), identifier));
-            termStatsInitialized = true;
-        }
     }
 
     // get the total term frequency of the term, that is, how often does the
     // term appear in any document?
     public long ttf() throws IOException {
-        initTermStats();
         return termStats.totalTermFreq();
     }
 
     // when the reader changes, we have to get the posting list for this term
     // and reader
-    void setNextReader() {
+    void setNextReader(AtomicReader reader) {
         try {
-            setPostingList(shardStats.getReader());
+            // Get the posting list for a specific term. Depending on the flags,
+            // this
+            // will either get a DocsEnum or a DocsAndPositionsEnum if
+            // available.
+
+            // get lucene frequency flag
+            int luceneFrequencyFlag = getLuceneFrequencyFlag(flags);
+            if (shouldRetrieveFrequenciesOnly()) {
+                docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
+            } else {
+                int lucenePositionsFlags = getLucenePositionsFlags(flags);
+                docsEnum = getDocsAndPosEnum(lucenePositionsFlags, reader);
+                if (docsEnum == null) {// no pos available
+                    docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
+                }
+            }
+            iterator.initDocsAndPos();
         } catch (IOException e) {
             throw new ElasticSearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
         }
 
     }
 
-    // Get the posting list for a specific term. Depending on the flags, this
-    // will either return a DocsEnum or a DocsAndPositionsEnum if available.
-    private void setPostingList(AtomicReader reader) throws IOException {
-        // get lucene frequency flag
-        int luceneFrequencyFlag = getLuceneFrequencyFlag(flags);
-        if (shouldRetrieveFrequenciesOnly()) {
-            docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
-        } else {
-            int lucenePositionsFlags = getLucenePositionsFlags(flags);
-            docsEnum = getDocsAndPosEnum(lucenePositionsFlags, reader);
-            if (docsEnum == null) {// no pos available
-                docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
-            }
-        }
-        iterator.initDocsAndPos();
-    }
-
     private boolean shouldRetrieveFrequenciesOnly() {
-        return (flags & ~TermStatisticsLookup.FLAG_FREQUENCIES) == 0;
+        return (flags & ~ShardTermsLookup.FLAG_FREQUENCIES) == 0;
     }
 
     private int getLuceneFrequencyFlag(int flags) {
-        return (flags & TermStatisticsLookup.FLAG_FREQUENCIES) > 0 ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE;
+        return (flags & ShardTermsLookup.FLAG_FREQUENCIES) > 0 ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE;
     }
 
     private int getLucenePositionsFlags(int flags) {
-        int lucenePositionsFlags = (flags & TermStatisticsLookup.FLAG_PAYLOADS) > 0 ? DocsAndPositionsEnum.FLAG_PAYLOADS : 0x0;
-        lucenePositionsFlags |= (flags & TermStatisticsLookup.FLAG_OFFSETS) > 0 ? DocsAndPositionsEnum.FLAG_OFFSETS : 0x0;
+        int lucenePositionsFlags = (flags & ShardTermsLookup.FLAG_PAYLOADS) > 0 ? DocsAndPositionsEnum.FLAG_PAYLOADS : 0x0;
+        lucenePositionsFlags |= (flags & ShardTermsLookup.FLAG_OFFSETS) > 0 ? DocsAndPositionsEnum.FLAG_OFFSETS : 0x0;
         return lucenePositionsFlags;
     }
 
@@ -166,13 +149,14 @@ public class ScriptTerm implements Iterable<TermPosition> {
         return newDocsEnum;
     }
 
-    public void setNextDoc() {
+    public void setNextDoc(int docId) {
+        this.docId = docId;
 
         assert (docsEnum != null);
         // we try to advance to the current document.
-        if (docsEnum.docID() < shardStats.getDocId()) {
+        if (docsEnum.docID() < docId) {
             try {
-                docsEnum.advance(shardStats.getDocId());
+                docsEnum.advance(docId);
             } catch (IOException e) {
                 throw new ElasticSearchException("While trying to advance posting list in ScriptTerm.setNextDoc() ", e);
             }
@@ -184,27 +168,32 @@ public class ScriptTerm implements Iterable<TermPosition> {
         }
     }
 
-    public ScriptTerm(String term, String fieldName, TermStatisticsLookup indexStats, int flags) {
+    public ScriptTerm(String term, String fieldName, ShardTermsLookup shardTermsLookup, int flags) {
         assert fieldName != null;
         this.fieldName = fieldName;
         assert term != null;
         this.term = term;
-        assert indexStats != null;
-        this.shardStats = indexStats;
+        assert shardTermsLookup != null;
         identifier = new Term(fieldName, (String) term);
         this.flags = flags;
-        boolean doNotRecord = ((flags & TermStatisticsLookup.FLAG_DO_NOT_RECORD) > 0);
+        boolean doRecord = ((flags & ShardTermsLookup.FLAG_CACHE) > 0);
         if (withPositions()) {
-            if (doNotRecord) {
-                iterator = new UnrecordedPositionIterator(this);
+            if (!doRecord) {
+                iterator = new UncachedPositionIterator(this);
             } else {
-                iterator = new RecordedPositionIterator(this);
+                iterator = new CachedPositionIterator(this);
             }
         } else {
             iterator = new EmptyPositionIterator(this);
         }
-        setNextReader();
-        setNextDoc();
+        setNextReader(shardTermsLookup.getReader());
+        setNextDoc(shardTermsLookup.getDocId());
+        try {
+            termStats = shardTermsLookup.getIndexSearcher().termStatistics(identifier,
+                    TermContext.build(shardTermsLookup.getReaderContext(), identifier));
+        } catch (IOException e) {
+            throw new ElasticSearchException("Cannot get term statistics: ", e);
+        }
     }
 
     private boolean withPositions() {
@@ -212,18 +201,18 @@ public class ScriptTerm implements Iterable<TermPosition> {
     }
 
     protected boolean shouldRetrievePositions() {
-        return (flags & TermStatisticsLookup.FLAG_POSITIONS) > 0;
+        return (flags & ShardTermsLookup.FLAG_POSITIONS) > 0;
     }
 
     protected boolean shouldRetrieveOffsets() {
-        return (flags & TermStatisticsLookup.FLAG_OFFSETS) > 0;
+        return (flags & ShardTermsLookup.FLAG_OFFSETS) > 0;
     }
 
     protected boolean shouldRetrievePayloads() {
-        return (flags & TermStatisticsLookup.FLAG_PAYLOADS) > 0;
+        return (flags & ShardTermsLookup.FLAG_PAYLOADS) > 0;
     }
 
-    public int freq() throws IOException {
+    public int tf() throws IOException {
         if (!hasTerm()) {
             return 0;
         }
@@ -232,7 +221,7 @@ public class ScriptTerm implements Iterable<TermPosition> {
 
     private boolean hasTerm() {
         if (docsEnum != null) {
-            return docsEnum.docID() == shardStats.getDocId();
+            return docsEnum.docID() == docId;
         } else {
             return false;
         }
@@ -270,20 +259,20 @@ public class ScriptTerm implements Iterable<TermPosition> {
 
     private String getFlagsString(int flags2) {
         String flagsString = null;
-        if ((flags2 & TermStatisticsLookup.FLAG_FREQUENCIES) != 0) {
+        if ((flags2 & ShardTermsLookup.FLAG_FREQUENCIES) != 0) {
             flagsString = anddToFlagsString(flagsString, "_FREQUENCIES");
         }
-        if ((flags2 & TermStatisticsLookup.FLAG_POSITIONS) != 0) {
+        if ((flags2 & ShardTermsLookup.FLAG_POSITIONS) != 0) {
             flagsString = anddToFlagsString(flagsString, "_POSITIONS");
         }
-        if ((flags2 & TermStatisticsLookup.FLAG_OFFSETS) != 0) {
+        if ((flags2 & ShardTermsLookup.FLAG_OFFSETS) != 0) {
             flagsString = anddToFlagsString(flagsString, "_OFFSETS");
         }
-        if ((flags2 & TermStatisticsLookup.FLAG_PAYLOADS) != 0) {
+        if ((flags2 & ShardTermsLookup.FLAG_PAYLOADS) != 0) {
             flagsString = anddToFlagsString(flagsString, "_PAYLOADS");
         }
-        if ((flags2 & TermStatisticsLookup.FLAG_DO_NOT_RECORD) != 0) {
-            flagsString = anddToFlagsString(flagsString, "_DO_NOT_RECORD");
+        if ((flags2 & ShardTermsLookup.FLAG_CACHE) != 0) {
+            flagsString = anddToFlagsString(flagsString, "_CACHE");
         }
         return flagsString;
     }

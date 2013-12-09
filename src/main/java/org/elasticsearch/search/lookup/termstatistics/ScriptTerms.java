@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.lookup.termstatistics;
 
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.elasticsearch.common.util.MinimalMap;
 
@@ -29,7 +30,7 @@ import java.util.Map;
 /**
  * Script interface to all information regarding a field.
  * */
-public class ScriptField extends MinimalMap {
+public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
 
     /*
      * TermsInfo Objects that represent the Terms are stored in this map when
@@ -39,35 +40,26 @@ public class ScriptField extends MinimalMap {
     final private Map<String, ScriptTerm> terms = new HashMap<String, ScriptTerm>();
 
     // the name of this field
-    String fieldName;
+    private final String fieldName;
 
     /*
      * The holds the current reader. We need it to populate the field
      * statistics. We just delegate all requests there
      */
-    private TermStatisticsLookup indexStats;
+    private ShardTermsLookup shardTermsLookup;
 
     /*
      * General field statistics such as number of documents containing the
      * field.
      */
-    private CollectionStatistics fieldStats;
-
-    private boolean fieldStatsInitialized = false;
-
-    private void initFieldStats() throws IOException {
-        if (fieldStatsInitialized == false) {
-            fieldStats = indexStats.getIndexSearcher().collectionStatistics(fieldName);
-            fieldStatsInitialized = true;
-        }
-    }
+    private final CollectionStatistics fieldStats;
 
     /*
      * Uodate posting lists in all TermInfo objects
      */
-    void setReader() {
+    void setReader(AtomicReader reader) {
         for (ScriptTerm ti : terms.values()) {
-            ti.setNextReader();
+            ti.setNextReader(reader);
         }
     }
 
@@ -76,24 +68,24 @@ public class ScriptField extends MinimalMap {
      * statistics of this field. Information on specific terms in this field can
      * be accessed by calling get(String term).
      */
-    public ScriptField(String fieldName, TermStatisticsLookup indexStats) throws IOException {
+    public ScriptTerms(String fieldName, ShardTermsLookup shardTermsLookup) throws IOException {
 
         assert fieldName != null;
         this.fieldName = fieldName;
 
-        assert indexStats != null;
-        this.indexStats = indexStats;
+        assert shardTermsLookup != null;
+        this.shardTermsLookup = shardTermsLookup;
+
+        fieldStats = shardTermsLookup.getIndexSearcher().collectionStatistics(fieldName);
     }
 
     /* get number of documents containing the field */
     public long docCount() throws IOException {
-        initFieldStats();
         return fieldStats.docCount();
     }
 
     /* get sum of the number of words over all documents that were indexed */
     public long sumttf() throws IOException {
-        initFieldStats();
         return fieldStats.sumTotalTermFreq();
     }
 
@@ -102,7 +94,6 @@ public class ScriptField extends MinimalMap {
      * that has the field.
      */
     public long sumdf() throws IOException {
-        initFieldStats();
         return fieldStats.sumDocFreq();
     }
 
@@ -111,30 +102,21 @@ public class ScriptField extends MinimalMap {
     /*
      * Returns a TermInfo object that can be used to access information on
      * specific terms. flags can be set as described in TermInfo.
-     */
-    public ScriptTerm get(Object key, int flags) {
-        String termString = (String) key;
-        ScriptTerm termInfo = lookupTermInfo(termString);
-        // see if we initialized already...
-        if (termInfo == null) {
-            termInfo = new ScriptTerm(termString, fieldName, indexStats, flags);
-            putTermInfo(termString, termInfo);
-        }
-        termInfo.validateFlags(flags);
-        return termInfo;
-    }
-
-    private void putTermInfo(String termString, ScriptTerm termInfo) {
-        terms.put(termString, termInfo);
-    }
-
-    /*
+     * 
      * TODO: here might be potential for running time improvement? If we knew in
      * advance which terms are requested, we could provide an array which the
      * user could then iterate over.
      */
-    private ScriptTerm lookupTermInfo(String termString) {
-        return terms.get(termString);
+    public ScriptTerm get(Object key, int flags) {
+        String termString = (String) key;
+        ScriptTerm termInfo = terms.get(termString);
+        // see if we initialized already...
+        if (termInfo == null) {
+            termInfo = new ScriptTerm(termString, fieldName, shardTermsLookup, flags);
+            terms.put(termString, termInfo);
+        }
+        termInfo.validateFlags(flags);
+        return termInfo;
     }
 
     /*
@@ -143,16 +125,12 @@ public class ScriptField extends MinimalMap {
      */
     public ScriptTerm get(Object key) {
         // per default, do not initialize any positions info
-        return get(key, TermStatisticsLookup.FLAG_FREQUENCIES);
+        return get(key, ShardTermsLookup.FLAG_FREQUENCIES);
     }
 
-    public boolean containsKey(Object key) {
-        return true;
-    }
-
-    public void setDocIdInTerms() {
+    public void setDocIdInTerms(int docId) {
         for (ScriptTerm ti : terms.values()) {
-            ti.setNextDoc();
+            ti.setNextDoc(docId);
         }
     }
 

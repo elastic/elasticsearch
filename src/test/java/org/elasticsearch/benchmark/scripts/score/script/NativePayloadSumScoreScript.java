@@ -4,10 +4,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.search.lookup.termstatistics.ScriptField;
 import org.elasticsearch.search.lookup.termstatistics.ScriptTerm;
+import org.elasticsearch.search.lookup.termstatistics.ScriptTerms;
+import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
 import org.elasticsearch.search.lookup.termstatistics.TermPosition;
-import org.elasticsearch.search.lookup.termstatistics.TermStatisticsLookup;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -39,10 +39,10 @@ public class NativePayloadSumScoreScript extends AbstractSearchScript {
     @Override
     public Object run() {
         float score = 0;
-        ScriptField fi = termStatistics().get(field);
+        ScriptTerms scriptTerms = shardTerms().get(field);
         for (int i = 0; i < terms.length; i++) {
-            ScriptTerm ti = fi.get(terms[i], TermStatisticsLookup.FLAG_PAYLOADS);
-            for (TermPosition pos : ti) {
+            ScriptTerm scriptTerm = scriptTerms.get(terms[i], ShardTermsLookup.FLAG_PAYLOADS | ShardTermsLookup.FLAG_CACHE);
+            for (TermPosition pos : scriptTerm) {
                 score += pos.payloadAsFloat(0);
             }
         }

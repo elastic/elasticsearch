@@ -86,7 +86,7 @@ public class ScriptsScoreBenchmark extends BasicScriptBenchmark {
             searchRequests = initNativeSearchRequests(
                     minTerms,
                     maxTerms,
-                    "score = 0.0; fi= _terminfo[\"text\"]; for(i=0; i<text.size(); i++){terminfo = fi[text.get(i)]; score = score + terminfo.freq()*fi.getDocCount()/terminfo.df();} return score;",
+                    "score = 0.0; fi= _terminfo[\"text\"]; for(i=0; i<text.size(); i++){terminfo = fi[text.get(i)]; score = score + terminfo.tf()*fi.getDocCount()/terminfo.df();} return score;",
                     false);
             // run actual benchmark
             runBenchmark(client, maxIter, results, searchRequests, minTerms, warmerIter);
@@ -122,7 +122,7 @@ public class ScriptsScoreBenchmark extends BasicScriptBenchmark {
             searchRequests = initNativeSearchRequests(
                     minTerms,
                     maxTerms,
-                    "score = 0.0; fi= _terminfo[\"text\"]; for(i=0; i<text.size(); i++){terminfo = fi[text.get(i)]; score = score + terminfo.freq()*fi.getDocCount()/terminfo.df();} return score;",
+                    "score = 0.0; fi= _terminfo[\"text\"]; for(i=0; i<text.size(); i++){terminfo = fi[text.get(i)]; score = score + terminfo.tf()*fi.getDocCount()/terminfo.df();} return score;",
                     false);
             // run actual benchmark
             runBenchmark(client, maxIter, results, searchRequests, minTerms, warmerIter);

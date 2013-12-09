@@ -20,44 +20,41 @@
 package org.elasticsearch.search.lookup.termstatistics;
 
 import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.elasticsearch.ElasticSearchException;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-abstract public class PositionIterator implements Iterator<TermPosition>{
-    
-    ScriptTerm scriptTerm;
-    
-    // current position of iterator
-    int curIteratorPos;
+public abstract class PositionIterator implements Iterator<TermPosition> {
 
-    final TermPosition termPosition = new TermPosition();
-    
-    DocsAndPositionsEnum docsAndPos;
-    
+    ScriptTerm scriptTerm;
+
+    int freq = -1;
+
+    // current position of iterator
+    protected int curIteratorPos;
+
+    final protected TermPosition termPosition = new TermPosition();
+
+    protected DocsAndPositionsEnum docsAndPos;
+
     public PositionIterator(ScriptTerm termInfo) {
         this.scriptTerm = termInfo;
     }
-    
-    abstract void init() throws IOException;
-    
-    abstract void initDocsAndPos() throws IOException;
 
-    abstract public Iterator<TermPosition> reset();
-    
+    protected abstract void init() throws IOException;
+
+    protected abstract void initDocsAndPos() throws IOException;
+
+    public abstract Iterator<TermPosition> reset();
+
     @Override
     public void remove() {
-        throw new ElasticSearchException("Cannot remove anuthing from TermPositions iterator.");
+        throw new UnsupportedOperationException("Cannot remove anything from TermPositions iterator.");
     }
 
     @Override
     public boolean hasNext() {
-        try {
-            return curIteratorPos < scriptTerm.freq();
-        } catch (IOException e) {
-            throw new RuntimeException();
-        }
+        return curIteratorPos < freq;
     }
 
 }

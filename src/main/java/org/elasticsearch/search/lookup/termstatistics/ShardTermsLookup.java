@@ -29,38 +29,38 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TermStatisticsLookup extends MinimalMap {
+public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
 
     /**
-     * Flag to pass to {@link ScriptField#get(String, flags)} if you require
+     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
      * offsets in the returned {@link ScriptTerm}.
      */
     public static final int FLAG_OFFSETS = 2;
 
     /**
-     * Flag to pass to {@link ScriptField#get(String, flags)} if you require
+     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
      * payloads in the returned {@link ScriptTerm}.
      */
     public static final int FLAG_PAYLOADS = 4;
 
     /**
-     * Flag to pass to {@link ScriptField#get(String, flags)} if you require
+     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
      * frequencies in the returned {@link ScriptTerm}. Frequencies might be
      * returned anyway for some lucene codecs even if this flag is no set.
      */
     public static final int FLAG_FREQUENCIES = 8;
 
     /**
-     * Flag to pass to {@link ScriptField#get(String, flags)} if you require
+     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
      * positions in the returned {@link ScriptTerm}.
      */
     public static final int FLAG_POSITIONS = 16;
 
     /**
-     * Flag to pass to {@link ScriptField#get(String, flags)} if you require
+     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
      * positions in the returned {@link ScriptTerm}.
      */
-    public static final int FLAG_DO_NOT_RECORD = 32;
+    public static final int FLAG_CACHE = 32;
 
     // Current reader from which we can get the term vectors. No info on term
     // and field statistics.
@@ -82,11 +82,14 @@ public class TermStatisticsLookup extends MinimalMap {
     // stores the objects that are used in the script. we maintain this map
     // because we do not want to re-initialize the objects each time a field is
     // accessed
-    final private Map<String, ScriptField> scriptFields = new HashMap<String, ScriptField>();
+    final private Map<String, ScriptTerms> scriptTermsPerField = new HashMap<String, ScriptTerms>();
 
     // number of documents per shard. cached here because the computation is
     // expensive
     private int numDocs = -1;
+
+    // the maximum doc number of the shard.
+    private int maxDoc = -1;
 
     // number of deleted documents per shard. cached here because the
     // computation is expensive
@@ -99,6 +102,13 @@ public class TermStatisticsLookup extends MinimalMap {
         return numDocs;
     }
 
+    public int maxDoc() {
+        if (maxDoc == -1) {
+            maxDoc = parentReader.maxDoc();
+        }
+        return maxDoc;
+    }
+
     public int numDeletedDocs() {
         if (numDeletedDocs == -1) {
             numDeletedDocs = parentReader.numDeletedDocs();
@@ -106,12 +116,12 @@ public class TermStatisticsLookup extends MinimalMap {
         return numDeletedDocs;
     }
 
-    public TermStatisticsLookup(Builder<String, Object> builder) {
-        builder.put("_FREQUENCIES", TermStatisticsLookup.FLAG_FREQUENCIES);
-        builder.put("_POSITIONS", TermStatisticsLookup.FLAG_POSITIONS);
-        builder.put("_OFFSETS", TermStatisticsLookup.FLAG_OFFSETS);
-        builder.put("_PAYLOADS", TermStatisticsLookup.FLAG_PAYLOADS);
-        builder.put("_DO_NOT_RECORD", TermStatisticsLookup.FLAG_DO_NOT_RECORD);
+    public ShardTermsLookup(Builder<String, Object> builder) {
+        builder.put("_FREQUENCIES", ShardTermsLookup.FLAG_FREQUENCIES);
+        builder.put("_POSITIONS", ShardTermsLookup.FLAG_POSITIONS);
+        builder.put("_OFFSETS", ShardTermsLookup.FLAG_OFFSETS);
+        builder.put("_PAYLOADS", ShardTermsLookup.FLAG_PAYLOADS);
+        builder.put("_CACHE", ShardTermsLookup.FLAG_CACHE);
     }
 
     public void setNextReader(AtomicReaderContext context) {
@@ -141,8 +151,8 @@ public class TermStatisticsLookup extends MinimalMap {
     }
 
     protected void setReaderInFields() {
-        for (ScriptField stat : scriptFields.values()) {
-            stat.setReader();
+        for (ScriptTerms stat : scriptTermsPerField.values()) {
+            stat.setReader(reader);
         }
     }
 
@@ -162,46 +172,36 @@ public class TermStatisticsLookup extends MinimalMap {
             // because we do not even know if term and field statistics will be
             // needed in this new phase.
             // Therefore we just remove all ScriptFields.
-            scriptFields.clear();
+            scriptTermsPerField.clear();
         }
         this.docId = docId;
         setNextDocIdInFields();
     }
 
     protected void setNextDocIdInFields() {
-        for (ScriptField stat : scriptFields.values()) {
-            stat.setDocIdInTerms();
+        for (ScriptTerms stat : scriptTermsPerField.values()) {
+            stat.setDocIdInTerms(this.docId);
         }
     }
 
+    /*
+     * TODO: here might be potential for running time improvement? If we knew in
+     * advance which terms are requested, we could provide an array which the
+     * user could then iterate over.
+     */
     @Override
-    public boolean containsKey(Object key) {
-        // we always return information on a field - if the field does not exist
-        // everything will be 0/null
-        return true;
-    }
-
-    @Override
-    public ScriptField get(Object key) {
+    public ScriptTerms get(Object key) {
         String stringField = (String) key;
-        ScriptField scriptField = lookupScriptField(key);
+        ScriptTerms scriptField = scriptTermsPerField.get(key);
         if (scriptField == null) {
             try {
-                scriptField = new ScriptField(stringField, this);
-                putScriptField(stringField, scriptField);
+                scriptField = new ScriptTerms(stringField, this);
+                scriptTermsPerField.put(stringField, scriptField);
             } catch (IOException e) {
                 throw new ElasticSearchException(e.getMessage());
             }
         }
         return scriptField;
-    }
-
-    private void putScriptField(String stringField, ScriptField scriptField) {
-        scriptFields.put(stringField, scriptField);
-    }
-
-    private ScriptField lookupScriptField(Object key) {
-        return scriptFields.get(key);
     }
 
     /*

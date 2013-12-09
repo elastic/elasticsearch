@@ -22,10 +22,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoringRewrite;
-import org.apache.lucene.search.TopTermsRewrite;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
@@ -109,7 +106,7 @@ public class PostingsHighlighter implements Highlighter {
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
             for (int i = 0; i < values; i++) {
-                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms, context.searcher(), hitContext.topLevelDocId(), numberOfFragments);
+                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms, hitContext.searcher(), hitContext.docId(), numberOfFragments);
                 if (fieldSnippets != null) {
                     for (Snippet fieldSnippet : fieldSnippets) {
                         if (Strings.hasText(fieldSnippet.getText())) {

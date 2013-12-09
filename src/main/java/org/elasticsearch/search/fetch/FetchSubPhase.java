@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.SearchParseElement;
@@ -44,6 +45,7 @@ public interface FetchSubPhase {
         private int docId;
         private FieldsVisitor fieldVisitor;
         private Map<String, Object> cache;
+        private IndexSearcher atomicIndexSearcher;
 
         public void reset(InternalSearchHit hit, AtomicReaderContext context, int docId, IndexReader topLevelReader, int topLevelDocId, FieldsVisitor fieldVisitor) {
             this.hit = hit;
@@ -52,6 +54,7 @@ public interface FetchSubPhase {
             this.topLevelReader = topLevelReader;
             this.topLevelDocId = topLevelDocId;
             this.fieldVisitor = fieldVisitor;
+            this.atomicIndexSearcher = null;
         }
 
         public InternalSearchHit hit() {
@@ -64,6 +67,13 @@ public interface FetchSubPhase {
 
         public AtomicReaderContext readerContext() {
             return readerContext;
+        }
+
+        public IndexSearcher searcher() {
+            if (atomicIndexSearcher == null) {
+                atomicIndexSearcher = new IndexSearcher(readerContext);
+            }
+            return atomicIndexSearcher;
         }
 
         public int docId() {

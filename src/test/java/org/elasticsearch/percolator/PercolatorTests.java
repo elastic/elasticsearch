@@ -1314,6 +1314,19 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                                     .endObject().endObject()
                     )
                     .execute().actionGet();
+        } else if (randomBoolean()) {
+            // positions hl
+            client.admin().indices().preparePutMapping("test").setType("type")
+                    .setSource(
+                            jsonBuilder().startObject().startObject("type")
+                                    .startObject("properties")
+                                    .startObject("field1").field("type", "string")
+                                        .field("index_options", "offsets")
+                                    .endObject()
+                                    .endObject()
+                                    .endObject().endObject()
+                    )
+                    .execute().actionGet();
         }
 
         logger.info("--> register a queries");

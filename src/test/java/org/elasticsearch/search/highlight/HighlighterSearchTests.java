@@ -507,6 +507,54 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testPlainHighlighterForceSource() throws Exception {
+        prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,store=yes,term_vector=with_positions_offsets,index_options=offsets")
+                .get();
+        ensureGreen();
+
+        client().prepareIndex("test", "type1")
+                .setSource("field1", "The quick brown fox jumps over the lazy dog").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("fvh").forceSource(true))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").forceSource(true))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("postings").forceSource(true))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("fvh").forceSource(false))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").forceSource(false))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("postings").forceSource(false))
+                .get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+    }
+
+    @Test
     public void testPlainHighlighter() throws Exception {
         createIndex("test");
         ensureGreen();

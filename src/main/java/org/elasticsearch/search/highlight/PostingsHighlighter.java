@@ -93,7 +93,7 @@ public class PostingsHighlighter implements Highlighter {
 
         try {
             //we manually load the field values (from source if needed)
-            List<Object> textsToHighlight = HighlightUtils.loadFieldValues(fieldMapper, context, hitContext);
+            List<Object> textsToHighlight = HighlightUtils.loadFieldValues(fieldMapper, context, hitContext, field.forceSource());
             CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(mapperHighlighterEntry.passageFormatter, textsToHighlight, mergeValues, Integer.MAX_VALUE-1, field.noMatchSize());
 
              if (field.numberOfFragments() == 0) {

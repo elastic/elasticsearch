@@ -75,6 +75,7 @@ public class HighlighterParseElement implements SearchParseElement {
         boolean globalScoreOrdered = false;
         boolean globalHighlightFilter = false;
         boolean globalRequireFieldMatch = false;
+        boolean globalForceSource = false;
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
         String globalEncoder = "default";
@@ -136,6 +137,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalFragmenter = parser.text();
                 } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
                     globalNoMatchSize = parser.intValue();
+                } else if ("force_source".equals(topLevelFieldName) || "forceSource".equals(topLevelFieldName)) {
+                    globalForceSource = parser.booleanValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
                 globalOptions = parser.map();
@@ -199,6 +202,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.fragmenter(parser.text());
                                     } else if ("no_match_size".equals(fieldName) || "noMatchSize".equals(fieldName)) {
                                         field.noMatchSize(parser.intValue());
+                                    } else if ("force_source".equals(fieldName) || "forceSource".equals(fieldName)) {
+                                        field.forceSource(parser.booleanValue());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
@@ -266,6 +271,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.noMatchSize() == -1) {
                 field.noMatchSize(globalNoMatchSize);
+            }
+            if (field.forceSource() == null) {
+                field.forceSource(globalForceSource);
             }
         }
 

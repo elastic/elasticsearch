@@ -110,6 +110,24 @@ The following is an example that forces the use of the plain highlighter:
 }
 --------------------------------------------------
 
+==== Force highlighting on source
+
+added[1.0.0.RC1]
+
+Forces the highlighting to highlight fields based on the source even if fields are
+stored separately. Defaults to `false`.
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "fields" : {
+            "content" : {"force_source" : true}
+        }
+    }
+}
+--------------------------------------------------
 
 [[tags]]
 ==== Highlighting Tags

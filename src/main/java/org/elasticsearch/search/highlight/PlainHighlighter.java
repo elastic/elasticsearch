@@ -99,7 +99,7 @@ public class PlainHighlighter implements Highlighter {
         List<Object> textsToHighlight;
 
         try {
-            textsToHighlight = HighlightUtils.loadFieldValues(mapper, context, hitContext);
+            textsToHighlight = HighlightUtils.loadFieldValues(mapper, context, hitContext, field.forceSource());
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();

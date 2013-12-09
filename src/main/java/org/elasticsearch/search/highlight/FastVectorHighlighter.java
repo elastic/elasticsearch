@@ -104,7 +104,7 @@ public class FastVectorHighlighter implements Highlighter {
                 if (field.numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
-                    if (mapper.fieldType().stored()) {
+                    if (!field.forceSource() && mapper.fieldType().stored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                     } else {
                         fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
@@ -112,13 +112,13 @@ public class FastVectorHighlighter implements Highlighter {
                 } else {
                     fragListBuilder = field.fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fragmentOffset());
                     if (field.scoreOrdered()) {
-                        if (mapper.fieldType().stored()) {
+                        if (!field.forceSource() && mapper.fieldType().stored()) {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                         }
                     } else {
-                        if (mapper.fieldType().stored()) {
+                        if (!field.forceSource() && mapper.fieldType().stored()) {
                             fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -83,6 +84,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = ImmutableSet.of(field.field());
+            }
+
+            if (field.forceSource()) {
+                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
+                if (!sourceFieldMapper.enabled()) {
+                    throw new ElasticSearchIllegalArgumentException("source is forced for field [" +  field.field() + "] but type [" + hitContext.hit().type() + "] has disabled _source");
+                }
             }
 
             for (String fieldName : fieldNamesToHighlight) {

@@ -1305,11 +1305,24 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         if (randomBoolean()) {
+            // FVH HL
             client.admin().indices().preparePutMapping("test").setType("type")
                     .setSource(
                             jsonBuilder().startObject().startObject("type")
                                     .startObject("properties")
-                                    .startObject("field1").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
+                                    .startObject("field1").field("type", "string").field("store", randomBoolean())
+                                        .field("term_vector", "with_positions_offsets").endObject()
+                                    .endObject()
+                                    .endObject().endObject()
+                    )
+                    .execute().actionGet();
+        } if (randomBoolean()) {
+            // plain hl with stored fields
+            client.admin().indices().preparePutMapping("test").setType("type")
+                    .setSource(
+                            jsonBuilder().startObject().startObject("type")
+                                    .startObject("properties")
+                                    .startObject("field1").field("type", "string").field("store", true).endObject()
                                     .endObject()
                                     .endObject().endObject()
                     )

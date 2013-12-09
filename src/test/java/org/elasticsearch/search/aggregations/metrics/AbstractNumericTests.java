@@ -72,7 +72,6 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
                     .endObject()));
         }
         indexRandom(true, builders);
-        ensureGreen(); // wait until we are ready to serve requests
     }
 
     public abstract void testEmptyAggregation() throws Exception;

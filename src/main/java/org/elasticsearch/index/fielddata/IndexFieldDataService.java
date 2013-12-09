@@ -85,6 +85,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put(Tuple.tuple("long", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("long", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("geo_point", "array"), new GeoPointDoubleArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", "compressed"), new GeoPointCompressedIndexFieldData.Builder())
                 .immutableMap();
     }
 
@@ -177,7 +178,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                     }
 
-                    fieldData = builder.build(index, indexSettings, fieldNames, type, cache);
+                    fieldData = builder.build(index, indexSettings, mapper, cache);
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             }

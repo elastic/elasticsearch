@@ -239,11 +239,11 @@ public class GeohashCellFilter {
             }
 
             FieldMapper<?> mapper = smartMappers.mapper();
-            if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+            if (!(mapper instanceof GeoPointFieldMapper)) {
                 throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
             }
 
-            GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+            GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
             if (!geoMapper.isEnableGeohashPrefix()) {
                 throw new QueryParsingException(parseContext.index(), "can't execute geohash_cell on field [" + fieldName + "], geohash_prefix is not enabled");
             }

@@ -61,12 +61,11 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
         }
         client().admin().indices().prepareFlush().execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
+        ensureSearchable();
     }
 
     @Test
-    @TestLogging("search:TRACE")
     public void unmapped() throws Exception {
-
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(count("count").field("value"))

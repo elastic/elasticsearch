@@ -71,7 +71,9 @@ public interface FetchSubPhase {
 
         public IndexSearcher searcher() {
             if (atomicIndexSearcher == null) {
-                atomicIndexSearcher = new IndexSearcher(readerContext);
+                // Use the reader directly otherwise the IndexSearcher assertion will trip because it expects a top level
+                // reader context.
+                atomicIndexSearcher = new IndexSearcher(readerContext.reader());
             }
             return atomicIndexSearcher;
         }

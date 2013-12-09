@@ -18,10 +18,13 @@
 
 package org.elasticsearch.test.junit.annotations;
 
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PACKAGE;
+import static java.lang.annotation.ElementType.TYPE;
 
 /**
  * Annotation used to set a custom log level for a specific test method.
@@ -32,7 +35,7 @@ import java.lang.annotation.Target;
  * or just @TestLogging("_root:DEBUG,cluster.metadata:TRACE") since we start the test with -Des.logger.prefix=
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
+@Target({PACKAGE, TYPE, METHOD})
 public @interface TestLogging {
     String value();
 }

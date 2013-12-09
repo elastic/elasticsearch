@@ -60,6 +60,8 @@ public class HighlightBuilder implements ToXContent {
 
     private Map<String, Object> options;
 
+    private Boolean forceSource;
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5 using the default encoder
@@ -233,6 +235,14 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Forces the highlighting to highlight fields based on the source even if fields are stored separately.
+     */
+    public HighlightBuilder forceSource(boolean forceSource) {
+        this.forceSource = forceSource;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -268,6 +278,9 @@ public class HighlightBuilder implements ToXContent {
         }
         if (options != null && options.size() > 0) {
             builder.field("options", options);
+        }
+        if (forceSource != null) {
+            builder.field("force_source", forceSource);
         }
         if (fields != null) {
             builder.startObject("fields");
@@ -321,6 +334,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
                 }
+                if (field.forceSource != null) {
+                    builder.field("force_source", forceSource);
+                }
 
                 builder.endObject();
             }
@@ -349,6 +365,7 @@ public class HighlightBuilder implements ToXContent {
         Integer noMatchSize;
         String[] matchedFields;
         Map<String, Object> options;
+        Boolean forceSource;
 
         public Field(String name) {
             this.name = name;
@@ -479,5 +496,14 @@ public class HighlightBuilder implements ToXContent {
             this.matchedFields = matchedFields;
             return this;
         }
+
+        /**
+         * Forces the highlighting to highlight this field based on the source even if this field is stored separately.
+         */
+        public Field forceSource(boolean forceSource) {
+            this.forceSource = forceSource;
+            return this;
+        }
+
     }
 }

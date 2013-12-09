@@ -82,6 +82,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
+import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -309,6 +310,11 @@ public class PercolatorService extends AbstractComponent {
             // We need to get the actual source from the request body for highlighting, so parse the request body again
             // and only get the doc source.
             if (context.highlight() != null) {
+                // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
+                for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                    field.forceSource(true);
+                }
+
                 parser.close();
                 currentFieldName = null;
                 parser = XContentFactory.xContent(source).createParser(source);

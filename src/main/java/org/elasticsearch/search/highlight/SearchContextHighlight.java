@@ -64,6 +64,8 @@ public class SearchContextHighlight {
 
         private String highlighterType;
 
+        private Boolean forceSource;
+
         private String fragmenter;
 
         private int boundaryMaxScan = -1;
@@ -164,6 +166,14 @@ public class SearchContextHighlight {
 
         public void highlighterType(String type) {
             this.highlighterType = type;
+        }
+
+        public Boolean forceSource() {
+            return forceSource;
+        }
+
+        public void forceSource(boolean forceSource) {
+            this.forceSource = forceSource;
         }
 
         public String fragmenter() {

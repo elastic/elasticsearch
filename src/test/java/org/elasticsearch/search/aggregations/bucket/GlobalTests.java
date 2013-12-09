@@ -79,6 +79,7 @@ public class GlobalTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
         indexRandom(true, builders);
+        ensureSearchable();
     }
 
     @Test

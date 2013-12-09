@@ -75,7 +75,7 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         createIndex("idx_unmapped");
-
+        ensureSearchable();
     }
 
     @Test
@@ -738,8 +738,6 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(ipRange("range")
                         .field("ip")
@@ -786,8 +784,6 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(ipRange("range")
                         .field("ip")

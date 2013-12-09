@@ -88,13 +88,11 @@ public class MissingTests extends ElasticsearchIntegrationTest {
 
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
         ensureGreen(); // wait until we are ready to serve requests
-
+        ensureSearchable();
     }
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("unmapped_idx").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("unmapped_idx")
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
@@ -110,8 +108,6 @@ public class MissingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("unmapped_idx").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx", "unmapped_idx")
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();

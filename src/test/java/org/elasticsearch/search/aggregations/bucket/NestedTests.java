@@ -98,6 +98,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
             builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
         }
         indexRandom(true, builders);
+        ensureSearchable();
     }
 
     @Test
@@ -141,7 +142,6 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void onNonNestedField() throws Exception {
-
         try {
             client().prepareSearch("idx")
                     .addAggregation(nested("nested").path("value")
@@ -156,7 +156,6 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void nestedWithSubTermsAgg() throws Exception {
-
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested").path("nested")
                         .subAggregation(terms("values").field("nested.value").size(100)))

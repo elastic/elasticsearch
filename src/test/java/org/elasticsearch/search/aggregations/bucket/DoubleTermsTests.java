@@ -82,7 +82,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         indexRandom(true, highCardBuilders);
 
         createIndex("idx_unmapped");
-
+        ensureSearchable();
     }
 
     @Test
@@ -544,8 +544,6 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value"))
@@ -562,8 +560,6 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForGreenStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value"))

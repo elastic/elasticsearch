@@ -65,7 +65,6 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void noShardSize_string() throws Exception {
-
         client().admin().indices().prepareCreate("idx")
                 .addMapping("type", "key", "type=string,index=not_analyzed")
                 .execute().actionGet();
@@ -348,6 +347,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
         assertThat(totalOnOne, is(15l));
         long totalOnTwo = client().prepareSearch("idx").setTypes("type").setRouting("2").setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits();
         assertThat(totalOnTwo, is(12l));
+        ensureSearchable();
     }
 
     private void indexDoc(String shard, String key, int times, List<IndexRequestBuilder> indexOps) throws Exception {

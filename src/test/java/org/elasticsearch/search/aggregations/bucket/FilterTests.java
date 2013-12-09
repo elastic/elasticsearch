@@ -84,6 +84,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
         ensureGreen();
+        ensureSearchable();
     }
 
     @Test

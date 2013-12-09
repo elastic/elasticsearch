@@ -99,7 +99,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                     .endObject());
         }
         indexRandom(true, builders);
-
+        ensureSearchable();
     }
 
     @Test
@@ -708,8 +708,6 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(histogram("histo").field("value").interval(interval))
                 .execute().actionGet();
@@ -725,8 +723,6 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(histogram("histo").field("value").interval(interval))
                 .execute().actionGet();

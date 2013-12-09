@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
+import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
 
 import java.util.HashMap;
@@ -41,35 +42,30 @@ import java.util.Map;
 public class LoggingListener extends RunListener {
 
     private Map<String, String> previousLoggingMap;
+    private Map<String, String> previousClassLoggingMap;
+    private Map<String, String> previousPackageLoggingMap;
+
+    @Override
+    public void testRunStarted(Description description) throws Exception {
+        previousPackageLoggingMap = processTestLogging( description.getTestClass().getPackage().getAnnotation(TestLogging.class));
+        previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
+    }
+
+    @Override
+    public void testRunFinished(Result result) throws Exception {
+        previousClassLoggingMap = reset(previousClassLoggingMap);
+        previousPackageLoggingMap = reset(previousPackageLoggingMap);
+    }
 
     @Override
     public void testStarted(Description description) throws Exception {
-        TestLogging testLogging = description.getAnnotation(TestLogging.class);
-        if (testLogging != null) {
-            this.previousLoggingMap = new HashMap<String, String>();
-            String[] loggersAndLevels = testLogging.value().split(",");
-            for (String loggerAndLevel : loggersAndLevels) {
-                String[] loggerAndLevelArray = loggerAndLevel.split(":");
-                if (loggerAndLevelArray.length >=2) {
-                    String loggerName = loggerAndLevelArray[0];
-                    String level = loggerAndLevelArray[1];
-                    ESLogger esLogger = resolveLogger(loggerName);
-                    this.previousLoggingMap.put(loggerName, esLogger.getLevel());
-                    esLogger.setLevel(level);
-                }
-            }
-        }
+        final TestLogging testLogging = description.getAnnotation(TestLogging.class);
+        previousLoggingMap = processTestLogging(testLogging);
     }
 
     @Override
     public void testFinished(Description description) throws Exception {
-        if (this.previousLoggingMap != null) {
-            for (Map.Entry<String, String> previousLogger : previousLoggingMap.entrySet()) {
-                ESLogger esLogger = resolveLogger(previousLogger.getKey());
-                esLogger.setLevel(previousLogger.getValue());
-            }
-            this.previousLoggingMap = null;
-        }
+        previousLoggingMap = reset(previousLoggingMap);
     }
 
     private static ESLogger resolveLogger(String loggerName) {
@@ -77,5 +73,34 @@ public class LoggingListener extends RunListener {
             return ESLoggerFactory.getRootLogger();
         }
         return Loggers.getLogger(loggerName);
+    }
+
+    private Map<String, String> processTestLogging(TestLogging testLogging) {
+        if (testLogging == null) {
+            return null;
+        }
+        Map<String, String> map = new HashMap<String, String>();
+        final String[] loggersAndLevels = testLogging.value().split(",");
+        for (String loggerAndLevel : loggersAndLevels) {
+            String[] loggerAndLevelArray = loggerAndLevel.split(":");
+            if (loggerAndLevelArray.length >=2) {
+                String loggerName = loggerAndLevelArray[0];
+                String level = loggerAndLevelArray[1];
+                ESLogger esLogger = resolveLogger(loggerName);
+                map.put(loggerName, esLogger.getLevel());
+                esLogger.setLevel(level);
+            }
+        }
+        return map;
+    }
+
+    private Map<String, String> reset(Map<String, String> map) {
+        if (map != null) {
+            for (Map.Entry<String, String> previousLogger : map.entrySet()) {
+                ESLogger esLogger = resolveLogger(previousLogger.getKey());
+                esLogger.setLevel(previousLogger.getValue());
+            }
+        }
+        return null;
     }
 }

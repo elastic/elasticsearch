@@ -40,8 +40,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<PagedBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new PagedBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
+        public IndexFieldData<PagedBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
+            return new PagedBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
         }
     }
 

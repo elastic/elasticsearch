@@ -199,13 +199,13 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper mapper = smartMappers.mapper();
-        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+        FieldMapper<?> mapper = smartMappers.mapper();
+        if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
-        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
         Filter filter = new GeoDistanceRangeFilter(point, from, to, includeLower, includeUpper, geoDistance, geoMapper, indexFieldData, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

@@ -216,8 +216,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("content", "consectetur adipisicing elit").get();
         refresh();
 
-        // Execute search 5 times to load it in cache
-        for (int i = 0; i < 5; i++) {
+        // Execute search at least two times to load it in cache
+        for (int i = 0; i < atLeast(2); i++) {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(
                             boolQuery()

@@ -62,7 +62,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static final String NAME = "_boost";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final String NAME = "_boost";
+        public static final String PATH = "_boost";
         public static final Float NULL_VALUE = null;
 
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
@@ -97,9 +97,10 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.get("name").toString();
-            BoostFieldMapper.Builder builder = MapperBuilders.boost(name);
-            parseNumberField(builder, name, node, parserContext);
+            String name = node.get("name") == null ? BoostFieldMapper.Defaults.PATH : node.get("name").toString();
+            String path = node.get("path") == null ? name : node.get("path").toString();
+            BoostFieldMapper.Builder builder = MapperBuilders.boost(path);
+            parseNumberField(builder, path, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
@@ -114,7 +115,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     private final Float nullValue;
 
     public BoostFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME);
+        this(Defaults.PATH, Defaults.PATH);
     }
 
     protected BoostFieldMapper(String name, String indexName) {
@@ -287,15 +288,15 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, don't write it at all
-        if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&
+        if (!includeDefaults && name().equals(Defaults.PATH) && nullValue == null &&
                 fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(contentType());
-        if (includeDefaults || !name().equals(Defaults.NAME)) {
-            builder.field("name", name());
+        if (includeDefaults || !name().equals(Defaults.PATH)) {
+            builder.field("path", name());
         }
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);

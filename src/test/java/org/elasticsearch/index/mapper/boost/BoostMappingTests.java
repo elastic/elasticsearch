@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -57,6 +56,27 @@ public class BoostMappingTests extends ElasticsearchTestCase {
     public void testCustomName() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_boost").field("name", "custom_boost").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "a")
+                .field("_boost", 2.0f)
+                .endObject().bytes());
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(1.0f));
+
+        doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field", "a")
+                .field("custom_boost", 2.0f)
+                .endObject().bytes());
+        assertThat(doc.rootDoc().getField("field").boost(), equalTo(2.0f));
+    }
+
+    @Test
+    public void testCustomPath() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_boost").field("path", "custom_boost").endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);

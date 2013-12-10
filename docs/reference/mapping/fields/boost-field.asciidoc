@@ -4,16 +4,18 @@
 Boosting is the process of enhancing the relevancy of a document or
 field. Field level mapping allows to define explicit boost level on a
 specific field. The boost field mapping (applied on the
-<<mapping-root-object-type,root object>>) allows
-to define a boost field mapping where *its content will control the
-boost level of the document*. For example, consider the following
-mapping:
+<<mapping-root-object-type,root object>>) allows to define
+a boost field mapping where *its content will control the boost level
+of the document*. `name` can be used to specify a field  name where the
+boost value will be taken from for each
+document deprecated[0.90.8,Replaced with `path`]. For example, consider
+the following mapping:
 
 [source,js]
 --------------------------------------------------
 {
     "tweet" : {
-        "_boost" : {"name" : "my_boost", "null_value" : 1.0}
+        "_boost" : {"path" : "my_boost", "null_value" : 1.0}
     }
 }
 --------------------------------------------------
@@ -30,3 +32,4 @@ following JSON document will be indexed with a boost value of `2.2`:
     "message" : "This is a tweet!"
 }
 --------------------------------------------------
+

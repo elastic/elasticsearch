@@ -41,7 +41,7 @@ public class GeoDistanceSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
 
-        Node node = NodeBuilder.nodeBuilder().node();
+        Node node = NodeBuilder.nodeBuilder().clusterName(GeoDistanceSearchBenchmark.class.getSimpleName()).node();
         Client client = node.client();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

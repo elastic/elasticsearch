@@ -121,8 +121,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().size(), equalTo(1));
-        assertThat(routingNodes.node("node3").shards().get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").size(), equalTo(1));
+        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
     }
 
 
@@ -149,13 +149,13 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
@@ -168,13 +168,13 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
@@ -187,13 +187,13 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(STARTED));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
@@ -206,13 +206,13 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(STARTED));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
         }
@@ -226,8 +226,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().size(), equalTo(1));
-        assertThat(routingNodes.node("node3").shards().get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").size(), equalTo(1));
+        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
     }
 
     @Test
@@ -311,7 +311,7 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().isEmpty(), equalTo(true));
+        assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 
     @Test
@@ -433,8 +433,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().size(), equalTo(1));
-        assertThat(routingNodes.node("node3").shards().get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").size(), equalTo(1));
+        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
     }
 
     @Test
@@ -518,7 +518,7 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().isEmpty(), equalTo(true));
+        assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 
     @Test
@@ -621,6 +621,6 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
-        assertThat(routingNodes.node("node3").shards().isEmpty(), equalTo(true));
+        assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 }

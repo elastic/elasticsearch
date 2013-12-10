@@ -41,8 +41,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.List;
-
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -403,43 +401,43 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
              */
             @Override
             public boolean allocateUnassigned(RoutingAllocation allocation) {
-                List<MutableShardRouting> unassigned = allocation.routingNodes().unassigned();
+                RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
                 for (MutableShardRouting sr : unassigned) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
-                                allocation.routingNodes().assignShardToNode( sr, "node1" );
+                                allocation.routingNodes().assign(sr, "node1");
                             } else {
-                                allocation.routingNodes().assignShardToNode( sr, "node0" );
+                                allocation.routingNodes().assign(sr, "node0");
                             }
                             break;
                         case 1:
                             if (sr.primary()) {
-                                allocation.routingNodes().assignShardToNode( sr, "node1" );
+                                allocation.routingNodes().assign(sr, "node1");
                             } else {
-                                allocation.routingNodes().assignShardToNode( sr, "node2" );
+                                allocation.routingNodes().assign(sr, "node2");
                             }
                             break;
                         case 2:
                             if (sr.primary()) {
-                                allocation.routingNodes().assignShardToNode( sr, "node3" );
+                                allocation.routingNodes().assign(sr, "node3");
                             } else {
-                                allocation.routingNodes().assignShardToNode( sr, "node2" );
+                                allocation.routingNodes().assign(sr, "node2");
                             }
                             break;
                         case 3:
                             if (sr.primary()) {
-                                allocation.routingNodes().assignShardToNode( sr, "node3" );
+                                allocation.routingNodes().assign(sr, "node3");
                             } else {
-                                allocation.routingNodes().assignShardToNode( sr, "node1" );
+                                allocation.routingNodes().assign(sr, "node1");
                             }
                             break;
                         case 4:
                             if (sr.primary()) {
-                                allocation.routingNodes().assignShardToNode( sr, "node2" );
+                                allocation.routingNodes().assign(sr, "node2");
                             } else {
-                                allocation.routingNodes().assignShardToNode( sr, "node0" );
+                                allocation.routingNodes().assign(sr, "node0");
                             }
                             break;
                     }

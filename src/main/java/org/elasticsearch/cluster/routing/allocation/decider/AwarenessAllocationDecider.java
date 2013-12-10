@@ -185,8 +185,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // build the count of shards per attribute value
             ObjectIntOpenHashMap<String> shardPerAttribute = new ObjectIntOpenHashMap<String>();
             for (RoutingNode routingNode : allocation.routingNodes()) {
-                for (int i = 0; i < routingNode.shards().size(); i++) {
-                    MutableShardRouting nodeShardRouting = routingNode.shards().get(i);
+                for (MutableShardRouting nodeShardRouting : routingNode) {
                     if (nodeShardRouting.shardId().equals(shardRouting.shardId())) {
                         // if the shard is relocating, then make sure we count it as part of the node it is relocating to
                         if (nodeShardRouting.relocating()) {

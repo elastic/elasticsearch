@@ -34,12 +34,12 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(9));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(9));
         int nodeOffset = 1;
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(0));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(0));
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(3));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
@@ -50,23 +50,23 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
 
         clusterState = addIndex(clusterState, service, 3, 2, 3);
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(2));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(2));
         assertNumIndexShardsPerNode(clusterState, "test3", Matchers.equalTo(2));
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
 
         clusterState = addIndex(clusterState, service, 4, 2, 3);
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(4));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(4));
         assertNumIndexShardsPerNode(clusterState, "test4", Matchers.equalTo(2));
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(0));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(0));
         clusterState = removeNodes(clusterState, service, 1);
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(4));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(4));
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(0));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(0));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
     }
 
@@ -79,12 +79,12 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(9));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(9));
         int nodeOffset = 1;
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(0));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(0));
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(3));
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
@@ -150,12 +150,12 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(9));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(9));
         int nodeOffset = 1;
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertThat(clusterState.routingNodes().node("node0").shardsWithState(STARTED).size(), Matchers.equalTo(9));
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), Matchers.equalTo(9));
-        assertThat(clusterState.routingNodes().getUnassigned().size(), Matchers.equalTo(0));
+        assertThat(clusterState.routingNodes().unassigned().size(), Matchers.equalTo(0));
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(3));
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");

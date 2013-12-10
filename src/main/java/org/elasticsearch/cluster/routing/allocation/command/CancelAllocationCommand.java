@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -161,9 +161,8 @@ public class CancelAllocationCommand implements AllocationCommand {
     @Override
     public void execute(RoutingAllocation allocation) throws ElasticSearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
-
         boolean found = false;
-        for (Iterator<MutableShardRouting> it = allocation.routingNodes().node(discoNode.id()).iterator(); it.hasNext(); ) {
+        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
             MutableShardRouting shardRouting = it.next();
             if (!shardRouting.shardId().equals(shardId)) {
                 continue;
@@ -173,35 +172,33 @@ public class CancelAllocationCommand implements AllocationCommand {
                 if (shardRouting.initializing()) {
                     // the shard is initializing and recovering from another node, simply cancel the recovery
                     it.remove();
-                    allocation.routingNodes().deassignShard( shardRouting );
                     // and cancel the relocating state from the shard its being relocated from
                     RoutingNode relocatingFromNode = allocation.routingNodes().node(shardRouting.relocatingNodeId());
                     if (relocatingFromNode != null) {
                         for (MutableShardRouting fromShardRouting : relocatingFromNode) {
+                            assert shardRouting.state() != RELOCATING;
                             if (fromShardRouting.shardId().equals(shardRouting.shardId()) && shardRouting.state() == RELOCATING) {
-                                allocation.routingNodes().cancelRelocationForShard( fromShardRouting );
+                                // NOCOMMIT @Shay the check on the shardRouting.state() == RELOCATING can never be true right this should be fromShardRouting?
+                                allocation.routingNodes().cancelRelocation(fromShardRouting);
                                 break;
                             }
                         }
                     }
                 } else if (shardRouting.relocating()) {
+
                     // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
                     if (!allowPrimary && shardRouting.primary()) {
                         // can't cancel a primary shard being initialized
                         throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
                     }
-                    it.remove();
-                    allocation.routingNodes().unassigned().add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
-                            null, shardRouting.primary(), ShardRoutingState.UNASSIGNED, shardRouting.version() + 1));
-
+                    it.moveToUnassigned();
                     // now, go and find the shard that is initializing on the target node, and cancel it as well...
-                    RoutingNode initializingNode = allocation.routingNodes().node(shardRouting.relocatingNodeId());
+                    RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {
-                        for (Iterator<MutableShardRouting> itX = initializingNode.iterator(); itX.hasNext(); ) {
-                            MutableShardRouting initializingShardRouting = itX.next();
+                        while (initializingNode.hasNext()) {
+                            MutableShardRouting initializingShardRouting = initializingNode.next();
                             if (initializingShardRouting.shardId().equals(shardRouting.shardId()) && initializingShardRouting.state() == INITIALIZING) {
-                                allocation.routingNodes().deassignShard( shardRouting );
-                                itX.remove();
+                                initializingNode.remove();
                             }
                         }
                     }
@@ -217,7 +214,6 @@ public class CancelAllocationCommand implements AllocationCommand {
                         null, shardRouting.primary(), ShardRoutingState.UNASSIGNED, shardRouting.version() + 1));
             }
         }
-
         if (!found) {
             throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
         }

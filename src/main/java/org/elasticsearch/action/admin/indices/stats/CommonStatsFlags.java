@@ -40,6 +40,20 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
 
+
+    /**
+     * @param flags flags to set. If no flags are supplied, default flags will be set.
+     */
+    public CommonStatsFlags(Flag... flags) {
+        if (flags.length > 0) {
+            clear();
+            for (Flag f : flags) {
+                this.flags.add(f);
+            }
+        }
+    }
+
+
     /**
      * Sets all flags to return all stats.
      */
@@ -135,6 +149,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     void set(Flag flag) {
         flags.add(flag);
     }
+
 
     public CommonStatsFlags set(Flag flag, boolean add) {
         if (add) {

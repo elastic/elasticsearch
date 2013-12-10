@@ -29,10 +29,11 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
 
     /**
      * Information about plugins
-     * @param name Its name
+     *
+     * @param name        Its name
      * @param description Its description
-     * @param site true if it's a site plugin
-     * @param jvm true if it's a jvm plugin
+     * @param site        true if it's a site plugin
+     * @param jvm         true if it's a jvm plugin
      */
     public PluginInfo(String name, String description, boolean site, boolean jvm) {
         this.name = name;
@@ -71,6 +72,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
 
     /**
      * We compute the URL for sites: "/_plugin/" + name + "/"
+     *
      * @return
      */
     public String getUrl() {
@@ -117,4 +119,24 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
 
         return builder;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        PluginInfo p = (PluginInfo) o;
+
+        return name.equals(p.getName());
+    }
+
+    @Override
+    public int hashCode() {
+        return name.hashCode();
+    }
+
 }

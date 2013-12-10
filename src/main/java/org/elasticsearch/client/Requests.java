@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -414,6 +415,16 @@ public class Requests {
      */
     public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
+    }
+
+    /**
+     * Creates a cluster stats request.
+     *
+     * @return The cluster stats request
+     * @see org.elasticsearch.client.ClusterAdminClient#clusterStats(org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest)
+     */
+    public static ClusterStatsRequest clusterStatsRequest() {
+        return new ClusterStatsRequest();
     }
 
     /**

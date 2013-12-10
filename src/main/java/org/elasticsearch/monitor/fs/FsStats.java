@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.fs;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,9 +57,19 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         double diskQueue = -1;
         double diskServiceTime = -1;
 
+        static public Info readInfoFrom(StreamInput in) throws IOException {
+            Info i = new Info();
+            i.readFrom(in);
+            return i;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            path = in.readString();
+            if (in.getVersion().after(Version.V_0_90_7)) {
+                path = in.readOptionalString();
+            } else {
+                path = in.readString();
+            }
             mount = in.readOptionalString();
             dev = in.readOptionalString();
             total = in.readLong();
@@ -74,7 +85,11 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(path);
+            if (out.getVersion().after(Version.V_0_90_7)) {
+                out.writeOptionalString(path); // total aggregates do not have a path
+            } else {
+                out.writeString(path);
+            }
             out.writeOptionalString(mount);
             out.writeOptionalString(dev);
             out.writeLong(total);
@@ -324,8 +339,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         timestamp = in.readVLong();
         infos = new Info[in.readVInt()];
         for (int i = 0; i < infos.length; i++) {
-            infos[i] = new Info();
-            infos[i].readFrom(in);
+            infos[i] = Info.readInfoFrom(in);
         }
     }
 

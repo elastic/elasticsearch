@@ -40,6 +40,8 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -181,6 +183,7 @@ public class ActionModule extends AbstractModule {
         registerAction(NodesRestartAction.INSTANCE, TransportNodesRestartAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
 
+        registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         registerAction(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);

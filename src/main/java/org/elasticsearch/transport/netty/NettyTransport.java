@@ -53,6 +53,7 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.CompositeChannelBuffer;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -554,10 +555,25 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         stream.setVersion(version);
         stream.writeString(action);
-        request.writeTo(stream);
-        stream.close();
 
-        ChannelBuffer buffer = bStream.bytes().toChannelBuffer();
+        ChannelBuffer buffer;
+        // it might be nice to somehow generalize this optimization, maybe a smart "paged" bytes output
+        // that create paged channel buffers, but its tricky to know when to do it (where this option is
+        // more explicit).
+        if (request instanceof BytesTransportRequest) {
+            BytesTransportRequest bRequest = (BytesTransportRequest) request;
+            assert node.version().equals(bRequest.version());
+            bRequest.writeThin(stream);
+            stream.close();
+            ChannelBuffer headerBuffer = bStream.bytes().toChannelBuffer();
+            ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
+            // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
+            buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
+        } else {
+            request.writeTo(stream);
+            stream.close();
+            buffer = bStream.bytes().toChannelBuffer();
+        }
         NettyHeader.writeHeader(buffer, requestId, status, version);
         targetChannel.write(buffer);
 

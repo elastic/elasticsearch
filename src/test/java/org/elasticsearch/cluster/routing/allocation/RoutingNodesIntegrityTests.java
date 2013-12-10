@@ -32,11 +32,11 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -95,7 +95,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
-        
+
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -230,7 +230,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3"))).build();
-        
+
         RoutingNodes routingNodes = clusterState.routingNodes();
         assertThat(assertShardStats(routingNodes), equalTo(true));
         assertThat(routingNodes.hasInactiveShards(), equalTo(false));
@@ -370,7 +370,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
         assertThat(routingNodes.node("node1").shardsWithState("test1", STARTED).size(), equalTo(2));
         assertThat(routingNodes.node("node2").shardsWithState("test1", STARTED).size(), equalTo(2));
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
-        
+
         logger.info("kill one node");
         IndexShardRoutingTable indexShardRoutingTable = routingTable.index("test").shard(0);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
@@ -411,6 +411,6 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {
-        return routingNodes.assertShardStats();
+        return RoutingNodes.assertShardStats(routingNodes);
     }
 }

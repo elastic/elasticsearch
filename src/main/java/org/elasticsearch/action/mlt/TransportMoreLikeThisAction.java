@@ -35,10 +35,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -96,13 +93,13 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to the concrete index
         final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
 
-        RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
+        Iterable<MutableShardRouting> routingNode = clusterState.getRoutingNodes().routingNodeIter(clusterService.localNode().getId());
         if (routingNode == null) {
             redirect(request, concreteIndex, listener, clusterState);
             return;
         }
         boolean hasIndexLocally = false;
-        for (MutableShardRouting shardRouting : routingNode.shards()) {
+        for (MutableShardRouting shardRouting : routingNode) {
             if (concreteIndex.equals(shardRouting.index())) {
                 hasIndexLocally = true;
                 break;

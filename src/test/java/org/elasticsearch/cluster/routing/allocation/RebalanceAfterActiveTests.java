@@ -145,7 +145,7 @@ public class RebalanceAfterActiveTests extends ElasticsearchTestCase {
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
         // make sure we have an even relocation
         for (RoutingNode routingNode : routingNodes) {
-            assertThat(routingNode.shards().size(), equalTo(1));
+            assertThat(routingNode.size(), equalTo(1));
         }
     }
 }

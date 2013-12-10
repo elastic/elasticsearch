@@ -348,9 +348,9 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(5));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
@@ -370,10 +370,10 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().node("node4").shards().size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(5));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
@@ -821,8 +821,8 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().node("A-1").shards().size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("A-0").shards().size(), equalTo(3));
-        assertThat(clusterState.getRoutingNodes().node("B-0").shards().size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("A-1").size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("A-0").size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().node("B-0").size(), equalTo(5));
     }
 }

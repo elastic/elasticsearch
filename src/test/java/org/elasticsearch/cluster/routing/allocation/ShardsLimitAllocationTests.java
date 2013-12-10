@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
+import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -123,7 +124,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchTestCase {
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(STARTED), equalTo(5));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), STARTED), equalTo(5));
 
         logger.info("add another index with 5 shards");
         metaData = MetaData.builder(metaData)
@@ -147,7 +148,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchTestCase {
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(STARTED), equalTo(10));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), STARTED), equalTo(10));
 
         for (MutableShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node1")) {
             assertThat(shardRouting.index(), equalTo("test"));

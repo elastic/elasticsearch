@@ -76,7 +76,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
                 .setDryRun(true)
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         logger.info("--> get the state, verify nothing changed because of the dry run");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -87,7 +87,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
@@ -95,15 +95,15 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client().admin().cluster().prepareReroute()
                 .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
                 .execute().actionGet().getState();
 
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.RELOCATING));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.RELOCATING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
@@ -112,7 +112,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
 
     @Test
@@ -143,7 +143,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
@@ -151,7 +151,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
@@ -176,7 +176,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
@@ -184,7 +184,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
     }
 

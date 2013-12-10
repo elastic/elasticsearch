@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -52,6 +54,10 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     @Override
     public Iterator<MutableShardRouting> iterator() {
+        return Iterators.unmodifiableIterator(shards.iterator());
+    }
+
+    Iterator<MutableShardRouting> mutableIterator() {
         return shards.iterator();
     }
 
@@ -72,12 +78,8 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return this.nodeId;
     }
 
-    /**
-     * Get a list of shards hosted on this node  
-     * @return list of shards
-     */
-    public List<MutableShardRouting> shards() {
-        return this.shards;
+    public int size() {
+        return shards.size();
     }
 
     /**
@@ -151,21 +153,6 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     /**
-     * Get the number of shard that not match the given states
-     * @param state set states to exclude
-     * @return number of shards which state is listed
-     */
-    public int numberOfShardsNotWithState(ShardRoutingState state) {
-        int count = 0;
-        for (MutableShardRouting shardEntry : this) {
-            if (shardEntry.state() != state) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
      * The number of shards on this node that will not be eventually relocated.
      */
     public int numberOfOwningShards() {
@@ -186,5 +173,17 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }
         return sb.toString();
+    }
+
+    public MutableShardRouting get(int i) {
+        return shards.get(i) ;
+    }
+
+    public Collection<MutableShardRouting> copyShards() {
+        return new ArrayList<MutableShardRouting>(shards);
+    }
+
+    public boolean isEmpty() {
+        return shards.isEmpty();
     }
 }

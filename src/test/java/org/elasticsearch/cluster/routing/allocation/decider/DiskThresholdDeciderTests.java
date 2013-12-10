@@ -115,7 +115,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         // Assert that we're able to start the primary
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
         // Assert that node1 didn't get any shards because its disk usage is too high
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
@@ -145,9 +145,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> changing decider settings");
 
@@ -176,9 +176,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         // Shards remain started
         assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> changing settings again");
 
@@ -207,10 +207,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         logShardStates(clusterState);
         // Shards remain started
         assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
         // Shard hasn't been moved off of node2 yet because there's nowhere for it to go
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> adding node4");
 
@@ -230,11 +230,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
         // Node4 is available now, so the shard is moved off of node2
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node4").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
     }
 
     @Test
@@ -304,7 +304,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         // Assert that we're able to start the primary
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
         // Assert that node1 didn't get any shards because its disk usage is too high
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
@@ -334,9 +334,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> changing decider settings");
 
@@ -365,9 +365,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         // Shards remain started
         assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> changing settings again");
 
@@ -396,10 +396,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         logShardStates(clusterState);
         // Shards remain started
         assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
         // Shard hasn't been moved off of node2 yet because there's nowhere for it to go
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
 
         logger.info("--> adding node4");
 
@@ -419,11 +419,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
-        assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
         // Node4 is available now, so the shard is moved off of node2
-        assertThat(clusterState.getRoutingNodes().node("node2").shards().size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().node("node3").shards().size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().node("node4").shards().size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
     }
 
     @Test

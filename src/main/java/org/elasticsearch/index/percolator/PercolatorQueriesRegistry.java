@@ -95,14 +95,18 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     void enableRealTimePercolator() {
+        logger.trace("trying to enable realtime percolation for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
         if (!realTimePercolatorEnabled) {
+            logger.debug("enabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             indexingService.addListener(realTimePercolatorOperationListener);
             realTimePercolatorEnabled = true;
         }
     }
 
     void disableRealTimePercolator() {
+        logger.trace("trying to disable realtime percolation for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
         if (realTimePercolatorEnabled) {
+            logger.debug("disabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             indexingService.removeListener(realTimePercolatorOperationListener);
             realTimePercolatorEnabled = false;
         }
@@ -194,18 +198,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
         @Override
         public void created(String type) {
-            logger.trace("invoking created type listener for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             if (PercolatorService.TYPE_NAME.equals(type)) {
-                logger.debug("enabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
                 enableRealTimePercolator();
             }
         }
 
         @Override
         public void removed(String type) {
-            logger.trace("invoking removed type listener for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             if (PercolatorService.TYPE_NAME.equals(type)) {
-                logger.debug("disabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
                 disableRealTimePercolator();
                 clear();
             }

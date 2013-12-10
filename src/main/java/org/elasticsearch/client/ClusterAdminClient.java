@@ -72,6 +72,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -189,9 +192,29 @@ public interface ClusterAdminClient {
     NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
 
     /**
+     * Cluster wide aggregated stats.
+     *
+     * @param request The cluster stats request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#clusterStatsRequest
+     */
+    ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request);
+
+    /**
+     * Cluster wide aggregated stats
+     *
+     * @param request  The cluster stats request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#clusterStatsRequest()
+     */
+    void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener);
+
+    ClusterStatsRequestBuilder prepareClusterStats();
+
+    /**
      * Nodes stats of the cluster.
      *
-     * @param request The nodes info request
+     * @param request The nodes stats request
      * @return The result future
      * @see org.elasticsearch.client.Requests#nodesStatsRequest(String...)
      */

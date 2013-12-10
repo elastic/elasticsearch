@@ -89,6 +89,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
@@ -193,6 +197,21 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     @Override
     public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
         return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
+    }
+
+    @Override
+    public ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request) {
+        return execute(ClusterStatsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
+        execute(ClusterStatsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ClusterStatsRequestBuilder prepareClusterStats() {
+        return new ClusterStatsRequestBuilder(this);
     }
 
     @Override

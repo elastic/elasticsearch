@@ -115,13 +115,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
         if (cpu != null) {
             builder.startObject(Fields.CPU);
-            builder.field(Fields.VENDOR, cpu.vendor());
-            builder.field(Fields.MODEL, cpu.model());
-            builder.field(Fields.MHZ, cpu.mhz());
-            builder.field(Fields.TOTAL_CORES, cpu.totalCores());
-            builder.field(Fields.TOTAL_SOCKETS, cpu.totalSockets());
-            builder.field(Fields.CORES_PER_SOCKET, cpu.coresPerSocket());
-            builder.byteSizeField(Fields.CACHE_SIZE_IN_BYTES, Fields.CACHE_SIZE, cpu.cacheSize);
+            cpu.toXContent(builder, params);
             builder.endObject();
         }
         if (mem != null) {
@@ -251,7 +245,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     }
 
-    public static class Cpu implements Streamable, Serializable {
+    public static class Cpu implements Streamable, Serializable, ToXContent {
 
         String vendor = "";
         String model = "";
@@ -347,6 +341,37 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             out.writeInt(totalSockets);
             out.writeInt(coresPerSocket);
             out.writeLong(cacheSize);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Cpu cpu = (Cpu) o;
+
+            return model.equals(cpu.model) && vendor.equals(cpu.vendor);
+        }
+
+        @Override
+        public int hashCode() {
+            return model.hashCode();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Fields.VENDOR, vendor);
+            builder.field(Fields.MODEL, model);
+            builder.field(Fields.MHZ, mhz);
+            builder.field(Fields.TOTAL_CORES, totalCores);
+            builder.field(Fields.TOTAL_SOCKETS, totalSockets);
+            builder.field(Fields.CORES_PER_SOCKET, coresPerSocket);
+            builder.byteSizeField(Fields.CACHE_SIZE_IN_BYTES, Fields.CACHE_SIZE, cacheSize);
+            return builder;
         }
     }
 }

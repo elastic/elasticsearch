@@ -197,6 +197,8 @@ is required for this option. Defaults to `false`.
 matches. The `size` and `query` option are required for this option. Defaults to `false`.
 * `facets` - Allows facet definitions to be included. The facets are based on the matching percolator queries. See facet
 documentation how to define facets.
+* `aggs` - Allows aggregation definitions to be included. The aggregations are based on the matching percolator queries,
+look at the aggregation documentation on how to define aggregations.
 * `highlight` - Allows highlight definitions to be included. The document being percolated is being highlight for each
 matching query. This allows you to see how each match is highlighting the document being percolated. See highlight
 documentation on how to define highlights. The `size` option is required for highlighting, the performance of highlighting

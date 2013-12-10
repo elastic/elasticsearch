@@ -6,9 +6,8 @@ field. Field level mapping allows to define explicit boost level on a
 specific field. The boost field mapping (applied on the
 <<mapping-root-object-type,root object>>) allows to define
 a boost field mapping where *its content will control the boost level
-of the document*. `name` can be used to specify a field  name where the
-boost value will be taken from for each
-document deprecated[0.90.8,Replaced with `path`]. For example, consider
+of the document*. `path` can be used to specify a field  name where the
+boost value will be taken from for each document. For example, consider
 the following mapping:
 
 [source,js]

@@ -97,8 +97,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            String name = node.get("name") == null ? BoostFieldMapper.Defaults.PATH : node.get("name").toString();
-            String path = node.get("path") == null ? name : node.get("path").toString();
+            String path = node.get("path") == null ? BoostFieldMapper.Defaults.PATH : node.get("path").toString();
             BoostFieldMapper.Builder builder = MapperBuilders.boost(path);
             parseNumberField(builder, path, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {

@@ -203,8 +203,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         sum = indexBalance + shardBalance;
                         if (sum <= 0.0f) {
                             thetaMap.put(operation, defaultTheta);
+                        } else {
+                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0});
                         }
-                        thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0});
                         break;
                     case BALANCE:
                     case ALLOCATE:

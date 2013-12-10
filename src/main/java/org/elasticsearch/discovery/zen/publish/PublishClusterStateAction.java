@@ -37,7 +37,6 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -116,7 +115,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 // no need to put a timeout on the options here, because we want the response to eventually be received
                 // and not log an error if it arrives after the timeout
                 transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
-                        new PublishClusterStateRequest(bytes, node.version()),
+                        new BytesTransportRequest(bytes, node.version()),
                         options, // no need to compress, we already compressed the bytes
 
                         new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
@@ -152,52 +151,25 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    class PublishClusterStateRequest extends TransportRequest {
-
-        BytesReference clusterStateInBytes;
-        Version version;
-
-        PublishClusterStateRequest() {
-        }
-
-        PublishClusterStateRequest(BytesReference clusterStateInBytes, Version version) {
-            this.clusterStateInBytes = clusterStateInBytes;
-            this.version = version;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterStateInBytes = in.readBytesReference();
-            version = in.getVersion();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBytesReference(clusterStateInBytes);
-        }
-    }
-
-    private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<PublishClusterStateRequest> {
+    private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<BytesTransportRequest> {
 
         static final String ACTION = "discovery/zen/publish";
 
         @Override
-        public PublishClusterStateRequest newInstance() {
-            return new PublishClusterStateRequest();
+        public BytesTransportRequest newInstance() {
+            return new BytesTransportRequest();
         }
 
         @Override
-        public void messageReceived(PublishClusterStateRequest request, final TransportChannel channel) throws Exception {
-            Compressor compressor = CompressorFactory.compressor(request.clusterStateInBytes);
+        public void messageReceived(BytesTransportRequest request, final TransportChannel channel) throws Exception {
+            Compressor compressor = CompressorFactory.compressor(request.bytes());
             StreamInput in;
             if (compressor != null) {
-                in = CachedStreamInput.cachedHandlesCompressed(compressor, request.clusterStateInBytes.streamInput());
+                in = CachedStreamInput.cachedHandlesCompressed(compressor, request.bytes().streamInput());
             } else {
-                in = CachedStreamInput.cachedHandles(request.clusterStateInBytes.streamInput());
+                in = CachedStreamInput.cachedHandles(request.bytes().streamInput());
             }
-            in.setVersion(request.version);
+            in.setVersion(request.version());
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             logger.debug("received cluster state version {}", clusterState.version());
             listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {

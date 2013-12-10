@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
@@ -36,24 +35,6 @@ public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationReques
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
         super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest(name));
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexTemplateRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexTemplateRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return this;
     }
 
     @Override

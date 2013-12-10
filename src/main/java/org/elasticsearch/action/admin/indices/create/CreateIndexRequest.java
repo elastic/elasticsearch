@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -71,7 +71,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
 
     private Map<String, IndexMetaData.Custom> customs = newHashMap();
 
-    private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
+    private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
     CreateIndexRequest() {
     }
@@ -342,7 +342,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
      * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    public TimeValue timeout() {
         return timeout;
     }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
@@ -186,24 +185,6 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
      */
     public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
         request.source(templateSource, offset, length);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public PutIndexTemplateRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public PutIndexTemplateRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 

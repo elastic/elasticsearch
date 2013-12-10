@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -50,7 +49,7 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
         final String index = request.param("index");
         String alias = request.param("name");
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         indicesAliasesRequest.removeAlias(index, alias);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
 

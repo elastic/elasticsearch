@@ -36,7 +36,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -107,7 +106,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         }
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, index, alias);
         indicesAliasesRequest.addAliasAction(aliasAction);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));

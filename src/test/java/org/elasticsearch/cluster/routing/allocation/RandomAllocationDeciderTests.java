@@ -156,7 +156,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
             if (clusterState.getRoutingNodes().node("NODE_" + i) == null) {
                 continue;
             }
-            assertThat(clusterState.getRoutingNodes().node("NODE_" + i).shards().size(), Matchers.anyOf(
+            assertThat(clusterState.getRoutingNodes().node("NODE_" + i).size(), Matchers.anyOf(
                     Matchers.anyOf(equalTo((shards / numNodes) + 1), equalTo((shards / numNodes) - 1), equalTo((shards / numNodes))),
                     Matchers.allOf(Matchers.greaterThanOrEqualTo(lowerBound), Matchers.lessThanOrEqualTo(upperBound))));
         }

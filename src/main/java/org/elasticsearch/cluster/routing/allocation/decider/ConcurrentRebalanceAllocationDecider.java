@@ -19,17 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-
-import java.util.List;
 
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
@@ -73,8 +67,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         if (clusterConcurrentRebalance == -1) {
             return Decision.YES;
         }
-        int rebalance = allocation.routingNodes().getRelocatingShardCount();
-        if (rebalance >= clusterConcurrentRebalance) {
+        if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
             return Decision.NO;
         }
         return Decision.YES;

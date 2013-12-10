@@ -28,8 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
-
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index basis. The allocator prevents a single node to hold more than
@@ -71,9 +69,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         int nodeCount = 0;
-        List<MutableShardRouting> shards = node.shards();
-        for (int i = 0; i < shards.size(); i++) {
-            MutableShardRouting nodeShard = shards.get(i);
+        for (MutableShardRouting nodeShard : node) {
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }
@@ -98,9 +94,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         int nodeCount = 0;
-        List<MutableShardRouting> shards = node.shards();
-        for (int i = 0; i < shards.size(); i++) {
-            MutableShardRouting nodeShard = shards.get(i);
+        for (MutableShardRouting nodeShard : node) {;
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }

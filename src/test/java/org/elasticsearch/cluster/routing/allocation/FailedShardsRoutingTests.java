@@ -79,10 +79,10 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("--> verifying all is allocated");
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
 
         logger.info("--> adding additional node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -91,11 +91,11 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node3").size(), equalTo(0));
 
         String origPrimaryNodeId = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
@@ -106,15 +106,15 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         );
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(RELOCATING));
-        assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(RELOCATING));
+        assertThat(clusterState.routingNodes().node("node3").get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node3 being initialized");
-        rerouteResult = allocation.applyFailedShard(clusterState, new ImmutableShardRouting(clusterState.routingNodes().node("node3").shards().get(0)));
+        rerouteResult = allocation.applyFailedShard(clusterState, new ImmutableShardRouting(clusterState.routingNodes().node("node3").get(0)));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node3").size(), equalTo(0));
 
         logger.info("--> moving primary shard to node3");
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(
@@ -122,15 +122,15 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         );
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(RELOCATING));
-        assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(RELOCATING));
+        assertThat(clusterState.routingNodes().node("node3").get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node1 being relocated");
-        rerouteResult = allocation.applyFailedShard(clusterState, new ImmutableShardRouting(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0)));
+        rerouteResult = allocation.applyFailedShard(clusterState, new ImmutableShardRouting(clusterState.routingNodes().node(origPrimaryNodeId).get(0)));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         // check promotion of replica to primary
-        assertThat(clusterState.routingNodes().node(origReplicaNodeId).shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node(origReplicaNodeId).get(0).state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo(origReplicaNodeId));
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), anyOf(equalTo(origPrimaryNodeId), equalTo("node3")));
     }
@@ -162,6 +162,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
         logger.info("Start the shards (primaries)");
         RoutingNodes routingNodes = clusterState.routingNodes();
+
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -170,7 +171,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
-            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
             assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
@@ -188,7 +189,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
-            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
+            assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
             assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
@@ -205,7 +206,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), not(equalTo(shardToFail.currentNodeId())));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
@@ -408,7 +409,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
 
         logger.info("Fail the shards on node 3");
-        ShardRouting shardToFail = routingNodes.node("node3").shards().get(0);
+        ShardRouting shardToFail = routingNodes.node("node3").get(0);
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting(shardToFail)).routingTable();
@@ -423,6 +424,6 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), lessThan(3));
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
         // make sure the failedShard is not INITIALIZING again on node3
-        assertThat(routingNodes.node("node3").shards().get(0).shardId(), not(equalTo(shardToFail.shardId())));
+        assertThat(routingNodes.node("node3").get(0).shardId(), not(equalTo(shardToFail.shardId())));
     }
 }

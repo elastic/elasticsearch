@@ -75,10 +75,10 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("--> verifying all is allocated");
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
 
         logger.info("--> fail node with primary");
         String nodeIdToFail = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
@@ -90,8 +90,8 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node(nodeIdRemaining).shards().get(0).primary(), equalTo(true));
-        assertThat(clusterState.routingNodes().node(nodeIdRemaining).shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node(nodeIdRemaining).get(0).primary(), equalTo(true));
+        assertThat(clusterState.routingNodes().node(nodeIdRemaining).get(0).state(), equalTo(STARTED));
     }
 
     @Test
@@ -127,10 +127,10 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("--> verifying all is allocated");
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
 
         logger.info("--> adding additional node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -139,11 +139,11 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node3").size(), equalTo(0));
 
         String origPrimaryNodeId = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
@@ -154,8 +154,8 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         );
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(RELOCATING));
-        assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(RELOCATING));
+        assertThat(clusterState.routingNodes().node("node3").get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node3 being initialized by killing node3");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -165,8 +165,8 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node(origReplicaNodeId).shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node(origReplicaNodeId).get(0).state(), equalTo(STARTED));
     }
 
     @Test
@@ -202,10 +202,10 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("--> verifying all is allocated");
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
 
         logger.info("--> adding additional node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -214,11 +214,11 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node("node1").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node1").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node2").shards().size(), equalTo(1));
-        assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node3").shards().size(), equalTo(0));
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node3").size(), equalTo(0));
 
         String origPrimaryNodeId = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
@@ -229,8 +229,8 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         );
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).shards().get(0).state(), equalTo(RELOCATING));
-        assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(clusterState.routingNodes().node(origPrimaryNodeId).get(0).state(), equalTo(RELOCATING));
+        assertThat(clusterState.routingNodes().node("node3").get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on 'origPrimaryNodeId' being relocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -240,7 +240,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
-        assertThat(clusterState.routingNodes().node(origReplicaNodeId).shards().get(0).state(), equalTo(STARTED));
-        assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(clusterState.routingNodes().node(origReplicaNodeId).get(0).state(), equalTo(STARTED));
+        assertThat(clusterState.routingNodes().node("node3").get(0).state(), equalTo(INITIALIZING));
     }
 }

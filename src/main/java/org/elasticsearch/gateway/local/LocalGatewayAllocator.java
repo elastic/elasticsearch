@@ -214,7 +214,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assignShardToNode(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -234,7 +234,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assignShardToNode(new MutableShardRouting(shard, highestVersion), node.nodeId());
+                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -311,8 +311,9 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 }
 
                 if (!shard.primary()) {
-                    MutableShardRouting primaryShard = routingNodes.findPrimaryForReplica(shard);
-                    if (primaryShard != null && primaryShard.active()) {
+                    MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
+                    if (primaryShard != null) {
+                        assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
                         if (primaryNode != null) {
                             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
@@ -351,12 +352,11 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     }
                     // we found a match
                     changed = true;
-                    allocation.routingNodes().assignShardToNode( shard, lastNodeMatched.nodeId() );
+                    allocation.routingNodes().assign(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
                 }
             }
         }
-
         return changed;
     }
 

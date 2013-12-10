@@ -19,13 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.List;
 
 /**
  * Only allow rebalancing when all shards are active within the shard replication group.
@@ -39,13 +36,10 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        List<MutableShardRouting> shards = allocation.routingNodes().shardsRoutingFor(shardRouting);
         // its ok to check for active here, since in relocation, a shard is split into two in routing
         // nodes, once relocating, and one initializing
-        for (int i = 0; i < shards.size(); i++) {
-            if (!shards.get(i).active()) {
-                return Decision.NO;
-            }
+        if (!allocation.routingNodes().allReplicasActive(shardRouting)) {
+            return Decision.NO;
         }
         return Decision.YES;
     }

@@ -28,8 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.List;
-
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
  * the cluster. It exposes two settings via the cluster update API that allow
@@ -79,9 +77,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // primary is unassigned, means we are going to do recovery from gateway
                 // count *just the primary* currently doing recovery on the node and check against concurrent_recoveries
                 int primariesInRecovery = 0;
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
+                for (MutableShardRouting shard : node) {;
                     // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                     // we only count initial recoveries here, so we need to make sure that relocating node is null
                     if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
@@ -100,9 +96,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
         // count the number of recoveries on the node, its for both target (INITIALIZING) and source (RELOCATING)
         int currentRecoveries = 0;
-        List<MutableShardRouting> shards = node.shards();
-        for (int i = 0; i < shards.size(); i++) {
-            MutableShardRouting shard = shards.get(i);
+        for (MutableShardRouting shard : node) {
             if (shard.state() == ShardRoutingState.INITIALIZING || shard.state() == ShardRoutingState.RELOCATING) {
                 currentRecoveries++;
             }

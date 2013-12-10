@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.preference;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -95,5 +96,13 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test (expected = ElasticSearchIllegalArgumentException.class)
+    public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_node:DOES-NOT-EXIST").execute().actionGet();
     }
 }

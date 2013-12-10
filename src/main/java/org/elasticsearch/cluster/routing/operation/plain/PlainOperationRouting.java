@@ -219,7 +219,9 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
             }
             if (preference.startsWith("_only_node:")) {
-                return indexShard.onlyNodeActiveInitializingShardsIt(preference.substring("_only_node:".length()));
+                String nodeId = preference.substring("_only_node:".length());
+                ensureNodeIdExists(nodes, nodeId);
+                return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
             }
         }
         // if not, then use it as the index
@@ -283,5 +285,11 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             throw new ElasticSearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
         return hashFunction.hash(type, id);
+    }
+
+    private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
+        if (!nodes.dataNodes().keys().contains(nodeId)) {
+            throw new ElasticSearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
+        }
     }
 }

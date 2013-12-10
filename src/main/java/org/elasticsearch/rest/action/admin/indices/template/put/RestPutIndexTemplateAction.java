@@ -32,7 +32,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
@@ -67,7 +66,6 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         try {
             putRequest.create(request.paramAsBoolean("create", false));
             putRequest.cause(request.param("cause", ""));
-            putRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
             putRequest.source(request.content());
         } catch (Exception e) {
             try {

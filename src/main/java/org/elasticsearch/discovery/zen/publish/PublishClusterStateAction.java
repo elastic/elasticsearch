@@ -69,7 +69,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.nodesProvider = nodesProvider;
         this.listener = listener;
 
-        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(5));
+        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", Discovery.DEFAULT_PUBLISH_TIMEOUT);
 
         transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
     }

@@ -90,7 +90,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
 
-        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(5));
+        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", DEFAULT_PUBLISH_TIMEOUT);
     }
 
     @Override

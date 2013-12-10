@@ -22,7 +22,9 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -68,8 +68,6 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     private Map<String, String> mappings = newHashMap();
 
     private Map<String, IndexMetaData.Custom> customs = newHashMap();
-
-    private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
     PutIndexTemplateRequest() {
     }
@@ -342,31 +340,6 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         return this.customs;
     }
 
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutIndexTemplateRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutIndexTemplateRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -376,7 +349,10 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        timeout = readTimeValue(in);
+        //timeout was ignored till 0.90.7, removed afterwards
+        if (in.getVersion().onOrBefore(Version.V_0_90_7)) {
+            readTimeValue(in);
+        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             mappings.put(in.readString(), in.readString());
@@ -398,7 +374,10 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);
-        timeout.writeTo(out);
+        //timeout was ignored till 0.90.7, removed afterwards
+        if (out.getVersion().onOrBefore(Version.V_0_90_7)) {
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.writeTo(out);
+        }
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

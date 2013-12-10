@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
@@ -38,7 +38,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     private String[] indices;
 
-    private TimeValue timeout = timeValueSeconds(60);
+    private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
     DeleteIndexRequest() {
     }
@@ -79,7 +79,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    public TimeValue timeout() {
         return timeout;
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
@@ -64,7 +63,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             }
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
 
         client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {

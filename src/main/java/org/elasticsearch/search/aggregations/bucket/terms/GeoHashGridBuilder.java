@@ -32,8 +32,8 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
 
     private String field;
     private int precision=GeoHashGridParser.DEFAULT_PRECISION;
-    private int maxNumCells=GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
-    private int shardMaxNumCells=0;
+    private int requiredSize=GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
+    private int shardSize=0;
 
     public GeoHashGridBuilder(String name) {
         super(name, GeoHashGridParser.aggTypeName);
@@ -53,12 +53,12 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
         this.precision = precision;
         return this;
     }
-    public GeoHashGridBuilder maxNumCells(int maxNumCells) {
-        this.maxNumCells = maxNumCells;
+    public GeoHashGridBuilder requiredSize(int requiredSize) {
+        this.requiredSize = requiredSize;
         return this;
     }
-    public GeoHashGridBuilder shardMaxNumCells(int shardMaxNumCells) {
-        this.shardMaxNumCells = shardMaxNumCells;
+    public GeoHashGridBuilder shardSize(int shardSize) {
+        this.shardSize = shardSize;
         return this;
     }
 
@@ -71,11 +71,11 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
         if (precision != GeoHashGridParser.DEFAULT_PRECISION) {
             builder.field("precision", precision);
         }
-        if (maxNumCells != GeoHashGridParser.DEFAULT_MAX_NUM_CELLS) {
-            builder.field("maxNumCells", maxNumCells);
+        if (requiredSize != GeoHashGridParser.DEFAULT_MAX_NUM_CELLS) {
+            builder.field("size", requiredSize);
         }
-        if (shardMaxNumCells != 0) {
-            builder.field("shardMaxNumCells", shardMaxNumCells);
+        if (shardSize != 0) {
+            builder.field("shard_size", shardSize);
         }
 
         return builder.endObject();

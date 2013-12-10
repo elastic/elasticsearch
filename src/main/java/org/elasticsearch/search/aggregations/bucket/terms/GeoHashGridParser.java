@@ -58,8 +58,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         String field = null;
         int precision=DEFAULT_PRECISION;
-        int maxNumCells=DEFAULT_MAX_NUM_CELLS;
-        int shardMaxNumCells=0;
+        int requiredSize=DEFAULT_MAX_NUM_CELLS;
+        int shardSize=0;
         
 
         XContentParser.Token token;
@@ -74,55 +74,57 @@ public class GeoHashGridParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("precision".equals(currentFieldName)) {
                     precision = parser.intValue();
-                }else  if ("maxNumCells".equals(currentFieldName)) {
-                    maxNumCells = parser.intValue();
-                }else  if ("shardMaxNumCells".equals(currentFieldName)) {
-                    shardMaxNumCells = parser.intValue();
+                }else  if ("size".equals(currentFieldName)) {
+                    requiredSize = parser.intValue();
+                }else  if ("shard_size".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
+                }else  if ("shardSize".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 }  
                 
             } 
         }
-        if(shardMaxNumCells==0)
+        if(shardSize==0)
         {
             //Use default heuristic of each shard returning double the final number of cells
             //required in order to try avoid any wrong-ranking caused by distributed counting            
-            shardMaxNumCells=maxNumCells*2;
+            shardSize=requiredSize*2;
         }
 
         ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);
         if (field == null) {
-            return new GeoGridFactory(aggregationName, config,precision,maxNumCells,shardMaxNumCells);
+            return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new GeoGridFactory(aggregationName, config,precision,maxNumCells,shardMaxNumCells);
+            return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new GeoGridFactory(aggregationName, config,precision,maxNumCells,shardMaxNumCells);
+        return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
     }
 
     private static class GeoGridFactory extends ValueSourceAggregatorFactory<GeoPointValuesSource> {
 
         private int precision;
-        private int maxNumCells;
-        private int shardMaxNumCells;
+        private int requiredSize;
+        private int shardSize;
 
         public GeoGridFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
-                int precision,int maxNumCells,int shardMaxNumCells) {
+                int precision,int requiredSize,int shardSize) {
             super(name, StringTerms.TYPE.name(), valueSourceConfig);
             this.precision=precision;
-            this.maxNumCells=maxNumCells;
-            this.shardMaxNumCells=shardMaxNumCells;
+            this.requiredSize=requiredSize;
+            this.shardSize=shardSize;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
             InternalOrder order = (InternalOrder) GeoHashCells.Order.COUNT_DESC;            
-            return new GeoHashCellsAggregator.Unmapped(name, order, maxNumCells, aggregationContext, parent);
+            return new GeoHashCellsAggregator.Unmapped(name, order, requiredSize, aggregationContext, parent);
         }
         
         @Override
@@ -135,8 +137,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
             cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
             final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource,null,null);
             InternalOrder order = (InternalOrder) GeoHashCells.Order.COUNT_DESC;
-            return new GeoHashCellsAggregator(name, factories, geohashIdSource, order, maxNumCells,
-                    shardMaxNumCells, aggregationContext, parent);
+            return new GeoHashCellsAggregator(name, factories, geohashIdSource, order, requiredSize,
+                    shardSize, aggregationContext, parent);
 
         }
 

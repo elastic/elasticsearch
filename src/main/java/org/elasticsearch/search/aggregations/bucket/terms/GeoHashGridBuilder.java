@@ -53,7 +53,7 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
         this.precision = precision;
         return this;
     }
-    public GeoHashGridBuilder requiredSize(int requiredSize) {
+    public GeoHashGridBuilder size(int requiredSize) {
         this.requiredSize = requiredSize;
         return this;
     }

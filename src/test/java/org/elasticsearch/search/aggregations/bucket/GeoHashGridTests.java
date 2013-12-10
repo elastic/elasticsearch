@@ -222,7 +222,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(geohashGrid("geohashgrid")
                             .field("location")
-                            .requiredSize(1)
+                            .size(1)
                             .shardSize(100)
                             .precision(precision)
                             )

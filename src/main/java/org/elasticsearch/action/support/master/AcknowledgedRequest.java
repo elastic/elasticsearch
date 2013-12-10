@@ -34,7 +34,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> extends MasterNodeOperationRequest<T> {
 
-    protected TimeValue timeout = timeValueSeconds(10);
+    public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
+
+    protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
 
     protected AcknowledgedRequest() {
     }

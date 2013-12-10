@@ -214,8 +214,9 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
                 } else {
                     // if its backup, see if there is a primary that *is* allocated, and try and assign a location that is closest to it
                     // note, since we replicate operations, this might not be the same (different flush intervals)
-                    MutableShardRouting primaryShard = routingNodes.findPrimaryForReplica(shard);
-                    if (primaryShard != null && primaryShard.active()) {
+                    MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
+                    if (primaryShard != null) {
+                        assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
                         if (primaryNode != null) {
                             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
@@ -252,12 +253,11 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
                     }
                     // we found a match
                     changed = true;
-                    allocation.routingNodes().assignShardToNode( shard, lastNodeMatched.nodeId() );
+                    allocation.routingNodes().assign(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
                 }
             }
         }
-
         return changed;
     }
 

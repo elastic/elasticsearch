@@ -41,8 +41,8 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         if (shardRouting.primary()) {
             return Decision.YES;
         }
-        MutableShardRouting primary = allocation.routingNodes().findPrimaryForReplica(shardRouting);
-        if (primary == null || !primary.active()) {
+        MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+        if (primary == null) {
             return Decision.NO;
         }
         return Decision.YES;

@@ -24,9 +24,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.Map;
-import java.util.Map.Entry;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,10 +42,9 @@ public class SimpleAllocationTests extends ElasticsearchIntegrationTest {
         ensureGreen();            
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        Map<String, RoutingNode> nodesToShards = state.routingNodes().getNodesToShards();
-        for (Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            if (!entry.getValue().shards().isEmpty()) { 
-                assertThat(entry.getValue().shards().size(), equalTo(2));
+        for (RoutingNode node : state.routingNodes()) {
+            if (!node.isEmpty()) {
+                assertThat(node.size(), equalTo(2));
             }
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
@@ -56,10 +52,9 @@ public class SimpleAllocationTests extends ElasticsearchIntegrationTest {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        nodesToShards = state.routingNodes().getNodesToShards();
-        for (Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            if (!entry.getValue().shards().isEmpty()) {
-                assertThat(entry.getValue().shards().size(), equalTo(1));
+        for (RoutingNode node : state.routingNodes()) {
+            if (!node.isEmpty()) {
+                assertThat(node.size(), equalTo(1));
             }
         }
         
@@ -76,10 +71,9 @@ public class SimpleAllocationTests extends ElasticsearchIntegrationTest {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        nodesToShards = state.routingNodes().getNodesToShards();
-        for (Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            if (!entry.getValue().shards().isEmpty()) {
-                assertThat(entry.getValue().shards().size(), equalTo(4));
+        for (RoutingNode node : state.routingNodes()) {
+            if (!node.isEmpty()) {
+                assertThat(node.size(), equalTo(4));
             }
         }
     }

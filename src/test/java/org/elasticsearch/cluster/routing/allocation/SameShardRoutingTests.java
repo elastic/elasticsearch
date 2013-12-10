@@ -12,10 +12,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
+import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,6 +28,7 @@ public class SameShardRoutingTests extends ElasticsearchTestCase {
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
     @Test
+    @TestLogging("cluster.routing.allocation:TRACE")
     public void sameHost() {
         AllocationService strategy = new AllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
@@ -45,14 +48,14 @@ public class SameShardRoutingTests extends ElasticsearchTestCase {
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
         logger.info("--> start all primary shards, no replica will be started since its on the same host");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(ShardRoutingState.STARTED), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(ShardRoutingState.INITIALIZING), equalTo(0));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
 
         logger.info("--> add another node, with a different host, replicas will be allocating");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -60,8 +63,8 @@ public class SameShardRoutingTests extends ElasticsearchTestCase {
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(ShardRoutingState.STARTED), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().numberOfShardsOfType(ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
         for (MutableShardRouting shardRouting : clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }

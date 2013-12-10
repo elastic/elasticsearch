@@ -23,10 +23,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -266,6 +263,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final Map<String, ModelNode> nodes = new HashMap<String, ModelNode>();
         private final HashSet<String> indices = new HashSet<String>();
         private final RoutingAllocation allocation;
+        private final RoutingNodes routingNodes;
         private final WeightFunction weight;
 
         private final float threshold;
@@ -284,10 +282,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.allocation = allocation;
             this.weight = weight;
             this.threshold = threshold;
-            for (RoutingNode node : allocation.routingNodes()) {
+            this.routingNodes = allocation.routingNodes();
+            for (RoutingNode node : routingNodes) {
                 nodes.put(node.nodeId(), new ModelNode(node.nodeId()));
             }
-            metaData = allocation.routingNodes().metaData();
+            metaData = routingNodes.metaData();
         }
 
         /**
@@ -335,7 +334,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return new NodeSorter(nodesArray(), weight, this);
         }
 
-        private boolean initialize(RoutingNodes routing, List<MutableShardRouting> unassigned) {
+        private boolean initialize(RoutingNodes routing, RoutingNodes.UnassignedShards unassigned) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Start distributing Shards");
             }
@@ -366,8 +365,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Start balancing cluster");
             }
-            final TransactionalList<MutableShardRouting> unassigned = new TransactionalList<MutableShardRouting>(allocation.routingNodes().unassigned());
-            boolean changed = initialize(allocation.routingNodes(), unassigned);
+            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
+            boolean changed = initialize(routingNodes, unassigned);
             NodeSorter sorter = newNodeSorter();
             if (nodes.size() > 1) { /* skip if we only have one node */
                 for (String index : buildWeightOrderedIndidces(Operation.BALANCE, sorter)) {
@@ -445,7 +444,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     }
                 }
             }
-            unassigned.commit();
+            routingNodes.unassigned().transactionEnd(unassigned);
             return changed;
         }
 
@@ -520,8 +519,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Try moving shard [{}] from [{}]", shard, node);
             }
-            final TransactionalList<MutableShardRouting> unassigned = new TransactionalList<MutableShardRouting>(allocation.routingNodes().unassigned());
-            boolean changed = initialize(allocation.routingNodes(), unassigned);
+            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
+            boolean changed = initialize(routingNodes, unassigned);
 
             final ModelNode sourceNode = nodes.get(node.nodeId());
             assert sourceNode != null;
@@ -540,15 +539,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 if (currentNode.getNodeId().equals(node.nodeId())) {
                     continue;
                 }
-                RoutingNode target = allocation.routingNodes().node(currentNode.getNodeId());
+                RoutingNode target = routingNodes.node(currentNode.getNodeId());
                 Decision decision = allocation.deciders().canAllocate(shard, target, allocation);
                 if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                     sourceNode.removeShard(shard);
                     final MutableShardRouting initializingShard = new MutableShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
                             shard.currentNodeId(), shard.restoreSource(), shard.primary(), INITIALIZING, shard.version() + 1);
                     currentNode.addShard(initializingShard, decision);
-                    allocation.routingNodes().assignShardToNode( initializingShard, target.nodeId() );
-                    allocation.routingNodes().relocateShard( shard, target.nodeId() ); // set the node to relocate after we added the initializing shard
+                    routingNodes.assign(initializingShard, target.nodeId());
+                    routingNodes.relocate(shard, target.nodeId()); // set the node to relocate after we added the initializing shard
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shard, currentNode.getNodeId());
                     }
@@ -556,7 +555,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     break;
                 }
             }
-            unassigned.commit();
+            routingNodes.unassigned().transactionEnd(unassigned);
             return changed;
         }
 
@@ -589,7 +588,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Allocates all given shards on the minimal eligable node for the shards index
          * with respect to the weight function. All given shards must be unassigned.
          */
-        private boolean allocateUnassigned(List<MutableShardRouting> unassigned, List<MutableShardRouting> ignoredUnassigned) {
+        private boolean allocateUnassigned(RoutingNodes.UnassignedShards unassigned, List<MutableShardRouting> ignoredUnassigned) {
             assert !nodes.isEmpty();
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
@@ -603,7 +602,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations. 
              */
-            final RoutingNodes routingNodes = allocation.routingNodes();
             final AllocationDeciders deciders = allocation.deciders();
             final Set<MutableShardRouting> currentRound = new TreeSet<MutableShardRouting>(new Comparator<MutableShardRouting>() {
                 @Override
@@ -704,7 +702,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.assignShardToNode( shard, routingNodes.node(minNode.getNodeId()).nodeId() );
+                            routingNodes.assign(shard, routingNodes.node(minNode.getNodeId()).nodeId());
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         }
@@ -717,7 +715,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     ignoredUnassigned.add(shard);
                 }
                 if (!iterationChanged && !unassigned.isEmpty()) {
-                    ignoredUnassigned.addAll(unassigned);
+                    unassigned.copyAll(ignoredUnassigned);
                     unassigned.clear();
                     return changed;
                 }
@@ -740,7 +738,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
                             minNode.getNodeId());
                 }
-                final RoutingNode node = allocation.routingNodes().node(minNode.getNodeId());
+                final RoutingNode node = routingNodes.node(minNode.getNodeId());
                 MutableShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();
                 /* make a copy since we modify this list in the loop */
@@ -781,14 +779,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         }
                         /* now allocate on the cluster - if we are started we need to relocate the shard */
                         if (candidate.started()) {
-                            RoutingNode lowRoutingNode = allocation.routingNodes().node(minNode.getNodeId());
-                            allocation.routingNodes().assignShardToNode(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
-                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1), lowRoutingNode.nodeId() );
-                            allocation.routingNodes().relocateShard( candidate, lowRoutingNode.nodeId());
+                            RoutingNode lowRoutingNode = routingNodes.node(minNode.getNodeId());
+                            routingNodes.assign(new MutableShardRouting(candidate.index(), candidate.id(), lowRoutingNode.nodeId(), candidate
+                                    .currentNodeId(), candidate.restoreSource(), candidate.primary(), INITIALIZING, candidate.version() + 1), lowRoutingNode.nodeId());
+                            routingNodes.relocate(candidate, lowRoutingNode.nodeId());
 
                         } else {
                             assert candidate.unassigned();
-                            allocation.routingNodes().assignShardToNode( candidate, allocation.routingNodes().node(minNode.getNodeId()).nodeId() );
+                            routingNodes.assign(candidate, routingNodes.node(minNode.getNodeId()).nodeId());
                         }
                         return true;
 
@@ -1041,39 +1039,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
         public float delta() {
             return weights[weights.length - 1] - weights[0];
-        }
-    }
-    
-    /**
-     * A list that makes a full copy of the original list and applies all
-     * modification to the copied list once {@link TransactionalList#commit()}
-     * is called.
-     * 
-     */
-    @SuppressWarnings("serial")
-    private static final class TransactionalList<T> extends ArrayList<T> {
-        
-        private final List<T> originalList;
-        private List<T> assertingList; // only with assert
-
-        TransactionalList(List<T> originalList) {
-            super(originalList);
-            assert copyAsseringList(originalList);
-            this.originalList = originalList;
-        }
-        
-        private boolean copyAsseringList(List<T> orig) {
-            this.assertingList = new ArrayList<T>(orig);
-            return true;
-        }
-        
-        public void commit() {
-            /* Ensure that the actual source list is not modified while
-             * the transaction is running */
-            assert assertingList.equals(originalList) : "The list was modified outside of the scope";
-            originalList.clear();
-            originalList.addAll(this);    
-            
         }
     }
 }

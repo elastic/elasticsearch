@@ -188,8 +188,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
-            RoutingNode routingNode = clusterState.routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
-            for (MutableShardRouting mutableShardRouting : routingNode) {
+            for (MutableShardRouting mutableShardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
                 //if the shard that we wanted to move is still on the same node, it must be relocating
                 if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                     assertThat(mutableShardRouting.relocating(), equalTo(true));
@@ -197,9 +196,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
             }
 
-            routingNode = clusterState.routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
             boolean found = false;
-            for (MutableShardRouting mutableShardRouting : routingNode) {
+            for (MutableShardRouting mutableShardRouting :  clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
                 if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                     assertThat(mutableShardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
                     found = true;
@@ -241,9 +239,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
         //testing only on master with the latest cluster state as we didn't make any change thus we cannot guarantee that
         //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
         boolean found = false;
-        for (MutableShardRouting mutableShardRouting : routingNode) {
+        for (MutableShardRouting mutableShardRouting :  clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
             //the shard that we wanted to move is still on the same node, as we had dryRun flag
             if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                 assertThat(mutableShardRouting.started(), equalTo(true));
@@ -253,8 +250,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         }
         assertThat(found, equalTo(true));
 
-        routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
-        for (MutableShardRouting mutableShardRouting : routingNode) {
+        for (MutableShardRouting mutableShardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
             if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                 fail("shard [" + mutableShardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
             }
@@ -281,11 +277,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
         String toNodeId = null;
         MutableShardRouting shardToBeMoved = null;
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (RoutingNode routingNode : clusterStateResponse.getState().routingNodes().nodesToShards().values()) {
+        for (RoutingNode routingNode : clusterStateResponse.getState().routingNodes()) {
             if (routingNode.node().isDataNode()) {
                 if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
                     fromNodeId = routingNode.nodeId();
-                    shardToBeMoved = routingNode.shards().get(randomInt(routingNode.shards().size()-1));
+                    shardToBeMoved = routingNode.get(randomInt(routingNode.size()-1));
                 } else {
                     toNodeId = routingNode.nodeId();
                 }

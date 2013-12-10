@@ -194,14 +194,18 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
         @Override
         public void created(String type) {
+            logger.trace("invoking created type listener for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             if (PercolatorService.TYPE_NAME.equals(type)) {
+                logger.debug("enabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
                 enableRealTimePercolator();
             }
         }
 
         @Override
         public void removed(String type) {
+            logger.trace("invoking removed type listener for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             if (PercolatorService.TYPE_NAME.equals(type)) {
+                logger.debug("disabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
                 disableRealTimePercolator();
                 clear();
             }

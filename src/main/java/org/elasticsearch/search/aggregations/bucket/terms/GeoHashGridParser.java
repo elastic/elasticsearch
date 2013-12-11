@@ -86,9 +86,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
         if(shardSize==0)
         {
-            //Use default heuristic of each shard returning double the final number of cells
-            //required in order to try avoid any wrong-ranking caused by distributed counting            
-            shardSize=requiredSize*2;
+            //Use default heuristic to avoid any wrong-ranking caused by distributed counting            
+            shardSize=suggestShardSideQueueSize(requiredSize,context.numberOfShards());
         }
 
         ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);
@@ -106,6 +105,24 @@ public class GeoHashGridParser implements Aggregator.Parser {
         config.fieldContext(new FieldContext(field, indexFieldData));
         return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
     }
+    
+    /**
+     * Heuristic used to determine the size of shard-side PriorityQueues when 
+     * selecting the  top N terms from a distributed index.
+     * TODO move this function to a common location for use by similar aggregations.
+     * @param finalSize The number of terms required in the final reduce phase.
+     * @param numberOfShards The number of shards in the indices being queried.
+     * @return A suggested default for the size of any shard-side PriorityQueues
+     */
+    static int suggestShardSideQueueSize(int finalSize, int numberOfShards){
+        
+        int shardSampleSize= finalSize*Math.max(1,numberOfShards);
+        //When finalSize is very small e.g. 1 and there is a low number of shards then we need 
+        //to ensure we still gather a reasonable sample of statistics from each shard (at low cost) 
+        // to improve the chances of the final result being accurate.
+        return Math.max(10,shardSampleSize);
+    }
+    
 
     private static class GeoGridFactory extends ValueSourceAggregatorFactory<GeoPointValuesSource> {
 

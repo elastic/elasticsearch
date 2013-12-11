@@ -351,6 +351,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         IndexShard indexShard = shardInjector.getInstance(IndexShard.class);
 
+        indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
         indicesLifecycle.afterIndexShardCreated(indexShard);
 
         shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();

@@ -247,6 +247,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
                     MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
+                    // automatically generate a UID for the metadata if we need to
+                    metaDataBuilder.generateUuidIfNeeded();
 
                     if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);

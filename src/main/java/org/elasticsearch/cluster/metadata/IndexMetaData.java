@@ -466,6 +466,10 @@ public class IndexMetaData {
             return this;
         }
 
+        public MappingMetaData mapping(String type) {
+            return mappings.get(type);
+        }
+
         public Builder removeMapping(String mappingType) {
             mappings.remove(mappingType);
             return this;

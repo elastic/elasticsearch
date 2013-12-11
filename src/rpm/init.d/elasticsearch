@@ -76,6 +76,9 @@ start() {
     if [ -n "$MAX_LOCKED_MEMORY" ]; then
         ulimit -l $MAX_LOCKED_MEMORY
     fi
+    if [ -n "$MAX_MAP_COUNT" ]; then
+        sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
+    fi
     if [ -n "$WORK_DIR" ]; then
         mkdir -p "$WORK_DIR"
         chown "$ES_USER":"$ES_GROUP" "$WORK_DIR"

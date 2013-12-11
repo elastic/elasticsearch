@@ -15,8 +15,9 @@ Each package features a configuration file, which allows you to set the followin
 `ES_HEAP_SIZE`::          The heap size to start with
 `ES_HEAP_NEWSIZE`::       The size of the new generation heap
 `ES_DIRECT_SIZE`::        The maximum size of the direct memory
-`MAX_OPEN_FILES`::       Maximum number of open files, defaults to `65535`
+`MAX_OPEN_FILES`::        Maximum number of open files, defaults to `65535`
 `MAX_LOCKED_MEMORY`::     Maximum locked memory size. Set to "unlimited" if you use the bootstrap.mlockall option in elasticsearch.yml. You must also set ES_HEAP_SIZE.
+`MAX_MAP_COUNT`::         Maximum number of memory map areas a process may have. If you use `mmapfs` as index store type, make sure this is set to a high value. For more information, check the https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation] about `max_map_count`. This is set via `sysctl` before starting elasticsearch. Defaults to `65535`
 `LOG_DIR`::               Log directory, defaults to `/var/log/elasticsearch`
 `DATA_DIR`::              Data directory, defaults to `/var/lib/elasticsearch`
 `WORK_DIR`::              Work directory, defaults to `/tmp/elasticsearch`
@@ -52,3 +53,4 @@ RedHat based distributions are using `chkconfig` to enable and disable services.
 
 SuSe does not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services. The configuration file is also placed at `/etc/sysconfig/elasticsearch`.
 
+Also note that changing the `MAX_MAP_COUNT` setting in `/etc/sysconfig/elasticsearch` does not have any effect, you will have to change it in `/usr/lib/sysctl.d/elasticsearch.conf` in order to have it applied at startup.

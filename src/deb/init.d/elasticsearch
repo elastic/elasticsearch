@@ -90,6 +90,9 @@ CONF_DIR=/etc/$NAME
 # ElasticSearch configuration file (elasticsearch.yml)
 CONF_FILE=$CONF_DIR/elasticsearch.yml
 
+# Maximum number of VMA (Virtual Memory Areas) a process can own
+MAX_MAP_COUNT=65535
+
 # End of variables that can be overwritten in $DEFAULT
 
 # overwrite settings from default file
@@ -151,6 +154,10 @@ case "$1" in
 
 	if [ -n "$MAX_LOCKED_MEMORY" ]; then
 		ulimit -l $MAX_LOCKED_MEMORY
+	fi
+
+	if [ -n "$MAX_MAP_COUNT" ]; then
+		sysctl -qw vm.max_map_count=$MAX_MAP_COUNT
 	fi
 
 	# Start Daemon

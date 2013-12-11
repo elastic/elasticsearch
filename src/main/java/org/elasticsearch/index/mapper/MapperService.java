@@ -291,7 +291,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 mapper.addObjectMapperListener(objectMapperListener, false);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
-                    typeListener.created(mapper.type());
+                    typeListener.beforeCreate(mapper.type());
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 return mapper;
@@ -335,7 +335,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectAndFieldMappers(docMapper);
             for (DocumentTypeListener typeListener : typeListeners) {
-                typeListener.removed(type);
+                typeListener.afterRemove(type);
             }
         }
     }

@@ -193,14 +193,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private class PercolateTypeListener implements DocumentTypeListener {
 
         @Override
-        public void created(String type) {
+        public void beforeCreate(String type) {
             if (PercolatorService.TYPE_NAME.equals(type)) {
                 enableRealTimePercolator();
             }
         }
 
         @Override
-        public void removed(String type) {
+        public void afterRemove(String type) {
             if (PercolatorService.TYPE_NAME.equals(type)) {
                 disableRealTimePercolator();
                 clear();

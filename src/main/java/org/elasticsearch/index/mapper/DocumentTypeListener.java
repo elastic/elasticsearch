@@ -24,17 +24,17 @@ package org.elasticsearch.index.mapper;
 public interface DocumentTypeListener {
 
     /**
-     * Invoked when a new document type has been created.
+     * Invoked just before a new document type has been created.
      *
-     * @param type The document type that has been created
+     * @param type The new document type
      */
-    void created(String type);
+    void beforeCreate(String type);
 
     /**
-     * Invoked when an existing document type has been removed.
+     * Invoked just after an existing document type has been removed.
      *
-     * @param type The document type that has been removed
+     * @param type The existing document type
      */
-    void removed(String type);
+    void afterRemove(String type);
 
 }

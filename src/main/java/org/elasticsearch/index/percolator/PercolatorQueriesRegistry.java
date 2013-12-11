@@ -35,6 +35,7 @@ import org.elasticsearch.percolator.PercolatorService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Each shard will have a percolator registry even if there isn't a {@link PercolatorService#TYPE_NAME} document type in the index.
@@ -59,8 +60,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
-
-    private boolean realTimePercolatorEnabled = false;
+    private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
@@ -94,17 +94,15 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         percolateQueries.clear();
     }
 
-    synchronized void enableRealTimePercolator() {
-        if (!realTimePercolatorEnabled) {
+    void enableRealTimePercolator() {
+        if (realTimePercolatorEnabled.compareAndSet(false, true)) {
             indexingService.addListener(realTimePercolatorOperationListener);
-            realTimePercolatorEnabled = true;
         }
     }
 
-    synchronized void disableRealTimePercolator() {
-        if (realTimePercolatorEnabled) {
+    void disableRealTimePercolator() {
+        if (realTimePercolatorEnabled.compareAndSet(true, false)) {
             indexingService.removeListener(realTimePercolatorOperationListener);
-            realTimePercolatorEnabled = false;
         }
     }
 

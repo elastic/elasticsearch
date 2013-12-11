@@ -44,7 +44,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.*;
@@ -64,7 +63,6 @@ import static org.hamcrest.Matchers.*;
 public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testSimple1() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -144,7 +142,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testSimple2() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -237,7 +234,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateQueriesWithRouting() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
@@ -280,7 +276,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void percolateOnRecreatedIndex() throws Exception {
         prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
@@ -311,7 +306,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     // see #2814
     public void percolateCustomAnalyzer() throws Exception {
         Builder builder = ImmutableSettings.builder();
@@ -354,7 +348,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void createIndexAndThenRegisterPercolator() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)));
         ensureGreen();
@@ -404,7 +397,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void multiplePercolators() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
@@ -446,7 +438,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void dynamicAddingRemovingQueries() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
@@ -519,7 +510,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void percolateWithSizeField() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_size").field("enabled", true).field("stored", "yes").endObject()
@@ -553,7 +543,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateStatistics() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -637,7 +626,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolatingExistingDocs() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -712,7 +700,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolatingExistingDocs_routing() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -779,7 +766,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolatingExistingDocs_versionCheck() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -841,7 +827,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateMultipleIndicesAndAliases() throws Exception {
         client().admin().indices().prepareCreate("test1")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
@@ -926,7 +911,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testCountPercolation() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -996,7 +980,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testCountPercolatingExistingDocs() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -1059,7 +1042,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateSizingWithQueryAndFilter() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -1149,7 +1131,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateScoreAndSorting() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder()
@@ -1243,7 +1224,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateSortingWithNoSize() throws Exception {
         client().admin().indices().prepareCreate("my-index").execute().actionGet();
         ensureGreen();
@@ -1283,7 +1263,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateOnEmptyIndex() throws Exception {
         client().admin().indices().prepareCreate("my-index").execute().actionGet();
         ensureGreen();
@@ -1298,7 +1277,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testPercolateNotEmptyIndexButNoRefresh() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
@@ -1488,7 +1466,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testDeletePercolatorType() throws Exception {
         DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete().execute().actionGet();
         assertThat("Delete Index failed - not acked", deleteIndexResponse.isAcknowledged(), equalTo(true));

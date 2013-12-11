@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -157,6 +158,16 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
                 listener.afterIndexShardClosed(shardId);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke after shard closed callback", t, shardId);
+            }
+        }
+    }
+
+    public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, @Nullable String reason) {
+        for (Listener listener : listeners) {
+            try {
+                listener.indexShardStateChanged(indexShard, previousState, indexShard.state(), reason);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke index shard state changed callback", t, indexShard.shardId());
             }
         }
     }

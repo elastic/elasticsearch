@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -130,6 +131,19 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          */
         public void afterIndexShardClosed(ShardId shardId) {
+
+        }
+
+        /**
+         * Called after a shard's {@link org.elasticsearch.index.shard.IndexShardState} changes.
+         * The order of concurrent events is preserved. The execution must be lightweight.
+         *
+         * @param indexShard the shard the new state was applied to
+         * @param previousState the previous index shard state if there was one, null otherwise
+         * @param currentState the new shard state
+         * @param reason the reason for the state change if there is one, null otherwise
+         */
+        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
 
         }
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -40,8 +41,8 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
         try {
             XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
             builder.startObject()
-                    .field("ok", true)
-                    .field("acknowledged", response.isAcknowledged());
+                    .field(Fields.OK, true)
+                    .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
             addCustomFields(builder, response);
             builder.endObject();
             channel.sendResponse(new XContentRestResponse(request, OK, builder));
@@ -56,5 +57,10 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
      */
     protected void addCustomFields(XContentBuilder builder, T response) throws IOException {
 
+    }
+
+    static final class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
     }
 }

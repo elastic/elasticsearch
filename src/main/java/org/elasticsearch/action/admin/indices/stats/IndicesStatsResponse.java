@@ -156,6 +156,12 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        String level = params.param("level", "indices");
+        boolean isLevelValid = "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level) || "cluster".equalsIgnoreCase(level);
+        if (!isLevelValid) {
+            return builder;
+        }
+
         builder.startObject("_all");
 
         builder.startObject("primaries");
@@ -168,35 +174,36 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
 
         builder.endObject();
 
-        builder.startObject(Fields.INDICES);
-        for (IndexStats indexStats : getIndices().values()) {
-            builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
+            builder.startObject(Fields.INDICES);
+            for (IndexStats indexStats : getIndices().values()) {
+                builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.startObject("primaries");
-            indexStats.getPrimaries().toXContent(builder, params);
-            builder.endObject();
+                builder.startObject("primaries");
+                indexStats.getPrimaries().toXContent(builder, params);
+                builder.endObject();
 
-            builder.startObject("total");
-            indexStats.getTotal().toXContent(builder, params);
-            builder.endObject();
+                builder.startObject("total");
+                indexStats.getTotal().toXContent(builder, params);
+                builder.endObject();
 
-            if ("shards".equalsIgnoreCase(params.param("level", null))) {
-                builder.startObject(Fields.SHARDS);
-                for (IndexShardStats indexShardStats : indexStats) {
-                    builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
-                    for (ShardStats shardStats : indexShardStats) {
-                        builder.startObject();
-                        shardStats.toXContent(builder, params);
-                        builder.endObject();
+                if ("shards".equalsIgnoreCase(level)) {
+                    builder.startObject(Fields.SHARDS);
+                    for (IndexShardStats indexShardStats : indexStats) {
+                        builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
+                        for (ShardStats shardStats : indexShardStats) {
+                            builder.startObject();
+                            shardStats.toXContent(builder, params);
+                            builder.endObject();
+                        }
+                        builder.endArray();
                     }
-                    builder.endArray();
+                    builder.endObject();
                 }
                 builder.endObject();
             }
-
             builder.endObject();
         }
-        builder.endObject();
 
         return builder;
     }

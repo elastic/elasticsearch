@@ -29,8 +29,7 @@ import java.io.IOException;
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
  * <p/>
- * <p>By default, the {@link #docs(boolean)}, {@link #store(boolean)}, {@link #indexing(boolean)}
- * are enabled. Other stats can be enabled as well.
+ * <p>By default, all statistics are enabled.
  * <p/>
  * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
@@ -237,6 +236,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
 
     public String[] completionFields() {
         return flags.completionDataFields();
+    }
+
+    public IndicesStatsRequest translog(boolean translog) {
+        flags.set(Flag.Translog, translog);
+        return this;
+    }
+
+    public boolean translog() {
+        return flags.isSet(Flag.Translog);
     }
 
     @Override

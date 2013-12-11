@@ -28,6 +28,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -559,6 +560,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public IdCacheStats idCacheStats() {
         return shardIdCache.stats();
+    }
+
+    @Override
+    public TranslogStats translogStats() {
+        return translog.stats();
     }
 
     @Override

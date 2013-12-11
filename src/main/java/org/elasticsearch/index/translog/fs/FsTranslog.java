@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -406,5 +407,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } else {
             type = FsTranslogFile.Type.BUFFERED;
         }
+    }
+
+    @Override
+    public TranslogStats stats() {
+        return new TranslogStats(estimatedNumberOfOperations(), translogSizeInBytes());
     }
 }

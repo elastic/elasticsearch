@@ -190,6 +190,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             flags.set(CommonStatsFlags.Flag.Completion);
             flags.completionDataFields(request.request.completionFields());
         }
+        if (request.request.translog()) {
+            flags.set(CommonStatsFlags.Flag.Translog);
+        }
 
         return new ShardStats(indexShard, flags);
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.close;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -46,9 +46,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.listenerThreaded(false);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
-        if (request.hasParam("ignore_indices")) {
-            closeIndexRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         client.admin().indices().close(closeIndexRequest, new AcknowledgedRestResponseActionListener<CloseIndexResponse>(request, channel, logger));
     }
 }

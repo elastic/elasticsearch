@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.*;
@@ -115,7 +115,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
             final Snapshot snapshot = repository.readSnapshot(snapshotId);
-            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.ignoreIndices());
+            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
             final MetaData metaData = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             // Make sure that we can restore from this snapshot
@@ -461,7 +461,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         private String renameReplacement;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+        private IndicesOptions indicesOptions = IndicesOptions.strict();
 
         private Settings settings;
 
@@ -494,13 +494,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
 
         /**
-         * Sets ignore indices flag
+         * Sets indices options flags
          *
-         * @param ignoreIndices ignore indices flag
+         * @param indicesOptions indices options flags
          * @return this request
          */
-        public RestoreRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-            this.ignoreIndices = ignoreIndices;
+        public RestoreRequest indicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
             return this;
         }
 
@@ -599,12 +599,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
 
         /**
-         * Returns ignore indices flag
+         * Returns indices option flags
          *
-         * @return ignore indices flag
+         * @return indices options flags
          */
-        public IgnoreIndices ignoreIndices() {
-            return ignoreIndices;
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
         }
 
         /**

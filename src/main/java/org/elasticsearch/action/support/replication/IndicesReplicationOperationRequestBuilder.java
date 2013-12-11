@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.InternalGenericClient;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -60,10 +60,12 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
+     * For example indices that don't exist.
      */
-    public RequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
         return (RequestBuilder) this;
     }
 

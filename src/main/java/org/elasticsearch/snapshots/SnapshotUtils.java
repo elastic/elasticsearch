@@ -19,7 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -37,10 +37,10 @@ public class SnapshotUtils {
      *
      * @param availableIndices list of available indices
      * @param selectedIndices  list of selected indices
-     * @param ignoreIndices    ignore indices flag
+     * @param indicesOptions    ignore indices flag
      * @return filtered out indices
      */
-    public static ImmutableList<String> filterIndices(ImmutableList<String> availableIndices, String[] selectedIndices, IgnoreIndices ignoreIndices) {
+    public static ImmutableList<String> filterIndices(ImmutableList<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {
         if (selectedIndices == null || selectedIndices.length == 0) {
             return availableIndices;
         }
@@ -73,7 +73,7 @@ public class SnapshotUtils {
             }
             if (indexOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(indexOrPattern)) {
                 if (!availableIndices.contains(indexOrPattern)) {
-                    if (ignoreIndices != IgnoreIndices.MISSING) {
+                    if (!indicesOptions.ignoreUnavailable()) {
                         throw new IndexMissingException(new Index(indexOrPattern));
                     } else {
                         if (result == null) {
@@ -109,7 +109,7 @@ public class SnapshotUtils {
                     }
                 }
             }
-            if (!found && ignoreIndices != IgnoreIndices.MISSING) {
+            if (!found && !indicesOptions.allowNoIndices()) {
                 throw new IndexMissingException(new Index(indexOrPattern));
             }
         }

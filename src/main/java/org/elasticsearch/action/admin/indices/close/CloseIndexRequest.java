@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
 
     private String[] indices;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     CloseIndexRequest() {
     }
@@ -75,20 +75,24 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @return the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @return the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal wild wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return the request itself
      */
-    public CloseIndexRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public CloseIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -97,7 +101,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
         super.readFrom(in);
         indices = in.readStringArray();
         readTimeout(in);
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -105,6 +109,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
         super.writeTo(out);
         out.writeStringArray(indices);
         writeTimeout(out);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
     }
 }

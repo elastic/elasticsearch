@@ -20,7 +20,7 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 
@@ -49,10 +49,12 @@ public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPerc
     }
 
     /**
-     * Specifies how to globally ignore indices that are not available.
+     * Specifies how to globally ignore indices that are not available and how to deal with wildcard indices expressions.
+     *
+     * Invoke this method before invoking {@link #add(PercolateRequestBuilder)}.
      */
-    public MultiPercolateRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public MultiPercolateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

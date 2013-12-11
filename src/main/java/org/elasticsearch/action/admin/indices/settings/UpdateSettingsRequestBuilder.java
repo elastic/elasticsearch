@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.settings;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -41,6 +42,16 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
      */
     public UpdateSettingsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public UpdateSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
         return this;
     }
 

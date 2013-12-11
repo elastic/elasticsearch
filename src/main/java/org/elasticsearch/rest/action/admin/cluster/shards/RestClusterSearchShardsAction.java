@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.shards;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -62,9 +62,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
-        if (request.hasParam("ignore_indices")) {
-            clusterSearchShardsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
 
         client.admin().cluster().searchShards(clusterSearchShardsRequest, new ActionListener<ClusterSearchShardsResponse>() {
             @Override

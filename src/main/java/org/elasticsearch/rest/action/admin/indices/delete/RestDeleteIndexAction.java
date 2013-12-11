@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.delete;
 
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -45,6 +46,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         deleteIndexRequest.listenerThreaded(false);
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
+        deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         client.admin().indices().delete(deleteIndexRequest, new AcknowledgedRestResponseActionListener<DeleteIndexResponse>(request, channel, logger));
     }
 }

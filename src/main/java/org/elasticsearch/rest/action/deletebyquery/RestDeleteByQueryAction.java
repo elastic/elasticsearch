@@ -25,7 +25,7 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
@@ -84,10 +84,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (consistencyLevel != null) {
                 deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
-            final String ignoreIndices = request.param("ignore_indices");
-            if (ignoreIndices != null) {
-                deleteByQueryRequest.ignoreIndices(IgnoreIndices.fromString(ignoreIndices));
-            }
+            deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

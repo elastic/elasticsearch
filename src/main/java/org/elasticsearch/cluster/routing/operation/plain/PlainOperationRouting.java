@@ -112,13 +112,13 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     @Override
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
-        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         return shards.size();
     }
 
     @Override
     public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
-        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<ShardIterator>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
@@ -131,10 +131,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) throws IndexMissingException {
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            concreteIndices = clusterState.metaData().concreteAllOpenIndices();
-        }
+    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) throws IndexMissingException {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
         final Set<IndexShardRoutingTable> set = new HashSet<IndexShardRoutingTable>();
         // we use set here and not list since we might get duplicates

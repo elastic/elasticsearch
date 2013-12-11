@@ -1,6 +1,7 @@
 ---
 "segments test":
   - do:
-      indices.segments: {}
+      indices.segments:
+        allow_no_indices: true
   
   - is_true: ok

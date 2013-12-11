@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
@@ -57,8 +57,8 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public final RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return (RequestBuilder) this;
     }
 }

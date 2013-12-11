@@ -88,8 +88,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
-        // update to concrete indices
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
         super.doExecute(request, listener);
     }
 

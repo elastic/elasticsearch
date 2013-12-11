@@ -188,9 +188,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (indices == null || indices.length == 0) {
-            validationException = addValidationError("index is missing", validationException);
-        }
         if (documentType == null) {
             validationException = addValidationError("type is missing", validationException);
         }

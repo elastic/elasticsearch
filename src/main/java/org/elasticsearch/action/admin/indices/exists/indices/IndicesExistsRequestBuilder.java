@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -35,6 +36,16 @@ public class IndicesExistsRequestBuilder extends MasterNodeOperationRequestBuild
 
     public IndicesExistsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public IndicesExistsRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
         return this;
     }
 

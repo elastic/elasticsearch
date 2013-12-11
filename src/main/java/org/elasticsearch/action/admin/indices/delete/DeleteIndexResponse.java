@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,34 +28,24 @@ import java.io.IOException;
 /**
  * A response for a delete index action.
  */
-public class DeleteIndexResponse extends ActionResponse {
-
-    private boolean acknowledged;
+public class DeleteIndexResponse extends AcknowledgedResponse {
 
     DeleteIndexResponse() {
     }
 
     DeleteIndexResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-    }
-
-    /**
-     * Has the index deletion been acknowledged by all current cluster nodes within the
-     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
-     */
-    public boolean isAcknowledged() {
-        return acknowledged;
+        super(acknowledged);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        acknowledged = in.readBoolean();
+        readAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(acknowledged);
+        writeAcknowledged(out);
     }
 }

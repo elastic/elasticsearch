@@ -1,0 +1,84 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    t1:
+                      type:     string
+                    t2:
+                      type:     string
+                    obj:
+                      path:     just_name
+                      properties:
+                        t1:
+                          type:   string
+                        i_t1:
+                          type:   string
+                          index_name: t1
+                        i_t3:
+                          type:   string
+                          index_name: t3
+
+---
+"Get field mapping with * for fields":
+  - skip:
+        version:  "0 - 0.90.7"
+        reason:   "The API was added in 0.90.8"
+
+  - do:
+      indices.get_field_mapping:
+        field: "*"
+
+  - match: {test_index.test_type.t1.full_name:     t1     }
+  - match: {test_index.test_type.t2.full_name:     t2     }
+  - match: {test_index.test_type.obj\.t1.full_name: obj.t1 }
+  - match: {test_index.test_type.obj\.i_t1.full_name: obj.i_t1 }
+  - match: {test_index.test_type.obj\.i_t3.full_name: obj.i_t3 }
+
+---
+"Get field mapping with t* for fields":
+  - skip:
+        version:  "0 - 0.90.7"
+        reason:   "The API was added in 0.90.8"
+
+  - do:
+      indices.get_field_mapping:
+        field: "t*"
+
+# i_t1 matches the pattern using it's index name, but t1 already means a full name
+# of a field and thus takes precedence.
+  - match:  {test_index.test_type.t1.full_name:     t1       }
+  - match:  {test_index.test_type.t2.full_name:     t2       }
+  - match:  {test_index.test_type.t3.full_name:     obj.i_t3 }
+  - length: {test_index.test_type: 3}
+
+---
+"Get field mapping with *t1 for fields":
+  - skip:
+        version:  "0 - 0.90.7"
+        reason:   "The API was added in 0.90.8"
+
+  - do:
+      indices.get_field_mapping:
+        field: "*t1"
+  - match:  {test_index.test_type.t1.full_name:        t1       }
+  - match:  {test_index.test_type.obj\.t1.full_name:   obj.t1   }
+  - match:  {test_index.test_type.obj\.i_t1.full_name: obj.i_t1 }
+  - length: {test_index.test_type: 3}
+
+---
+"Get field mapping with wildcarded relative names":
+  - skip:
+        version:  "0 - 0.90.7"
+        reason:   "The API was added in 0.90.8"
+
+  - do:
+      indices.get_field_mapping:
+        field: "i_*"
+  - match:  {test_index.test_type.i_t1.full_name: obj.i_t1 }
+  - match:  {test_index.test_type.i_t3.full_name: obj.i_t3 }
+  - length: {test_index.test_type: 2}

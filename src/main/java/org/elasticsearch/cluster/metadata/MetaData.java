@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -116,6 +117,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final String GLOBAL_PERSISTENT_ONLY_PARAM = "global_persistent_only";
 
+    private final String uuid;
     private final long version;
 
     private final Settings transientSettings;
@@ -136,7 +138,8 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
 
     @SuppressWarnings("unchecked")
-    MetaData(long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
+    MetaData(String uuid, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs) {
+        this.uuid = uuid;
         this.version = version;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
@@ -227,6 +230,10 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public long version() {
         return this.version;
+    }
+
+    public String uuid() {
+        return this.uuid;
     }
 
     /**
@@ -964,6 +971,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static class Builder {
 
+        private String uuid;
         private long version;
 
         private Settings transientSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -974,12 +982,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder() {
+            uuid = "_na_";
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
         }
 
         public Builder(MetaData metaData) {
+            this.uuid = metaData.uuid;
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
@@ -1102,8 +1112,15 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder generateUuidIfNeeded() {
+            if (uuid.equals("_na_")) {
+                uuid = Strings.randomBase64UUID();
+            }
+            return this;
+        }
+
         public MetaData build() {
-            return new MetaData(version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
+            return new MetaData(uuid, version, transientSettings, persistentSettings, indices.build(), templates.build(), customs.build());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -1119,6 +1136,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
+            builder.field("uuid", metaData.uuid);
 
             if (!metaData.persistentSettings().getAsMap().isEmpty()) {
                 builder.startObject("settings");
@@ -1210,6 +1228,8 @@ public class MetaData implements Iterable<IndexMetaData> {
                 } else if (token.isValue()) {
                     if ("version".equals(currentFieldName)) {
                         builder.version = parser.longValue();
+                    } else if ("uuid".equals(currentFieldName)) {
+                        builder.uuid = parser.text();
                     }
                 }
             }
@@ -1219,6 +1239,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         public static MetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readLong();
+            if (in.getVersion().after(Version.V_0_90_7)) {
+                builder.uuid = in.readString();
+            }
             builder.transientSettings(readSettingsFromStream(in));
             builder.persistentSettings(readSettingsFromStream(in));
             int size = in.readVInt();
@@ -1240,6 +1263,9 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
             out.writeLong(metaData.version);
+            if (out.getVersion().after(Version.V_0_90_7)) {
+                out.writeString(metaData.uuid);
+            }
             writeSettingsToStream(metaData.transientSettings(), out);
             writeSettingsToStream(metaData.persistentSettings(), out);
             out.writeVInt(metaData.indices.size());

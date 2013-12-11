@@ -274,6 +274,9 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
+        String metaDataUuid = client().admin().cluster().prepareState().execute().get().getState().getMetaData().uuid();
+        assertThat(metaDataUuid, not(equalTo("_na_")));
+
         logger.info("--> closing first node, and indexing more data to the second node");
         cluster().fullRestart(new RestartCallback() {
 
@@ -313,6 +316,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        assertThat(client().admin().cluster().prepareState().execute().get().getState().getMetaData().uuid(), equalTo(metaDataUuid));
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 3);

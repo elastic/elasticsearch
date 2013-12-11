@@ -290,10 +290,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
                 mapper.addObjectMapperListener(objectMapperListener, false);
 
-                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.created(mapper.type());
                 }
+                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 return mapper;
             }
         }

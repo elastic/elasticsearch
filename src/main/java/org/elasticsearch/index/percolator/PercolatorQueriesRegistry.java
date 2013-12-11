@@ -60,7 +60,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
 
-    private volatile boolean realTimePercolatorEnabled = false;
+    private boolean realTimePercolatorEnabled = false;
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
@@ -94,19 +94,15 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         percolateQueries.clear();
     }
 
-    void enableRealTimePercolator() {
-        logger.trace("trying to enable realtime percolation for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
+    synchronized void enableRealTimePercolator() {
         if (!realTimePercolatorEnabled) {
-            logger.debug("enabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             indexingService.addListener(realTimePercolatorOperationListener);
             realTimePercolatorEnabled = true;
         }
     }
 
-    void disableRealTimePercolator() {
-        logger.trace("trying to disable realtime percolation for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
+    synchronized void disableRealTimePercolator() {
         if (realTimePercolatorEnabled) {
-            logger.debug("disabling realtime percolating for index [{}] and shard[{}] on node[{}]", shardId.index(), shardId.id(), nodeName());
             indexingService.removeListener(realTimePercolatorOperationListener);
             realTimePercolatorEnabled = false;
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -58,6 +59,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     long nowInMillis;
 
     ValidateQueryRequest() {
+        this(Strings.EMPTY_ARRAY);
     }
 
     /**
@@ -66,6 +68,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      */
     public ValidateQueryRequest(String... indices) {
         super(indices);
+        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
     }
 
     @Override

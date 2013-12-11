@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.warmer.delete;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -35,7 +36,7 @@ import java.io.IOException;
 public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest> {
 
     private String name;
-
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
     private String[] indices = Strings.EMPTY_ARRAY;
 
     DeleteWarmerRequest() {
@@ -87,11 +88,21 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
         return indices;
     }
 
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public DeleteWarmerRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readOptionalString();
         indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         readTimeout(in, Version.V_0_90_6);
     }
 
@@ -100,6 +111,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
         super.writeTo(out);
         out.writeOptionalString(name);
         out.writeStringArrayNullable(indices);
+        indicesOptions.writeIndicesOptions(out);
         writeTimeout(out, Version.V_0_90_6);
     }
 }

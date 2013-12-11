@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.settings;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> {
 
     private String[] indices;
-
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
 
     UpdateSettingsRequest() {
@@ -88,6 +89,15 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
      */
     public UpdateSettingsRequest indices(String... indices) {
         this.indices = indices;
+        return this;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public UpdateSettingsRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -134,6 +144,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         readTimeout(in, Version.V_0_90_6);
     }
@@ -142,6 +153,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
+        indicesOptions.writeIndicesOptions(out);
         writeSettingsToStream(settings, out);
         writeTimeout(out, Version.V_0_90_6);
     }

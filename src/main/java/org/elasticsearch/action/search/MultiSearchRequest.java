@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -48,7 +48,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -70,14 +70,14 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
                                   @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IgnoreIndices.NONE, true);
+        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IndicesOptions.strict(), true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IgnoreIndices ignoreIndices) throws Exception {
-        return add(data, contentUnsafe, indices, types, searchType, null, ignoreIndices, true);
+    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
+        return add(data, contentUnsafe, indices, types, searchType, null, indicesOptions, true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IgnoreIndices ignoreIndices, boolean allowExplicitIndex) throws Exception {
+    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -97,8 +97,8 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
             if (indices != null) {
                 searchRequest.indices(indices);
             }
-            if (ignoreIndices != null) {
-                searchRequest.ignoreIndices(ignoreIndices);
+            if (indicesOptions != null) {
+                searchRequest.indicesOptions(indicesOptions);
             }
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
@@ -107,6 +107,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                 searchRequest.routing(routing);
             }
             searchRequest.searchType(searchType);
+
+            boolean ignoreUnavailable = IndicesOptions.strict().ignoreUnavailable();
+            boolean allowNoIndices = IndicesOptions.strict().allowNoIndices();
+            boolean expandWildcardsOpen = IndicesOptions.strict().expandWildcardsOpen();
+            boolean expandWildcardsClosed = IndicesOptions.strict().expandWildcardsClosed();
 
             // now parse the action
             if (nextMarker - from > 0) {
@@ -134,8 +139,21 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {
                                     searchRequest.routing(parser.text());
-                                } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
-                                    searchRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
+                                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                                    ignoreUnavailable = parser.booleanValue();
+                                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                                    allowNoIndices = parser.booleanValue();
+                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                                    String[] wildcards = Strings.splitStringByCommaToArray(parser.text());
+                                    for (String wildcard : wildcards) {
+                                        if ("open".equals(wildcard)) {
+                                            expandWildcardsOpen = true;
+                                        } else if ("closed".equals(wildcard)) {
+                                            expandWildcardsClosed = true;
+                                        } else {
+                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                        }
+                                    }
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
@@ -145,6 +163,17 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.indices(parseArray(parser));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
                                     searchRequest.types(parseArray(parser));
+                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                                    String[] wildcards = parseArray(parser);
+                                    for (String wildcard : wildcards) {
+                                        if ("open".equals(wildcard)) {
+                                            expandWildcardsOpen = true;
+                                        } else if ("closed".equals(wildcard)) {
+                                            expandWildcardsClosed = true;
+                                        } else {
+                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                        }
+                                    }
                                 } else {
                                     throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
                                 }
@@ -155,6 +184,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                     parser.close();
                 }
             }
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
 
             // move pointers
             from = nextMarker + 1;
@@ -215,12 +245,12 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
         return validationException;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
-    public MultiSearchRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 

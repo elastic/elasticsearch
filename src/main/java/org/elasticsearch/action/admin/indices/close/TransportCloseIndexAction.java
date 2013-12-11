@@ -77,7 +77,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         ClusterState state = clusterService.state();
         String[] indicesOrAliases = request.indices();
-        request.indices(state.metaData().concreteIndices(indicesOrAliases, request.ignoreIndices(), false));
+        request.indices(state.metaData().concreteIndices(indicesOrAliases, request.indicesOptions()));
 
         if (disableCloseAllIndices) {
             if (state.metaData().isExplicitAllIndices(indicesOrAliases) ||

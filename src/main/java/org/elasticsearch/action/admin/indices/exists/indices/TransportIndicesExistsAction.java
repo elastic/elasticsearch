@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -77,11 +78,13 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) throws ElasticSearchException {
-        boolean exists = true;
-        for (String index : request.indices()) {
-            if (!state.metaData().hasConcreteIndex(index)) {
-                exists = false;
-            }
+        boolean exists;
+        try {
+            // Similar as the previous behaviour, but now also aliases and wildcards are supported.
+            clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions());
+            exists = true;
+        } catch (IndexMissingException e) {
+            exists = false;
         }
         listener.onResponse(new IndicesExistsResponse(exists));
     }

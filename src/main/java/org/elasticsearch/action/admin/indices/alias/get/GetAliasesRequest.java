@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +36,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     public GetAliasesRequest(String[] aliases) {
         this.aliases = aliases;
@@ -59,8 +59,8 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         return this;
     }
 
-    public GetAliasesRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public GetAliasesRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -72,8 +72,8 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         return aliases;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     @Override
@@ -86,7 +86,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         super.readFrom(in);
         indices = in.readStringArray();
         aliases = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -94,6 +94,6 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
     }
 }

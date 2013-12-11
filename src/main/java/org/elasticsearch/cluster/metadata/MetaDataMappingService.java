@@ -492,9 +492,6 @@ public class MetaDataMappingService extends AbstractComponent {
             public ClusterState execute(final ClusterState currentState) throws Exception {
                 List<String> indicesToClose = Lists.newArrayList();
                 try {
-                    if (request.indices().length == 0) {
-                        throw new IndexMissingException(new Index("_all"));
-                    }
                     for (String index : request.indices()) {
                         if (!currentState.metaData().hasIndex(index)) {
                             throw new IndexMissingException(new Index(index));

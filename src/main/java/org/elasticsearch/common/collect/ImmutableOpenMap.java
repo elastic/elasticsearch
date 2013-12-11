@@ -56,6 +56,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
+     * @return Returns the value associated with the given key or the provided default value if the
+     * key is not associated with any value.
+     */
+    public VType getOrDefault(KType key, VType defaultValue) {
+        return map.getOrDefault(key, defaultValue);
+    }
+
+    /**
      * Returns <code>true</code> if this container has an association to a value for
      * the given key.
      */

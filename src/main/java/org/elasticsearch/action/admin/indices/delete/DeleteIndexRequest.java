@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +38,8 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> {
 
     private String[] indices;
-
+    // Delete index should work by default on both open and closed indices.
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
     DeleteIndexRequest() {
@@ -52,6 +54,15 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     public DeleteIndexRequest(String... indices) {
         this.indices = indices;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public DeleteIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override
@@ -107,6 +118,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readString();
         }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         timeout = readTimeValue(in);
     }
 
@@ -121,6 +133,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
                 out.writeString(index);
             }
         }
+        indicesOptions.writeIndicesOptions(out);
         timeout.writeTo(out);
     }
 }

@@ -229,9 +229,9 @@ Possible options:
     option, this option supports wildcards and the option the specify
     multiple alias names separated by a comma. This is a required option. 
 
-`ignore_indices`::
+`ignore_unavailable`::
     What to do is an specified index name doesn't
-    exist. If set to `missing` then those indices are ignored.
+    exist. If set to `true` then those indices are ignored.
 
 The rest endpoint is: `/{index}/_alias/{alias}`.
 

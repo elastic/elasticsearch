@@ -81,7 +81,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         ClusterState state = clusterService.state();
         String[] indicesOrAliases = request.indices();
 
-        request.indices(state.metaData().concreteIndices(request.indices()));
+        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
 
         if (disableDeleteAllIndices) {
             if (state.metaData().isAllIndices(indicesOrAliases) ||

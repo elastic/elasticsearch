@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations;
 import com.carrotsearch.hppc.IntOpenHashSet;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,7 +77,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
@@ -190,7 +190,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
@@ -246,7 +246,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("values").script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))

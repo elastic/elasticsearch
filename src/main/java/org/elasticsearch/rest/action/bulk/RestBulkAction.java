@@ -26,7 +26,9 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
@@ -107,6 +109,7 @@ public class RestBulkAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
                     builder.field(Fields.TOOK, response.getTookInMillis());
+                    builder.field(Fields.ERRORS, response.hasFailures());
                     builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();
@@ -119,13 +122,33 @@ public class RestBulkAction extends BaseRestHandler {
                             builder.field(Fields._VERSION, itemResponse.getVersion());
                         }
                         if (itemResponse.isFailed()) {
+                            builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
                             builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
                         } else {
                             builder.field(Fields.OK, true);
-                        }
-                        if (itemResponse.getResponse() instanceof DeleteResponse) {
-                            DeleteResponse deleteResponse = itemResponse.getResponse();
-                            builder.field(Fields.FOUND, !deleteResponse.isNotFound());
+                            if (itemResponse.getResponse() instanceof DeleteResponse) {
+                                DeleteResponse deleteResponse = itemResponse.getResponse();
+                                if (deleteResponse.isNotFound()) {
+                                    builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
+                                } else {
+                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                                }
+                                builder.field(Fields.FOUND, !deleteResponse.isNotFound());
+                            } else if (itemResponse.getResponse() instanceof IndexResponse) {
+                                IndexResponse indexResponse = itemResponse.getResponse();
+                                if (indexResponse.isCreated()) {
+                                    builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
+                                } else {
+                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                                }
+                            } else if (itemResponse.getResponse() instanceof UpdateResponse) {
+                                UpdateResponse updateResponse = itemResponse.getResponse();
+                                if (updateResponse.isCreated()) {
+                                    builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
+                                } else {
+                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                                }
+                            }
                         }
                         builder.endObject();
                         builder.endObject();
@@ -152,9 +175,11 @@ public class RestBulkAction extends BaseRestHandler {
 
     static final class Fields {
         static final XContentBuilderString ITEMS = new XContentBuilderString("items");
+        static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
         static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");

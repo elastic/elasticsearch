@@ -182,7 +182,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     }
                     responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
-                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e));
                     // nullify the request so it won't execute on the replicas
                     request.items()[requestIndex] = null;
                 }
@@ -207,7 +207,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     }
                     responses[requestIndex] = new BulkItemResponse(item.id(), "delete",
-                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), e));
                     // nullify the request so it won't execute on the replicas
                     request.items()[requestIndex] = null;
                 }
@@ -276,7 +276,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             if (updateAttemptsCount >= updateRequest.retryOnConflict()) {
                                 // we can't try any more
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update",
-                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), t));
                                 ;
 
                                 request.items()[requestIndex] = null; // do not send to replicas
@@ -291,7 +291,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 throw (ElasticSearchException) t;
                             }
                             if (updateResult.result == null) {
-                                responses[requestIndex] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                                responses[requestIndex] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), t));
                             } else {
                                 switch (updateResult.result.operation()) {
                                     case UPSERT:
@@ -303,7 +303,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                             logger.debug("[{}][{}] failed to execute bulk item (index) {}", t, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                                         }
                                         responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
-                                                new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                                                new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), t));
                                         break;
                                     case DELETE:
                                         DeleteRequest deleteRequest = updateResult.request();
@@ -313,7 +313,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                             logger.debug("[{}][{}] failed to execute bulk item (delete) {}", t, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                                         }
                                         responses[requestIndex] = new BulkItemResponse(item.id(), "delete",
-                                                new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                                                new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), t));
                                         break;
                                 }
                             }

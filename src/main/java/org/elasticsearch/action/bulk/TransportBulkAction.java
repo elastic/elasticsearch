@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -257,19 +258,20 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
+                    RestStatus status = ExceptionsHelper.status(e);
                     for (BulkItemRequest request : requests) {
                         if (request.request() instanceof IndexRequest) {
                             IndexRequest indexRequest = (IndexRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                    new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message)));
+                                    new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message, status)));
                         } else if (request.request() instanceof DeleteRequest) {
                             DeleteRequest deleteRequest = (DeleteRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), "delete",
-                                    new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message)));
+                                    new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message, status)));
                         } else if (request.request() instanceof UpdateRequest) {
                             UpdateRequest updateRequest = (UpdateRequest) request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), "update",
-                                    new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message)));
+                                    new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message, status)));
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

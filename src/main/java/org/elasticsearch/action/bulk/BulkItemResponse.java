@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -43,12 +45,23 @@ public class BulkItemResponse implements Streamable {
         private final String type;
         private final String id;
         private final String message;
+        private final RestStatus status;
 
-        public Failure(String index, String type, String id, String message) {
+        public Failure(String index, String type, String id, Throwable t) {
+            this.index = index;
+            this.type = type;
+            this.id = id;
+            this.message = ExceptionsHelper.detailedMessage(t);
+            this.status = ExceptionsHelper.status(t);
+        }
+
+
+        public Failure(String index, String type, String id, String message, RestStatus status) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.message = message;
+            this.status = status;
         }
 
         /**
@@ -77,6 +90,13 @@ public class BulkItemResponse implements Streamable {
          */
         public String getMessage() {
             return this.message;
+        }
+
+        /**
+         * The rest status.
+         */
+        public RestStatus getStatus() {
+            return this.status;
         }
     }
 
@@ -242,7 +262,12 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            failure = new Failure(in.readSharedString(), in.readSharedString(), in.readString(), in.readString());
+            String fIndex = in.readSharedString();
+            String fType = in.readSharedString();
+            String fId = in.readString();
+            String fMessage = in.readString();
+            RestStatus status = RestStatus.readFrom(in);
+            failure = new Failure(fIndex, fType, fId, fMessage, status);
         }
     }
 
@@ -271,6 +296,7 @@ public class BulkItemResponse implements Streamable {
             out.writeSharedString(failure.getType());
             out.writeString(failure.getId());
             out.writeString(failure.getMessage());
+            RestStatus.writeTo(out, failure.getStatus());
         }
     }
 }

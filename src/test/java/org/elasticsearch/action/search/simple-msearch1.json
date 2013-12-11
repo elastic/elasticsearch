@@ -1,6 +1,6 @@
-{"index":"test"}
+{"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}
 {"query" : {"match_all" {}}}
-{"index" : "test", "type" : "type1"}
+{"index" : "test", "type" : "type1", "expand_wildcards" : ["open", "closed"]}
 {"query" : {"match_all" {}}}
 {}
 {"query" : {"match_all" {}}}

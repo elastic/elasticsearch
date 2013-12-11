@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 
@@ -38,12 +38,12 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.
      * <p/>
-     * If ignoreIndices has been set on the search request, then the ignoreIndices of the multi search request
+     * If ignoreIndices has been set on the search request, then the indicesOptions of the multi search request
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.ignoreIndices() == IgnoreIndices.DEFAULT && request().ignoreIndices() != IgnoreIndices.DEFAULT) {
-            request.ignoreIndices(request().ignoreIndices());
+        if (request.indicesOptions() == IndicesOptions.strict() && request().indicesOptions() != IndicesOptions.strict()) {
+            request.indicesOptions(request().indicesOptions());
         }
 
         super.request.add(request);
@@ -55,8 +55,8 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().ignoreIndices() == IgnoreIndices.DEFAULT && request().ignoreIndices() != IgnoreIndices.DEFAULT) {
-            request.request().ignoreIndices(request().ignoreIndices());
+        if (request.request().indicesOptions() == IndicesOptions.strict() && request().indicesOptions() != IndicesOptions.strict()) {
+            request.request().indicesOptions(request().indicesOptions());
         }
 
         super.request.add(request);
@@ -64,11 +64,13 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
+     * For example indices that don't exist.
+     *
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
-    public MultiSearchRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+    public MultiSearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
         return this;
     }
 

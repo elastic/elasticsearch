@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -46,6 +47,16 @@ public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<Dele
      */
     public DeleteMappingRequestBuilder setType(String type) {
         request.type(type);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public DeleteMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
         return this;
     }
 

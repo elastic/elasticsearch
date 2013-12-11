@@ -68,8 +68,13 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
+    protected void doExecute(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        super.doExecute(request, listener);
+    }
 
+    @Override
+    protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
                 .indices(request.indices())
                 .settings(request.settings())

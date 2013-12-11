@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -47,6 +48,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
                 .types(Strings.splitStringByCommaToArray(request.param("type")))
                 .source(request.content(), request.contentUnsafe());
+        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));

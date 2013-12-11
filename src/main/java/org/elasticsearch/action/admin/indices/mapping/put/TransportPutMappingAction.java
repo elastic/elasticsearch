@@ -71,7 +71,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
         super.doExecute(request, listener);
     }
 
@@ -82,7 +82,6 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
-
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices()).type(request.type())

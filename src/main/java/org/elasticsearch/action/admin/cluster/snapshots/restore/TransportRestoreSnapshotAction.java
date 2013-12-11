@@ -78,7 +78,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
         RestoreService.RestoreRequest restoreRequest =
                 new RestoreService.RestoreRequest("restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot())
                         .indices(request.indices())
-                        .ignoreIndices(request.ignoreIndices())
+                        .indicesOptions(request.indicesOptions())
                         .renamePattern(request.renamePattern())
                         .renameReplacement(request.renameReplacement())
                         .includeGlobalState(request.includeGlobalState())

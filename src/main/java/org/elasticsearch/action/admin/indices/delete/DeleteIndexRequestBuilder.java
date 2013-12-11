@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -49,6 +50,16 @@ public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      */
     public DeleteIndexRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public DeleteIndexRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
         return this;
     }
 

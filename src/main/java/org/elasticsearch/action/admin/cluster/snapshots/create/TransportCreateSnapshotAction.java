@@ -77,7 +77,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
         SnapshotsService.SnapshotRequest snapshotRequest =
                 new SnapshotsService.SnapshotRequest("create_snapshot[" + request.snapshot() + "]", request.snapshot(), request.repository())
                         .indices(request.indices())
-                        .ignoreIndices(request.ignoreIndices())
+                        .indicesOptions(request.indicesOptions())
                         .settings(request.settings())
                         .includeGlobalState(request.includeGlobalState())
                         .masterNodeTimeout(request.masterNodeTimeout());

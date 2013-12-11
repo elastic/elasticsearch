@@ -272,8 +272,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 synchronized (mutex) {
                     // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
                     if (state == IndexShardState.POST_RECOVERY) {
-                        logger.debug("state: [{}]->[{}], reason [global state is [{}]]", state, IndexShardState.STARTED, newRouting.state());
-                        state = IndexShardState.STARTED;
+                        changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                         movedToStarted = true;
                     } else {
                         logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
@@ -297,7 +296,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public IndexShardState recovering(String reason) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
-            IndexShardState returnValue = state;
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
             }
@@ -313,9 +311,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.POST_RECOVERY) {
                 throw new IndexShardRecoveringException(shardId);
             }
-            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RECOVERING, reason);
-            state = IndexShardState.RECOVERING;
-            return returnValue;
+            return changeState(IndexShardState.RECOVERING, reason);
         }
     }
 
@@ -324,8 +320,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
-            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RELOCATED, reason);
-            state = IndexShardState.RELOCATED;
+            changeState(IndexShardState.RELOCATED, reason);
         }
         return this;
     }
@@ -333,6 +328,20 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public IndexShardState state() {
         return state;
+    }
+
+    /**
+     * Changes the state of the current shard
+     * @param newState the new shard state
+     * @param reason the reason for the state change
+     * @return the previous shard state
+     */
+    private IndexShardState changeState(IndexShardState newState, String reason) {
+        logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
+        IndexShardState previousState = state;
+        state = newState;
+        this.indicesLifecycle.indexShardStateChanged(this, previousState, reason);
+        return previousState;
     }
 
     @Override
@@ -614,10 +623,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     mergeScheduleFuture = null;
                 }
             }
-            if (logger.isDebugEnabled()) {
-                logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
-            }
-            state = IndexShardState.CLOSED;
+            changeState(IndexShardState.CLOSED, reason);
         }
     }
 
@@ -642,8 +648,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.start();
             startScheduledTasksIfNeeded();
-            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.POST_RECOVERY, reason);
-            state = IndexShardState.POST_RECOVERY;
+            changeState(IndexShardState.POST_RECOVERY, reason);
         }
         return this;
     }
@@ -685,8 +690,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         translog.clearUnreferenced();
         engine.refresh(new Engine.Refresh("recovery_finalization").force(true));
         synchronized (mutex) {
-            logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.POST_RECOVERY);
-            state = IndexShardState.POST_RECOVERY;
+            changeState(IndexShardState.POST_RECOVERY, "post recovery");
         }
         startScheduledTasksIfNeeded();
         engine.enableGcDeletes(true);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -107,6 +108,8 @@ public interface IndexShard extends IndexShardComponent {
     FieldDataStats fieldDataStats(String... fields);
 
     CompletionStats completionStats(String... fields);
+
+    TranslogStats translogStats();
 
     PercolatorQueriesRegistry percolateRegistry();
 

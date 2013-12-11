@@ -154,6 +154,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setTranslog(boolean translog) {
+        request.translog(translog);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);

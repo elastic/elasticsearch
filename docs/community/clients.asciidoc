@@ -43,6 +43,9 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/cu
 * https://github.com/wireframe/elastic_searchable/[elastic_searchable]:
   Ruby client + Rails integration.
 
+* https://github.com/ddnexus/flex[Flex]:
+  Ruby Client.
+
 
 [[community-php]]
 === PHP
@@ -55,6 +58,8 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/cu
 * http://github.com/polyfractal/Sherlock[Sherlock]:
   PHP client, one-to-one mapping with query DSL, fluid interface.
 
+* https://github.com/nervetattoo/elasticsearch[elasticsearch]
+  PHP 5.3 client
 
 [[community-java]]
 === Java
@@ -177,3 +182,8 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/elasticsearch
 
 * https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-ElasticSearch-Client]
   Cold Fusion client for Elasticsearch
+
+[[community-nodejs]]
+=== NodeJS
+* https://github.com/phillro/node-elasticsearch-client[Node-Elasticsearch-Client]
+  A node.js client for elasticsearch

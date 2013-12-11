@@ -64,7 +64,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) throws ElasticSearchException {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
+        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
         request.indices(concreteIndices);
 
         @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +36,7 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
     private String[] indices;
     private String[] types;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     TypesExistsRequest() {
     }
@@ -62,12 +62,12 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         this.types = types;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
-    public TypesExistsRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public TypesExistsRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -88,7 +88,7 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -96,6 +96,6 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

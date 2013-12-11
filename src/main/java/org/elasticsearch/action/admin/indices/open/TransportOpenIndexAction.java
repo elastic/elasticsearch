@@ -71,7 +71,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.ignoreIndices(), false));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
         super.doExecute(request, listener);
     }
 

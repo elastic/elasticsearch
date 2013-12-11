@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.indices.IndexMissingException;
@@ -81,7 +81,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose("test1", "test2")
-                .setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+                .setIndicesOptions(IndicesOptions.lenient()).execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test1");
     }
@@ -102,7 +102,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test1", "test2")
-                .setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+                .setIndicesOptions(IndicesOptions.lenient()).execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }

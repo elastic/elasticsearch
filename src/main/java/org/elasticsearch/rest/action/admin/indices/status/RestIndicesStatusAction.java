@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.status;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -60,9 +60,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatusRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            indicesStatusRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        indicesStatusRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatusRequest.indicesOptions()));
         indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
         indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);

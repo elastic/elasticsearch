@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -37,8 +37,10 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
         MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true)));
         assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(1).indicesOptions(), equalTo(IndicesOptions.fromOptions(false, true, true, true)));
         assertThat(request.requests().get(1).types()[0], equalTo("type1"));
         assertThat(request.requests().get(2).indices(), nullValue());
         assertThat(request.requests().get(2).types().length, equalTo(0));

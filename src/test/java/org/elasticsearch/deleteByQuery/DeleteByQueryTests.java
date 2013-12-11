@@ -22,7 +22,7 @@ package org.elasticsearch.deleteByQuery;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
@@ -41,6 +41,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.getIndices().size(), equalTo(0));
     }
@@ -86,7 +87,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         } catch (IndexMissingException e) {
         }
 
-        deleteByQueryRequestBuilder.setIgnoreIndices(IgnoreIndices.MISSING);
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenient());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));

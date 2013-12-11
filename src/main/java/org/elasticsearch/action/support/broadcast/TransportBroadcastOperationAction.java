@@ -126,7 +126,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;
@@ -147,6 +147,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 } catch (Throwable e) {
                     listener.onFailure(e);
                 }
+                return;
             }
             request.beforeStart();
             // count the local operations, and perform the non local ones

@@ -25,7 +25,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.ShardSnapshotStatus;
@@ -162,7 +162,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                 SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
                 if (snapshots == null || snapshots.entries().isEmpty()) {
                     // Store newSnapshot here to be processed in clusterStateProcessed
-                    ImmutableList<String> indices = ImmutableList.copyOf(metaData.concreteIndices(request.indices(), request.ignoreIndices(), true));
+                    ImmutableList<String> indices = ImmutableList.copyOf(metaData.concreteIndices(request.indices(), request.indicesOptions()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", request.repository(), request.name(), indices);
                     newSnapshot = new SnapshotMetaData.Entry(snapshotId, request.includeGlobalState(), State.INIT, indices, null);
                     snapshots = new SnapshotMetaData(newSnapshot);
@@ -983,7 +983,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         private String[] indices;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+        private IndicesOptions indicesOptions = IndicesOptions.strict();
 
         private Settings settings;
 
@@ -1049,13 +1049,13 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
         }
 
         /**
-         * Sets ignore indices flag
+         * Sets the indices options
          *
-         * @param ignoreIndices ignore indices flag
+         * @param indicesOptions indices options
          * @return this request
          */
-        public SnapshotRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-            this.ignoreIndices = ignoreIndices;
+        public SnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
             return this;
         }
 
@@ -1096,12 +1096,12 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
         }
 
         /**
-         * Returns ignore indices flag
+         * Returns indices options
          *
-         * @return ignore indices flag
+         * @return indices options
          */
-        public IgnoreIndices ignoreIndices() {
-            return ignoreIndices;
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
         }
 
         /**

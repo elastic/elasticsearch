@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +34,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
     private boolean local = false;
 
     @SuppressWarnings("unchecked")
@@ -50,8 +50,8 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     }
 
     @SuppressWarnings("unchecked")
-    public T ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public T indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return (T) this;
     }
 
@@ -69,8 +69,8 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         return types;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     public boolean local() {
@@ -82,7 +82,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         local = in.readBoolean();
     }
 
@@ -91,7 +91,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(local);
     }
 }

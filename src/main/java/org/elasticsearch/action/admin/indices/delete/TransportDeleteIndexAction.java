@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index action.
  */
+// TODO: Didn't support ignore_indices, how should it deal with the new options?
 public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> {
 
     private final MetaDataDeleteIndexService deleteIndexService;

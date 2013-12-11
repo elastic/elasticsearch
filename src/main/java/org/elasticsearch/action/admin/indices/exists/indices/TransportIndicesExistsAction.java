@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Indices exists action.
  */
+// TODO: Didn't support ignore_indices, how should it deal with the new options? Also right now no wildcard support etc
 public class TransportIndicesExistsAction extends TransportMasterNodeOperationAction<IndicesExistsRequest, IndicesExistsResponse> {
 
     @Inject

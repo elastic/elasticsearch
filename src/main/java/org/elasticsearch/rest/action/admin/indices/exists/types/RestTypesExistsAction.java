@@ -23,7 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -51,9 +51,7 @@ public class RestTypesExistsAction extends BaseRestHandler {
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );
         typesExistsRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            typesExistsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        typesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, typesExistsRequest.indicesOptions()));
         client.admin().indices().typesExists(typesExistsRequest, new ActionListener<TypesExistsResponse>() {
             @Override
             public void onResponse(TypesExistsResponse response) {

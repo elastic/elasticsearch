@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -81,7 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     public SearchRequest() {
     }
@@ -171,12 +171,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
-    public SearchRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -470,7 +470,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         extraSource = in.readBytesReference();
 
         types = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -496,6 +496,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         out.writeBytesReference(source);
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
     }
 }

@@ -19,7 +19,7 @@ curl -XPOST 'localhost:9200/my_index/_open'
 
 It is possible to open and close multiple indices. An error will be thrown
 if the request explicitly refers to a missing index. This behaviour can be
-disabled using the `ignore_indices=missing` parameter.
+disabled using the `ignore_unavailable=true` parameter.
 
 All indices can be opened or closed at once using `_all` as the index name
 or specifying patterns that identify them all (e.g. `*`).

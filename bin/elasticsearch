@@ -46,6 +46,22 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
+
+# Maven will replace dollar{project.build.finalName} below with the release
+# name. If that hasn't been done, the shell will barf on what it thinks are
+# variables of the form ${X.Y.Z}, as appear in elasticsearch.in.sh. To give a
+# more useful error message when the user has forgotten to run Maven, we check
+# if the string that should be substituted away still starts with a dollar
+# sign.
+if [ `echo '${project.build.finalName}' | head -c1` = '$' ]; then
+    cat >&2 << EOF
+Error: You must build the project with Maven or download a pre-built package
+before you can run Elasticsearch. See 'Building from Source' in README.textile
+or visit http://www.elasticsearch.org/download to get a pre-built package.
+EOF
+    exit 1
+fi
+
 CDPATH=""
 SCRIPT="$0"
 

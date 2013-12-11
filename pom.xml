@@ -802,6 +802,19 @@
                                 </source>
                             </sources>
                         </mapping>
+                         <mapping>
+                            <directory>/usr/lib/sysctl.d/</directory>
+                            <filemode>755</filemode>
+                            <configuration>true</configuration>
+                            <sources>
+                                <source>
+                                    <location>src/rpm/systemd/sysctl.d</location>
+                                    <includes>
+                                        <include>elasticsearch.conf</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
                         <mapping>
                             <directory>/etc/tmpfiles.d/</directory>
                             <configuration>true</configuration>

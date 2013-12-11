@@ -19,6 +19,9 @@ MAX_OPEN_FILES=65535
 # Maximum amount of locked memory
 #MAX_LOCKED_MEMORY=
 
+# Maximum number of VMA (Virtual Memory Areas) a process can own
+MAX_MAP_COUNT=65535
+
 # ElasticSearch log directory
 LOG_DIR=/var/log/elasticsearch
 

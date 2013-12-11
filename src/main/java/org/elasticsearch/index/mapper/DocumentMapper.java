@@ -655,13 +655,13 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(mergeContext.buildConflicts());
     }
 
-    public void refreshSource() throws FailedToGenerateSourceMapperException {
+    public CompressedString refreshSource() throws FailedToGenerateSourceMapperException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            this.mappingSource = new CompressedString(builder.bytes());
+            return mappingSource = new CompressedString(builder.bytes());
         } catch (Exception e) {
             throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
         }

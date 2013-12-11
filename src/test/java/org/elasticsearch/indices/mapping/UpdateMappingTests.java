@@ -1,19 +1,18 @@
 package org.elasticsearch.indices.mapping;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import org.elasticsearch.action.ActionListener;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -23,13 +22,12 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -41,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void dynamicUpdates_Index() throws Exception {
+    public void dynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -50,32 +48,15 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        ThreadPool.Info info = cluster().getInstance(ThreadPool.class).info(ThreadPool.Names.INDEX);
-        int recCount = info.getMax() + (int) info.getQueueSize().getSingles();
-        final CountDownLatch latch = new CountDownLatch(recCount);
+        int recCount = randomIntBetween(200, 600);
+        int numberOfTypes = randomIntBetween(1, 5);
+        List<IndexRequestBuilder> indexRequests = Lists.newArrayList();
         for (int rec = 0; rec < recCount; rec++) {
-            client().prepareIndex("test", "type", "rec" + rec).setSource("field" + rec, "some_value").execute(new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.error("failed to index in test", e);
-                    latch.countDown();
-                }
-            });
+            String type = "type" + (rec % numberOfTypes);
+            String fieldName = "field_" + type + "_" + rec;
+            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec)).setSource(fieldName, "some_value"));
         }
-        latch.await();
-        logger.info("wait till the mappings have been processed...");
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                return pendingTasks.pendingTasks().isEmpty();
-            }
-        });
+        indexRandom(true, indexRequests);
 
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
@@ -84,76 +65,37 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat(response.getCount(), equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
-        String source = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type").source().string();
-        for (int rec = 0; rec < recCount; rec++) {
-            assertThat(source, containsString("\"field" + rec + "\""));
-        }
-    }
 
-    @Test
-    public void dynamicUpdates_Bulk() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                ).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        ThreadPool.Info info = cluster().getInstance(ThreadPool.class).info(ThreadPool.Names.BULK);
-        int bulkCount = info.getMax() + (int) info.getQueueSize().getSingles();
-        int bulkSize = between(4, 10);
-        int recCount = bulkCount * bulkSize;
-        int idCounter = 0;
-        final CountDownLatch latch = new CountDownLatch(bulkCount);
-        for (int i = 0; i < bulkCount; i++) {
-            BulkRequestBuilder bulk = client().prepareBulk();
-            for (int rec = 0; rec < bulkSize; rec++) {
-                int id = idCounter++;
-                bulk.add(new IndexRequestBuilder(client())
-                        .setOpType(IndexRequest.OpType.INDEX)
-                        .setIndex("test")
-                        .setType("type")
-                        .setId("rec" + id)
-                        .setSource("field" + id, "some_value"));
+        reRunTest:
+        while (true) {
+            Map<String, String> typeToSource = Maps.newHashMap();
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : state.getMetaData().getIndices().get("test").getMappings()) {
+                typeToSource.put(cursor.key, cursor.value.source().string());
             }
-            bulk.execute(new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
-                    if (bulkItemResponses.hasFailures()) {
-                        System.out.println("failed to index in test: " + bulkItemResponses.buildFailureMessage());
+            for (int rec = 0; rec < recCount; rec++) {
+                String type = "type" + (rec % numberOfTypes);
+                String fieldName = "field_" + type + "_" + rec;
+                fieldName = "\"" + fieldName + "\""; // quote it, so we make sure we catch the exact one
+                if (!typeToSource.containsKey(type) || !typeToSource.get(type).contains(fieldName)) {
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
+                            return pendingTasks.pendingTasks().isEmpty();
+                        }
+                    });
+                    // its going to break, before we do, make sure that the cluster state hasn't changed on us...
+                    ClusterState state2 = client().admin().cluster().prepareState().get().getState();
+                    if (state.version() != state2.version()) {
+                        logger.info("not the same version, used for test {}, new one {}, re-running test, first wait for mapping to wait", state.version(), state2.version());
+                        continue reRunTest;
                     }
-                    latch.countDown();
+                    logger.info("failing, type {}, field {}, mapping {}", type, fieldName, typeToSource.get(type));
+                    assertThat(typeToSource.get(type), containsString(fieldName));
                 }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.error("failed to index in test", e);
-                    latch.countDown();
-                }
-            });
-        }
-        latch.await();
-
-        logger.info("wait till the mappings have been processed...");
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                return pendingTasks.pendingTasks().isEmpty();
             }
-        });
-
-        logger.info("checking all the documents are there");
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        CountResponse response = client().prepareCount("test").execute().actionGet();
-        assertThat(response.getCount(), equalTo((long) recCount));
-
-        logger.info("checking all the fields are in the mappings");
-        String source = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type").source().string();
-        for (int rec = 0; rec < recCount; rec++) {
-            assertThat(source, containsString("\"field" + rec + "\""));
+            break;
         }
     }
 
@@ -227,12 +169,12 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void updateIncludeExclude() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
+        assertAcked(prepareCreate("test").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("normal").field("type", "long").endObject()
-                    .startObject("exclude").field("type", "long").endObject()
-                    .startObject("include").field("type", "long").endObject()
-                    .endObject().endObject().endObject()));
+                        .startObject("normal").field("type", "long").endObject()
+                        .startObject("exclude").field("type", "long").endObject()
+                        .startObject("include").field("type", "long").endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen(); // make sure that replicas are initialized so the refresh command will work them too
 
         logger.info("Index doc");

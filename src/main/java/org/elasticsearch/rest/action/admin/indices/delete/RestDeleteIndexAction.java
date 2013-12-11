@@ -19,21 +19,13 @@
 
 package org.elasticsearch.rest.action.admin.indices.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
-
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -53,34 +45,6 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         deleteIndexRequest.listenerThreaded(false);
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
-        client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
-            @Override
-            public void onResponse(DeleteIndexResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
-                            .endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
-    }
-
-    static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
-        static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
+        client.admin().indices().delete(deleteIndexRequest, new AcknowledgedRestResponseActionListener<DeleteIndexResponse>(request, channel, logger));
     }
 }

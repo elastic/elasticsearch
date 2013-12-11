@@ -69,17 +69,16 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(6l));
         assertThat(stats.getTotal().getStore(), notNullValue());
-        // verify nulls
-        assertThat(stats.getTotal().getMerge(), nullValue());
-        assertThat(stats.getTotal().getFlush(), nullValue());
-        assertThat(stats.getTotal().getRefresh(), nullValue());
+        assertThat(stats.getTotal().getMerge(), notNullValue());
+        assertThat(stats.getTotal().getFlush(), notNullValue());
+        assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2l));
         assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(4l));
         assertThat(stats.getIndex("test1").getPrimaries().getStore(), notNullValue());
-        assertThat(stats.getIndex("test1").getPrimaries().getMerge(), nullValue());
-        assertThat(stats.getIndex("test1").getPrimaries().getFlush(), nullValue());
-        assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), nullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getMerge(), notNullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getFlush(), notNullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), notNullValue());
 
         assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1l));
         assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(2l));
@@ -91,10 +90,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0l));
 
         // check flags
-        stats = client().admin().indices().prepareStats()
-                .setDocs(false)
-                .setStore(false)
-                .setIndexing(false)
+        stats = client().admin().indices().prepareStats().clear()
                 .setFlush(true)
                 .setRefresh(true)
                 .setMerge(true)
@@ -322,7 +318,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -377,6 +373,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
             case Segments:
                 builder.setSegments(set);
                 break;
+            case Translog:
+                builder.setTranslog(set);
+                break;
             default:
                 assert false : "new flag? " + flag;
                 break;
@@ -415,6 +414,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getCompletion() != null;
             case Segments:
                 return response.getSegments() != null;
+            case Translog:
+                return response.getTranslog() != null;
             default:
                 assert false : "new flag? " + flag;
                 return false;

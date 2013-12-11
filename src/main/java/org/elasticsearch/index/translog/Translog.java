@@ -130,6 +130,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
     void syncOnEachOperation(boolean syncOnEachOperation);
 
+    /**
+     * return stats
+     */
+    TranslogStats stats();
+
     static class Location {
         public final long translogId;
         public final long translogLocation;

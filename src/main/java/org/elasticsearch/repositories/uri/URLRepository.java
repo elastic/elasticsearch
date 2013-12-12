@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.uri;
 
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.inject.Inject;
@@ -49,6 +50,8 @@ public class URLRepository extends BlobStoreRepository {
 
     private final URLBlobStore blobStore;
 
+    private final BlobPath basePath;
+
     /**
      * Constructs new read-only URL-based repository
      *
@@ -70,6 +73,7 @@ public class URLRepository extends BlobStoreRepository {
         int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
         ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
         blobStore = new URLBlobStore(componentSettings, concurrentStreamPool, url);
+        basePath = BlobPath.cleanPath();
     }
 
     /**
@@ -78,5 +82,10 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected BlobStore blobStore() {
         return blobStore;
+    }
+
+    @Override
+    protected BlobPath basePath() {
+        return basePath;
     }
 }

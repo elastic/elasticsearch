@@ -97,8 +97,6 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository {
 
-    private BlobPath basePath;
-
     private ImmutableBlobContainer snapshotsBlobContainer;
 
     private final String repositoryName;
@@ -124,7 +122,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         super(repositorySettings.globalSettings());
         this.repositoryName = repositoryName;
         this.indexShardRepository = (BlobStoreIndexShardRepository) indexShardRepository;
-        this.basePath = BlobPath.cleanPath();
         Map<String, String> globalOnlyParams = Maps.newHashMap();
         globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
         globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
@@ -135,8 +132,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     protected void doStart() throws ElasticSearchException {
-        this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath);
-        indexShardRepository.initialize(blobStore(), basePath, chunkSize());
+        this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath());
+        indexShardRepository.initialize(blobStore(), basePath(), chunkSize());
     }
 
     /**
@@ -166,6 +163,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @return blob store
      */
     abstract protected BlobStore blobStore();
+
+    /**
+     * Returns base path of the repository
+     */
+    abstract protected BlobPath basePath();
 
     /**
      * Returns true if metadata and snapshot files should be compressed
@@ -211,7 +213,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             snapshotsBlobContainer.writeBlob(metaDataBlobName(snapshotId), bStream.bytes().streamInput(), bStream.bytes().length());
             for (String index : indices) {
                 IndexMetaData indexMetaData = metaData.index(index);
-                BlobPath indexPath = basePath.add("indices").add(index);
+                BlobPath indexPath = basePath().add("indices").add(index);
                 ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
                 bStream = new BytesStreamOutput();
                 StreamOutput stream = bStream;
@@ -244,7 +246,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             snapshotsBlobContainer.deleteBlob(metaDataBlobName(snapshotId));
             // Now delete all indices
             for (String index : snapshot.indices()) {
-                BlobPath indexPath = basePath.add("indices").add(index);
+                BlobPath indexPath = basePath().add("indices").add(index);
                 ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
                 try {
                     indexMetaDataBlobContainer.deleteBlob(blobName);
@@ -266,7 +268,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public Snapshot finalizeSnapshot(SnapshotId snapshotId, String failure, int totalShards, ImmutableList<SnapshotShardFailure> shardFailures) {
-        BlobStoreSnapshot snapshot = readSnapshot(snapshotId);
+        BlobStoreSnapshot snapshot = (BlobStoreSnapshot)readSnapshot(snapshotId);
         if (snapshot == null) {
             throw new SnapshotMissingException(snapshotId);
         }
@@ -338,7 +340,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
         MetaData.Builder metaDataBuilder = MetaData.builder(metaData);
         for (String index : indices) {
-            BlobPath indexPath = basePath.add("indices").add(index);
+            BlobPath indexPath = basePath().add("indices").add(index);
             ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
             XContentParser parser = null;
             try {
@@ -368,7 +370,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public BlobStoreSnapshot readSnapshot(SnapshotId snapshotId) {
+    public Snapshot readSnapshot(SnapshotId snapshotId) {
         try {
             String blobName = snapshotBlobName(snapshotId);
             byte[] data = snapshotsBlobContainer.readBlobFully(blobName);

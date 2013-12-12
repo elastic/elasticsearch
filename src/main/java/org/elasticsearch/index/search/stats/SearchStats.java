@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.MeteredMeanMetric.TimeSnapshot;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,32 +41,39 @@ public class SearchStats implements Streamable, ToXContent {
 
         private long queryCount;
         private long queryTimeInMillis;
+        private TimeSnapshot queryTimeSnapshot;
         private long queryCurrent;
 
         private long fetchCount;
         private long fetchTimeInMillis;
+        private TimeSnapshot fetchTimeSnapshot;
         private long fetchCurrent;
 
         Stats() {
 
         }
 
-        public Stats(long queryCount, long queryTimeInMillis, long queryCurrent, long fetchCount, long fetchTimeInMillis, long fetchCurrent) {
+        public Stats(long queryCount, long queryTimeInMillis, TimeSnapshot queryTimeSnapshot, long queryCurrent, 
+                    long fetchCount, long fetchTimeInMillis, TimeSnapshot fetchTimeSnapshot, long fetchCurrent) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
+            this.queryTimeSnapshot = queryTimeSnapshot;
             this.queryCurrent = queryCurrent;
             this.fetchCount = fetchCount;
             this.fetchTimeInMillis = fetchTimeInMillis;
+            this.fetchTimeSnapshot = fetchTimeSnapshot;
             this.fetchCurrent = fetchCurrent;
         }
 
         public void add(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
+            queryTimeSnapshot = TimeSnapshot.add(queryTimeSnapshot, stats.queryTimeSnapshot);
             queryCurrent += stats.queryCurrent;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
+            fetchTimeSnapshot = TimeSnapshot.add(fetchTimeSnapshot, stats.fetchTimeSnapshot);
             fetchCurrent += stats.fetchCurrent;
         }
 
@@ -79,6 +87,10 @@ public class SearchStats implements Streamable, ToXContent {
 
         public long getQueryTimeInMillis() {
             return queryTimeInMillis;
+        }
+        
+        public TimeSnapshot getQueryTimeSnapshot() {
+            return queryTimeSnapshot;
         }
 
         public long getQueryCurrent() {
@@ -96,6 +108,10 @@ public class SearchStats implements Streamable, ToXContent {
         public long getFetchTimeInMillis() {
             return fetchTimeInMillis;
         }
+        
+        public TimeSnapshot getFetchTimeSnapshot() {
+            return fetchTimeSnapshot;
+        }
 
         public long getFetchCurrent() {
             return fetchCurrent;
@@ -112,10 +128,12 @@ public class SearchStats implements Streamable, ToXContent {
         public void readFrom(StreamInput in) throws IOException {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
+            queryTimeSnapshot = TimeSnapshot.readOptional(in);
             queryCurrent = in.readVLong();
 
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
+            fetchTimeSnapshot = TimeSnapshot.readOptional(in);
             fetchCurrent = in.readVLong();
         }
 
@@ -123,10 +141,12 @@ public class SearchStats implements Streamable, ToXContent {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
+            TimeSnapshot.writeOptional(out, queryTimeSnapshot);
             out.writeVLong(queryCurrent);
 
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
+            TimeSnapshot.writeOptional(out, fetchTimeSnapshot);
             out.writeVLong(fetchCurrent);
         }
 
@@ -134,10 +154,12 @@ public class SearchStats implements Streamable, ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.timeValueField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, queryTimeInMillis);
+            TimeSnapshot.toXContentOptional(builder, params, Fields.QUERY_TIME_SNAPSHOT, queryTimeSnapshot);
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.timeValueField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, fetchTimeInMillis);
+            TimeSnapshot.toXContentOptional(builder, params, Fields.FETCH_TIME_SNAPSHOT, fetchTimeSnapshot);
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
             return builder;
@@ -223,10 +245,12 @@ public class SearchStats implements Streamable, ToXContent {
         static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
         static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");
         static final XContentBuilderString QUERY_TIME_IN_MILLIS = new XContentBuilderString("query_time_in_millis");
+        static final XContentBuilderString QUERY_TIME_SNAPSHOT = new XContentBuilderString("query_time_snapshot");
         static final XContentBuilderString QUERY_CURRENT = new XContentBuilderString("query_current");
         static final XContentBuilderString FETCH_TOTAL = new XContentBuilderString("fetch_total");
         static final XContentBuilderString FETCH_TIME = new XContentBuilderString("fetch_time");
         static final XContentBuilderString FETCH_TIME_IN_MILLIS = new XContentBuilderString("fetch_time_in_millis");
+        static final XContentBuilderString FETCH_TIME_SNAPSHOT = new XContentBuilderString("fetch_time_snapshot");
         static final XContentBuilderString FETCH_CURRENT = new XContentBuilderString("fetch_current");
     }
 

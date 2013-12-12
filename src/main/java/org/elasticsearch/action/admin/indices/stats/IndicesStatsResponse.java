@@ -19,16 +19,22 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.stats.CommonStats.WeightSnapshot;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.metrics.MeteredMeanMetric.TimeSnapshot;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -168,6 +174,11 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
 
         builder.endObject();
 
+        boolean shardLevel = "shards".equalsIgnoreCase(params.param("level", null));
+        if (shardLevel) {
+            calculateWeights();
+        }
+        
         builder.startObject(Fields.INDICES);
         for (IndexStats indexStats : getIndices().values()) {
             builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
@@ -180,7 +191,7 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
             indexStats.getTotal().toXContent(builder, params);
             builder.endObject();
 
-            if ("shards".equalsIgnoreCase(params.param("level", null))) {
+            if (shardLevel) {
                 builder.startObject(Fields.SHARDS);
                 for (IndexShardStats indexShardStats : indexStats) {
                     builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
@@ -199,6 +210,89 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
         builder.endObject();
 
         return builder;
+    }
+    
+    private void calculateWeights() {
+        ObjectObjectMap<String, TotalWeight> nodeTotalWeights = ObjectObjectOpenHashMap.newInstance();
+        ObjectIntMap<String> nodeShardCounts = ObjectIntOpenHashMap.newInstance();
+        TotalWeight clusterTotalWeight = new TotalWeight();
+        int clusterShardCount = 0;
+        for (ShardStats shard : shards) {
+            String nodeId = shard.getShardRouting().currentNodeId();
+            nodeShardCounts.put(nodeId, 1 + nodeShardCounts.getOrDefault(nodeId, 0));
+            clusterShardCount += 1;
+            
+            TotalWeight shardWeight = getTotalWeightForShard(shard.stats);
+            clusterTotalWeight.add(shardWeight);
+            TotalWeight nodeTotalWeight = nodeTotalWeights.get(nodeId);
+            if (nodeTotalWeight == null) {
+                // Ok to just use the shard weight because we're not going to use it for anything else
+                nodeTotalWeight = shardWeight;
+            } else {
+                nodeTotalWeight.add(shardWeight);
+            }
+            nodeTotalWeights.put(nodeId, nodeTotalWeight);
+        }
+
+        for (ShardStats shard : shards) {
+            String nodeId = shard.getShardRouting().currentNodeId();
+            int nodeShardCount = nodeShardCounts.get(nodeId);
+            TotalWeight nodeTotalWeight = nodeTotalWeights.get(nodeId);
+
+            TotalWeight shardTotalWeight = getTotalWeightForShard(shard.getStats());            
+            shard.stats.weight = new CommonStats.Weight(
+                    clusterTotalWeight.buildWeightSnapshot(shardTotalWeight, clusterShardCount),
+                    nodeTotalWeight.buildWeightSnapshot(shardTotalWeight, nodeShardCount));
+        }
+    }
+    
+    private TotalWeight getTotalWeightForShard(CommonStats commonStats) {
+        TotalWeight weight = new TotalWeight();
+        if (commonStats.getSearch() != null) {
+            weight.add(commonStats.getSearch().getTotal().getQueryTimeSnapshot()); 
+            weight.add(commonStats.getSearch().getTotal().getFetchTimeSnapshot());
+        }
+        if (commonStats.getIndexing() != null) {
+            weight.add(commonStats.getIndexing().getTotal().getIndexTimeSnapshot()); 
+            weight.add(commonStats.getIndexing().getTotal().getDeleteTimeSnapshot());    
+        }
+        return weight;
+    }
+
+    /**
+     * Holds total weight values based on moving averages and builds scaled WeightSnapshots.
+     */
+    private static class TotalWeight {
+        private long weight1Minute, weight5Minute, weight15Minute, weight1Hour, weight1Day, weight1Week;
+        
+        public void add(TotalWeight other) {
+            weight1Minute += other.weight1Minute;
+            weight5Minute += other.weight5Minute;
+            weight15Minute += other.weight15Minute;
+            weight1Hour += other.weight1Hour;
+            weight1Day += other.weight1Day;
+            weight1Week += other.weight1Week;
+        }
+        
+        public void add(TimeSnapshot snapshot) {
+            weight1Minute += snapshot.get1MinuteRate();
+            weight5Minute += snapshot.get5MinuteRate();
+            weight15Minute += snapshot.get15MinuteRate();
+            weight1Hour += snapshot.get1HourRate();
+            weight1Day += snapshot.get1DayRate();
+            weight1Week += snapshot.get1WeekRate();
+        }
+        
+        public WeightSnapshot buildWeightSnapshot(TotalWeight shardTotalWeight, int shardCount) {
+            float shardCountFloat = shardCount;
+            return new WeightSnapshot(
+                    shardCountFloat * shardTotalWeight.weight1Minute / weight1Minute,
+                    shardCountFloat * shardTotalWeight.weight5Minute / weight15Minute,
+                    shardCountFloat * shardTotalWeight.weight15Minute / weight15Minute,
+                    shardCountFloat * shardTotalWeight.weight1Hour / weight1Hour,
+                    shardCountFloat * shardTotalWeight.weight1Day / weight1Day,
+                    shardCountFloat * shardTotalWeight.weight1Week / weight1Week);
+        }
     }
 
     static final class Fields {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.MeteredMeanMetric.TimeSnapshot;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,32 +41,39 @@ public class IndexingStats implements Streamable, ToXContent {
 
         private long indexCount;
         private long indexTimeInMillis;
+        private TimeSnapshot indexTimeSnapshot;
         private long indexCurrent;
 
         private long deleteCount;
         private long deleteTimeInMillis;
+        private TimeSnapshot deleteTimeSnapshot;
         private long deleteCurrent;
 
         Stats() {
 
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent) {
+        public Stats(long indexCount, long indexTimeInMillis, TimeSnapshot indexTimeSnapshot, long indexCurrent, 
+                long deleteCount, long deleteTimeInMillis, TimeSnapshot deleteTimeSnapshot, long deleteCurrent) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
+            this.indexTimeSnapshot = indexTimeSnapshot;
             this.indexCurrent = indexCurrent;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
+            this.deleteTimeSnapshot = deleteTimeSnapshot;
             this.deleteCurrent = deleteCurrent;
         }
 
         public void add(Stats stats) {
             indexCount += stats.indexCount;
             indexTimeInMillis += stats.indexTimeInMillis;
+            indexTimeSnapshot = TimeSnapshot.add(indexTimeSnapshot, stats.indexTimeSnapshot);
             indexCurrent += stats.indexCurrent;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
+            deleteTimeSnapshot = TimeSnapshot.add(deleteTimeSnapshot, stats.deleteTimeSnapshot);
             deleteCurrent += stats.deleteCurrent;
         }
 
@@ -79,6 +87,10 @@ public class IndexingStats implements Streamable, ToXContent {
 
         public long getIndexTimeInMillis() {
             return indexTimeInMillis;
+        }
+
+        public TimeSnapshot getIndexTimeSnapshot() {
+            return indexTimeSnapshot;
         }
 
         public long getIndexCurrent() {
@@ -97,6 +109,10 @@ public class IndexingStats implements Streamable, ToXContent {
             return deleteTimeInMillis;
         }
 
+        public TimeSnapshot getDeleteTimeSnapshot() {
+            return deleteTimeSnapshot;
+        }
+
         public long getDeleteCurrent() {
             return deleteCurrent;
         }
@@ -111,10 +127,12 @@ public class IndexingStats implements Streamable, ToXContent {
         public void readFrom(StreamInput in) throws IOException {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
+            indexTimeSnapshot = TimeSnapshot.readOptional(in);
             indexCurrent = in.readVLong();
 
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
+            deleteTimeSnapshot = TimeSnapshot.readOptional(in);
             deleteCurrent = in.readVLong();
         }
 
@@ -122,21 +140,25 @@ public class IndexingStats implements Streamable, ToXContent {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
+            TimeSnapshot.writeOptional(out, indexTimeSnapshot);
             out.writeVLong(indexCurrent);
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
-            out.writeVLong(deleteCurrent);
+            TimeSnapshot.writeOptional(out, deleteTimeSnapshot);
+            out.writeVLong(deleteCurrent);            
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
             builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
+            TimeSnapshot.toXContentOptional(builder, params, Fields.INDEX_TIME_SNAPSHOT, indexTimeSnapshot);
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
+            TimeSnapshot.toXContentOptional(builder, params, Fields.DELETE_TIME_SNAPSHOT, deleteTimeSnapshot);
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             return builder;
@@ -213,10 +235,12 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString INDEX_TOTAL = new XContentBuilderString("index_total");
         static final XContentBuilderString INDEX_TIME = new XContentBuilderString("index_time");
         static final XContentBuilderString INDEX_TIME_IN_MILLIS = new XContentBuilderString("index_time_in_millis");
+        static final XContentBuilderString INDEX_TIME_SNAPSHOT = new XContentBuilderString("index_time_snapshot");
         static final XContentBuilderString INDEX_CURRENT = new XContentBuilderString("index_current");
         static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
+        static final XContentBuilderString DELETE_TIME_SNAPSHOT = new XContentBuilderString("delete_time_snapshot");
         static final XContentBuilderString DELETE_CURRENT = new XContentBuilderString("delete_current");
     }
 

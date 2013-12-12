@@ -194,7 +194,8 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider<?> mergeSchedulerProvider) {
-        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
+        ShardIndexingService shardIndexingService = new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService), null);
+        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, shardIndexingService, null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 

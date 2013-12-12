@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -211,6 +212,12 @@ public class CommonStats implements Streamable, ToXContent {
     @Nullable
     public SegmentsStats segments;
 
+    /**
+     * Weight in the cluster.  Only calculated before returning to over xcontent and never streamed.
+     */
+    @Nullable
+    public Weight weight;
+    
     public void add(CommonStats stats) {
         if (docs == null) {
             if (stats.getDocs() != null) {
@@ -616,6 +623,79 @@ public class CommonStats implements Streamable, ToXContent {
         if (segments != null) {
             segments.toXContent(builder, params);
         }
+        if (weight != null) {
+            weight.toXContent(builder, params);
+        }
         return builder;
+    }
+
+    /**
+     * Weight of the shard with respect to the node it is on and the whole cluster.
+     */
+    static class Weight implements ToXContent {
+        private final WeightSnapshot clusterWeight;
+        private final WeightSnapshot nodeWeight;
+        
+        public Weight(WeightSnapshot clusterWeight, WeightSnapshot nodeWeight) {
+            this.clusterWeight = clusterWeight;
+            this.nodeWeight = nodeWeight;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.WEIGHT);
+            builder.startObject(Fields.CLUSTER_WEIGHT);
+            clusterWeight.toXContent(builder, params);
+            builder.endObject();
+            builder.startObject(Fields.NODE_WEIGHT);
+            nodeWeight.toXContent(builder, params);
+            builder.endObject();
+            builder.endObject();
+            return builder;
+        }
+        
+        static final class Fields {
+            static final XContentBuilderString WEIGHT = new XContentBuilderString("weight");
+            static final XContentBuilderString CLUSTER_WEIGHT = new XContentBuilderString("cluster");
+            static final XContentBuilderString NODE_WEIGHT = new XContentBuilderString("node");
+        }
+    }
+
+    /**
+     * Weights calculated using moving averages.  Weights are scaled so one is an average shard.
+     */
+    static class WeightSnapshot implements ToXContent {
+        private final float weight1Minute, weight5Minute, weight15Minute, weight1Hour, weight1Day, weight1Week;
+        
+        public WeightSnapshot(float weight1Minute, float weight5Minute, float weight15Minute, float weight1Hour, float weight1Day,
+                float weight1Week) {
+            this.weight1Minute = weight1Minute;
+            this.weight5Minute = weight5Minute;
+            this.weight15Minute = weight15Minute;
+            this.weight1Hour = weight1Hour;
+            this.weight1Day = weight1Day;
+            this.weight1Week = weight1Week;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Fields.ONE_MINUTE, weight1Minute);
+            builder.field(Fields.FIVE_MINUTE, weight5Minute);
+            builder.field(Fields.FIFTEEN_MINUTE, weight15Minute);
+            builder.field(Fields.ONE_HOUR, weight1Hour);
+            builder.field(Fields.ONE_DAY, weight1Day);
+            builder.field(Fields.ONE_WEEK, weight1Week);
+            
+            return builder;
+        }
+
+        static final class Fields {
+            static final XContentBuilderString ONE_MINUTE = new XContentBuilderString("one_minute_average");
+            static final XContentBuilderString FIVE_MINUTE = new XContentBuilderString("five_minute_average");
+            static final XContentBuilderString FIFTEEN_MINUTE = new XContentBuilderString("fifteen_minute_average");
+            static final XContentBuilderString ONE_HOUR = new XContentBuilderString("one_hour_average");
+            static final XContentBuilderString ONE_DAY = new XContentBuilderString("one_day_average");
+            static final XContentBuilderString ONE_WEEK = new XContentBuilderString("one_week_average");
+        }
     }
 }

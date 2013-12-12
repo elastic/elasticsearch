@@ -23,13 +23,14 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.metrics.MeteredMeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,15 +42,19 @@ public class ShardSearchService extends AbstractIndexShardComponent {
 
     private final ShardSlowLogSearchService slowLogSearchService;
 
-    private final StatsHolder totalStats = new StatsHolder();
+    private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();
+    private final ThreadPool threadPool;
 
     private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
 
     @Inject
-    public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogSearchService slowLogSearchService) {
+    public ShardSearchService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogSearchService slowLogSearchService,
+            ThreadPool threadPool) {
         super(shardId, indexSettings);
         this.slowLogSearchService = slowLogSearchService;
+        this.threadPool = threadPool;
+        totalStats = new StatsHolder(threadPool);
     }
 
     /**
@@ -164,7 +169,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
             synchronized (this) {
                 stats = groupsStats.get(group);
                 if (stats == null) {
-                    stats = new StatsHolder();
+                    stats = new StatsHolder(threadPool);
                     groupsStats = MapBuilder.newMapBuilder(groupsStats).put(group, stats).immutableMap();
                 }
             }
@@ -181,15 +186,22 @@ public class ShardSearchService extends AbstractIndexShardComponent {
     }
 
     static class StatsHolder {
-        public final MeanMetric queryMetric = new MeanMetric();
-        public final MeanMetric fetchMetric = new MeanMetric();
+        public final MeteredMeanMetric queryMetric;
+        public final MeteredMeanMetric fetchMetric;
         public final CounterMetric queryCurrent = new CounterMetric();
         public final CounterMetric fetchCurrent = new CounterMetric();
+        
+        public StatsHolder(ThreadPool threadPool) {
+            queryMetric = new MeteredMeanMetric(threadPool);
+            fetchMetric = new MeteredMeanMetric(threadPool);
+        }
 
         public SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count());
+                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
+                    queryMetric.timeSnapshot(), queryCurrent.count(),
+                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
+                    fetchMetric.timeSnapshot(), fetchCurrent.count());
         }
 
         public long totalCurrent() {

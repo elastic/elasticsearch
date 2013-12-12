@@ -36,15 +36,14 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.SimpleIdCacheTests;
 import org.elasticsearch.index.cache.id.simple.SimpleIdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -328,9 +327,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final IdCache idCache = new SimpleIdCache(index, ImmutableSettings.EMPTY);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         Settings settings = ImmutableSettings.EMPTY;
-        MapperService mapperService = new MapperService(
-                index, settings, new Environment(), new AnalysisService(index), null, null, null
-        );
+        MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );

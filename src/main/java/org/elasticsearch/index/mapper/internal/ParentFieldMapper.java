@@ -47,6 +47,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperBuilders.parent;
+
 /**
  *
  */
@@ -105,7 +107,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder();
+            ParentFieldMapper.Builder builder = parent();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();

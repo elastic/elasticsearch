@@ -38,22 +38,20 @@ import java.util.Collections;
  */
 public class DoubleTermsAggregator extends BucketsAggregator {
 
-    private static final int INITIAL_CAPACITY = 50; // TODO sizing
-
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
     private final NumericValuesSource valuesSource;
     private final LongHash bucketOrds;
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource, long estimatedBucketCount,
                                InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = new LongHash(INITIAL_CAPACITY);
+        bucketOrds = new LongHash(estimatedBucketCount);
     }
 
     @Override

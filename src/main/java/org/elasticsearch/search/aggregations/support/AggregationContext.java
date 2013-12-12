@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.FieldDataSource.Uniqueness;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
@@ -139,7 +138,8 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
     private NumericValuesSource numericField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
         FieldDataSource.Numeric dataSource = (FieldDataSource.Numeric) fieldDataSources.get(config.fieldContext.field());
         if (dataSource == null) {
-            dataSource = new FieldDataSource.Numeric.FieldData((IndexNumericFieldData<?>) config.fieldContext.indexFieldData());
+            FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
+            dataSource = new FieldDataSource.Numeric.FieldData((IndexNumericFieldData<?>) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
             fieldDataSources.put(config.fieldContext.field(), dataSource);
@@ -166,10 +166,11 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         FieldDataSource dataSource = fieldDataSources.get(config.fieldContext.field());
         if (dataSource == null) {
             final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
-            if (indexFieldData instanceof IndexFieldData.WithOrdinals<?>) {
-                dataSource = new FieldDataSource.Bytes.WithOrdinals.FieldData((IndexFieldData.WithOrdinals<?>) indexFieldData);
+            FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
+            if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
+                dataSource = new FieldDataSource.Bytes.WithOrdinals.FieldData((IndexFieldData.WithOrdinals) indexFieldData, metaData);
             } else {
-                dataSource = new FieldDataSource.Bytes.FieldData(indexFieldData);
+                dataSource = new FieldDataSource.Bytes.FieldData(indexFieldData, metaData);
             }
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
@@ -185,7 +186,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         // Even in case we wrap field data, we might still need to wrap for sorting, because the wrapped field data might be
         // eg. a numeric field data that doesn't sort according to the byte order. However field data values are unique so no
         // need to wrap for uniqueness
-        if ((config.ensureUnique && dataSource.getUniqueness() != Uniqueness.UNIQUE) || config.ensureSorted) {
+        if ((config.ensureUnique && !dataSource.metaData().uniqueness().unique()) || config.ensureSorted) {
             dataSource = new FieldDataSource.Bytes.SortedAndUnique(dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
         }
@@ -216,7 +217,8 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
     private GeoPointValuesSource geoPointField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
         FieldDataSource.GeoPoint dataSource = (FieldDataSource.GeoPoint) fieldDataSources.get(config.fieldContext.field());
         if (dataSource == null) {
-            dataSource = new FieldDataSource.GeoPoint((IndexGeoPointFieldData<?>) config.fieldContext.indexFieldData());
+            FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
+            dataSource = new FieldDataSource.GeoPoint((IndexGeoPointFieldData<?>) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded(dataSource);
             readerAwares.add(dataSource);
             fieldDataSources.put(config.fieldContext.field(), dataSource);

@@ -71,6 +71,20 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
+        if (estimatedBucketCount < 0) {
+            // there isn't an estimation available.. 50 should be a good start
+            estimatedBucketCount = 50;
+        }
+
+        // adding an upper bound on the estimation as some atomic field data in the future (binary doc values) and not
+        // going to know their exact cardinality and will return upper bounds in AtomicFieldData.getNumberUniqueValues()
+        // that may be largely over-estimated.. the value chosen here is arbitrary just to play nice with typical CPU cache
+        //
+        // Another reason is that it may be faster to resize upon growth than to start directly with the appropriate size.
+        // And that all values are not necessarily visited by the matches.
+        estimatedBucketCount = Math.min(estimatedBucketCount, 512);
+
         if (valuesSource instanceof BytesValuesSource) {
             if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 throw new ElasticSearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
@@ -93,11 +107,12 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
-                final StringTermsAggregator.WithOrdinals aggregator = new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
+                final StringTermsAggregator.WithOrdinals aggregator = new StringTermsAggregator.WithOrdinals(name,
+                        factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
                 aggregationContext.registerReaderContextAware(aggregator);
                 return aggregator;
             } else {
-                return new StringTermsAggregator(name, factories, valuesSource, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
+                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
             }
         }
 
@@ -108,9 +123,9 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
         if (valuesSource instanceof NumericValuesSource) {
             if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
+                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
             }
-            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, order, requiredSize, shardSize, aggregationContext, parent);
+            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +

@@ -303,7 +303,15 @@ public class IndexTemplateMetaData {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.settings(ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        ImmutableSettings.Builder templateSettingsBuilder = ImmutableSettings.settingsBuilder();
+                        for (Map.Entry<String, String> entry : SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()).entrySet()) {
+                            if (!entry.getKey().startsWith("index.")) {
+                                templateSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
+                            } else {
+                                templateSettingsBuilder.put(entry.getKey(), entry.getValue());
+                            }
+                        }
+                        builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

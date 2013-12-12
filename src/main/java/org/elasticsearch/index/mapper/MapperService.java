@@ -48,6 +48,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -76,6 +77,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public static final String DEFAULT_MAPPING = "_default_";
 
     private final AnalysisService analysisService;
+    private final IndexFieldDataService fieldDataService;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -105,10 +107,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<DocumentTypeListener>();
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService,
+    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,
                          PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService, SimilarityLookupService similarityLookupService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
+        this.fieldDataService = fieldDataService;
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -278,6 +281,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                         logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.conflicts()));
                     }
                 }
+                fieldDataService.onMappingUpdate();
                 return oldMapper;
             } else {
                 FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();

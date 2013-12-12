@@ -24,6 +24,70 @@ field data after a certain time of inactivity. Defaults to `-1`. For
 example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
+=== Field data formats
+
+The field data format controls how field data should be stored.
+
+Depending on the field type, there might be several field data types
+available.
+
+Here is an example of how to configure the `tag` field to use the `fst` field
+data format.
+
+[source,js]
+--------------------------------------------------
+{
+    tag: {
+        type:      "string",
+        fielddata: {
+            format: "fst"
+        }
+    }
+}
+--------------------------------------------------
+
+It is possible to change the field data format (and the field data settings
+in general) on a live index by using the update mapping API. When doing so,
+field data which had already been loaded for existing segments will remain
+alive while new segments will use the new field data configuration. Thanks to
+the background merging process, all segments will eventually use the new
+field data format.
+
+[float]
+==== Disallowing field data loading
+
+Field data can take a lot of RAM so it makes sense to disable field data
+loading on the fields that don't need field data, for example those that are
+used for full-text search only. In order to disable field data loading, just
+change the field data type to `disabled`. Request that will try to load field
+data on any field which is configured with this format will then return an
+error.
+
+The `disabled` format is supported by all field types.
+
+[float]
+==== String field data types
+
+`paged_bytes` (default)::
+    Stores unique terms sequentially in a large buffer and maps documents to
+    the indices of the terms they contain in this large buffer.
+
+`fst`::
+    Stores terms in a FST. Slower to build than `paged_bytes` but can help lower
+    memory usage if many terms share common prefixes and/or suffixes.
+
+[float]
+==== Numeric field data types
+
+`array` (default)::
+    Stores field values in memory using arrays. 
+
+[float]
+==== Geo point field data types
+
+`array` (default)::
+    Stores latitudes and longitudes in arrays.
+
 [float]
 === Fielddata loading
 

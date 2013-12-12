@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
  */
 public class FieldDataType {
 
+    public static final String FORMAT_KEY = "format";
     private static final String LOADING_KEY = "loading";
     private static final String EAGER_LOADING_VALUE = "eager";
     private static final String LAZY_LOADING_VALUE = "lazy";

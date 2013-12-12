@@ -157,7 +157,7 @@ case "$1" in
 	fi
 
 	if [ -n "$MAX_MAP_COUNT" ]; then
-		sysctl -qw vm.max_map_count=$MAX_MAP_COUNT
+		sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
 	fi
 
 	# Start Daemon

@@ -1,60 +1,59 @@
 package org.elasticsearch.examples.nativescript.script;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.testng.annotations.Test;
-
-import java.util.Arrays;
-
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import org.junit.Test;
 
 /**
  */
 public class RandomSortScriptTests extends AbstractSearchScriptTests {
     @Test
     public void testPseudoRandomScript() throws Exception {
-        // Delete the old index
-        try {
-            node.client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException ex) {
-            // Ignore
-        }
-
+      
         // Create a new index
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
                 .endObject().endObject().endObject()
                 .string();
-        node.client().admin().indices().prepareCreate("test")
-                .addMapping("type", mapping)
-                .execute().actionGet();
+        
+        assertAcked(prepareCreate("test")
+                .addMapping("type", mapping));
 
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        
         // Index 100 records (0..99)
         for (int i = 0; i < 100; i++) {
-            node.client().prepareIndex("test", "type", Integer.toString(i))
+            indexBuilders.add(
+                    client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("name", "rec " + i)
-                            .endObject())
-                    .execute().actionGet();
+                            .endObject()));
         }
-        node.client().admin().indices().prepareRefresh("test").execute().actionGet();
 
+        indexRandom(true, indexBuilders);
 
         // Retrieve first 10 records
-        SearchResponse searchResponse = node.client().prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        
+        assertNoFailures(searchResponse);
 
         // Check that random order was applied
         assertThat(searchResponse.getHits().getAt(0).field("name").getValue().toString(), not(equalTo("rec0")));
@@ -67,13 +66,14 @@ public class RandomSortScriptTests extends AbstractSearchScriptTests {
         }
 
         // Retrieve first 10 records again
-        searchResponse = node.client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        
+        assertNoFailures(searchResponse);
 
         // Verify the same sort order
         for (int i = 0; i < 10; i++) {
@@ -81,13 +81,14 @@ public class RandomSortScriptTests extends AbstractSearchScriptTests {
         }
 
         // Retrieve first 10 records without salt
-        searchResponse = node.client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
                 .addField("name")
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native"))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        
+        assertNoFailures(searchResponse);
 
         // Verify different sort order
         boolean different = false;

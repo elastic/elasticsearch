@@ -2,31 +2,23 @@ package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
 /**
  */
-public class AbstractSearchScriptTests {
-    protected Node node;
+@ClusterScope(scope = Scope.SUITE, numNodes = 1)
+public class AbstractSearchScriptTests extends ElasticsearchIntegrationTest {
 
-    @BeforeMethod
-    public void startNode() {
-        Settings settings = ImmutableSettings.settingsBuilder()
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder()               
                 .put("gateway.type", "none")
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
+                .put(super.nodeSettings(nodeOrdinal))
                 .build();
-
-        node = NodeBuilder.nodeBuilder().settings(settings).node();
     }
-
-    @AfterMethod
-    public void closeNode() {
-        if (node != null) {
-            node.close();
-        }
-    }
+    
 }

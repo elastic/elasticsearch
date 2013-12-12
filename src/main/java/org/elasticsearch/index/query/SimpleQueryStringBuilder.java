@@ -87,7 +87,6 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SimpleQueryStringParser.NAME);
-        builder.startObject("myname");
 
         builder.field("query", queryText);
 
@@ -113,7 +112,6 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
             builder.field("default_operator", operator.name().toLowerCase(Locale.ROOT));
         }
 
-        builder.endObject();
         builder.endObject();
     }
 }

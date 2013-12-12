@@ -95,7 +95,7 @@ public class SimpleQueryStringParser implements QueryParser {
                 if ("fields".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String fField = null;
-                        float fBoost = -1;
+                        float fBoost = 1;
                         char[] text = parser.textCharacters();
                         int end = parser.textOffset() + parser.textLength();
                         for (int i = parser.textOffset(); i < end; i++) {
@@ -116,10 +116,10 @@ public class SimpleQueryStringParser implements QueryParser {
 
                         if (Regex.isSimpleMatchPattern(fField)) {
                             for (String fieldName : parseContext.mapperService().simpleMatchToIndexNames(fField)) {
-                                fieldsAndWeights.put(fieldName, fBoost == -1 ? 1.0F : fBoost);
+                                fieldsAndWeights.put(fieldName, fBoost);
                             }
                         } else {
-                            fieldsAndWeights.put(fField, fBoost == -1 ? 1.0F : fBoost);
+                            fieldsAndWeights.put(fField, fBoost);
                         }
                     }
                 } else {
@@ -148,7 +148,7 @@ public class SimpleQueryStringParser implements QueryParser {
                                 "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else {
-                    queryBody = parser.text();
+                    throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
             }
         }

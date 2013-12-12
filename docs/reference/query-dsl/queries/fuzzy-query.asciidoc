@@ -2,7 +2,8 @@
 === Fuzzy Query
 
 A fuzzy query that uses similarity based on the Levenshtein (edit distance) algorithm for text,
-and ranges for numeric and date data. This maps to Lucene's `FuzzyQuery` for text.
+and ranges for numeric and date data.
+This maps to Lucene's `FuzzyQuery` when run against a text field, and maps to a range filter when run against a numeric field.
 Maximum edit distance is determined via the `min_similarity` parameter,
 which can only take the values 1 or 2 for text for performance reasons.
 
@@ -88,8 +89,7 @@ with a large number of terms, performance can quickly degrade. The `prefix_lengt
 parameters can be used to remedy performance problems in larger datasets by significantly
 reducing the search space at cost of not matching some valid documents.
 
-The `prefix_length` parameter restricts matches to those that share an exact prefix with the query `value`.
-The number of matching characters is controlled with this parameter.
+The `prefix_length` parameter restricts matches to those that have an an exact prefix match of the provided length with the query `value`.
 Using `prefix_length` greatly shortens the search space at the expense of not detecting edits that occur at the start of the term.
 
 The `max_expansions` parameter controls the number of alternate versions of the input term to look for.

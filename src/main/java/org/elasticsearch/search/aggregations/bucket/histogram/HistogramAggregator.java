@@ -41,8 +41,6 @@ import java.util.List;
 
 public class HistogramAggregator extends BucketsAggregator {
 
-    private final static int INITIAL_CAPACITY = 50; // TODO sizing
-
     private final NumericValuesSource valuesSource;
     private final Rounding rounding;
     private final InternalOrder order;
@@ -59,11 +57,12 @@ public class HistogramAggregator extends BucketsAggregator {
                                boolean keyed,
                                boolean computeEmptyBuckets,
                                @Nullable NumericValuesSource valuesSource,
+                               long initialCapacity,
                                AbstractHistogramBase.Factory<?> histogramFactory,
                                AggregationContext aggregationContext,
                                Aggregator parent) {
 
-        super(name, BucketAggregationMode.PER_BUCKET, factories, 50, aggregationContext, parent);
+        super(name, BucketAggregationMode.PER_BUCKET, factories, initialCapacity, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.rounding = rounding;
         this.order = order;
@@ -71,7 +70,7 @@ public class HistogramAggregator extends BucketsAggregator {
         this.computeEmptyBuckets = computeEmptyBuckets;
         this.histogramFactory = histogramFactory;
 
-        bucketOrds = new LongHash(INITIAL_CAPACITY);
+        bucketOrds = new LongHash(initialCapacity);
     }
 
     @Override
@@ -152,12 +151,13 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, computeEmptyBuckets, null, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, computeEmptyBuckets, null, 0, histogramFactory, aggregationContext, parent);
         }
 
         @Override
         protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, computeEmptyBuckets, valuesSource, histogramFactory, aggregationContext, parent);
+            // todo if we'll keep track of min/max values in IndexFieldData, we could use the max here to come up with a better estimation for the buckets count
+            return new HistogramAggregator(name, factories, rounding, order, keyed, computeEmptyBuckets, valuesSource, 50, histogramFactory, aggregationContext, parent);
         }
 
     }

@@ -32,29 +32,118 @@ import org.elasticsearch.search.aggregations.support.FieldDataSource.Bytes.Sorte
 import org.elasticsearch.search.aggregations.support.bytes.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.numeric.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.numeric.ScriptLongValues;
+import org.elasticsearch.search.internal.SearchContext;
 
-/**
- *
- */
 public abstract class FieldDataSource {
 
-    /** Whether values are unique or not per document. */
-    public enum Uniqueness {
-        UNIQUE,
-        NOT_UNIQUE,
-        UNKNOWN;
+    public static class MetaData {
+
+        public static final MetaData UNKNOWN = new MetaData();
+
+        public enum Uniqueness {
+            UNIQUE,
+            NOT_UNIQUE,
+            UNKNOWN;
+
+            public boolean unique() {
+                return this == UNIQUE;
+            }
+        }
+
+        private long maxAtomicUniqueValuesCount = -1;
+        private boolean multiValued = true;
+        private Uniqueness uniqueness = Uniqueness.UNKNOWN;
+
+        private MetaData() {}
+
+        private MetaData(MetaData other) {
+            this.maxAtomicUniqueValuesCount = other.maxAtomicUniqueValuesCount;
+            this.multiValued = other.multiValued;
+            this.uniqueness = other.uniqueness;
+        }
+
+        private MetaData(long maxAtomicUniqueValuesCount, boolean multiValued, Uniqueness uniqueness) {
+            this.maxAtomicUniqueValuesCount = maxAtomicUniqueValuesCount;
+            this.multiValued = multiValued;
+            this.uniqueness = uniqueness;
+        }
+
+        public long maxAtomicUniqueValuesCount() {
+            return maxAtomicUniqueValuesCount;
+        }
+
+        public boolean multiValued() {
+            return multiValued;
+        }
+
+        public Uniqueness uniqueness() {
+            return uniqueness;
+        }
+
+        public static MetaData load(IndexFieldData indexFieldData, SearchContext context) {
+            MetaData metaData = new MetaData();
+            metaData.uniqueness = Uniqueness.UNIQUE;
+            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                AtomicFieldData fieldData = indexFieldData.load(readerContext);
+                metaData.multiValued |= fieldData.isMultiValued();
+                metaData.maxAtomicUniqueValuesCount = Math.max(metaData.maxAtomicUniqueValuesCount, fieldData.getNumberUniqueValues());
+            }
+            return metaData;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static Builder builder(MetaData other) {
+            return new Builder(other);
+        }
+
+        public static class Builder {
+
+            private final MetaData metaData;
+
+            private Builder() {
+                metaData = new MetaData();
+            }
+
+            private Builder(MetaData metaData) {
+                this.metaData = new MetaData(metaData);
+            }
+
+            public Builder maxAtomicUniqueValuesCount(long maxAtomicUniqueValuesCount) {
+                metaData.maxAtomicUniqueValuesCount = maxAtomicUniqueValuesCount;
+                return this;
+            }
+
+            public Builder multiValued(boolean multiValued) {
+                metaData.multiValued = multiValued;
+                return this;
+            }
+
+            public Builder uniqueness(Uniqueness uniqueness) {
+                metaData.uniqueness = uniqueness;
+                return this;
+            }
+
+            public MetaData build() {
+                return metaData;
+            }
+        }
+
     }
 
-    /** Return whether values are unique. */
-    public Uniqueness getUniqueness() {
-        return Uniqueness.UNKNOWN;
-    }
-
-    /** Get the current {@link BytesValues}. */
+    /**
+     * Get the current {@link BytesValues}.
+     */
     public abstract BytesValues bytesValues();
 
-    /** Ask the underlying data source to provide pre-computed hashes, optional operation. */
+    /**
+     * Ask the underlying data source to provide pre-computed hashes, optional operation.
+     */
     public void setNeedsHashes(boolean needsHashes) {}
+
+    public abstract MetaData metaData();
 
     public static abstract class Bytes extends FieldDataSource {
 
@@ -66,17 +155,19 @@ public abstract class FieldDataSource {
 
                 protected boolean needsHashes;
                 protected final IndexFieldData.WithOrdinals<?> indexFieldData;
+                protected final MetaData metaData;
                 protected AtomicFieldData.WithOrdinals<?> atomicFieldData;
                 private BytesValues.WithOrdinals bytesValues;
 
-                public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData) {
+                public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
+                    this.metaData = metaData;
                     needsHashes = false;
                 }
 
                 @Override
-                public Uniqueness getUniqueness() {
-                    return Uniqueness.UNIQUE;
+                public MetaData metaData() {
+                    return metaData;
                 }
 
                 public final void setNeedsHashes(boolean needsHashes) {
@@ -107,17 +198,19 @@ public abstract class FieldDataSource {
 
             protected boolean needsHashes;
             protected final IndexFieldData<?> indexFieldData;
+            protected final MetaData metaData;
             protected AtomicFieldData<?> atomicFieldData;
             private BytesValues bytesValues;
 
-            public FieldData(IndexFieldData<?> indexFieldData) {
+            public FieldData(IndexFieldData<?> indexFieldData, MetaData metaData) {
                 this.indexFieldData = indexFieldData;
+                this.metaData = metaData;
                 needsHashes = false;
             }
 
             @Override
-            public Uniqueness getUniqueness() {
-                return Uniqueness.UNIQUE;
+            public MetaData metaData() {
+                return metaData;
             }
 
             public final void setNeedsHashes(boolean needsHashes) {
@@ -150,24 +243,30 @@ public abstract class FieldDataSource {
             }
 
             @Override
+            public MetaData metaData() {
+                return MetaData.UNKNOWN;
+            }
+
+            @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 return values;
             }
-
         }
 
         public static class SortedAndUnique extends Bytes implements ReaderContextAware {
 
             private final FieldDataSource delegate;
+            private final MetaData metaData;
             private BytesValues bytesValues;
 
             public SortedAndUnique(FieldDataSource delegate) {
                 this.delegate = delegate;
+                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNIQUE).build();
             }
 
             @Override
-            public Uniqueness getUniqueness() {
-                return Uniqueness.UNIQUE;
+            public MetaData metaData() {
+                return metaData;
             }
 
             @Override
@@ -180,7 +279,7 @@ public abstract class FieldDataSource {
                 if (bytesValues == null) {
                     bytesValues = delegate.bytesValues();
                     if (bytesValues.isMultiValued() &&
-                            (delegate.getUniqueness() != Uniqueness.UNIQUE || bytesValues.getOrder() != Order.BYTES)) {
+                            (!delegate.metaData().uniqueness.unique() || bytesValues.getOrder() != Order.BYTES)) {
                         bytesValues = new SortedUniqueBytesValues(bytesValues);
                     }
                 }
@@ -254,13 +353,11 @@ public abstract class FieldDataSource {
 
         public static class WithScript extends Numeric {
 
-            private final Numeric delegate;
             private final LongValues longValues;
             private final DoubleValues doubleValues;
             private final FieldDataSource.WithScript.BytesValues bytesValues;
 
             public WithScript(Numeric delegate, SearchScript script) {
-                this.delegate = delegate;
                 this.longValues = new LongValues(delegate, script);
                 this.doubleValues = new DoubleValues(delegate, script);
                 this.bytesValues = new FieldDataSource.WithScript.BytesValues(delegate, script);
@@ -284,6 +381,11 @@ public abstract class FieldDataSource {
             @Override
             public DoubleValues doubleValues() {
                 return doubleValues;
+            }
+
+            @Override
+            public MetaData metaData() {
+                return MetaData.UNKNOWN;
             }
 
             static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
@@ -337,19 +439,21 @@ public abstract class FieldDataSource {
 
             protected boolean needsHashes;
             protected final IndexNumericFieldData<?> indexFieldData;
+            protected final MetaData metaData;
             protected AtomicNumericFieldData atomicFieldData;
             private BytesValues bytesValues;
             private LongValues longValues;
             private DoubleValues doubleValues;
 
-            public FieldData(IndexNumericFieldData<?> indexFieldData) {
+            public FieldData(IndexNumericFieldData<?> indexFieldData, MetaData metaData) {
                 this.indexFieldData = indexFieldData;
+                this.metaData = metaData;
                 needsHashes = false;
             }
 
             @Override
-            public Uniqueness getUniqueness() {
-                return Uniqueness.UNIQUE;
+            public MetaData metaData() {
+                return metaData;
             }
 
             @Override
@@ -418,6 +522,11 @@ public abstract class FieldDataSource {
             }
 
             @Override
+            public MetaData metaData() {
+                return MetaData.UNKNOWN;
+            }
+
+            @Override
             public boolean isFloatingPoint() {
                 return scriptValueType != null ? scriptValueType.isFloatingPoint() : true;
             }
@@ -442,17 +551,19 @@ public abstract class FieldDataSource {
         public static class SortedAndUnique extends Numeric implements ReaderContextAware {
 
             private final Numeric delegate;
+            private final MetaData metaData;
             private LongValues longValues;
             private DoubleValues doubleValues;
             private BytesValues bytesValues;
 
             public SortedAndUnique(Numeric delegate) {
                 this.delegate = delegate;
+                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNIQUE).build();
             }
 
             @Override
-            public Uniqueness getUniqueness() {
-                return Uniqueness.UNIQUE;
+            public MetaData metaData() {
+                return metaData;
             }
 
             @Override
@@ -472,7 +583,7 @@ public abstract class FieldDataSource {
                 if (longValues == null) {
                     longValues = delegate.longValues();
                     if (longValues.isMultiValued() &&
-                            (delegate.getUniqueness() != Uniqueness.UNIQUE || longValues.getOrder() != Order.NUMERIC)) {
+                            (!delegate.metaData().uniqueness.unique() || longValues.getOrder() != Order.NUMERIC)) {
                         longValues = new SortedUniqueLongValues(longValues);
                     }
                 }
@@ -484,7 +595,7 @@ public abstract class FieldDataSource {
                 if (doubleValues == null) {
                     doubleValues = delegate.doubleValues();
                     if (doubleValues.isMultiValued() &&
-                            (delegate.getUniqueness() != Uniqueness.UNIQUE || doubleValues.getOrder() != Order.NUMERIC)) {
+                            (!delegate.metaData().uniqueness.unique() || doubleValues.getOrder() != Order.NUMERIC)) {
                         doubleValues = new SortedUniqueDoubleValues(doubleValues);
                     }
                 }
@@ -496,7 +607,7 @@ public abstract class FieldDataSource {
                 if (bytesValues == null) {
                     bytesValues = delegate.bytesValues();
                     if (bytesValues.isMultiValued() &&
-                            (delegate.getUniqueness() != Uniqueness.UNIQUE || bytesValues.getOrder() != Order.BYTES)) {
+                            (!delegate.metaData().uniqueness.unique() || bytesValues.getOrder() != Order.BYTES)) {
                         bytesValues = new SortedUniqueBytesValues(bytesValues);
                     }
                 }
@@ -633,6 +744,11 @@ public abstract class FieldDataSource {
         }
 
         @Override
+        public MetaData metaData() {
+            return MetaData.UNKNOWN;
+        }
+
+        @Override
         public BytesValues bytesValues() {
             return bytesValues;
         }
@@ -669,18 +785,20 @@ public abstract class FieldDataSource {
 
         protected boolean needsHashes;
         protected final IndexGeoPointFieldData<?> indexFieldData;
+        private final MetaData metaData;
         protected AtomicGeoPointFieldData<?> atomicFieldData;
         private BytesValues bytesValues;
         private GeoPointValues geoPointValues;
 
-        public GeoPoint(IndexGeoPointFieldData<?> indexFieldData) {
+        public GeoPoint(IndexGeoPointFieldData<?> indexFieldData, MetaData metaData) {
             this.indexFieldData = indexFieldData;
+            this.metaData = metaData;
             needsHashes = false;
         }
 
         @Override
-        public Uniqueness getUniqueness() {
-            return Uniqueness.UNIQUE;
+        public MetaData metaData() {
+            return metaData;
         }
 
         @Override

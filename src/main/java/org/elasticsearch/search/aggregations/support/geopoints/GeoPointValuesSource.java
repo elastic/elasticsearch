@@ -36,6 +36,11 @@ public final class GeoPointValuesSource implements ValuesSource {
     }
 
     @Override
+    public FieldDataSource.MetaData metaData() {
+        return source.metaData();
+    }
+
+    @Override
     public BytesValues bytesValues() {
         return source.bytesValues();
     }

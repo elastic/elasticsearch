@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope= Scope.SUITE, numNodes=1)
+@ClusterScope(scope=Scope.SUITE, numNodes=1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
 
     @Rule
@@ -57,7 +57,8 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
             templatesDir.mkdir();
 
             File dst = new File(templatesDir, "template.json");
-            String template = Streams.copyToStringFromClasspath("/org/elasticsearch/indices/template/template.json");
+            // random template, one uses the 'setting.index.number_of_shards', the other 'settings.number_of_shards'
+            String template = Streams.copyToStringFromClasspath("/org/elasticsearch/indices/template/template" + randomInt(1) + ".json");
             Files.write(template, dst, Charsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException(e);

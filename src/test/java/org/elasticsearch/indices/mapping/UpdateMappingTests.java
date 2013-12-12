@@ -77,6 +77,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
                 String fieldName = "field_" + type + "_" + rec;
                 fieldName = "\"" + fieldName + "\""; // quote it, so we make sure we catch the exact one
                 if (!typeToSource.containsKey(type) || !typeToSource.get(type).contains(fieldName)) {
+                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
                     awaitBusy(new Predicate<Object>() {
                         @Override
                         public boolean apply(Object input) {
@@ -84,6 +85,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
                             return pendingTasks.pendingTasks().isEmpty();
                         }
                     });
+                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
                     // its going to break, before we do, make sure that the cluster state hasn't changed on us...
                     ClusterState state2 = client().admin().cluster().prepareState().get().getState();
                     if (state.version() != state2.version()) {

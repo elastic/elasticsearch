@@ -47,6 +47,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
+
+
 /**
  * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
  * <p/>
@@ -166,7 +169,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
+            Builder builder = geoShapeField(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
@@ -61,6 +63,10 @@ public final class MapperBuilders {
         return new UidFieldMapper.Builder();
     }
 
+    public static SizeFieldMapper.Builder size() {
+        return new SizeFieldMapper.Builder();
+    }
+
     public static VersionFieldMapper.Builder version() {
         return new VersionFieldMapper.Builder();
     }
@@ -75,6 +81,14 @@ public final class MapperBuilders {
 
     public static TimestampFieldMapper.Builder timestamp() {
         return new TimestampFieldMapper.Builder();
+    }
+
+    public static TTLFieldMapper.Builder ttl() {
+        return new TTLFieldMapper.Builder();
+    }
+
+    public static ParentFieldMapper.Builder parent() {
+        return new ParentFieldMapper.Builder();
     }
 
     public static BoostFieldMapper.Builder boost(String name) {
@@ -147,5 +161,17 @@ public final class MapperBuilders {
 
     public static DoubleFieldMapper.Builder doubleField(String name) {
         return new DoubleFieldMapper.Builder(name);
+    }
+
+    public static GeoPointFieldMapper.Builder geoPointField(String name) {
+        return new GeoPointFieldMapper.Builder(name);
+    }
+
+    public static GeoShapeFieldMapper.Builder geoShapeField(String name) {
+        return new GeoShapeFieldMapper.Builder(name);
+    }
+
+    public static CompletionFieldMapper.Builder completionField(String name) {
+        return new CompletionFieldMapper.Builder(name);
     }
 }

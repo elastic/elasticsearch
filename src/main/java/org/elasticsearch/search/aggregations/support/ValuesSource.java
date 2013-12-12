@@ -26,6 +26,8 @@ import org.elasticsearch.index.fielddata.BytesValues;
  */
 public interface ValuesSource {
 
+    FieldDataSource.MetaData metaData();
+
     /**
      * @return A {@link org.apache.lucene.util.BytesRef bytesref} view over the values that are resolved from this value source.
      */

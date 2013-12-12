@@ -225,8 +225,11 @@ public class GeoDistanceParser implements Aggregator.Parser {
         @Override
         protected Aggregator create(final GeoPointValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final DistanceValues distanceValues = new DistanceValues(valuesSource, distanceType, origin, unit);
-            FieldDataSource.Numeric distanceSource = new DistanceSource(distanceValues);
-            distanceSource = new FieldDataSource.Numeric.SortedAndUnique(distanceSource);
+            FieldDataSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource.metaData());
+            if (distanceSource.metaData().multiValued()) {
+                // we need to ensure uniqueness
+                distanceSource = new FieldDataSource.Numeric.SortedAndUnique(distanceSource);
+            }
             final NumericValuesSource numericSource = new NumericValuesSource(distanceSource, null, null);
             return new RangeAggregator(name, factories, numericSource, rangeFactory, ranges, keyed, aggregationContext, parent);
         }
@@ -264,9 +267,17 @@ public class GeoDistanceParser implements Aggregator.Parser {
         private static class DistanceSource extends FieldDataSource.Numeric {
 
             private final DoubleValues values;
+            private final MetaData metaData;
 
-            public DistanceSource(DoubleValues values) {
+            public DistanceSource(DoubleValues values, MetaData metaData) {
                 this.values = values;
+                // even if the geo points are unique, there's no guarantee the distances are
+                this.metaData = MetaData.builder(metaData).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+            }
+
+            @Override
+            public MetaData metaData() {
+                return metaData;
             }
 
             @Override

@@ -60,13 +60,15 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
-    private IndexRequestBuilder indexCity(String name, String latLon) throws Exception {
+    private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
-        if (latLon != null) {
-            source = source.field("location", latLon);
+        source.startArray("location");
+        for (int i = 0; i < latLons.length; i++) {
+            source.value(latLons[i]);
         }
+        source.endArray();
         source = source.endObject();
-        return client().prepareIndex("idx", "type").setSource(source);
+        return client().prepareIndex(idx, "type").setSource(source);
     }
 
     @Before
@@ -75,27 +77,45 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
                 .execute().actionGet();
 
+        prepareCreate("idx-multi")
+                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
+                .execute().actionGet();
+
         createIndex("idx_unmapped");
 
         List<IndexRequestBuilder> cities = new ArrayList<IndexRequestBuilder>();
         cities.addAll(Arrays.asList(
                 // below 500km
-                indexCity("utrecht", "52.0945, 5.116"),
-                indexCity("haarlem", "52.3890, 4.637"),
+                indexCity("idx", "utrecht", "52.0945, 5.116"),
+                indexCity("idx", "haarlem", "52.3890, 4.637"),
                 // above 500km, below 1000km
-                indexCity("berlin", "52.540, 13.409"),
-                indexCity("prague", "50.086, 14.439"),
+                indexCity("idx", "berlin", "52.540, 13.409"),
+                indexCity("idx", "prague", "50.097679, 14.441314"),
                 // above 1000km
-                indexCity("tel-aviv", "32.0741, 34.777")));
+                indexCity("idx", "tel-aviv", "32.0741, 34.777")));
+
+        // random cities with no location
+        for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
+            if (randomBoolean()) {
+                cities.add(indexCity("idx", cityName));
+            }
+        }
+        indexRandom(true, cities);
+
+        cities.clear();
+        cities.addAll(Arrays.asList(
+                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"), // first point is within the ~17.5km, the second is ~710km
+                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"), // first point is ~576km, the second is within the ~35km
+                indexCity("idx-multi", "city3", "32.0741, 34.777"))); // above 1000km
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
             if (randomBoolean() || true) {
-                cities.add(indexCity(cityName, null));
+                cities.add(indexCity("idx-multi", cityName));
             }
         }
-
         indexRandom(true, cities);
+
         ensureSearchable();
     }
 
@@ -370,6 +390,50 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(geoDistance.buckets().get(0).getFrom(), equalTo(0.0));
         assertThat(geoDistance.buckets().get(0).getTo(), equalTo(100.0));
         assertThat(geoDistance.buckets().get(0).getDocCount(), equalTo(0l));
-
     }
+
+    @Test
+    public void multiValues() throws Exception {
+        SearchResponse response = client().prepareSearch("idx-multi")
+                .addAggregation(geoDistance("amsterdam_rings")
+                        .field("location")
+                        .unit(DistanceUnit.KILOMETERS)
+                        .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
+                        .point("52.3760, 4.894") // coords of amsterdam
+                        .addUnboundedTo(500)
+                        .addRange(500, 1000)
+                        .addUnboundedFrom(1000))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        GeoDistance geoDist = response.getAggregations().get("amsterdam_rings");
+        assertThat(geoDist, notNullValue());
+        assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
+        assertThat(geoDist.buckets().size(), equalTo(3));
+
+        GeoDistance.Bucket bucket = geoDist.getByKey("*-500.0");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-500.0"));
+        assertThat(bucket.getFrom(), equalTo(0.0));
+        assertThat(bucket.getTo(), equalTo(500.0));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+
+        bucket = geoDist.getByKey("500.0-1000.0");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("500.0-1000.0"));
+        assertThat(bucket.getFrom(), equalTo(500.0));
+        assertThat(bucket.getTo(), equalTo(1000.0));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+
+        bucket = geoDist.getByKey("1000.0-*");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("1000.0-*"));
+        assertThat(bucket.getFrom(), equalTo(1000.0));
+        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+    }
+
+
+
 }

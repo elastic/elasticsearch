@@ -45,8 +45,6 @@ import java.util.Collections;
  */
 public class StringTermsAggregator extends BucketsAggregator {
 
-    private static final int INITIAL_CAPACITY = 50; // TODO sizing
-
     private final ValuesSource valuesSource;
     private final InternalOrder order;
     private final int requiredSize;
@@ -54,11 +52,11 @@ public class StringTermsAggregator extends BucketsAggregator {
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
 
-    public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
+    public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                  InternalOrder order, int requiredSize, int shardSize,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
 
-        super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.order = order;
         this.requiredSize = requiredSize;
@@ -145,9 +143,9 @@ public class StringTermsAggregator extends BucketsAggregator {
         private Ordinals.Docs ordinals;
         private LongArray ordinalToBucket;
 
-        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource, InternalOrder order, int requiredSize,
-                int shardSize, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, order, requiredSize, shardSize, null, aggregationContext, parent);
+        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource, long esitmatedBucketCount,
+                InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, esitmatedBucketCount, order, requiredSize, shardSize, null, aggregationContext, parent);
             this.valuesSource = valuesSource;
         }
 
@@ -164,7 +162,7 @@ public class StringTermsAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long owningBucketOrdinal) throws IOException {
-            assert owningBucketOrdinal == 0;
+            assert owningBucketOrdinal == 0 : "this is a per_bucket aggregator";
             final int valuesCount = ordinals.setDocument(doc);
 
             for (int i = 0; i < valuesCount; ++i) {

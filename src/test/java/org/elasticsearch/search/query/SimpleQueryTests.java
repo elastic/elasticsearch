@@ -1888,4 +1888,40 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             return FilterBuilders.numericRangeFilter(field).from(from).to(to);
         }
     }
+
+    @Test
+    public void testSimpleQueryString() {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("body", "foo").get();
+        client().prepareIndex("test", "type1", "2").setSource("body", "bar").get();
+        client().prepareIndex("test", "type1", "3").setSource("body", "foo bar").get();
+        client().prepareIndex("test", "type1", "4").setSource("body", "quux baz eggplant").get();
+        client().prepareIndex("test", "type1", "5").setSource("body", "quux baz spaghetti").get();
+        client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo bar")).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar").defaultOperator(SimpleQueryStringBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(simpleQueryString("\"quux baz\" +(eggplant | spaghetti)")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "4", "5");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("eggplants").analyzer("snowball")).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("4"));
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f)).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("5"));
+        assertSearchHits(searchResponse, "5", "6");
+    }
 }

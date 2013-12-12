@@ -404,6 +404,16 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A query that acts similar to a query_string query, but won't throw
+     * exceptions for any weird string syntax. See
+     * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
+     * supported syntax.
+     */
+    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
+        return new SimpleQueryStringBuilder(queryString);
+    }
+
+    /**
      * The BoostingQuery class can be used to effectively demote results that match a given query.
      * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
      * but reduces their overall score:

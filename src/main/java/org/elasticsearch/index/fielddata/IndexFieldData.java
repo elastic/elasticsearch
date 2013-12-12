@@ -80,8 +80,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     void clear(IndexReader reader);
 
     /**
-     * Returns the highest ever seen uniqiue values in an atomic reader.
+     * Returns the highest ever seen unique values in an atomic reader.
+     * @deprecated this method will be removed in version 1.0
      */
+    @Deprecated
     long getHighestNumberOfSeenUniqueValues();
 
     // we need this extended source we we have custom comparators to reuse our field data

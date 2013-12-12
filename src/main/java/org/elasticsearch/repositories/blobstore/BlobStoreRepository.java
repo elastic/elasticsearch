@@ -99,7 +99,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private ImmutableBlobContainer snapshotsBlobContainer;
 
-    private final String repositoryName;
+    protected final String repositoryName;
 
     private static final String SNAPSHOT_PREFIX = "snapshot-";
 
@@ -244,6 +244,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             // Delete snapshot file first so we wouldn't end up with partially deleted snapshot that looks OK
             snapshotsBlobContainer.deleteBlob(blobName);
             snapshotsBlobContainer.deleteBlob(metaDataBlobName(snapshotId));
+            // Delete snapshot from the snapshot list
+            ImmutableList<SnapshotId> snapshotIds = snapshots();
+            if (snapshotIds.contains(snapshotId)) {
+                ImmutableList.Builder<SnapshotId> builder = ImmutableList.builder();
+                for (SnapshotId id : snapshotIds) {
+                    if (!snapshotId.equals(id)) {
+                        builder.add(id);
+                    }
+                }
+                snapshotIds = builder.build();
+            }
+            writeSnapshotList(snapshotIds);
             // Now delete all indices
             for (String index : snapshot.indices()) {
                 BlobPath indexPath = basePath().add("indices").add(index);
@@ -268,7 +280,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public Snapshot finalizeSnapshot(SnapshotId snapshotId, String failure, int totalShards, ImmutableList<SnapshotShardFailure> shardFailures) {
-        BlobStoreSnapshot snapshot = (BlobStoreSnapshot)readSnapshot(snapshotId);
+        BlobStoreSnapshot snapshot = (BlobStoreSnapshot) readSnapshot(snapshotId);
         if (snapshot == null) {
             throw new SnapshotMissingException(snapshotId);
         }

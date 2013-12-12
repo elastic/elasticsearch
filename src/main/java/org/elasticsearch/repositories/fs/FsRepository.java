@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.inject.Inject;
@@ -54,6 +55,8 @@ public class FsRepository extends BlobStoreRepository {
 
     private ByteSizeValue chunkSize;
 
+    private final BlobPath basePath;
+
     private boolean compress;
 
     /**
@@ -80,6 +83,7 @@ public class FsRepository extends BlobStoreRepository {
         blobStore = new FsBlobStore(componentSettings, concurrentStreamPool, locationFile);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
+        this.basePath = BlobPath.cleanPath();
     }
 
     /**
@@ -106,5 +110,8 @@ public class FsRepository extends BlobStoreRepository {
         return chunkSize;
     }
 
-
+    @Override
+    protected BlobPath basePath() {
+        return basePath;
+    }
 }

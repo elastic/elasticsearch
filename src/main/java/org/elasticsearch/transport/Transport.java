@@ -31,6 +31,10 @@ import java.io.IOException;
  */
 public interface Transport extends LifecycleComponent<Transport> {
 
+    public static class TransportSettings {
+        public static final String TRANSPORT_TCP_COMPRESS = "transport.tcp.compress";
+    }
+
     void transportServiceAdapter(TransportServiceAdapter service);
 
     /**

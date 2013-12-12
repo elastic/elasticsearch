@@ -29,12 +29,15 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -655,15 +658,17 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(mergeContext.buildConflicts());
     }
 
-    public CompressedString refreshSource() throws FailedToGenerateSourceMapperException {
+    public CompressedString refreshSource() throws ElasticSearchGenerationException {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return mappingSource = new CompressedString(builder.bytes());
+            builder.close();
+            return mappingSource = new CompressedString(bStream.bytes());
         } catch (Exception e) {
-            throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
+            throw new ElasticSearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
     }
 

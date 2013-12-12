@@ -26,12 +26,17 @@ example, can be set to `5m` for a 5 minute expiry.
 
 === Field data formats
 
+The field data format controls how field data should be stored.
+
 Depending on the field type, there might be several field data types
 available. In particular, string and numeric types support the `doc_values`
 format which allows for computing the field data data-structures at indexing
 time and storing them on disk. Although it will make the index larger and may
 be slightly slower, this implementation will be more near-realtime-friendly
 and will require much less memory from the JVM than other implementations.
+
+Here is an example of how to configure the `tag` field to use the `fst` field
+data format.
 
 [source,js]
 --------------------------------------------------
@@ -44,6 +49,25 @@ and will require much less memory from the JVM than other implementations.
     }
 }
 --------------------------------------------------
+
+It is possible to change the field data format (and the field data settings
+in general) on a live index by using the update mapping API. When doing so,
+field data which had already been loaded for existing segments will remain
+alive while new segments will use the new field data configuration. Thanks to
+the background merging process, all segments will eventually use the new
+field data format.
+
+[float]
+==== Disallowing field data loading
+
+Field data can take a lot of RAM so it makes sense to disable field data
+loading on the fields that don't need field data, for example those that are
+used for full-text search only. In order to disable field data loading, just
+change the field data type to `disabled`. Request that will try to load field
+data on any field which is configured with this format will then return an
+error.
+
+The `disabled` format is supported by all field types.
 
 [float]
 ==== String field data types

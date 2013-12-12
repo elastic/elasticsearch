@@ -60,6 +60,8 @@ include::queries/prefix-query.asciidoc[]
 
 include::queries/query-string-query.asciidoc[]
 
+include::queries/simple-query-string-query.asciidoc[]
+
 include::queries/range-query.asciidoc[]
 
 include::queries/regexp-query.asciidoc[]

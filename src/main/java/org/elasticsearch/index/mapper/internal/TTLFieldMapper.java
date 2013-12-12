@@ -44,6 +44,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.ttl;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, RootMapper {
@@ -95,7 +96,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            TTLFieldMapper.Builder builder = new TTLFieldMapper.Builder();
+            TTLFieldMapper.Builder builder = ttl();
             parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

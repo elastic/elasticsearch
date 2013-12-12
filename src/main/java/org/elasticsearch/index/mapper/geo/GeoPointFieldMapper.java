@@ -46,8 +46,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
@@ -197,7 +196,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
+            Builder builder = geoPointField(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());

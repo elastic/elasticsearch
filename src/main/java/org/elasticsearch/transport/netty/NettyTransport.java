@@ -542,7 +542,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         BytesStreamOutput bStream = new BytesStreamOutput();
         bStream.skip(NettyHeader.HEADER_SIZE);
         StreamOutput stream = bStream;
-        if (options.compress()) {
+        // only compress if asked, and, the request is not bytes, since then only
+        // the header part is compressed, and the "body" can't be extracted as compressed
+        if (options.compress() && (!(request instanceof BytesTransportRequest))) {
             status = TransportStatus.setCompress(status);
             stream = CompressorFactory.defaultCompressor().streamOutput(stream);
         }

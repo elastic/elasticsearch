@@ -167,6 +167,28 @@ public class MockDirectoryHelper {
         public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
             return new CloseTrackingMockIndexInputWrapper(name, super.openInput(name, context), logger);
         }
+
+        @Override
+        public IndexInputSlicer createSlicer(final String name, IOContext context) throws IOException {
+            final IndexInputSlicer slicer = super.createSlicer(name, context);
+            return new IndexInputSlicer() {
+
+                @Override
+                public IndexInput openSlice(String sliceDescription, long offset, long length) throws IOException {
+                    return new CloseTrackingMockIndexInputWrapper(name, slicer.openSlice(sliceDescription, offset, length), logger);
+                }
+
+                @Override
+                public IndexInput openFullSlice() throws IOException {
+                    return new CloseTrackingMockIndexInputWrapper(name, slicer.openFullSlice(), logger);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    slicer.close();
+                }
+            };
+        }
     }
 
     private static class CloseTrackingMockIndexInputWrapper extends IndexInput {

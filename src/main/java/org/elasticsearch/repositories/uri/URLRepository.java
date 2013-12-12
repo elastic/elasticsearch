@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.uri;
 
+import com.google.common.collect.ImmutableList;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
@@ -52,6 +54,8 @@ public class URLRepository extends BlobStoreRepository {
 
     private final BlobPath basePath;
 
+    private boolean listDirectories;
+
     /**
      * Constructs new read-only URL-based repository
      *
@@ -72,6 +76,7 @@ public class URLRepository extends BlobStoreRepository {
         }
         int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
         ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
+        listDirectories = repositorySettings.settings().getAsBoolean("list_directories", componentSettings.getAsBoolean("list_directories", true));
         blobStore = new URLBlobStore(componentSettings, concurrentStreamPool, url);
         basePath = BlobPath.cleanPath();
     }
@@ -87,5 +92,18 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
+    }
+
+    @Override
+    public ImmutableList<SnapshotId> snapshots() {
+        if (listDirectories) {
+            return super.snapshots();
+        } else {
+            try {
+                return readSnapshotList();
+            } catch (IOException ex) {
+                throw new RepositoryException(repositoryName, "failed to get snapshot list in repository", ex);
+            }
+        }
     }
 }

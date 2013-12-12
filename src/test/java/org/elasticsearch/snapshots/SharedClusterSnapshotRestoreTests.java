@@ -25,6 +25,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -784,7 +785,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> trying to create a repository with different name");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", new File(repositoryLocation, "test"))
-        ).get();
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> unblocking blocked node");
@@ -851,13 +852,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> delete index");
         wipeIndices("test-idx");
 
-        logger.info("--> delete file system repository");
-        wipeRepositories("test-repo");
-
         logger.info("--> create read-only URL repository");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("url-repo")
                 .setType("url").setSettings(ImmutableSettings.settingsBuilder()
                         .put("url", repositoryLocation.toURI().toURL())
+                        .put("list_directories", randomBoolean())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         logger.info("--> restore index after deletion");
@@ -870,6 +869,15 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+
+        logger.info("--> delete snapshot");
+        DeleteSnapshotResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
+        assertAcked(deleteSnapshotResponse);
+
+        logger.info("--> list available shapshot again, no snapshots should be returned");
+        getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
+        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
     }
 
     private boolean waitForIndex(String index, TimeValue timeout) throws InterruptedException {

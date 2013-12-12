@@ -48,6 +48,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransportModule;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Assert;
@@ -137,6 +138,8 @@ public final class TestCluster implements Iterable<Client> {
         .put("gateway.type", "none");
         if (isLocalTransportConfigured()) {
             builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
+        } else {
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
         }
         this.defaultSettings = builder.build();
         this.nodeSettingsSource = nodeSettingsSource;

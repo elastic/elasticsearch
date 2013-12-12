@@ -31,14 +31,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.terms.GeoHashCells;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
@@ -119,12 +117,11 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             assertThat(response.getFailedShards(), equalTo(0));
 
-            GeoHashCells geoGrid = response.getAggregations().get("geohashgrid");
-            for (Bucket bucket : geoGrid ){
-                GeoHashCells.Bucket lb=(GeoHashCells.Bucket) bucket; 
-                String geohash=lb.getGeoHash();
+            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            for (GeoHashGrid.Bucket cell : geoGrid ){
+                String geohash=cell.getGeoHash();
 
-                long bucketCount=lb.getDocCount();
+                long bucketCount=cell.getDocCount();
                 int expectedBucketCount=expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash "+geohash+" has wrong doc count ",
@@ -153,11 +150,10 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
             
             Filter filter =response.getAggregations().get("filtered");
 
-            GeoHashCells geoGrid = filter.getAggregations().get("geohashgrid");
-            for (Bucket bucket : geoGrid ){
-                GeoHashCells.Bucket lb=(GeoHashCells.Bucket) bucket; 
-                String geohash = lb.getGeoHash();
-                long bucketCount=lb.getDocCount();
+           GeoHashGrid geoGrid = filter.getAggregations().get("geohashgrid");
+            for (GeoHashGrid.Bucket cell : geoGrid ){
+                String geohash = cell.getGeoHash();
+                long bucketCount=cell.getDocCount();
                 int expectedBucketCount=expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertTrue("Buckets must be filtered", geohash.startsWith(smallestGeoHash));
@@ -183,9 +179,8 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             assertThat(response.getFailedShards(), equalTo(0));
 
-            GeoHashCells geoGrid = response.getAggregations().get("geohashgrid");
-            Collection<Terms.Bucket> buckets = geoGrid.buckets();
-            assertThat(buckets.size(), equalTo(0));
+            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            assertThat(geoGrid.getNumberOfBuckets(), equalTo(0));
         }        
 
     }
@@ -202,12 +197,11 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             assertThat(response.getFailedShards(), equalTo(0));
 
-            GeoHashCells geoGrid = response.getAggregations().get("geohashgrid");
-            for (Bucket bucket : geoGrid ){
-                GeoHashCells.Bucket lb=(GeoHashCells.Bucket) bucket; 
-                String geohash=lb.getGeoHash();
+            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            for (GeoHashGrid.Bucket cell : geoGrid ){
+                String geohash=cell.getGeoHash();
 
-                long bucketCount=lb.getDocCount();
+                long bucketCount=cell.getDocCount();
                 int expectedBucketCount=expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash "+geohash+" has wrong doc count ",
@@ -230,14 +224,12 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
             assertThat(response.getFailedShards(), equalTo(0));
 
-            GeoHashCells geoGrid = response.getAggregations().get("geohashgrid");
-            Collection<Terms.Bucket> buckets = geoGrid.buckets();
+            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             //Check we only have one bucket with the best match for that resolution
-            assertThat(buckets.size(), equalTo(1));
-            for (Bucket bucket : geoGrid ){
-                GeoHashCells.Bucket lb=(GeoHashCells.Bucket) bucket; 
-                String geohash=lb.getGeoHash();
-                long bucketCount=lb.getDocCount();
+            assertThat(geoGrid.getNumberOfBuckets(), equalTo(1));
+            for (GeoHashGrid.Bucket cell : geoGrid ){
+                String geohash=cell.getGeoHash();
+                long bucketCount=cell.getDocCount();
                 int expectedBucketCount=0;
                 for (ObjectIntCursor<String> cursor : expectedDocCountsForGeoHash) {
                     if(cursor.key.length()==precision)

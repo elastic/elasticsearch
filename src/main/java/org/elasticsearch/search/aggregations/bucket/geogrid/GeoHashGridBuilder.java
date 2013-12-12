@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
@@ -36,7 +37,7 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
     private int shardSize=0;
 
     public GeoHashGridBuilder(String name) {
-        super(name, GeoHashGridParser.aggTypeName);
+        super(name, InternalGeoHashGrid.TYPE.name());
     }
 
     public GeoHashGridBuilder field(String field) {
@@ -47,7 +48,7 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
     public GeoHashGridBuilder precision(int precision) {
         if((precision<1)||(precision>12))
         {
-            throw new IllegalArgumentException("Invalid geohash aggregation precision of "+precision
+            throw new ElasticSearchIllegalArgumentException("Invalid geohash aggregation precision of "+precision
                     +"must be between 1 and 12");
         }
         this.precision = precision;

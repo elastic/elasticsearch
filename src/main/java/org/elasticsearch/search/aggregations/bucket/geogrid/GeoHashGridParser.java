@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -42,10 +42,9 @@ import java.io.IOException;
  */
 public class GeoHashGridParser implements Aggregator.Parser {
 
-    public static final String aggTypeName="geohashgrid";
     @Override
     public String type() {
-        return aggTypeName;
+        return InternalGeoHashGrid.TYPE.name();
     }
     
    
@@ -132,7 +131,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         public GeoGridFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
                 int precision,int requiredSize,int shardSize) {
-            super(name, StringTerms.TYPE.name(), valueSourceConfig);
+            super(name, InternalGeoHashGrid.TYPE.name(), valueSourceConfig);
             this.precision=precision;
             this.requiredSize=requiredSize;
             this.shardSize=shardSize;
@@ -140,8 +139,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            InternalOrder order = (InternalOrder) GeoHashCells.Order.COUNT_DESC;            
-            return new GeoHashCellsAggregator.Unmapped(name, order, requiredSize, aggregationContext, parent);
+            return new GeoHashGridAggregator.Unmapped(name,  requiredSize, aggregationContext, parent);
         }
         
         @Override
@@ -153,8 +151,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             // if any multi-point exists in a segment and if so, avoid this needless wrapper  
             cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
             final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource,null,null);
-            InternalOrder order = (InternalOrder) GeoHashCells.Order.COUNT_DESC;
-            return new GeoHashCellsAggregator(name, factories, geohashIdSource, order, requiredSize,
+            return new GeoHashGridAggregator(name, factories, geohashIdSource,  requiredSize,
                     shardSize, aggregationContext, parent);
 
         }

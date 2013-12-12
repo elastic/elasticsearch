@@ -76,11 +76,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
                 in.clear(reader);
             }
 
-            @Override
-            public long getHighestNumberOfSeenUniqueValues() {
-                return in.getHighestNumberOfSeenUniqueValues();
-            }
-
         };
     }
 

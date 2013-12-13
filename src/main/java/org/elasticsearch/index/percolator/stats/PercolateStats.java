@@ -93,6 +93,7 @@ public class PercolateStats implements Streamable, ToXContent {
         builder.field(Fields.CURRENT, current);
         builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySizeInBytes);
         builder.field(Fields.MEMORY_SIZE, getMemorySize());
+        builder.field(Fields.QUERIES, getNumQueries());
         builder.endObject();
         return builder;
     }
@@ -117,6 +118,7 @@ public class PercolateStats implements Streamable, ToXContent {
         static final XContentBuilderString CURRENT = new XContentBuilderString("current");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
+        static final XContentBuilderString QUERIES = new XContentBuilderString("queries");
     }
 
     public static PercolateStats readPercolateStats(StreamInput in) throws IOException {

@@ -1,8 +1,8 @@
 [[query-dsl-nested-filter]]
 === Nested Filter
 
-A `nested` filter, works in a similar fashion to the
-<<query-dsl-nested-query,nested>> query, except
+A `nested` filter works in a similar fashion to the
+<<query-dsl-nested-query,nested>> query, except it's
 used as a filter. It follows exactly the same structure, but also allows
 to cache the results (set `_cache` to `true`), and have it named (set
 the `_name` value). For example:
@@ -37,8 +37,8 @@ the `_name` value). For example:
 [float]
 ==== Join option
 
-The nested filter also supports an `join` option. Which controls whether to perform the block join.
-By default this enabled, but when disabled it emits the hidden nested documents as hits instead of the joined root document.
+The nested filter also supports a `join` option which controls whether to perform the block join or not.
+By default, it's enabled. But when it's disabled, it emits the hidden nested documents as hits instead of the joined root document.
 
 This is useful when a `nested` filter is used in a facet where nested is enabled, like you can see in the example below:
 

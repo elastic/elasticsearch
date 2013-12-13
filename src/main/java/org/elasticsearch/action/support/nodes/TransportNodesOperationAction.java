@@ -214,7 +214,15 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         }
 
         private void finishHim() {
-            listener.onResponse(newResponse(request, responses));
+            Response finalResponse;
+            try {
+                finalResponse = newResponse(request, responses);
+            } catch (Throwable t) {
+                logger.debug("failed to combine responses from nodes", t);
+                listener.onFailure(t);
+                return;
+            }
+            listener.onResponse(finalResponse);
         }
     }
 

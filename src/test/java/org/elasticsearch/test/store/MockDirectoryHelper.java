@@ -20,7 +20,9 @@
 package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cache.memory.ByteBufferCache;
@@ -39,10 +41,8 @@ import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MockDirectoryHelper {
     public static final String RANDOM_IO_EXCEPTION_RATE = "index.store.mock.random.io_exception_rate";
@@ -76,7 +76,7 @@ public class MockDirectoryHelper {
         noDeleteOpenFile = indexSettings.getAsBoolean(RANDOM_NO_DELETE_OPEN_FILE, random.nextBoolean()); // true is default in MDW
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = Throttling.valueOf(indexSettings.get(RANDOM_THROTTLE, random.nextDouble() < 0.1 ? "SOMETIMES" : "NEVER"));
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, false);// we can't do this by default since it might close the index input that we still read from in a pending fetch phase.
         failOnClose = indexSettings.getAsBoolean(RANDOM_FAIL_ON_CLOSE, false);
 
         if (logger.isDebugEnabled()) {
@@ -162,154 +162,5 @@ public class MockDirectoryHelper {
         public void closeWithRuntimeException() throws IOException {
             super.close(); // force fail if open files etc. called in tear down of ElasticsearchIntegrationTest
         }
-
-        @Override
-        public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
-            return new CloseTrackingMockIndexInputWrapper(name, super.openInput(name, context), logger);
-        }
-
-        @Override
-        public IndexInputSlicer createSlicer(final String name, IOContext context) throws IOException {
-            final IndexInputSlicer slicer = super.createSlicer(name, context);
-            return new IndexInputSlicer() {
-
-                @Override
-                public IndexInput openSlice(String sliceDescription, long offset, long length) throws IOException {
-                    return new CloseTrackingMockIndexInputWrapper(name, slicer.openSlice(sliceDescription, offset, length), logger);
-                }
-
-                @Override
-                public IndexInput openFullSlice() throws IOException {
-                    return new CloseTrackingMockIndexInputWrapper(name, slicer.openFullSlice(), logger);
-                }
-
-                @Override
-                public void close() throws IOException {
-                    slicer.close();
-                }
-            };
-        }
-    }
-
-    private static class CloseTrackingMockIndexInputWrapper extends IndexInput {
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final String name;
-        private IndexInput delegate;
-        private final ESLogger logger;
-        private volatile RuntimeException closingStack;
-
-        public CloseTrackingMockIndexInputWrapper(String name, IndexInput delegate, ESLogger logger) {
-            super(name);
-            this.delegate = delegate;
-            this.logger = logger;
-            this.name = name;
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                closingStack = new RuntimeException("IndexInput closed");
-                delegate.close();
-            }
-        }
-
-        @Override
-        public IndexInput clone() {
-            ensureOpen();
-            return delegate.clone();
-        }
-
-
-        private void ensureOpen() {
-            if (closed.get()) {
-                logger.debug("Abusing IndexInput for: [" + name + "] - already closed", closingStack);
-                throw new RuntimeException("Abusing closed IndexInput!");
-            }
-        }
-
-        @Override
-        public long getFilePointer() {
-            ensureOpen();
-            return delegate.getFilePointer();
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            ensureOpen();
-            delegate.seek(pos);
-        }
-
-        @Override
-        public long length() {
-            ensureOpen();
-            return delegate.length();
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            ensureOpen();
-            return delegate.readByte();
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            ensureOpen();
-            delegate.readBytes(b, offset, len);
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len, boolean useBuffer)
-                throws IOException {
-            ensureOpen();
-            delegate.readBytes(b, offset, len, useBuffer);
-        }
-
-        @Override
-        public short readShort() throws IOException {
-            ensureOpen();
-            return delegate.readShort();
-        }
-
-        @Override
-        public int readInt() throws IOException {
-            ensureOpen();
-            return delegate.readInt();
-        }
-
-        @Override
-        public long readLong() throws IOException {
-            ensureOpen();
-            return delegate.readLong();
-        }
-
-        @Override
-        public String readString() throws IOException {
-            ensureOpen();
-            return delegate.readString();
-        }
-
-        @Override
-        public Map<String,String> readStringStringMap() throws IOException {
-            ensureOpen();
-            return delegate.readStringStringMap();
-        }
-
-        @Override
-        public int readVInt() throws IOException {
-            ensureOpen();
-            return delegate.readVInt();
-        }
-
-        @Override
-        public long readVLong() throws IOException {
-            ensureOpen();
-            return delegate.readVLong();
-        }
-
-        @Override
-        public String toString() {
-            return "CloseTrackingMockIndexInputWrapper(" + delegate + ")";
-        }
-
     }
 }

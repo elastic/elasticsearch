@@ -1314,9 +1314,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                                         .field("term_vector", "with_positions_offsets").endObject()
                                     .endObject()
                                     .endObject().endObject()
-                    )
-                    .execute().actionGet();
-        } if (randomBoolean()) {
+                    ).get();
+        } else if (randomBoolean()) {
             // plain hl with stored fields
             client.admin().indices().preparePutMapping("test").setType("type")
                     .setSource(
@@ -1325,8 +1324,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                                     .startObject("field1").field("type", "string").field("store", true).endObject()
                                     .endObject()
                                     .endObject().endObject()
-                    )
-                    .execute().actionGet();
+                    ).get();
         } else if (randomBoolean()) {
             // positions hl
             client.admin().indices().preparePutMapping("test").setType("type")
@@ -1338,8 +1336,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                                     .endObject()
                                     .endObject()
                                     .endObject().endObject()
-                    )
-                    .execute().actionGet();
+                    ).get();
         }
 
         logger.info("--> register a queries");

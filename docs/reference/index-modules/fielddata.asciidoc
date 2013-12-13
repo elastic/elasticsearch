@@ -63,12 +63,12 @@ field data format.
 Loading field data into memory can easily take gigabytes of RAM. If your
 cluster's memory usage is close to its maximum capacity, loading field data
 of a high-cardinality string field by mistake is likely to take your whole
-cluster down. In order to prevent it, Elasticsearch has the special `none`
+cluster down. In order to prevent it, Elasticsearch has the special `disabled`
 field data type that prevents field data from being loaded into memory and
 will cause all requests that would need field data for this field to return
 an error.
 
-The `none` format is supported by all field types.
+The `disabled` format is supported by all field types.
 
 [float]
 ==== String field data types

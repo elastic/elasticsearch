@@ -30,18 +30,19 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * A field data implementation that forbids loading.
+ * A field data implementation that forbids loading and will throw an {@link ElasticSearchIllegalStateException} if you try to load
+ * {@link AtomicFieldData} instances.
  */
-public final class NoneIndexFieldData extends AbstractIndexFieldData<AtomicFieldData<?>> {
+public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicFieldData<?>> {
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
         public IndexFieldData<AtomicFieldData<?>> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new NoneIndexFieldData(index, indexSettings, fieldNames, type, cache);
+            return new DisabledIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public NoneIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public DisabledIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 

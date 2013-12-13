@@ -27,7 +27,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class NoneFieldDataFormatTests extends ElasticsearchIntegrationTest {
+public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
 
     public void test() throws Exception {
         createIndex("test");
@@ -39,7 +39,7 @@ public class NoneFieldDataFormatTests extends ElasticsearchIntegrationTest {
         refresh();
 
         // disable field data
-        updateFormat("none");
+        updateFormat("disabled");
 
         SearchResponse resp = null;
         // try to run something that relies on field data and make sure that it fails
@@ -58,7 +58,7 @@ public class NoneFieldDataFormatTests extends ElasticsearchIntegrationTest {
         assertNoFailures(resp);
 
         // disable it again
-        updateFormat("none");
+        updateFormat("disabled");
 
         // this time, it should work because segments are already loaded
         resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();

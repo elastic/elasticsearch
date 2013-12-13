@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,30 +28,24 @@ import java.io.IOException;
 /**
  * A response for a delete index template.
  */
-public class DeleteIndexTemplateResponse extends ActionResponse {
-
-    private boolean acknowledged;
+public class DeleteIndexTemplateResponse extends AcknowledgedResponse {
 
     DeleteIndexTemplateResponse() {
     }
 
     DeleteIndexTemplateResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-    }
-
-    public boolean isAcknowledged() {
-        return acknowledged;
+        super(acknowledged);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        acknowledged = in.readBoolean();
+        readAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(acknowledged);
+        writeAcknowledged(out);
     }
 }

@@ -53,8 +53,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
             } else {
                 this.listener = listener;
             }
-            shutdown();
         }
+        shutdown();
     }
 
     @Override

@@ -58,7 +58,7 @@ public class SloppyMathTests extends ElasticsearchTestCase {
     }
 
     private static double maxError(double distance) {
-        return distance / 10000.0;
+        return distance / 1000.0;
     }
     
     private void testSloppyMath(DistanceUnit unit, double...deltaDeg) {

@@ -40,12 +40,12 @@ public class AllocationDeciders extends AllocationDecider {
     /**
      * Create a new {@link AllocationDeciders} instance. The different deciders
      * should be added in order, as looping over them will stop when the first 
-     * return a {@link Decision.THROTTLE} or {@link Decision.NO}. For performance
+     * return a {@link Decision#THROTTLE} or {@link Decision#NO}. For performance
      * reasons, those more likely to return either of these, and those with
      * cheap execution should be executed first.
      *
      * Performance characteristics:
-     * {@link ConcurrentRebalanceAllocationDecider} numerical comparison of a counter in {@link RoutingNodes},
+     * {@link ConcurrentRebalanceAllocationDecider} numerical comparison of a counter in {@link org.elasticsearch.cluster.routing.RoutingNodes},
      * constant performance, likely to be triggered.
      * {@link DisableAllocationDecider} lookup of setting. Constant performance, not as
      * likely to be triggered.
@@ -117,6 +117,9 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]", shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
+                }
                 return decision;
             } else if (decision != Decision.ALWAYS) {
                 // the assumption is that a decider that returns the static instance Decision#ALWAYS
@@ -130,6 +133,9 @@ public class AllocationDeciders extends AllocationDecider {
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Shard [{}] should be ignored for node [{}]", shardRouting, node.nodeId());
+            }
             return Decision.NO;
         }
         Decision.Multi ret = new Decision.Multi();
@@ -137,6 +143,9 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not remain on node [{}] due to [{}]", shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
+                }
                 return decision;
             } else if (decision != Decision.ALWAYS) {
                 ret.add(decision);

@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup.termstatistics;
+package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 
@@ -29,11 +28,10 @@ import java.util.Iterator;
 /*
  * Can iterate over the positions of a term an arbotrary number of times. 
  * */
-public class CachedPositionIterator extends UncachedPositionIterator {
+public class CachedPositionIterator extends PositionIterator {
 
     public CachedPositionIterator(ScriptTerm termInfo) {
         super(termInfo);
-        uncached = new UncachedPositionIterator(termInfo);
     }
 
     // all payloads of the term in the current document in one bytes array.
@@ -50,79 +48,59 @@ public class CachedPositionIterator extends UncachedPositionIterator {
 
     final IntsRef endOffsets = new IntsRef(0);
 
-    final UncachedPositionIterator uncached;
-
     @Override
     public Iterator<TermPosition> reset() {
-        curIteratorPos = 0;
-        return this;
+        return new Iterator<TermPosition>() {
+            private int pos = 0;
+            private final TermPosition termPosition = new TermPosition();
+
+            @Override
+            public boolean hasNext() {
+                return pos < freq;
+            }
+
+            @Override
+            public TermPosition next() {
+                termPosition.position = positions.ints[pos];
+                termPosition.startOffset = startOffsets.ints[pos];
+                termPosition.endOffset = endOffsets.ints[pos];
+                termPosition.payload = payloads;
+                payloads.offset = payloadsStarts.ints[pos];
+                payloads.length = payloadsLengths.ints[pos];
+                pos++;
+                return termPosition;
+            }
+
+            @Override
+            public void remove() {
+            }
+        };
     }
 
-    @Override
-    protected void initTermPosition(DocsAndPositionsEnum docsAndPos) throws IOException {
-
-        if (shouldRetrievePositions()) {
-            termPosition.position = positions.ints[curIteratorPos];
-        }
-        if (shouldRetrieveOffsets()) {
-            termPosition.startOffset = startOffsets.ints[curIteratorPos];
-            termPosition.endOffset = endOffsets.ints[curIteratorPos];
-        }
-        if (shouldRetrievePayloads()) {
-            termPosition.payload = payloads;
-            payloads.offset = payloadsStarts.ints[curIteratorPos];
-            payloads.length = payloadsLengths.ints[curIteratorPos];
-        }
-
-    }
 
     private void record() throws IOException {
-        uncached.init();
         TermPosition termPosition;
-        initMemory();
         for (int i = 0; i < freq; i++) {
-            termPosition = uncached.next();
-            if (shouldRetrievePositions()) {
-                positions.ints[i] = termPosition.position;
-            }
-            if (shouldRetrievePayloads()) {
-                addPayload(i, termPosition.payload);
-            }
-            if (shouldRetrieveOffsets()) {
-                startOffsets.ints[i] = termPosition.startOffset;
-                endOffsets.ints[i] = termPosition.endOffset;
-            }
+            termPosition = super.next();
+            positions.ints[i] = termPosition.position;
+            addPayload(i, termPosition.payload);
+            startOffsets.ints[i] = termPosition.startOffset;
+            endOffsets.ints[i] = termPosition.endOffset;
         }
     }
-
-    private void initMemory() {
-        initPosMem(freq);
-        initPayloadsMem(freq);
-        initOffsetsMem(freq);
-    }
-
-    @Override
-    protected void initDocsAndPos() throws IOException {
-        super.initDocsAndPos();
-        uncached.initDocsAndPos();
-    }
-
-    private void initOffsetsMem(int freq) {
-        startOffsets.grow(freq);
-        endOffsets.grow(freq);
-    }
-
-    private void initPosMem(int freq) {
-        positions.grow(freq);
-    }
-
-    private void initPayloadsMem(int freq) {
+    private void ensureSize(int freq) {
+        if (startOffsets.ints.length < freq) {
+            startOffsets.grow(freq);
+            endOffsets.grow(freq);
+            positions.grow(freq);
+            payloadsLengths.grow(freq);
+            payloadsStarts.grow(freq);
+        }
         payloads.offset = 0;
         payloadsLengths.offset = 0;
         payloadsStarts.offset = 0;
         payloads.grow(freq * 8);// this is just a guess....
-        payloadsLengths.grow(freq);
-        payloadsStarts.grow(freq);
+
     }
 
     private void addPayload(int i, BytesRef currPayload) {
@@ -142,13 +120,16 @@ public class CachedPositionIterator extends UncachedPositionIterator {
         }
     }
 
-    /*
-     * Must be called when moving to a new document.
-     */
+
     @Override
-    protected void init() throws IOException {
-        freq = scriptTerm.tf();
-        curIteratorPos = 0;
+    public void nextDoc() throws IOException {
+        super.nextDoc();
+        ensureSize(freq);
         record();
+    }
+
+    @Override
+    public TermPosition next() {
+        throw new UnsupportedOperationException();
     }
 }

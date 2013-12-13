@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
-
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;

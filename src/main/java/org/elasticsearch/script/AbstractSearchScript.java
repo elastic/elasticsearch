@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.search.lookup.ShardTermsLookup;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -26,7 +28,6 @@ import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
 
 import java.util.Map;
 

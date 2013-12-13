@@ -383,21 +383,21 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         // check FLAG_OFFSETS flag
         script = createPositionsArrayScript("int_payload_field", "b", "_OFFSETS", "position");
         // there should be positions and s forth ...
-        checkArrayValsInEachDoc(script, emptyArray, 3);
+        checkArrayValsInEachDoc(script, expectedPositionsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_OFFSETS", "startOffset");
         checkArrayValsInEachDoc(script, expectedStartOffsetsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_OFFSETS", "endOffset");
         checkArrayValsInEachDoc(script, expectedEndOffsetsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_OFFSETS", "payloadAsInt(-1)");
-        checkArrayValsInEachDoc(script, emptyArray, 3);
+        checkArrayValsInEachDoc(script, expectedPayloadsArray, 3);
 
         // check FLAG_PAYLOADS flag
         script = createPositionsArrayScript("int_payload_field", "b", "_PAYLOADS", "position");
-        checkArrayValsInEachDoc(script, emptyArray, 3);
+        checkArrayValsInEachDoc(script, expectedPositionsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_PAYLOADS", "startOffset");
-        checkArrayValsInEachDoc(script, emptyArray, 3);
+        checkArrayValsInEachDoc(script, expectedStartOffsetsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_PAYLOADS", "endOffset");
-        checkArrayValsInEachDoc(script, emptyArray, 3);
+        checkArrayValsInEachDoc(script, expectedEndOffsetsArray, 3);
         script = createPositionsArrayScript("int_payload_field", "b", "_PAYLOADS", "payloadAsInt(-1)");
         checkArrayValsInEachDoc(script, expectedPayloadsArray, 3);
 
@@ -620,7 +620,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
             assertThat(
                     fail.reason()
                             .indexOf(
-                                    "No more positions to return! If you want to iterate more that once, add _CACHE flag or call record() explicitely."),
+                                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
                     Matchers.greaterThan(-1));
         }
     }

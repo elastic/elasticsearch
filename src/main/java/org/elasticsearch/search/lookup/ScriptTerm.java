@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup.termstatistics;
+package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
@@ -86,7 +86,6 @@ public class ScriptTerm implements Iterable<TermPosition> {
                     docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
                 }
             }
-            iterator.initDocsAndPos();
         } catch (IOException e) {
             throw new ElasticSearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
         }
@@ -162,7 +161,7 @@ public class ScriptTerm implements Iterable<TermPosition> {
             }
         }
         try {
-            iterator.init();
+            iterator.nextDoc();
         } catch (IOException e) {
             throw new ElasticSearchException("While trying to initialize term positions in ScriptTerm.setNextDoc() ", e);
         }
@@ -179,12 +178,12 @@ public class ScriptTerm implements Iterable<TermPosition> {
         boolean doRecord = ((flags & ShardTermsLookup.FLAG_CACHE) > 0);
         if (withPositions()) {
             if (!doRecord) {
-                iterator = new UncachedPositionIterator(this);
+                iterator = new PositionIterator(this);
             } else {
                 iterator = new CachedPositionIterator(this);
             }
         } else {
-            iterator = new EmptyPositionIterator(this);
+            iterator = new PositionIterator(this);
         }
         setNextReader(shardTermsLookup.getReader());
         setNextDoc(shardTermsLookup.getDocId());

@@ -1,13 +1,14 @@
 package org.elasticsearch.benchmark.scripts.score.script;
 
+import org.elasticsearch.search.lookup.ScriptTerm;
+import org.elasticsearch.search.lookup.ScriptTerms;
+import org.elasticsearch.search.lookup.ShardTermsLookup;
+import org.elasticsearch.search.lookup.TermPosition;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.search.lookup.termstatistics.ScriptTerm;
-import org.elasticsearch.search.lookup.termstatistics.ScriptTerms;
-import org.elasticsearch.search.lookup.termstatistics.ShardTermsLookup;
-import org.elasticsearch.search.lookup.termstatistics.TermPosition;
 
 import java.util.ArrayList;
 import java.util.Map;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup.termstatistics;
+package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.util.BytesRef;

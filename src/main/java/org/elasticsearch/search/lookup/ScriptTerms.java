@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup.termstatistics;
+package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.CollectionStatistics;

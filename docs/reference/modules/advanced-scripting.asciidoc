@@ -1,8 +1,8 @@
 [[modules-advanced-scripting]]
-== Term statistics and term vectors in scripts
+== Text scoring in scripts
 
 
-Term statistics and term vectors can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_shard` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
+Document, field and term statistics, term positions and term vectors can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_shard` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
 Statistics over the document collection are computed *per shard*, not per
 index.
 

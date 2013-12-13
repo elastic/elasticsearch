@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.lookup.termstatistics;
+package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.index.*;

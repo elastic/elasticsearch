@@ -532,8 +532,8 @@ public class ForkJoinPool extends AbstractExecutorService {
          * Returns a new worker thread operating in the given pool.
          *
          * @param pool the pool this thread works in
-         * @throws NullPointerException if the pool is null
          * @return the new worker thread
+         * @throws NullPointerException if the pool is null
          */
         public ForkJoinWorkerThread newThread(ForkJoinPool pool);
     }
@@ -2098,7 +2098,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                     w.currentSteal = ps;
                 }
             }
-            else if (active) {       // decrement active count without queuing
+            else if (active) {      // decrement active count without queuing
                 long nc = ((c = ctl) & ~AC_MASK) | ((c & AC_MASK) - AC_UNIT);
                 if ((int)(nc >> AC_SHIFT) + parallelism == 0)
                     break;          // bypass decrement-then-increment
@@ -2497,6 +2497,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * minimally only the latter.
      *
      * @param task the task
+     * @param <T> the type of the task's result
      * @return the task's result
      * @throws NullPointerException if the task is null
      * @throws RejectedExecutionException if the task cannot be
@@ -2545,6 +2546,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * Submits a ForkJoinTask for execution.
      *
      * @param task the task to submit
+     * @param <T> the type of the task's result
      * @return the task
      * @throws NullPointerException if the task is null
      * @throws RejectedExecutionException if the task cannot be

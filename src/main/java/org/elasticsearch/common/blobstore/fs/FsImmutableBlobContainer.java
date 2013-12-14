@@ -50,10 +50,11 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                     raf = new RandomAccessFile(file, "rw");
                     // clean the file if it exists
                     raf.setLength(0);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
                 }
+                boolean success = false;
                 try {
                     try {
                         long bytesWritten = 0;
@@ -80,8 +81,9 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                         }
                     }
                     FileSystemUtils.syncFile(file);
-                    listener.onCompleted();
-                } catch (Exception e) {
+                    success = true;
+                } catch (Throwable e) {
+                    listener.onFailure(e);
                     // just on the safe size, try and delete it on failure
                     try {
                         if (file.exists()) {
@@ -90,7 +92,10 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                     } catch (Exception e1) {
                         // ignore
                     }
-                    listener.onFailure(e);
+                } finally {
+                   if (success) {
+                       listener.onCompleted();
+                   }
                 }
             }
         });

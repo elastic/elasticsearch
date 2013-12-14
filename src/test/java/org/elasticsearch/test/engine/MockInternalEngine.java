@@ -83,7 +83,8 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
     }
 
 
-    public void close() throws ElasticsearchException {
+    @Override
+    public void close() {
         try {
             super.close();
         } finally {

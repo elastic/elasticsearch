@@ -372,104 +372,109 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param snapshotIndexCommit
          */
         public void snapshot(SnapshotIndexCommit snapshotIndexCommit) {
-            logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
-
-            final ImmutableMap<String, BlobMetaData> blobs;
+            store.incRef();
             try {
-                blobs = blobContainer.listBlobs();
-            } catch (IOException e) {
-                throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
-            }
+                logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
 
-            long generation = findLatestFileNameGeneration(blobs);
-            BlobStoreIndexShardSnapshots snapshots = buildBlobStoreIndexShardSnapshots(blobs);
-
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
-
-            final CountDownLatch indexLatch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
-            final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
-            final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = newArrayList();
-
-            int indexNumberOfFiles = 0;
-            long indexTotalFilesSize = 0;
-            for (String fileName : snapshotIndexCommit.getFiles()) {
-                if (snapshotStatus.aborted()) {
-                    logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                }
-                logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
-                final StoreFileMetaData md;
+                final ImmutableMap<String, BlobMetaData> blobs;
                 try {
-                    md = store.metaData(fileName);
+                    blobs = blobContainer.listBlobs();
                 } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                    throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
                 }
 
-                boolean snapshotRequired = false;
-                // TODO: For now segment files are copied on each commit because segment files don't have checksum
-//            if (snapshot.indexChanged() && fileName.equals(snapshotIndexCommit.getSegmentsFileName())) {
-//                snapshotRequired = true; // we want to always snapshot the segment file if the index changed
-//            }
+                long generation = findLatestFileNameGeneration(blobs);
+                BlobStoreIndexShardSnapshots snapshots = buildBlobStoreIndexShardSnapshots(blobs);
 
-                BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
+                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
 
-                if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
-                    // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
-                    snapshotRequired = true;
-                }
+                final CountDownLatch indexLatch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+                final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = newArrayList();
 
-                if (snapshotRequired) {
-                    indexNumberOfFiles++;
-                    indexTotalFilesSize += md.length();
-                    // create a new FileInfo
-                    try {
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), chunkSize, md.checksum());
-                        indexCommitPointFiles.add(snapshotFileInfo);
-                        snapshotFile(snapshotFileInfo, indexLatch, failures);
-                    } catch (IOException e) {
-                        failures.add(e);
+                int indexNumberOfFiles = 0;
+                long indexTotalFilesSize = 0;
+                for (String fileName : snapshotIndexCommit.getFiles()) {
+                    if (snapshotStatus.aborted()) {
+                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
+                        throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                     }
-                } else {
-                    indexCommitPointFiles.add(fileInfo);
-                    indexLatch.countDown();
+                    logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
+                    final StoreFileMetaData md;
+                    try {
+                        md = store.metaData(fileName);
+                    } catch (IOException e) {
+                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                    }
+
+                    boolean snapshotRequired = false;
+                    // TODO: For now segment files are copied on each commit because segment files don't have checksum
+    //            if (snapshot.indexChanged() && fileName.equals(snapshotIndexCommit.getSegmentsFileName())) {
+    //                snapshotRequired = true; // we want to always snapshot the segment file if the index changed
+    //            }
+
+                    BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
+
+                    if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
+                        // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
+                        snapshotRequired = true;
+                    }
+
+                    if (snapshotRequired) {
+                        indexNumberOfFiles++;
+                        indexTotalFilesSize += md.length();
+                        // create a new FileInfo
+                        try {
+                            BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), chunkSize, md.checksum());
+                            indexCommitPointFiles.add(snapshotFileInfo);
+                            snapshotFile(snapshotFileInfo, indexLatch, failures);
+                        } catch (IOException e) {
+                            failures.add(e);
+                        }
+                    } else {
+                        indexCommitPointFiles.add(fileInfo);
+                        indexLatch.countDown();
+                    }
                 }
-            }
 
-            snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
-            snapshotStatus.indexVersion(snapshotIndexCommit.getGeneration());
+                snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
+                snapshotStatus.indexVersion(snapshotIndexCommit.getGeneration());
 
-            try {
-                indexLatch.await();
-            } catch (InterruptedException e) {
-                failures.add(e);
-                Thread.currentThread().interrupt();
-            }
-            if (!failures.isEmpty()) {
-                throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", failures.get(0));
-            }
+                try {
+                    indexLatch.await();
+                } catch (InterruptedException e) {
+                    failures.add(e);
+                    Thread.currentThread().interrupt();
+                }
+                if (!failures.isEmpty()) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", failures.get(0));
+                }
 
-            // now create and write the commit point
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
+                // now create and write the commit point
+                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-            String commitPointName = snapshotBlobName(snapshotId);
-            BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(), snapshotIndexCommit.getGeneration(), indexCommitPointFiles);
-            try {
-                byte[] snapshotData = writeSnapshot(snapshot);
-                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                blobContainer.writeBlob(commitPointName, new BytesStreamInput(snapshotData, false), snapshotData.length);
-            } catch (IOException e) {
-                throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
-            }
+                String commitPointName = snapshotBlobName(snapshotId);
+                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(), snapshotIndexCommit.getGeneration(), indexCommitPointFiles);
+                try {
+                    byte[] snapshotData = writeSnapshot(snapshot);
+                    logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                    blobContainer.writeBlob(commitPointName, new BytesStreamInput(snapshotData, false), snapshotData.length);
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+                }
 
-            // delete all files that are not referenced by any commit point
-            // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
-            List<BlobStoreIndexShardSnapshot> newSnapshotsList = Lists.newArrayList();
-            newSnapshotsList.add(snapshot);
-            for (BlobStoreIndexShardSnapshot point : snapshots) {
-                newSnapshotsList.add(point);
+                // delete all files that are not referenced by any commit point
+                // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
+                List<BlobStoreIndexShardSnapshot> newSnapshotsList = Lists.newArrayList();
+                newSnapshotsList.add(snapshot);
+                for (BlobStoreIndexShardSnapshot point : snapshots) {
+                    newSnapshotsList.add(point);
+                }
+                cleanup(newSnapshotsList, blobs);
+                snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
+            } finally {
+                store.decrementRef();
             }
-            cleanup(newSnapshotsList, blobs);
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
         }
 
         /**
@@ -488,6 +493,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             for (long i = 0; i < fileInfo.numberOfParts(); i++) {
                 IndexInput indexInput = null;
                 try {
+                    final String file = fileInfo.physicalName();
                     indexInput = store.openInputRaw(fileInfo.physicalName(), IOContext.READONCE);
                     indexInput.seek(i * fileInfo.partBytes());
                     InputStreamIndexInput inputStreamIndexInput = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
@@ -583,102 +589,110 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * Performs restore operation
          */
         public void restore() {
-            logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
-            BlobStoreIndexShardSnapshot snapshot;
+            store.incRef();
             try {
-                snapshot = readSnapshot(blobContainer.readBlobFully(snapshotBlobName(snapshotId)));
-            } catch (IOException ex) {
-                throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
-            }
-
-            recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
-            int numberOfFiles = 0;
-            long totalSize = 0;
-            int numberOfReusedFiles = 0;
-            long reusedTotalSize = 0;
-
-            List<FileInfo> filesToRecover = Lists.newArrayList();
-            for (FileInfo fileInfo : snapshot.indexFiles()) {
-                String fileName = fileInfo.physicalName();
-                StoreFileMetaData md = null;
+                logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
+                BlobStoreIndexShardSnapshot snapshot;
                 try {
-                    md = store.metaData(fileName);
+                    snapshot = readSnapshot(blobContainer.readBlobFully(snapshotBlobName(snapshotId)));
+                } catch (IOException ex) {
+                    throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
+                }
+
+                recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
+                int numberOfFiles = 0;
+                long totalSize = 0;
+                int numberOfReusedFiles = 0;
+                long reusedTotalSize = 0;
+
+                List<FileInfo> filesToRecover = Lists.newArrayList();
+                for (FileInfo fileInfo : snapshot.indexFiles()) {
+                    String fileName = fileInfo.physicalName();
+                    StoreFileMetaData md = null;
+                    try {
+                        md = store.metaData(fileName);
+                    } catch (IOException e) {
+                        // no file
+                    }
+                    numberOfFiles++;
+                    // we don't compute checksum for segments, so always recover them
+                    if (!fileName.startsWith("segments") && md != null && fileInfo.isSame(md)) {
+                        totalSize += md.length();
+                        numberOfReusedFiles++;
+                        reusedTotalSize += md.length();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
+                        }
+                    } else {
+                        totalSize += fileInfo.length();
+                        filesToRecover.add(fileInfo);
+                        if (logger.isTraceEnabled()) {
+                            if (md == null) {
+                                logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
+                            } else {
+                                logger.trace("recovering [{}], exists in local store but is different", fileInfo.physicalName());
+                            }
+                        }
+                    }
+                }
+
+                recoveryStatus.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
+                if (filesToRecover.isEmpty()) {
+                    logger.trace("no files to recover, all exists within the local store");
+                }
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] [{}] recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", shardId, snapshotId, numberOfFiles, new ByteSizeValue(totalSize), numberOfReusedFiles, new ByteSizeValue(reusedTotalSize));
+                }
+
+                final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+
+                for (final FileInfo fileToRecover : filesToRecover) {
+                    logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+                    restoreFile(fileToRecover, latch, failures);
+                }
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+
+                if (!failures.isEmpty()) {
+                    throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", failures.get(0));
+                }
+
+                // read the snapshot data persisted
+                long version = -1;
+                try {
+                    if (Lucene.indexExists(store.directory())) {
+                        version = Lucene.readSegmentInfos(store.directory()).getVersion();
+                    }
                 } catch (IOException e) {
-                    // no file
+                    throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
                 }
-                numberOfFiles++;
-                // we don't compute checksum for segments, so always recover them
-                if (!fileName.startsWith("segments") && md != null && fileInfo.isSame(md)) {
-                    totalSize += md.length();
-                    numberOfReusedFiles++;
-                    reusedTotalSize += md.length();
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
-                    }
-                } else {
-                    totalSize += fileInfo.length();
-                    filesToRecover.add(fileInfo);
-                    if (logger.isTraceEnabled()) {
-                        if (md == null) {
-                            logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
-                        } else {
-                            logger.trace("recovering [{}], exists in local store but is different", fileInfo.physicalName());
+                recoveryStatus.index().updateVersion(version);
+
+                /// now, go over and clean files that are in the store, but were not in the snapshot
+
+                try {
+
+                    for (String storeFile : store.directory().listAll()) {
+                        if (!snapshot.containPhysicalIndexFile(storeFile)) {
+                            try {
+                                store.directory().deleteFile(storeFile);
+                            } catch (IOException e) {
+                                // ignore
+                            }
                         }
                     }
+                } catch (IOException e) {
+                    // ignore
                 }
-            }
-
-            recoveryStatus.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
-            if (filesToRecover.isEmpty()) {
-                logger.trace("no files to recover, all exists within the local store");
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] [{}] recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", shardId, snapshotId, numberOfFiles, new ByteSizeValue(totalSize), numberOfReusedFiles, new ByteSizeValue(reusedTotalSize));
-            }
-
-            final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
-            final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
-
-            for (final FileInfo fileToRecover : filesToRecover) {
-                logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                restoreFile(fileToRecover, latch, failures);
-            }
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            if (!failures.isEmpty()) {
-                throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", failures.get(0));
-            }
-
-            // read the snapshot data persisted
-            long version = -1;
-            try {
-                if (Lucene.indexExists(store.directory())) {
-                    version = Lucene.readSegmentInfos(store.directory()).getVersion();
-                }
-            } catch (IOException e) {
-                throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
-            }
-            recoveryStatus.index().updateVersion(version);
-
-            /// now, go over and clean files that are in the store, but were not in the snapshot
-            try {
-                for (String storeFile : store.directory().listAll()) {
-                    if (!snapshot.containPhysicalIndexFile(storeFile)) {
-                        try {
-                            store.directory().deleteFile(storeFile);
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                // ignore
+            } finally {
+                logger.warn("#### LET IT GO ");
+                store.decrementRef();
             }
         }
 
@@ -705,48 +719,58 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
             String firstFileToRecover = fileInfo.partName(0);
             final AtomicInteger partIndex = new AtomicInteger();
+            boolean success = false;
+            try {
 
-            blobContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
-                @Override
-                public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
-                    recoveryStatus.index().addCurrentFilesSize(size);
-                    indexOutput.writeBytes(data, offset, size);
-                    if (restoreRateLimiter != null) {
-                        rateLimiterListener.onRestorePause(restoreRateLimiter.pause(size));
-                    }
-                }
-
-                @Override
-                public synchronized void onCompleted() {
-                    int part = partIndex.incrementAndGet();
-                    if (part < fileInfo.numberOfParts()) {
-                        String partName = fileInfo.partName(part);
-                        // continue with the new part
-                        blobContainer.readBlob(partName, this);
-                        return;
-                    } else {
-                        // we are done...
-                        try {
-                            indexOutput.close();
-                            // write the checksum
-                            if (fileInfo.checksum() != null) {
-                                store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
-                            }
-                            store.directory().sync(Collections.singleton(fileInfo.physicalName()));
-                        } catch (IOException e) {
-                            onFailure(e);
-                            return;
+                blobContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
+                    @Override
+                    public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+                        recoveryStatus.index().addCurrentFilesSize(size);
+                        indexOutput.writeBytes(data, offset, size);
+                        if (restoreRateLimiter != null) {
+                            rateLimiterListener.onRestorePause(restoreRateLimiter.pause(size));
                         }
                     }
-                    latch.countDown();
-                }
 
-                @Override
-                public void onFailure(Throwable t) {
-                    failures.add(t);
+                    @Override
+                    public synchronized void onCompleted() {
+                        int part = partIndex.incrementAndGet();
+                        if (part < fileInfo.numberOfParts()) {
+                            String partName = fileInfo.partName(part);
+                            // continue with the new part
+                            blobContainer.readBlob(partName, this);
+                            return;
+                        } else {
+                            // we are done...
+                            try {
+                                indexOutput.close();
+                                // write the checksum
+                                if (fileInfo.checksum() != null) {
+                                    store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
+                                }
+                                store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                            } catch (IOException e) {
+                                onFailure(e);
+                                return;
+                            }
+                        }
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        IOUtils.closeWhileHandlingException(indexOutput);
+                        failures.add(t);
+                        latch.countDown();
+                    }
+                });
+                success = true;
+            } finally {
+                if (!success) {
+                    IOUtils.closeWhileHandlingException(indexOutput);
                     latch.countDown();
                 }
-            });
+            }
         }
 
     }

@@ -50,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
 /**
@@ -61,6 +63,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public static final boolean isChecksum(String name) {
         return name.startsWith(CHECKSUMS_PREFIX);
     }
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final AtomicInteger refCount = new AtomicInteger(1);
 
     private final IndexStore indexStore;
     final CodecService codecService;
@@ -84,14 +88,23 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public IndexStore indexStore() {
+        ensureOpen();
         return this.indexStore;
     }
 
     public Directory directory() {
+        ensureOpen();
         return directory;
     }
 
+    private final void ensureOpen() {
+        if (this.refCount.get() <= 0) {
+            throw new AlreadyClosedException("Store is already closed");
+        }
+    }
+
     public ImmutableMap<String, StoreFileMetaData> list() throws IOException {
+        ensureOpen();
         ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
         for (String name : files) {
             StoreFileMetaData md = metaData(name);
@@ -103,6 +116,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public StoreFileMetaData metaData(String name) throws IOException {
+        ensureOpen();
         StoreFileMetaData md = filesMetadata.get(name);
         if (md == null) {
             return null;
@@ -118,6 +132,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Deletes the content of a shard store. Be careful calling this!.
      */
     public void deleteContent() throws IOException {
+        ensureOpen();
         String[] files = directory.listAll();
         IOException lastException = null;
         for (String file : files) {
@@ -143,14 +158,17 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public StoreStats stats() throws IOException {
+        ensureOpen();
         return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
     }
 
     public ByteSizeValue estimateSize() throws IOException {
+        ensureOpen();
         return new ByteSizeValue(Directories.estimateSize(directory));
     }
 
     public void renameFile(String from, String to) throws IOException {
+        ensureOpen();
         synchronized (mutex) {
             StoreFileMetaData fromMetaData = filesMetadata.get(from); // we should always find this one
             if (fromMetaData == null) {
@@ -171,19 +189,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             return readChecksums(dirs, null);
         } finally {
-            for (Directory dir : dirs) {
-                if (dir != null) {
-                    try {
-                        dir.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
-            }
+            IOUtils.closeWhileHandlingException(dirs);
         }
     }
 
-    static Map<String, String> readChecksums(Directory[] dirs, Map<String, String> defaultValue) throws IOException {
+    private static Map<String, String> readChecksums(Directory[] dirs, Map<String, String> defaultValue) throws IOException {
         long lastFound = -1;
         Directory lastDir = null;
         for (Directory dir : dirs) {
@@ -214,6 +224,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public void writeChecksums() throws IOException {
+        ensureOpen();
         ImmutableMap<String, StoreFileMetaData> files = list();
         String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         synchronized (mutex) {
@@ -253,18 +264,50 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         return false;
     }
 
+    public final void incRef() {
+        do {
+            int i = refCount.get();
+            if (i > 0) {
+                if (refCount.compareAndSet(i, i+1)) {
+                    return;
+                }
+            } else {
+                ensureOpen();
+            }
+        } while(true);
+    }
+
+    public final void decrementRef() {
+        int i = refCount.decrementAndGet();
+        assert i >= 0;
+        if (i == 0) {
+            closeInternal();
+        }
+
+    }
+
     public void close() {
-        try {
-            directory.close();
-        } catch (IOException e) {
-            logger.debug("failed to close directory", e);
+        if (isClosed.compareAndSet(false, true)) {
+            decrementRef();
         }
     }
+
+    private void closeInternal() {
+        synchronized (mutex) { // if we close the dir we need to make sure nobody writes checksums
+            try {
+                directory.close();
+            } catch (IOException e) {
+                logger.debug("failed to close directory", e);
+            }
+        }
+    }
+
 
     /**
      * Creates a raw output, no checksum is computed, and no compression if enabled.
      */
     public IndexOutput createOutputRaw(String name) throws IOException {
+        ensureOpen();
         return directory.createOutput(name, IOContext.DEFAULT, true);
     }
 
@@ -272,6 +315,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Opened an index input in raw form, no decompression for example.
      */
     public IndexInput openInputRaw(String name, IOContext context) throws IOException {
+        ensureOpen();
         StoreFileMetaData metaData = filesMetadata.get(name);
         if (metaData == null) {
             throw new FileNotFoundException(name);
@@ -280,6 +324,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public void writeChecksum(String name, String checksum) throws IOException {
+        ensureOpen();
         // update the metadata to include the checksum and write a new checksums file
         synchronized (mutex) {
             StoreFileMetaData metaData = filesMetadata.get(name);
@@ -290,6 +335,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public void writeChecksums(Map<String, String> checksums) throws IOException {
+        ensureOpen();
         // update the metadata to include the checksum and write a new checksums file
         synchronized (mutex) {
             for (Map.Entry<String, String> entry : checksums.entrySet()) {

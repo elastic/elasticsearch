@@ -324,6 +324,13 @@
                     <source>1.6</source>
                     <target>1.6</target>
                     <fork>true</fork>
+                    <!-- REMOVE WHEN UPGRADE:
+                         see https://jira.codehaus.org/browse/MCOMPILER-209 it's a bug where
+                         incremental compilation doesn't work unless it's set to false causeing
+                         recompilation of the entire codebase each time without any changes. Should
+                         be fixed in version > 3.1
+                     -->
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
                 </configuration>
             </plugin>
             <plugin>

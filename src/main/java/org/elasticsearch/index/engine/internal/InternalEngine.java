@@ -37,6 +37,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -199,6 +201,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         if (failOnMergeFailure) {
             this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
         }
+        store.incRef();
     }
 
     @Override
@@ -345,14 +348,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
             } catch (Throwable e) {
-                searcher.release();
+                Releasables.releaseWhileHandlingException(searcher);
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "Couldn't resolve version", e);
             }
 
             if (get.version() != Versions.MATCH_ANY && docIdAndVersion != null) {
                 if (get.versionType().isVersionConflict(docIdAndVersion.version, get.version())) {
-                    searcher.release();
+                    Releasables.release(searcher);
                     Uid uid = Uid.createUid(get.uid().text());
                     throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
                 }
@@ -362,7 +365,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
                 return new GetResult(searcher, docIdAndVersion);
             } else {
-                searcher.release();
+                Releasables.release(searcher);
                 return GetResult.NOT_EXISTS;
             }
 
@@ -1005,25 +1008,22 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException {
         SnapshotIndexCommit snapshotIndexCommit = null;
-        Translog.Snapshot traslogSnapshot = null;
+        Translog.Snapshot translogSnapshot = null;
         rwl.readLock().lock();
         try {
             snapshotIndexCommit = deletionPolicy.snapshot();
-            traslogSnapshot = translog.snapshot();
+            translogSnapshot = translog.snapshot();
         } catch (Throwable e) {
-            if (snapshotIndexCommit != null) {
-                snapshotIndexCommit.release();
-            }
+            Releasables.releaseWhileHandlingException(snapshotIndexCommit);
             throw new SnapshotFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
         }
 
         try {
-            return snapshotHandler.snapshot(snapshotIndexCommit, traslogSnapshot);
+            return snapshotHandler.snapshot(snapshotIndexCommit, translogSnapshot);
         } finally {
-            snapshotIndexCommit.release();
-            traslogSnapshot.release();
+            Releasables.release(snapshotIndexCommit, translogSnapshot);
         }
     }
 
@@ -1050,7 +1050,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (closed) {
                 throw new EngineClosedException(shardId);
             }
-            onGoingRecoveries.increment();
+            onGoingRecoveries.startRecovery();
         } finally {
             rwl.writeLock().unlock();
         }
@@ -1059,15 +1059,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
-            onGoingRecoveries.decrement();
+            Releasables.releaseWhileHandlingException(onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
 
         try {
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
-            onGoingRecoveries.decrement();
-            phase1Snapshot.release();
+            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1078,8 +1077,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
-            onGoingRecoveries.decrement();
-            phase1Snapshot.release();
+            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1089,9 +1087,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
-            onGoingRecoveries.decrement();
-            phase1Snapshot.release();
-            phase2Snapshot.release();
+            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1100,19 +1096,17 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         rwl.writeLock().lock();
         Translog.Snapshot phase3Snapshot = null;
+        boolean success = false;
         try {
             phase3Snapshot = translog.snapshot(phase2Snapshot);
             recoveryHandler.phase3(phase3Snapshot);
+            success = true;
         } catch (Throwable e) {
             throw new RecoveryEngineException(shardId, 3, "Execution failed", e);
         } finally {
-            onGoingRecoveries.decrement();
+            Releasables.release(success, onGoingRecoveries);
             rwl.writeLock().unlock();
-            phase1Snapshot.release();
-            phase2Snapshot.release();
-            if (phase3Snapshot != null) {
-                phase3Snapshot.release();
-            }
+            Releasables.release(success, phase1Snapshot, phase2Snapshot, phase3Snapshot);
         }
     }
 
@@ -1233,17 +1227,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         } finally {
             rwl.writeLock().unlock();
         }
-        try {
-            // wait for recoveries to join and close all resources / IO streams
-            int ongoingRecoveries = onGoingRecoveries.awaitNoRecoveries(5000);
-            if (ongoingRecoveries > 0) {
-                logger.debug("Waiting for ongoing recoveries timed out on close currently ongoing disoveries: [{}]", ongoingRecoveries);
-            }
-        } catch (InterruptedException e) {
-            // ignore & restore interrupt
-            Thread.currentThread().interrupt();
-        }
-
     }
 
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
@@ -1263,36 +1246,37 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             for (FailedEngineListener listener : failedEngineListeners) {
                 listener.onFailedEngine(shardId, failure);
             }
+            // TODO - should we acquire the writeLock here?
             innerClose();
         }
     }
 
     private void innerClose() {
-        if (closed) {
-            return;
-        }
-        indexSettingsService.removeListener(applySettings);
-        closed = true;
-        this.versionMap.clear();
-        this.failedEngineListeners.clear();
-        try {
+        if (!closed) {
             try {
-                IOUtils.close(searcherManager);
-            } catch (Throwable t) {
-                logger.warn("Failed to close SearcherManager", t);
-            }
-            // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
-            if (indexWriter != null) {
+                closed = true;
+                indexSettingsService.removeListener(applySettings);
+                this.versionMap.clear();
+                this.failedEngineListeners.clear();
                 try {
-                    indexWriter.rollback();
-                } catch (AlreadyClosedException e) {
-                    // ignore
+                    IOUtils.close(searcherManager);
+                } catch (Throwable t) {
+                    logger.warn("Failed to close SearcherManager", t);
                 }
+                // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
+                if (indexWriter != null) {
+                    try {
+                        indexWriter.rollback();
+                    } catch (AlreadyClosedException e) {
+                        // ignore
+                    }
+                }
+            } catch (Throwable e) {
+                logger.warn("failed to rollback writer on close", e);
+            } finally {
+                indexWriter = null;
+                store.decRef();
             }
-        } catch (Throwable e) {
-            logger.warn("failed to rollback writer on close", e);
-        } finally {
-            indexWriter = null;
         }
     }
 
@@ -1472,6 +1456,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             this.searcher = searcher;
             this.manager = manager;
             this.released = new AtomicBoolean(false);
+            store.incRef();
         }
 
         @Override
@@ -1509,6 +1494,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                  * underlying store / directory and we call into the
                  * IndexWriter to free up pending files. */
                 return false;
+            } finally {
+                store.decRef();
             }
         }
     }
@@ -1597,9 +1584,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                 } finally {
                     // no need to release the fullSearcher, nothing really is done...
-                    if (currentSearcher != null) {
-                        currentSearcher.release();
-                    }
+                    Releasables.release(currentSearcher);
                     if (newSearcher != null && closeNewSearcher) {
                         IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
@@ -1609,31 +1594,28 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private static final class RecoveryCounter {
-        private volatile int ongoingRecoveries = 0;
+    private final class RecoveryCounter implements Releasable {
+        private final AtomicInteger onGoingRecoveries = new AtomicInteger();
 
-        synchronized void increment() {
-            ongoingRecoveries++;
+        public void startRecovery() {
+            store.incRef();
+            onGoingRecoveries.incrementAndGet();
         }
 
-        synchronized void decrement() {
-            ongoingRecoveries--;
-            if (ongoingRecoveries == 0) {
-                notifyAll(); // notify waiting threads - we only wait on ongoingRecoveries == 0
-            }
-            assert ongoingRecoveries >= 0 : "ongoingRecoveries must be >= 0 but was: " + ongoingRecoveries;
+        public int get() {
+            return onGoingRecoveries.get();
         }
 
-        int get() {
-            // volatile read - no sync needed
-            return ongoingRecoveries;
+        public void endRecovery() throws ElasticsearchException {
+            store.decRef();
+            onGoingRecoveries.decrementAndGet();
+            assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
         }
 
-        synchronized int awaitNoRecoveries(long timeout) throws InterruptedException {
-            if (ongoingRecoveries > 0) { // no loop here - we either time out or we are done!
-                wait(timeout);
-            }
-            return ongoingRecoveries;
+        @Override
+        public boolean release() throws ElasticsearchException {
+            endRecovery();
+            return true;
         }
     }
 

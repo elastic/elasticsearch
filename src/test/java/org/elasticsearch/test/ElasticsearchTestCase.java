@@ -52,6 +52,8 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.is;
+
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
@@ -145,10 +147,28 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static void ensureAllFilesClosed() throws IOException {
         try {
-            for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-                if (w.isOpen()) {
-                    w.closeWithRuntimeException();
+            for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+                try {
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            return !w.isOpen();
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
                 }
+                if (!w.successfullyClosed()) {
+                    if (w.closeException() == null) {
+                        w.close();
+                        if (w.closeException() == null) {
+                            throw w.closeException();
+                        }
+                    } else {
+                        throw w.closeException();
+                    }
+                }
+                assertThat(w.isOpen(), is(false));
             }
         } finally {
             forceClearMockWrappers();

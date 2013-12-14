@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
@@ -50,11 +51,13 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                     raf = new RandomAccessFile(file, "rw");
                     // clean the file if it exists
                     raf.setLength(0);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
                 }
+                boolean success = false;
                 try {
+                    boolean innerSuccess = false;
                     try {
                         long bytesWritten = 0;
                         byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
@@ -67,21 +70,18 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                             listener.onFailure(new ElasticsearchIllegalStateException("[" + blobName + "]: wrote [" + bytesWritten + "], expected to write [" + sizeInBytes + "]"));
                             return;
                         }
+                        innerSuccess = true;
                     } finally {
-                        try {
-                            is.close();
-                        } catch (IOException ex) {
-                            // do nothing
-                        }
-                        try {
-                            raf.close();
-                        } catch (IOException ex) {
-                            // do nothing
+                        if (innerSuccess) {
+                            IOUtils.close(is, raf);
+                        } else {
+                            IOUtils.closeWhileHandlingException(is, raf);
                         }
                     }
                     FileSystemUtils.syncFile(file);
-                    listener.onCompleted();
-                } catch (Exception e) {
+                    success = true;
+                } catch (Throwable e) {
+                    listener.onFailure(e);
                     // just on the safe size, try and delete it on failure
                     try {
                         if (file.exists()) {
@@ -90,7 +90,10 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                     } catch (Exception e1) {
                         // ignore
                     }
-                    listener.onFailure(e);
+                } finally {
+                   if (success) {
+                       listener.onCompleted();
+                   }
                 }
             }
         });

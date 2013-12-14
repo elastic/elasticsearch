@@ -33,3 +33,10 @@ org.apache.lucene.index.IndexWriter#forceMergeDeletes(boolean) @ use Merges#forc
 
 @defaultMessage QueryWrapperFilter is cachable by default - use Queries#wrap instead
 org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
+
+@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead. 
+java.lang.Object#wait()
+java.lang.Object#wait(long)
+java.lang.Object#wait(long,int)
+java.lang.Object#notify()
+java.lang.Object#notifyAll()

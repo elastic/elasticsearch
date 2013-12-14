@@ -70,9 +70,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("Increasing the number of replicas from 1 to 2");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 2)).execute().actionGet();
-        Thread.sleep(200);
-
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 2)).execute().actionGet());
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForActiveShards(numShards.numPrimaries * 2).execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
@@ -85,10 +83,9 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
 
         logger.info("starting another node to new replicas will be allocated to it");
         allowNodes("test", 3);
-        Thread.sleep(100);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=3").execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -103,11 +100,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).get();
-        Thread.sleep(200);
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).get());
 
         logger.info("Running Cluster Health");
-        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=3").execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

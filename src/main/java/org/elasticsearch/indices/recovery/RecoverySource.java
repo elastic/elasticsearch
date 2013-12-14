@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -119,11 +120,13 @@ public class RecoverySource extends AbstractComponent {
             public void phase1(final SnapshotIndexCommit snapshot) throws ElasticsearchException {
                 long totalSize = 0;
                 long existingTotalSize = 0;
+                final Store store = shard.store();
+                store.incRef();
                 try {
                     StopWatch stopWatch = new StopWatch().start();
 
                     for (String name : snapshot.getFiles()) {
-                        StoreFileMetaData md = shard.store().metaData(name);
+                        StoreFileMetaData md = store.metaData(name);
                         boolean useExisting = false;
                         if (request.existingFiles().containsKey(name)) {
                             // we don't compute checksum for segments, so always recover them
@@ -173,12 +176,13 @@ public class RecoverySource extends AbstractComponent {
                             @Override
                             public void run() {
                                 IndexInput indexInput = null;
+                                store.incRef();
                                 try {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
-                                    StoreFileMetaData md = shard.store().metaData(name);
+                                    StoreFileMetaData md = store.metaData(name);
                                     // TODO: maybe use IOContext.READONCE?
-                                    indexInput = shard.store().openInputRaw(name, IOContext.READ);
+                                    indexInput = store.openInputRaw(name, IOContext.READ);
                                     boolean shouldCompressRequest = recoverySettings.compress();
                                     if (CompressorFactory.isCompressed(indexInput)) {
                                         shouldCompressRequest = false;
@@ -207,7 +211,11 @@ public class RecoverySource extends AbstractComponent {
                                     lastException.set(e);
                                 } finally {
                                     IOUtils.closeWhileHandlingException(indexInput);
-                                    latch.countDown();
+                                    try {
+                                        store.decRef();
+                                    } finally {
+                                        latch.countDown();
+                                    }
                                 }
                             }
                         });
@@ -229,6 +237,8 @@ public class RecoverySource extends AbstractComponent {
                     response.phase1Time = stopWatch.totalTime().millis();
                 } catch (Throwable e) {
                     throw new RecoverFilesRecoveryException(request.shardId(), response.phase1FileNames.size(), new ByteSizeValue(totalSize), e);
+                } finally {
+                    store.decRef();
                 }
             }
 

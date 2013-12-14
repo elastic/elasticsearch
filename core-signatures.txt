@@ -24,3 +24,11 @@ org.apache.lucene.util.RamUsageEstimator#sizeOf(java.lang.Object) @ This can be 
 org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
+
+@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead. 
+java.lang.Object#wait()
+java.lang.Object#wait(long)
+java.lang.Object#wait(long,int)
+java.lang.Object#notify()
+java.lang.Object#notifyAll()
+

@@ -63,6 +63,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     void addFailedEngineListener(FailedEngineListener listener);
 
+    void onAllResourcesClosed(OnAllResourcesClosedCallback listener);
+
+    interface OnAllResourcesClosedCallback {
+        void callback();
+    }
+
     /**
      * Starts the Engine.
      * <p/>

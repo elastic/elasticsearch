@@ -140,9 +140,23 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static void ensureAllFilesClosed() throws IOException {
         try {
-            for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-                if (w.isOpen()) {
-                    w.closeWithRuntimeException();
+            for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+                try {
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            return !w.isOpen();
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                }
+                if (!w.successfullyClosed()) {
+                    if (w.closeException() == null) {
+                        assertFalse(w.isOpen());
+                    } else {
+                        throw w.closeException();
+                    }
                 }
             }
         } finally {

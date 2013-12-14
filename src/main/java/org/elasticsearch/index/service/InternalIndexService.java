@@ -395,8 +395,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 // ignore
             }
         }
+        final Engine engine = shardInjector.getInstance(Engine.class);;
         try {
-            shardInjector.getInstance(Engine.class).close();
+            engine.close();
         } catch (Throwable e) {
             logger.debug("failed to close engine", e);
             // ignore
@@ -436,14 +437,29 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         // call this before we close the store, so we can release resources for it
         indicesLifecycle.afterIndexShardClosed(sId);
-        // if we delete or have no gateway or the store is not persistent, clean the store...
-        Store store = shardInjector.getInstance(Store.class);
-        // and close it
-        try {
-            store.close();
-        } catch (Throwable e) {
-            logger.warn("failed to close store on shard deletion", e);
+        final Store store = shardInjector.getInstance(Store.class);
+        if (engine != null) {
+            // if we delete or have no gateway or the store is not persistent, clean the store...
+            engine.onAllResourcesClosed(new Engine.OnAllResourcesClosedCallback() {
+                @Override
+                public void callback() {
+                    // and close it
+                    try {
+                        store.close();
+                    } catch (Throwable e) {
+                        logger.warn("failed to close store on shard deletion", e);
+                    }
+                }
+            });
+        } else {
+            // and close it
+            try {
+                store.close();
+            } catch (Throwable e) {
+                logger.warn("failed to close store on shard deletion", e);
+            }
         }
+
         Injectors.close(injector);
     }
 }

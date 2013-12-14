@@ -171,15 +171,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             return readChecksums(dirs, null);
         } finally {
-            for (Directory dir : dirs) {
-                if (dir != null) {
-                    try {
-                        dir.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
-            }
+            IOUtils.closeWhileHandlingException(dirs);
         }
     }
 
@@ -254,10 +246,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public void close() {
-        try {
-            directory.close();
-        } catch (IOException e) {
-            logger.debug("failed to close directory", e);
+        synchronized (mutex) { // if we close the dir we need to make sure nobody writes checksums
+            try {
+                directory.close();
+            } catch (IOException e) {
+                logger.debug("failed to close directory", e);
+            }
         }
     }
 

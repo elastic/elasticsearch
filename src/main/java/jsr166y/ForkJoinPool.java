@@ -2127,10 +2127,10 @@ public class ForkJoinPool extends AbstractExecutorService {
                     w.runSubtask(t);
                 }
             }
-            else if (active) {       // decrement active count without queuing
+            else if (active) {      // decrement active count without queuing
                 long nc = (c = ctl) - AC_UNIT;
                 if ((int)(nc >> AC_SHIFT) + (config & SMASK) == 0)
-                    return;          // bypass decrement-then-increment
+                    return;         // bypass decrement-then-increment
                 if (U.compareAndSwapLong(this, CTL, c, nc))
                     active = false;
             }

@@ -231,19 +231,23 @@ public class MockRepository extends FsRepository {
                 }
             }
 
-            private void maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.WriterListener listener) {
+            private boolean maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.WriterListener listener) {
                 try {
                     maybeIOExceptionOrBlock(blobName);
+                    return true;
                 } catch (IOException ex) {
                     listener.onFailure(ex);
+                    return false;
                 }
             }
 
-            private void maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.ReadBlobListener listener) {
+            private boolean maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.ReadBlobListener listener) {
                 try {
                     maybeIOExceptionOrBlock(blobName);
+                    return true;
                 } catch (IOException ex) {
                     listener.onFailure(ex);
+                    return false;
                 }
             }
 
@@ -254,8 +258,9 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlob(String blobName, InputStream is, long sizeInBytes, WriterListener listener) {
-                maybeIOExceptionOrBlock(blobName, listener);
-                super.writeBlob(blobName, is, sizeInBytes, listener);
+                if (maybeIOExceptionOrBlock(blobName, listener) ) {
+                    super.writeBlob(blobName, is, sizeInBytes, listener);
+                }
             }
 
             @Override
@@ -271,8 +276,9 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void readBlob(String blobName, ReadBlobListener listener) {
-                maybeIOExceptionOrBlock(blobName, listener);
-                super.readBlob(blobName, listener);
+                if (maybeIOExceptionOrBlock(blobName, listener)) {
+                    super.readBlob(blobName, listener);
+                }
             }
 
             @Override

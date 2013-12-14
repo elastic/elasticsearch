@@ -181,14 +181,16 @@ public final class TestCluster implements Iterable<Client> {
         logger.info("Setup TestCluster [{}] with seed [{}] using [{}] nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedNodes);
         this.nodeSettingsSource = nodeSettingsSource;
         Builder builder = ImmutableSettings.settingsBuilder();
-        // randomize (multi/single) data path, special case for 0, don't set it at all...
-        int numOfDataPaths = random.nextInt(5);
-        if (numOfDataPaths > 0) {
-            StringBuilder dataPath = new StringBuilder();
-            for (int i = 0; i < numOfDataPaths; i++) {
-                dataPath.append("data/d").append(i).append(',');
+        if (random.nextInt(5) == 0) { // sometimes set this
+            // randomize (multi/single) data path, special case for 0, don't set it at all...
+            final int numOfDataPaths = random.nextInt(5);
+            if (numOfDataPaths > 0) {
+                StringBuilder dataPath = new StringBuilder();
+                for (int i = 0; i < numOfDataPaths; i++) {
+                    dataPath.append("data/d").append(i).append(',');
+                }
+                builder.put("path.data", dataPath.toString());
             }
-            builder.put("path.data", dataPath.toString());
         }
         defaultSettings = builder.build();
 

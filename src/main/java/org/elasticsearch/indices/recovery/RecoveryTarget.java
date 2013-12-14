@@ -523,47 +523,52 @@ public class RecoveryTarget extends AbstractComponent {
                 throw new IndexShardClosedException(request.shardId());
             }
 
-            Store store = onGoingRecovery.indexShard.store();
-            // first, we go and move files that were created with the recovery id suffix to
-            // the actual names, its ok if we have a corrupted index here, since we have replicas
-            // to recover from in case of a full cluster shutdown just when this code executes...
-            String prefix = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + ".";
-            Set<String> filesToRename = Sets.newHashSet();
-            for (String existingFile : store.directory().listAll()) {
-                if (existingFile.startsWith(prefix)) {
-                    filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
-                }
-            }
-            Exception failureToRename = null;
-            if (!filesToRename.isEmpty()) {
-                // first, go and delete the existing ones
-                final Directory directory = store.directory();
-                for (String file : filesToRename) {
-                    try {
-                        directory.deleteFile(file);
-                    } catch (Throwable ex) {
-                        logger.debug("failed to delete file [{}]", ex, file);
+            final Store store = onGoingRecovery.indexShard.store();
+            store.incRef();
+            try {
+                // first, we go and move files that were created with the recovery id suffix to
+                // the actual names, its ok if we have a corrupted index here, since we have replicas
+                // to recover from in case of a full cluster shutdown just when this code executes...
+                String prefix = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + ".";
+                Set<String> filesToRename = Sets.newHashSet();
+                for (String existingFile : store.directory().listAll()) {
+                    if (existingFile.startsWith(prefix)) {
+                        filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
                     }
                 }
-                for (String fileToRename : filesToRename) {
-                    // now, rename the files... and fail it it won't work
-                    store.renameFile(prefix + fileToRename, fileToRename);
+                Exception failureToRename = null;
+                if (!filesToRename.isEmpty()) {
+                    // first, go and delete the existing ones
+                    final Directory directory = store.directory();
+                    for (String file : filesToRename) {
+                        try {
+                            directory.deleteFile(file);
+                        } catch (Throwable ex) {
+                            logger.debug("failed to delete file [{}]", ex, file);
+                        }
+                    }
+                    for (String fileToRename : filesToRename) {
+                        // now, rename the files... and fail it it won't work
+                        store.renameFile(prefix + fileToRename, fileToRename);
+                    }
                 }
-            }
-            // now write checksums
-            store.writeChecksums(onGoingRecovery.checksums);
+                // now write checksums
+                store.writeChecksums(onGoingRecovery.checksums);
 
-            for (String existingFile : store.directory().listAll()) {
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                if (!request.snapshotFiles().contains(existingFile) && !Store.isChecksum(existingFile)) {
-                    try {
-                        store.directory().deleteFile(existingFile);
-                    } catch (Exception e) {
-                        // ignore, we don't really care, will get deleted later on
+                for (String existingFile : store.directory().listAll()) {
+                    // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                    if (!request.snapshotFiles().contains(existingFile) && !Store.isChecksum(existingFile)) {
+                        try {
+                            store.directory().deleteFile(existingFile);
+                        } catch (Exception e) {
+                            // ignore, we don't really care, will get deleted later on
+                        }
                     }
                 }
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } finally {
+                store.decRef();
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -592,75 +597,79 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             Store store = onGoingRecovery.indexShard.store();
+            store.incRef();
+            try {
+                IndexOutput indexOutput;
+                if (request.position() == 0) {
+                    // first request
+                    onGoingRecovery.checksums.remove(request.name());
+                    indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                    IOUtils.closeWhileHandlingException(indexOutput);
+                    // we create an output with no checksum, this is because the pure binary data of the file is not
+                    // the checksum (because of seek). We will create the checksum file once copying is done
 
-            IndexOutput indexOutput;
-            if (request.position() == 0) {
-                // first request
-                onGoingRecovery.checksums.remove(request.name());
-                indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                IOUtils.closeWhileHandlingException(indexOutput);
-                // we create an output with no checksum, this is because the pure binary data of the file is not
-                // the checksum (because of seek). We will create the checksum file once copying is done
+                    // also, we check if the file already exists, if it does, we create a file name based
+                    // on the current recovery "id" and later we make the switch, the reason for that is that
+                    // we only want to overwrite the index files once we copied all over, and not create a
+                    // case where the index is half moved
 
-                // also, we check if the file already exists, if it does, we create a file name based
-                // on the current recovery "id" and later we make the switch, the reason for that is that
-                // we only want to overwrite the index files once we copied all over, and not create a
-                // case where the index is half moved
-
-                String fileName = request.name();
-                if (store.directory().fileExists(fileName)) {
-                    fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
+                    String fileName = request.name();
+                    if (store.directory().fileExists(fileName)) {
+                        fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
+                    }
+                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, store);
+                } else {
+                    indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
                 }
-                indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, store);
-            } else {
-                indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
-            }
-            if (indexOutput == null) {
-                // shard is getting closed on us
-                throw new IndexShardClosedException(request.shardId());
-            }
-            boolean success = false;
-            synchronized (indexOutput) {
-                try {
-                    if (recoverySettings.rateLimiter() != null) {
-                        recoverySettings.rateLimiter().pause(request.content().length());
-                    }
-                    BytesReference content = request.content();
-                    if (!content.hasArray()) {
-                        content = content.toBytesArray();
-                    }
-                    indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                    onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(request.length());
-                    RecoveryState.File file = onGoingRecovery.recoveryState.getIndex().file(request.name());
-                    if (file != null) {
-                        file.updateRecovered(request.length());
-                    }
-                    if (indexOutput.getFilePointer() == request.length()) {
-                        // we are done
-                        indexOutput.close();
-                        // write the checksum
-                        if (request.checksum() != null) {
-                            onGoingRecovery.checksums.put(request.name(), request.checksum());
+                if (indexOutput == null) {
+                    // shard is getting closed on us
+                    throw new IndexShardClosedException(request.shardId());
+                }
+                boolean success = false;
+                synchronized (indexOutput) {
+                    try {
+                        if (recoverySettings.rateLimiter() != null) {
+                            recoverySettings.rateLimiter().pause(request.content().length());
                         }
-                        store.directory().sync(Collections.singleton(request.name()));
-                        IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                        onGoingRecovery.recoveryState.getIndex().addRecoveredFileCount(1);
-                        assert remove == indexOutput;
-                    }
-                    success = true;
-                } finally {
-                    if (!success || onGoingRecovery.isCanceled()) {
-                        IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                        assert remove == indexOutput;
-                        IOUtils.closeWhileHandlingException(indexOutput);
+                        BytesReference content = request.content();
+                        if (!content.hasArray()) {
+                            content = content.toBytesArray();
+                        }
+                        indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
+                        onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(request.length());
+                        RecoveryState.File file = onGoingRecovery.recoveryState.getIndex().file(request.name());
+                        if (file != null) {
+                            file.updateRecovered(request.length());
+                        }
+                        if (indexOutput.getFilePointer() == request.length()) {
+                            // we are done
+                            indexOutput.close();
+                            // write the checksum
+                            if (request.checksum() != null) {
+                                onGoingRecovery.checksums.put(request.name(), request.checksum());
+                            }
+                            store.directory().sync(Collections.singleton(request.name()));
+                            IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                            onGoingRecovery.recoveryState.getIndex().addRecoveredFileCount(1);
+                            assert remove == null || remove == indexOutput; // remove maybe null if we got canceled
+                        }
+                        success = true;
+                    } finally {
+                        if (!success || onGoingRecovery.isCanceled()) {
+                            IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                            assert remove == null || remove == indexOutput;
+                            IOUtils.closeWhileHandlingException(indexOutput);
+                        }
                     }
                 }
+                if (onGoingRecovery.isCanceled()) {
+                    onGoingRecovery.sentCanceledToSource = true;
+                    throw new IndexShardClosedException(request.shardId());
+                }
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } finally {
+                store.decRef();
             }
-            if (onGoingRecovery.isCanceled()) {
-                onGoingRecovery.sentCanceledToSource = true;
-                throw new IndexShardClosedException(request.shardId());
-            }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 }

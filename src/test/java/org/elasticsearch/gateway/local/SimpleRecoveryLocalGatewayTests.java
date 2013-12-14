@@ -36,6 +36,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -304,8 +305,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less aggressive settings
+                .put(MockDirectoryHelper.CRASH_INDEX, false)
+                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
 
         cluster().startNode(settings);
         cluster().startNode(settings);
@@ -319,6 +320,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
+        client().admin().indices().prepareFlush().execute().actionGet();
+
         logger.info("Running Cluster Health");
         ensureGreen();
 

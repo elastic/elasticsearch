@@ -38,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -83,16 +84,42 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             exceptionRate = 0d;
             exceptionOnOpenRate = 0d;
         }
-        
-        Builder settings = settingsBuilder()
-        .put(indexSettings())
-        .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-        .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate)
-        .put(MockDirectoryHelper.CHECK_INDEX_ON_CLOSE, true);
-        logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
-        assertAcked(prepareCreate("test")
-                .setSettings(settings)
-                .addMapping("type", mapping));
+        boolean createIndexWithoutErrors = randomBoolean();
+        long numInitialDocs = 0;
+
+        if (createIndexWithoutErrors) {
+            Builder settings = settingsBuilder()
+                    .put("index.number_of_replicas", randomIntBetween(0, 1))
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
+                    .put("gateway.type", "local");
+            logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
+            client().admin().indices().prepareCreate("test")
+                    .setSettings(settings)
+                    .addMapping("type", mapping).execute().actionGet();
+            numInitialDocs = between(10, 100);
+            ensureYellow();
+            for (int i = 0; i < numInitialDocs ; i++) {
+                client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", "init").get();
+            }
+            client().admin().indices().prepareRefresh("test").execute().get();
+            client().admin().indices().prepareFlush("test").execute().get();
+            client().admin().indices().prepareClose("test").execute().get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
+            client().admin().indices().prepareOpen("test").execute().get();
+        } else {
+            Builder settings = settingsBuilder()
+            .put("index.number_of_replicas", randomIntBetween(0, 1))
+            .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+            .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+            .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
+            logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
+            client().admin().indices().prepareCreate("test")
+                    .setSettings(settings)
+                    .addMapping("type", mapping).execute().actionGet();
+        }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get(); // it's OK to timeout here 
         final int numDocs;
@@ -113,7 +140,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs ; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
+                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + (i + numInitialDocs)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.isCreated()) {
                     numCreated++;
                     added[i] = true;
@@ -143,7 +170,18 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
                 }
             }
-            
+        }
+
+        if (createIndexWithoutErrors) {
+            // check the index still contains the records that we indexed without errors
+            client().admin().indices().prepareClose("test").execute().get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, 0)
+                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
+            client().admin().indices().prepareOpen("test").execute().get();
+            ensureYellow();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
+            assertThat(searchResponse.getHits().totalHits(), Matchers.equalTo(numInitialDocs));
         }
     }
 

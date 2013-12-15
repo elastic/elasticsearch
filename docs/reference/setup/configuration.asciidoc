@@ -157,7 +157,7 @@ command, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -f -Des.network.host=10.0.0.4
+$ elasticsearch -Des.network.host=10.0.0.4
 --------------------------------------------------
 
 Another option is to set `es.default.` prefix instead of `es.` prefix,
@@ -181,7 +181,7 @@ system property:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -f -Des.config=/path/to/config/file
+$ elasticsearch -Des.config=/path/to/config/file
 --------------------------------------------------
 
 [float]
@@ -221,7 +221,7 @@ above can also be set as a "collapsed" setting, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -f -Des.index.store.type=memory
+$ elasticsearch -Des.index.store.type=memory
 --------------------------------------------------
 
 All of the index level configuration can be found within each

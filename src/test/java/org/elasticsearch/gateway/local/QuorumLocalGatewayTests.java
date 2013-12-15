@@ -42,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -95,9 +96,16 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.RED));  // nothing allocated yet
-        ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+                return clusterStateResponse.getState() != null;
+            }}), equalTo(true)); // wait until we get a cluster state - could be null if we quick enough.
+        final ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+        assertThat(clusterStateResponse.getState(), notNullValue());
+        assertThat(clusterStateResponse.getState().routingTable().index("test"), notNullValue());
         assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), is(false));
-
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
 

@@ -60,13 +60,12 @@ field data format.
 [float]
 ==== Disallowing field data loading
 
-Loading field data into memory can easily take gigabytes of RAM. If your
-cluster's memory usage is close to its maximum capacity, loading field data
-of a high-cardinality string field by mistake is likely to take your whole
-cluster down. In order to prevent it, Elasticsearch has the special `disabled`
-field data type that prevents field data from being loaded into memory and
-will cause all requests that would need field data for this field to return
-an error.
+Field data can take a lot of RAM so it makes sense to disable field data
+loading on the fields that don't need field data, for example those that are
+used for full-text search only. In order to disable field data loading, just
+change the field data type to `disabled`. Request that will try to load field
+data on any field which is configured with this format will then return an
+error.
 
 The `disabled` format is supported by all field types.
 

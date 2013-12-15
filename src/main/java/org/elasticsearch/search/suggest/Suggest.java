@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -250,7 +251,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             List<T> currentEntries = new ArrayList<T>();
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
-                    assert suggestion.entries.size() == size;
+                    if(suggestion.entries.size() != size) {
+                        throw new ElasticSearchIllegalStateException("Can't merge suggest result, this might be caused by suggest calls " +
+                                "across multiple indices with different analysis chains. Suggest entries have different sizes actual [" +
+                                suggestion.entries.size() + "] expected [" + size +"]");
+                    }
                     assert suggestion.name.equals(leader.name);
                     currentEntries.add(suggestion.entries.get(i));
                 }
@@ -361,14 +366,18 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 CollectionUtil.timSort(options, comparator);
             }
 
-            protected Entry<O> reduce(List<? extends Entry<O>> toReduce) {
+            protected <T extends Entry<O>> Entry<O> reduce(List<T> toReduce) {
                 if (toReduce.size() == 1) {
                     return toReduce.get(0);
                 }
                 final Map<O, O> entries = new HashMap<O, O>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    assert leader.text.equals(entry.text);
+                    if (!leader.text.equals(entry.text)) {
+                        throw new ElasticSearchIllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
+                                "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
+                                entry.text + "] expected [" + leader.text +"]");
+                    }
                     assert leader.offset == entry.offset;
                     assert leader.length == entry.length;
                     leader.merge(entry);

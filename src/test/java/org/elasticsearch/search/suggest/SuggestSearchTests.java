@@ -23,11 +23,9 @@ import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,8 +49,7 @@ import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Integration tests for term and phrase suggestions.  Many of these tests many requests that vary only slightly from one another.  Where
@@ -60,6 +57,103 @@ import static org.hamcrest.Matchers.nullValue;
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
 public class SuggestSearchTests extends ElasticsearchIntegrationTest {
+
+
+    @Test // see #3196
+    public void testSuggestAcrossMultipleIndices() throws IOException {
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, between(1, 5),
+                SETTING_NUMBER_OF_REPLICAS, between(0, 1)).get();
+        ensureGreen();
+
+        index("test", "type1", "1", "text", "abcd");
+        index("test", "type1", "2", "text", "aacd");
+        index("test", "type1", "3", "text", "abbd");
+        index("test", "type1", "4", "text", "abcc");
+        refresh();
+
+        TermSuggestionBuilder termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("abcd")
+                .field("text");
+        logger.info("--> run suggestions with one index");
+        searchSuggest(client(), termSuggest);
+        prepareCreate("test_1").setSettings(
+                SETTING_NUMBER_OF_SHARDS, between(1, 5),
+                SETTING_NUMBER_OF_REPLICAS, between(0, 1)).get();
+        ensureGreen();
+
+        index("test_1", "type1", "1", "text", "ab cd");
+        index("test_1", "type1", "2", "text", "aa cd");
+        index("test_1", "type1", "3", "text", "ab bd");
+        index("test_1", "type1", "4", "text", "ab cc");
+        refresh();
+        termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("ab cd")
+                .minWordLength(1)
+                .field("text");
+        logger.info("--> run suggestions with two indices");
+        searchSuggest(client(), termSuggest);
+
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("text").field("type", "string").field("analyzer", "keyword").endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(prepareCreate("test_2").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+                ).addMapping("type1", mapping));
+        ensureGreen();
+
+        index("test_2", "type1", "1", "text", "ab cd");
+        index("test_2", "type1", "2", "text", "aa cd");
+        index("test_2", "type1", "3", "text", "ab bd");
+        index("test_2", "type1", "4", "text", "ab cc");
+        index("test_2", "type1", "1", "text", "abcd");
+        index("test_2", "type1", "2", "text", "aacd");
+        index("test_2", "type1", "3", "text", "abbd");
+        index("test_2", "type1", "4", "text", "abcc");
+        refresh();
+
+        termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("ab cd")
+                .minWordLength(1)
+                .field("text");
+        logger.info("--> run suggestions with three indices");
+        try {
+            searchSuggest(client(), termSuggest);
+            fail(" can not suggest across multiple indices with different analysis chains");
+        } catch (ReduceSearchPhaseException ex) {
+            assertThat(ex.getCause(), instanceOf(ElasticSearchIllegalStateException.class));
+            assertThat(ex.getCause().getMessage(), endsWith("Suggest entries have different sizes actual [1] expected [2]"));
+        } catch (ElasticSearchIllegalStateException ex) {
+            assertThat(ex.getMessage(), endsWith("Suggest entries have different sizes actual [1] expected [2]"));
+        }
+
+
+        termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("ABCD")
+                .minWordLength(1)
+                .field("text");
+        logger.info("--> run suggestions with four indices");
+        try {
+            searchSuggest(client(), termSuggest);
+            fail(" can not suggest across multiple indices with different analysis chains");
+        } catch (ReduceSearchPhaseException ex) {
+            assertThat(ex.getCause(), instanceOf(ElasticSearchIllegalStateException.class));
+            assertThat(ex.getCause().getMessage(), endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"));
+        } catch (ElasticSearchIllegalStateException ex) {
+            assertThat(ex.getMessage(), endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"));
+        }
+
+
+    }
+
     @Test // see #3037
     public void testSuggestModes() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()

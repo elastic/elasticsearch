@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -76,7 +77,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         }
         
         final String nodeToRemove = nodes[between(0,2)];
-        logger.info("--> restarting 2 nodes -- kill 1");
+        logger.info("--> restarting 1 nodes -- kill 2");
         cluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
@@ -85,23 +86,23 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
             
             @Override
             public boolean doRestart(String nodeName) {
-                return !nodeToRemove.equals(nodeName);
+                return nodeToRemove.equals(nodeName);
             }
         });
-
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
-                return !clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive();
-            }
-        }, 30, TimeUnit.SECONDS), equalTo(true));
+        if (randomBoolean()) {
+            Thread.sleep(between(1, 400)); // wait a bit and give is a chance to try to allocate
+        }
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.RED));  // nothing allocated yet
+        ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+        assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), is(false));
 
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
 
-        logger.info("--> running cluster_health (wait for the shards to startup), 4 shards since we only have 2 nodes");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
+        logger.info("--> running cluster_health (wait for the shards to startup), 2 shards since we only have 1 node");
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(2)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

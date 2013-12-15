@@ -19,12 +19,12 @@ After link:/download[downloading] the latest release and extracting it,
 $ bin/elasticsearch
 --------------------------------------------------
 
-Under *nix system, the command will start the process in the background.
-To run it in the foreground, add the `-f` switch to it:
+Under *nix system, the command will start the process in the foreground.
+To run it in the background, add the `-d` switch to it:
 
 [source,sh]
 --------------------------------------------------
-$ bin/elasticsearch -f
+$ bin/elasticsearch -d
 --------------------------------------------------
 
 ElasticSearch is built using Java, and requires at least
@@ -44,7 +44,7 @@ script. When set, both override anything set using either `JAVA_OPTS` or
 
 [source,sh]
 --------------------------------------------------
-$ bin/elasticsearch -f -Xmx2g -Xms2g -Des.index.store.type=memory
+$ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory
 --------------------------------------------------
 *************************************************************************
 --

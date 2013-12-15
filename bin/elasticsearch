@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # OPTIONS:
-#   -f: start in the foreground
+#   -d: daemonize, start in the background
 #   -p <filename>: log the pid to a file (useful to kill it later)
 
 # CONTROLLING STARTUP:
@@ -127,7 +127,7 @@ esac
 launch_service()
 {
     pidpath=$1
-    foreground=$2
+    daemonized=$2
     props=$3
     es_parms="-Delasticsearch"
 
@@ -135,8 +135,8 @@ launch_service()
         es_parms="$es_parms -Des.pidfile=$pidpath"
     fi
 
-    # The es-foreground option will tell ElasticSearch not to close stdout/stderr, but it's up to us not to background.
-    if [ "x$foreground" != "x" ]; then
+    # The es-foreground option will tell ElasticSearch not to close stdout/stderr, but it's up to us not to daemonize.
+    if [ "x$daemonized" == "x" ]; then
         es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch
@@ -151,7 +151,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt vfhp:D:X: "$@"`
+args=`getopt vdhp:D:X: "$@"`
 eval set -- "$args"
 
 while true; do
@@ -165,12 +165,12 @@ while true; do
             pidfile="$2"
             shift 2
         ;;
-        -f)
-            foreground="yes"
+        -d)
+            daemonized="yes"
             shift
         ;;
         -h)
-            echo "Usage: $0 [-f] [-h] [-p pidfile]"
+            echo "Usage: $0 [-d] [-h] [-p pidfile]"
             exit 0
         ;;
         -D)
@@ -193,6 +193,6 @@ while true; do
 done
 
 # Start up the service
-launch_service "$pidfile" "$foreground" "$properties"
+launch_service "$pidfile" "$daemonized" "$properties"
 
 exit $?

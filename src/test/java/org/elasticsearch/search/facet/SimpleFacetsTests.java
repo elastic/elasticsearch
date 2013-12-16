@@ -671,7 +671,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
             searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setFilter(termFilter("tag", "blue"))
+                    .setPostFilter(termFilter("tag", "blue"))
                     .addFacet(termsFacet("facet1").field("tag").size(10))
                     .execute().actionGet();
 

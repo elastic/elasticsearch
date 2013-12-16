@@ -32,7 +32,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
         "query" : "*:*"
       }
     },
-    "filter" : {
+    "post_filter" : {
       "term" : { "user" : "kimchy" }
     }
   }

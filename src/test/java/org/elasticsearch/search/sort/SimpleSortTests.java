@@ -169,7 +169,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         if (!sparseBytes.isEmpty()) {
             int size = between(1, sparseBytes.size());
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
-                    .setFilter(FilterBuilders.existsFilter("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).execute()
+                    .setPostFilter(FilterBuilders.existsFilter("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).execute()
                     .actionGet();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo((long) sparseBytes.size()));

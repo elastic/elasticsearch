@@ -87,7 +87,7 @@ include::request/fields.asciidoc[]
 
 include::request/script-fields.asciidoc[]
 
-include::request/filter.asciidoc[]
+include::request/post-filter.asciidoc[]
 
 include::request/highlighting.asciidoc[]
 

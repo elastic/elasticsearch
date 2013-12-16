@@ -251,7 +251,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 + "\"shape_field_name\": \"location2\""
                 + "}}}}";
 
-        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setFilter(filter).execute().actionGet();
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).execute().actionGet();
         assertHitCount(result, 1);
     }
 

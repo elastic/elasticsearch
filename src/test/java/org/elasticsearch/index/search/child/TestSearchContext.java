@@ -353,12 +353,12 @@ class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedFilter(ParsedFilter filter) {
+    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
         return null;
     }
 
     @Override
-    public ParsedFilter parsedFilter() {
+    public ParsedFilter parsedPostFilter() {
         return null;
     }
 

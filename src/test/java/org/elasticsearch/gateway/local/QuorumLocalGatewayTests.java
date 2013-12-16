@@ -100,7 +100,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
             @Override
             public boolean apply(Object input) {
                 ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
-                return clusterStateResponse.getState() != null;
+                return clusterStateResponse.getState() != null && clusterStateResponse.getState().routingTable().index("test") != null;
             }}), equalTo(true)); // wait until we get a cluster state - could be null if we quick enough.
         final ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
         assertThat(clusterStateResponse.getState(), notNullValue());

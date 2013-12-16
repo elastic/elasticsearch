@@ -113,7 +113,7 @@ In all scripts that can be used in facets, allow to access the current
 doc score using `doc.score`.
 
 [float]
-=== Term statistics in scripts
+=== Computing scores based on terms in scripts
 
 see <<modules-advanced-scripting, advanced scripting documentation>> 
 

@@ -27,17 +27,13 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.FieldDataSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.*;
 import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -90,10 +86,14 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 } else if ("point".equals(currentFieldName) || "origin".equals(currentFieldName) || "center".equals(currentFieldName)) {
                     origin = new GeoPoint();
                     origin.resetFromString(parser.text());
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
@@ -140,6 +140,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
                         }
                     }
                     origin = new GeoPoint(lat, lon);
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("point".equals(currentFieldName) || "origin".equals(currentFieldName) || "center".equals(currentFieldName)) {
@@ -161,7 +163,11 @@ public class GeoDistanceParser implements Aggregator.Parser {
                                 "missing in geo_distance aggregator [" + aggregationName + "]");
                     }
                     origin = new GeoPoint(lat, lon);
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

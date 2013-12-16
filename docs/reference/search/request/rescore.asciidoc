@@ -4,7 +4,7 @@
 Rescoring can help to improve precision by reordering just the top (eg
 100 - 500) documents returned by the
 <<search-request-query,`query`>> and
-<<search-request-filter,`filter`>> phases, using a
+<<search-request-post-filter,`post_filter`>> phases, using a
 secondary (usually more costly) algorithm, instead of applying the
 costly algorithm to all documents in the index.
 
@@ -23,7 +23,7 @@ to `scan` or `count`.
 
 The query rescorer executes a second query only on the Top-K results
 returned by the <<search-request-query,`query`>> and
-<<search-request-filter,`filter`>> phases. The
+<<search-request-post-filter,`post_filter`>> phases. The
 number of docs which will be examined on each shard can be controlled by
 the `window_size` parameter, which defaults to
 <<search-request-from-size,`from` and `size`>>.

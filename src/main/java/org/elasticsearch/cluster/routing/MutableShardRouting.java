@@ -27,6 +27,10 @@ package org.elasticsearch.cluster.routing;
  */
 public class MutableShardRouting extends ImmutableShardRouting {
 
+    private long hashVersion = version-1;
+    private int hashCode = 0;
+
+
     public MutableShardRouting(ShardRouting copy) {
         super(copy);
     }
@@ -139,6 +143,13 @@ public class MutableShardRouting extends ImmutableShardRouting {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         primary = false;
+    }
+
+    @Override
+    public int hashCode() {
+        hashCode = (hashVersion != version ? super.hashCode() : hashCode);
+        hashVersion = version;
+        return hashCode;
     }
 }
 

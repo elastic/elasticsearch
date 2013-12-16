@@ -3,7 +3,7 @@
 ==== Query string syntax
 
 The query string ``mini-language'' is used by the
-<<query-dsl-query-string-query>> and <<query-dsl-field-query>>, by the
+<<query-dsl-query-string-query>> and by the
 `q` query string parameter in the <<search-search,`search` API>>.
 
 The query string is parsed into a series of _terms_ and _operators_. A

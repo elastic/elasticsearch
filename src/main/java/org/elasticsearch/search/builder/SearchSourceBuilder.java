@@ -77,7 +77,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private BytesReference queryBinary;
 
-    private FilterBuilder filterBuilder;
+    private FilterBuilder postFilterBuilder;
 
     private BytesReference filterBinary;
 
@@ -186,11 +186,11 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
      */
-    public SearchSourceBuilder filter(FilterBuilder filter) {
-        this.filterBuilder = filter;
+    public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
+        this.postFilterBuilder = postFilter;
         return this;
     }
 
@@ -714,9 +714,9 @@ public class SearchSourceBuilder implements ToXContent {
             }
         }
 
-        if (filterBuilder != null) {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
+        if (postFilterBuilder != null) {
+            builder.field("post_filter");
+            postFilterBuilder.toXContent(builder, params);
         }
 
         if (filterBinary != null) {

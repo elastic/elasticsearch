@@ -529,12 +529,12 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedFilter(ParsedFilter filter) {
+    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ParsedFilter parsedFilter() {
+    public ParsedFilter parsedPostFilter() {
         return null;
     }
 

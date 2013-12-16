@@ -62,6 +62,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         } else if (!(command instanceof PrioritizedFutureTask)) { // it might be a callable wrapper...
             command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, insertionOrder.incrementAndGet());
         }
+        super.execute(command);
         if (timeout.nanos() >= 0) {
             final Runnable fCommand = command;
             timer.schedule(new Runnable() {
@@ -74,7 +75,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                 }
             }, timeout.nanos(), TimeUnit.NANOSECONDS);
         }
-        super.execute(command);
     }
 
     @Override

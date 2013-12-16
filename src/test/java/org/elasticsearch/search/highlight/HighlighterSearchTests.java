@@ -1337,7 +1337,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setSource("field4", "a quick fast blue car").get();
         refresh();
 
-        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
@@ -1345,7 +1345,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
 
@@ -1353,7 +1353,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 1, "field4", 0, 1, equalTo("<x>The quick brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
 

@@ -137,7 +137,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private Query query;
 
-    private ParsedFilter filter;
+    private ParsedFilter postFilter;
 
     private Filter aliasFilter;
 
@@ -471,13 +471,13 @@ public class DefaultSearchContext extends SearchContext {
         return this.trackScores;
     }
 
-    public SearchContext parsedFilter(ParsedFilter filter) {
-        this.filter = filter;
+    public SearchContext parsedPostFilter(ParsedFilter postFilter) {
+        this.postFilter = postFilter;
         return this;
     }
 
-    public ParsedFilter parsedFilter() {
-        return this.filter;
+    public ParsedFilter parsedPostFilter() {
+        return this.postFilter;
     }
 
     public Filter aliasFilter() {

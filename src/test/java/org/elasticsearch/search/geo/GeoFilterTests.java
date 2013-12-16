@@ -255,7 +255,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point in polygon
         SearchResponse result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(3, 3)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(3, 3)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -263,7 +263,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point in polygon hole
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
         assertHitCount(result, 0);
 
@@ -274,7 +274,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point on polygon border
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(10.0, 5.0)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(10.0, 5.0)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -282,7 +282,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // Point on hole border
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(5.0, 2.0)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(5.0, 2.0)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
@@ -291,14 +291,14 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
             // Point not in polygon
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(3, 3)))
+                    .setPostFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(3, 3)))
                     .execute().actionGet();
             assertHitCount(result, 0);
 
             // Point in polygon hole
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                    .setPostFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                     .execute().actionGet();
             assertHitCount(result, 1);
             assertFirstHit(result, hasId("1"));
@@ -319,7 +319,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         // re-check point on polygon hole
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("2"));
@@ -339,7 +339,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setFilter(FilterBuilders.geoWithinFilter("area", builder))
+                    .setPostFilter(FilterBuilders.geoWithinFilter("area", builder))
                     .execute().actionGet();
             assertHitCount(result, 2);
         }
@@ -365,25 +365,25 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(174, -4)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(174, -4)))
                 .execute().actionGet();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(-174, -4)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(-174, -4)))
                 .execute().actionGet();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -4)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -4)))
                 .execute().actionGet();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -6)))
+                .setPostFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -6)))
                 .execute().actionGet();
         assertHitCount(result, 1);
     }
@@ -497,15 +497,15 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
 
         // Result of this geohash search should contain the geohash only
-        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"pin\": \"" + geohash + "\", \"neighbors\": false}}").execute().actionGet();
+        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter("{\"geohash_cell\": {\"pin\": \"" + geohash + "\", \"neighbors\": false}}").execute().actionGet();
         assertHitCount(results1, 1);
 
         // test the same, just with the builder
-        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter(geoHashCellFilter("pin", geohash, false)).execute().actionGet();
+        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(geoHashCellFilter("pin", geohash, false)).execute().actionGet();
         assertHitCount(results1, 1);
 
         // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors
-        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"pin\": \"" + geohash.substring(0, geohash.length() - 1) + "\", \"neighbors\": true}}").execute().actionGet();
+        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter("{\"geohash_cell\": {\"pin\": \"" + geohash.substring(0, geohash.length() - 1) + "\", \"neighbors\": true}}").execute().actionGet();
         assertHitCount(results2, 2 + neighbors.size() + parentNeighbors.size());
 
         // Testing point formats and precision
@@ -514,17 +514,17 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         logger.info("Testing lat/lon format");
         String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.lat() + ",\"lon\": " + point.lon() + "},\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results3 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter(pointTest1).execute().actionGet();
+        SearchResponse results3 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest1).execute().actionGet();
         assertHitCount(results3, neighbors.size() + 1);
 
         logger.info("Testing String format");
         String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.lat() + "," + point.lon() + "\",\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results4 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter(pointTest2).execute().actionGet();
+        SearchResponse results4 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest2).execute().actionGet();
         assertHitCount(results4, neighbors.size() + 1);
 
         logger.info("Testing Array format");
         String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.lon() + "," + point.lat() + "],\"precision\": " + precision + ",\"neighbors\": true}}";
-        SearchResponse results5 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter(pointTest3).execute().actionGet();
+        SearchResponse results5 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest3).execute().actionGet();
         assertHitCount(results5, neighbors.size() + 1);
     }
 

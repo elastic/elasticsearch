@@ -71,7 +71,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(
                 client().prepareSearch()
                         .setQuery(matchAllQuery())
-                        .setFilter(
+                        .setPostFilter(
                                 andFilter(
                                         queryFilter(matchAllQuery()),
                                         notFilter(andFilter(queryFilter(termQuery("field1", "value1")),
@@ -87,7 +87,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                                                 queryFilter(termQuery("field1", "value2")))))).get(),
                 3l);
         assertHitCount(
-                client().prepareSearch().setQuery(matchAllQuery()).setFilter(notFilter(termFilter("field1", "value3"))).get(), 
+                client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(notFilter(termFilter("field1", "value3"))).get(),
                 2l);
     }
 
@@ -551,7 +551,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(client().prepareSearch().setQuery(bool).get(), 1l);
 
         WrapperFilterBuilder wrapperFilter = new WrapperFilterBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
-        assertHitCount(client().prepareSearch().setFilter(wrapperFilter).get(), 1l);
+        assertHitCount(client().prepareSearch().setPostFilter(wrapperFilter).get(), 1l);
     }
 
     @Test
@@ -1026,7 +1026,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setFilter(idsFilter("type1").ids("1")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsFilter("type1").ids("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
@@ -1034,11 +1034,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setFilter(idsFilter().ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsFilter().ids("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setFilter(idsFilter().ids("1", "2")).get();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(idsFilter().ids("1", "2")).get();
         assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
@@ -1220,7 +1220,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "4").setSource("field1", "test2", "num_long", 4).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setFilter(
+        SearchResponse searchResponse = client().prepareSearch("test").setPostFilter(
                 boolFilter()
                         .should(rangeFilter("num_long", 1, 2))
                         .should(rangeFilter("num_long", 3, 4))
@@ -1228,7 +1228,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 4l);
 
         // This made 2826 fail! (only with bit based filters)
-        searchResponse = client().prepareSearch("test").setFilter(
+        searchResponse = client().prepareSearch("test").setPostFilter(
                 boolFilter()
                         .should(rangeFilter("num_long", 1, 2))
                         .should(rangeFilter("num_long", 3, 4))
@@ -1236,7 +1236,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 4l);
 
         // This made #2979 fail!
-        searchResponse = client().prepareSearch("test").setFilter(
+        searchResponse = client().prepareSearch("test").setPostFilter(
                 boolFilter()
                         .must(termFilter("field1", "test1"))
                         .should(rangeFilter("num_long", 1, 2))
@@ -1248,7 +1248,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEmptyTopLevelFilter() {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
-        SearchResponse searchResponse = client().prepareSearch().setFilter("{}").get();
+        SearchResponse searchResponse = client().prepareSearch().setPostFilter("{}").get();
         assertHitCount(searchResponse, 1l);
     }
 
@@ -1597,25 +1597,25 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
+                .setPostFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter(termFilter("text", "value2"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
 
         //default no match filter is "all"
         searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setFilter(indicesFilter(termFilter("text", "value1"), "index1")).get();
+                .setPostFilter(indicesFilter(termFilter("text", "value1"), "index1")).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
+                .setPostFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter("all")).get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
         searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
+                .setPostFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter("none")).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("1"));
@@ -1670,7 +1670,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         //has_child fails if executed on "simple" index
         try {
             client().prepareSearch("simple")
-                    .setFilter(hasChildFilter("child", termFilter("text", "value1"))).get();
+                    .setPostFilter(hasChildFilter("child", termFilter("text", "value1"))).get();
             fail("Should have failed as has_child query can only be executed against parent-child types");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.shardFailures().length, greaterThan(0));
@@ -1680,7 +1680,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         }
 
         SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setFilter(indicesFilter(hasChildFilter("child", termFilter("text", "value2")), "related")
+                .setPostFilter(indicesFilter(hasChildFilter("child", termFilter("text", "value2")), "related")
                         .noMatchFilter(termFilter("text", "value1"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");

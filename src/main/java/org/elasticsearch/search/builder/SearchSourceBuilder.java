@@ -77,7 +77,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private BytesReference queryBinary;
 
-    private FilterBuilder filterBuilder;
+    private FilterBuilder postFilterBuilder;
 
     private BytesReference filterBinary;
 
@@ -186,11 +186,11 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
      */
-    public SearchSourceBuilder filter(FilterBuilder filter) {
-        this.filterBuilder = filter;
+    public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
+        this.postFilterBuilder = postFilter;
         return this;
     }
 
@@ -198,52 +198,52 @@ public class SearchSourceBuilder implements ToXContent {
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchSourceBuilder filter(String filterString) {
-        return filter(filterString.getBytes(Charsets.UTF_8));
+    public SearchSourceBuilder postFilter(String postFilterString) {
+        return postFilter(postFilterString.getBytes(Charsets.UTF_8));
     }
 
     /**
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchSourceBuilder filter(byte[] filter) {
-        return filter(filter, 0, filter.length);
+    public SearchSourceBuilder postFilter(byte[] postFilter) {
+        return postFilter(postFilter, 0, postFilter.length);
     }
 
     /**
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchSourceBuilder filter(byte[] filterBinary, int filterBinaryOffset, int filterBinaryLength) {
-        return filter(new BytesArray(filterBinary, filterBinaryOffset, filterBinaryLength));
+    public SearchSourceBuilder postFilter(byte[] postFilterBinary, int postFilterBinaryOffset, int postFilterBinaryLength) {
+        return postFilter(new BytesArray(postFilterBinary, postFilterBinaryOffset, postFilterBinaryLength));
     }
 
     /**
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchSourceBuilder filter(BytesReference filterBinary) {
-        this.filterBinary = filterBinary;
+    public SearchSourceBuilder postFilter(BytesReference postFilterBinary) {
+        this.filterBinary = postFilterBinary;
         return this;
     }
 
     /**
      * Constructs a new search source builder with a query from a builder.
      */
-    public SearchSourceBuilder filter(XContentBuilder filter) {
-        return filter(filter.bytes());
+    public SearchSourceBuilder postFilter(XContentBuilder postFilter) {
+        return postFilter(postFilter.bytes());
     }
 
     /**
      * Constructs a new search source builder with a query from a map.
      */
-    public SearchSourceBuilder filter(Map filter) {
+    public SearchSourceBuilder postFilter(Map postFilter) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(filter);
-            return filter(builder);
+            builder.map(postFilter);
+            return postFilter(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+            throw new ElasticSearchGenerationException("Failed to generate [" + postFilter + "]", e);
         }
     }
 
@@ -714,9 +714,9 @@ public class SearchSourceBuilder implements ToXContent {
             }
         }
 
-        if (filterBuilder != null) {
-            builder.field("filter");
-            filterBuilder.toXContent(builder, params);
+        if (postFilterBuilder != null) {
+            builder.field("post_filter");
+            postFilterBuilder.toXContent(builder, params);
         }
 
         if (filterBinary != null) {

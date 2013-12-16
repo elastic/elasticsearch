@@ -239,11 +239,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
      */
-    public SearchRequestBuilder setFilter(FilterBuilder filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(FilterBuilder postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 
@@ -251,8 +251,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(String filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(String postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 
@@ -260,8 +260,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(BytesReference filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(BytesReference postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 
@@ -269,8 +269,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(byte[] filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(byte[] postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 
@@ -278,8 +278,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(byte[] filter, int filterOffset, int filterLength) {
-        sourceBuilder().filter(filter, filterOffset, filterLength);
+    public SearchRequestBuilder setPostFilter(byte[] postFilter, int postFilterOffset, int postFilterLength) {
+        sourceBuilder().postFilter(postFilter, postFilterOffset, postFilterLength);
         return this;
     }
 
@@ -287,8 +287,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(XContentBuilder filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(XContentBuilder postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 
@@ -296,8 +296,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter on the query executed that only applies to the search query
      * (and not facets for example).
      */
-    public SearchRequestBuilder setFilter(Map filter) {
-        sourceBuilder().filter(filter);
+    public SearchRequestBuilder setPostFilter(Map postFilter) {
+        sourceBuilder().postFilter(postFilter);
         return this;
     }
 

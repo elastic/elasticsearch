@@ -26,13 +26,13 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -78,6 +78,8 @@ public class DateRangeParser implements Aggregator.Parser {
                     scriptLang = parser.text();
                 } else if ("format".equals(currentFieldName)) {
                     format = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
@@ -97,6 +99,8 @@ public class DateRangeParser implements Aggregator.Parser {
                                     from = parser.doubleValue();
                                 } else if ("to".equals(toOrFromOrKey)) {
                                     to = parser.doubleValue();
+                                } else {
+                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                                 }
                             } else if (token == XContentParser.Token.VALUE_STRING) {
                                 if ("from".equals(toOrFromOrKey)) {
@@ -105,6 +109,8 @@ public class DateRangeParser implements Aggregator.Parser {
                                     toAsStr = parser.text();
                                 } else if ("key".equals(toOrFromOrKey)) {
                                     key = parser.text();
+                                } else {
+                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                                 }
                             }
                         }
@@ -114,13 +120,19 @@ public class DateRangeParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

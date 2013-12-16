@@ -1,10 +1,21 @@
-[[search-request-filter]]
-=== Filter
+[[search-request-post-filter]]
+=== Post filter
 
-When doing things like facet navigation, sometimes only the hits are
-needed to be filtered by the chosen facet, and all the facets should
-continue to be calculated based on the original query. The `filter`
-element within the search request can be used to accomplish it.
+The `post_filter` allows any filter that it holds to be executed as last filter, because
+of this the `post_filter` only has affect on the search hits and not facets.
+
+There are several reasons why to specify filters as `post_filter`. One reason is to force
+expensive filters to be executed as last filter, so that these filters only operate on the
+docs that match with the rest of the query. An example of for what filter a post_filter
+should be used for this reason is the `geo_distance` filter. The `geo_distance` filter is
+in general an expensive filter to execute and to reduce the execution time for this filter,
+one can choose to specify it as `post_filter`, so it runs on documents that are very likely
+to be end up as matching documents.
+
+Another important reason is when doing things like facet navigation,
+sometimes only the hits are needed to be filtered by the chosen facet,
+and all the facets should continue to be calculated based on the original query.
+The `post_filter` element within the search request can be used to accomplish it.
 
 Note, this is different compared to creating a `filtered` query with the
 filter, since this will cause the facets to only process the filtered
@@ -60,7 +71,7 @@ curl -XPOST 'localhost:9200/twitter/_search?pretty=true' -d '
     "query" : {
         "term" : { "message" : "something" }
     },
-    "filter" : {
+    "post_filter" : {
         "term" : { "tag" : "green" }
     },
     "facets" : {
@@ -76,3 +87,5 @@ And now, we get only 1 hit back, but the facets remain the same.
 
 Note, if additional filters are required on specific facets, they can be
 added as a `facet_filter` to the relevant facets.
+
+deprecated[0.90.8, The top level `filter` has been renamed to `post_filter`]

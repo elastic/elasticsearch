@@ -37,7 +37,7 @@ public class FilterBinaryParseElement implements SearchParseElement {
         try {
             ParsedFilter filter = context.queryParserService().parseInnerFilter(fSourceParser);
             if (filter != null) {
-                context.parsedFilter(filter);
+                context.parsedPostFilter(filter);
             }
         } finally {
             fSourceParser.close();

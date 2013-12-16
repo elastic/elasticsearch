@@ -141,11 +141,11 @@ public class CacheTests extends ElasticsearchIntegrationTest {
 
         // sort to load it to field data and filter to load filter cache
         client().prepareSearch()
-                .setFilter(FilterBuilders.termFilter("field", "value1"))
+                .setPostFilter(FilterBuilders.termFilter("field", "value1"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
         client().prepareSearch()
-                .setFilter(FilterBuilders.termFilter("field", "value2"))
+                .setPostFilter(FilterBuilders.termFilter("field", "value2"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 

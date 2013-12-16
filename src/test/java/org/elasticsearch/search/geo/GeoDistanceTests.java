@@ -630,7 +630,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         SearchResponse result = client().prepareSearch("locations")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFilter(FilterBuilders.geoDistanceFilter("pin")
+                .setPostFilter(FilterBuilders.geoDistanceFilter("pin")
                         .geoDistance(GeoDistance.ARC)
                         .lat(lat).lon(lon)
                         .distance("1m"))

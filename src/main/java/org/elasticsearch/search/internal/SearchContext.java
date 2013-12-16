@@ -447,12 +447,12 @@ public class SearchContext implements Releasable {
         return this.trackScores;
     }
 
-    public SearchContext parsedFilter(ParsedFilter filter) {
+    public SearchContext parsedPostFilter(ParsedFilter filter) {
         this.filter = filter;
         return this;
     }
 
-    public ParsedFilter parsedFilter() {
+    public ParsedFilter parsedPostFilter() {
         return this.filter;
     }
 

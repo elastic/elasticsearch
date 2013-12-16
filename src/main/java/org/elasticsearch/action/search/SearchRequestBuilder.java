@@ -238,65 +238,149 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
      */
+    public SearchRequestBuilder setPostFilter(FilterBuilder postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(String postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(BytesReference postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(byte[] postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(byte[] postFilter, int postFilterOffset, int postFilterLength) {
+        sourceBuilder().postFilter(postFilter, postFilterOffset, postFilterLength);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(XContentBuilder postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     */
+    public SearchRequestBuilder setPostFilter(Map postFilter) {
+        sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(FilterBuilder)} instead (will be removed in 1.0)
+     */
+    @Deprecated
     public SearchRequestBuilder setFilter(FilterBuilder filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(String)} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(String filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(BytesReference)} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(BytesReference filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(byte[])} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(byte[] filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(byte[], int, int)} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(byte[] filter, int filterOffset, int filterLength) {
-        sourceBuilder().filter(filter, filterOffset, filterLength);
+        sourceBuilder().postFilter(filter, filterOffset, filterLength);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(XContentBuilder)} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(XContentBuilder filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 
     /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
+     * (not facets). This filter is always executed as last filtering mechanism.
+     *
+     * @deprecated Use {@link #setPostFilter(Map)} instead (will be removed in 1.0)
      */
+    @Deprecated
     public SearchRequestBuilder setFilter(Map filter) {
-        sourceBuilder().filter(filter);
+        sourceBuilder().postFilter(filter);
         return this;
     }
 

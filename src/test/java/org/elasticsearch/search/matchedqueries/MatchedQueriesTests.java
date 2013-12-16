@@ -88,7 +88,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(orFilter(
+                .setPostFilter(orFilter(
                         termFilter("name", "test").filterName("name"),
                         termFilter("title", "title1").filterName("title"))).get();
         assertHitCount(searchResponse, 3l);
@@ -107,7 +107,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setFilter(queryFilter(boolQuery()
+                .setPostFilter(queryFilter(boolQuery()
                         .should(termQuery("name", "test").queryName("name"))
                         .should(termQuery("title", "title1").queryName("title")))).get();
 
@@ -138,7 +138,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), termsFilter("title", "title1", "title2", "title3").filterName("title")))
-                        .setFilter(termFilter("name", "test").filterName("name")).get();
+                        .setPostFilter(termFilter("name", "test").filterName("name")).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
@@ -152,7 +152,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch()
                 .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
-                .setFilter(queryFilter(matchQuery("name", "test").queryName("name"))).get();
+                .setPostFilter(queryFilter(matchQuery("name", "test").queryName("name"))).get();
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {

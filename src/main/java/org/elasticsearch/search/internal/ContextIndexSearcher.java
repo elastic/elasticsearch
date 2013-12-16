@@ -145,11 +145,11 @@ public class ContextIndexSearcher extends IndexSearcher {
                 // TODO should we create a cache of segment->docIdSets so we won't create one each time?
                 collector = this.mainDocIdSetCollector = new DocIdSetCollector(searchContext.docSetCache(), collector);
             }
-            if (searchContext.parsedFilter() != null) {
+            if (searchContext.parsedPostFilter() != null) {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
-                collector = new FilteredCollector(collector, searchContext.parsedFilter().filter());
+                collector = new FilteredCollector(collector, searchContext.parsedPostFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));

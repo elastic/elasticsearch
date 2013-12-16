@@ -58,7 +58,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
         return !context.parsedQuery().namedFilters().isEmpty()
-                || (context.parsedFilter() !=null && !context.parsedFilter().namedFilters().isEmpty());
+                || (context.parsedPostFilter() !=null && !context.parsedPostFilter().namedFilters().isEmpty());
     }
 
     @Override
@@ -67,8 +67,8 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
         addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);
 
-        if (context.parsedFilter() != null) {
-            addMatchedQueries(hitContext, context.parsedFilter().namedFilters(), matchedQueries);
+        if (context.parsedPostFilter() != null) {
+            addMatchedQueries(hitContext, context.parsedPostFilter().namedFilters(), matchedQueries);
         }
 
         hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));

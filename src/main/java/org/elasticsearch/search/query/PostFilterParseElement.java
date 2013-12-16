@@ -27,13 +27,13 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  *
  */
-public class FilterParseElement implements SearchParseElement {
+public class PostFilterParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-        if (filter != null) {
-            context.parsedFilter(filter);
+        ParsedFilter postFilter = context.queryParserService().parseInnerFilter(parser);
+        if (postFilter != null) {
+            context.parsedPostFilter(postFilter);
         }
     }
 }

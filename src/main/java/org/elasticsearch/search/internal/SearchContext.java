@@ -199,9 +199,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean trackScores();
 
-    public abstract SearchContext parsedFilter(ParsedFilter filter);
+    public abstract SearchContext parsedPostFilter(ParsedFilter postFilter);
 
-    public abstract ParsedFilter parsedFilter();
+    public abstract ParsedFilter parsedPostFilter();
 
     public abstract Filter aliasFilter();
 

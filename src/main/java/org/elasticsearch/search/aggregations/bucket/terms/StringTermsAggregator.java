@@ -118,6 +118,8 @@ public class StringTermsAggregator extends BucketsAggregator {
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
+            spare.aggregations = bucketAggregations(spare.bucketOrd);
+
             spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
         }
 

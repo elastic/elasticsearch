@@ -90,7 +90,7 @@ class InternalOrder extends Terms.Order {
             if (order instanceof Aggregation) {
                 out.writeBoolean(((Terms.Bucket.Comparator) order.comparator).asc());
                 out.writeString(((Terms.Bucket.Comparator) order.comparator).aggName());
-                boolean hasValueName = ((Terms.Bucket.Comparator) order.comparator).aggName() != null;
+                boolean hasValueName = ((Terms.Bucket.Comparator) order.comparator).valueName() != null;
                 out.writeBoolean(hasValueName);
                 if (hasValueName) {
                     out.writeString(((Terms.Bucket.Comparator) order.comparator).valueName());
@@ -108,9 +108,15 @@ class InternalOrder extends Terms.Order {
                 case 0:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    return new InternalOrder.Aggregation(key, asc);
+                    boolean hasValueName = in.readBoolean();
+                    if(hasValueName) {
+                        String valueName = in.readString();
+                        return new InternalOrder.Aggregation(key, valueName, asc);
+                    } else {
+                        return new InternalOrder.Aggregation(key, asc);
+                    }
                 default:
-                    throw new RuntimeException("unknown histogram order");
+                    throw new RuntimeException("unknown terms order");
             }
         }
     }

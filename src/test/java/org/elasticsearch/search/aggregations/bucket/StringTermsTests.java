@@ -28,6 +28,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -74,6 +76,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             lowCardBuilders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field("value", "val" + i)
+                    .field("i", i)
                     .startArray("values").value("val" + i).value("val" + (i + 1)).endArray()
                     .endObject());
         }
@@ -387,6 +390,133 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(valueCount.getValue(), equalTo(1l));
         }
     }
+
+    @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field("i"))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationDesc() throws Exception {
+        boolean asc = false;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field("i"))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 4; i >= 0; i--) {
+
+            Terms.Bucket bucket = terms.getByTerm("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueSubAggregationAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .subAggregation(stats("stats").field("i"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Stats stats = (Stats) bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueSubAggregationDesc() throws Exception {
+        boolean asc = false;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .subAggregation(stats("stats").field("i"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 4; i >= 0; i--) {
+            Terms.Bucket bucket = terms.getByTerm("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Stats stats = (Stats) bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
 
     @Test
     public void singleValuedField_WithValueScript() throws Exception {

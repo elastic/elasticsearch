@@ -45,8 +45,7 @@ public class MatchQueryParser implements QueryParser {
     @Override
     public String[] names() {
         return new String[]{
-                NAME, "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match",
-                "text", "text_phrase", "textPhrase", "text_phrase_prefix", "textPhrasePrefix", "fuzzyText", "fuzzy_text"
+                NAME, "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match"
         };
     }
 

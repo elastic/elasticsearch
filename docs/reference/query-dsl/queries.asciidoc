@@ -26,8 +26,6 @@ include::queries/constant-score-query.asciidoc[]
 
 include::queries/dis-max-query.asciidoc[]
 
-include::queries/field-query.asciidoc[]
-
 include::queries/filtered-query.asciidoc[]
 
 include::queries/flt-query.asciidoc[]

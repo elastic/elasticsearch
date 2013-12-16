@@ -1,7 +1,0 @@
-{
-    "text_phrase_prefix":{
-        "name.first":{
-            "query":"aaa bbb"
-        }
-    }
-}

@@ -51,8 +51,6 @@ public class ScriptTerm implements Iterable<TermPosition> {
 
     final private TermStatistics termStats;
 
-    private int docId;
-
     static private EmptyScorer EMPTY_DOCS_ENUM = new EmptyScorer(null);
 
     // get the document frequency of the term
@@ -148,19 +146,21 @@ public class ScriptTerm implements Iterable<TermPosition> {
         return newDocsEnum;
     }
 
-    public void setNextDoc(int docId) {
-        this.docId = docId;
+    private int freq = 0;
 
+    public void setNextDoc(int docId) {
         assert (docsEnum != null);
-        // we try to advance to the current document.
-        if (docsEnum.docID() < docId) {
-            try {
-                docsEnum.advance(docId);
-            } catch (IOException e) {
-                throw new ElasticSearchException("While trying to advance posting list in ScriptTerm.setNextDoc() ", e);
-            }
-        }
         try {
+            // we try to advance to the current document.
+            int currentDocPos = docsEnum.docID();
+            if (currentDocPos < docId) {
+                currentDocPos = docsEnum.advance(docId);
+            }
+            if (currentDocPos == docId) {
+                freq = docsEnum.freq();
+            } else {
+                freq = 0;
+            }
             iterator.nextDoc();
         } catch (IOException e) {
             throw new ElasticSearchException("While trying to initialize term positions in ScriptTerm.setNextDoc() ", e);
@@ -212,18 +212,7 @@ public class ScriptTerm implements Iterable<TermPosition> {
     }
 
     public int tf() throws IOException {
-        if (!hasTerm()) {
-            return 0;
-        }
-        return docsEnum.freq();
-    }
-
-    private boolean hasTerm() {
-        if (docsEnum != null) {
-            return docsEnum.docID() == docId;
-        } else {
-            return false;
-        }
+        return freq;
     }
 
     @Override

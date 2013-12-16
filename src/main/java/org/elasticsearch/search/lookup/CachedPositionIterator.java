@@ -89,6 +89,9 @@ public class CachedPositionIterator extends PositionIterator {
         }
     }
     private void ensureSize(int freq) {
+        if (freq == 0) {
+            return;
+        }
         if (startOffsets.ints.length < freq) {
             startOffsets.grow(freq);
             endOffsets.grow(freq);

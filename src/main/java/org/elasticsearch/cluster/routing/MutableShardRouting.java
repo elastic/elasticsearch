@@ -147,5 +147,14 @@ public class MutableShardRouting extends ImmutableShardRouting {
         primary = false;
     }
 
+    private long hashVersion = version-1;
+    private int hashCode = 0;
+
+    @Override
+    public int hashCode() {
+        hashCode = (hashVersion != version ? super.hashCode() : hashCode);
+        hashVersion = version;
+        return hashCode;
+    }
 }
 

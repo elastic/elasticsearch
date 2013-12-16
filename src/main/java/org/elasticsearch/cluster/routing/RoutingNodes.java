@@ -584,6 +584,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         public void copyAll(Collection<MutableShardRouting> others) {
             others.addAll(unassigned);
         }
+
+        public MutableShardRouting[] drain() {
+            MutableShardRouting[] mutableShardRoutings = unassigned.toArray(new MutableShardRouting[unassigned.size()]);
+            unassigned.clear();
+            primaries = 0;
+            transactionId++;
+            return mutableShardRoutings;
+        }
     }
 
 

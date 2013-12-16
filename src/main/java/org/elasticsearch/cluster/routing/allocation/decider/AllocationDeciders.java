@@ -153,4 +153,32 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+
+    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canAllocate(shardRouting, allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                return decision;
+            } else if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
+    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canAllocate(node, allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                return decision;
+            } else if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
 }

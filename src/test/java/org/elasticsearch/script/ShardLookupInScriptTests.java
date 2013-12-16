@@ -33,6 +33,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,7 +52,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
     private HashMap<String, List<Object>> emptyArray;
     private HashMap<String, List<Object>> expectedStartOffsetsArray;
 
-    void initTestData() throws InterruptedException, ExecutionException {
+    void initTestData() throws InterruptedException, ExecutionException, IOException {
         emptyArray = new HashMap<String, List<Object>>();
         List<Object> empty1 = new ArrayList<Object>();
         empty1.add(-1);
@@ -124,14 +125,6 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         ends3.add(3);
         ends3.add(17);
         expectedEndOffsetsArray.put("3", ends3);
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("int_payload_field", "a|1 b|2 b|3 c|4 d "), client()
-                .prepareIndex("test", "type1", "2").setSource("int_payload_field", "b|1 b|2 c|3 d|4 a "),
-                client().prepareIndex("test", "type1", "3").setSource("int_payload_field", "b|1 c|2 d|3 a|4 b "));
-
-    }
-
-    @Test
-    public void testTwoScripts() throws Exception {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
@@ -141,9 +134,17 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
                         .put("index.analysis.filter.delimited_int.delimiter", "|")
                         .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 1)));
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")
+                        .put("index.number_of_replicas", 0).put("index.number_of_shards", randomIntBetween(1, 6))));
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("int_payload_field", "a|1 b|2 b|3 c|4 d "), client()
+                .prepareIndex("test", "type1", "2").setSource("int_payload_field", "b|1 b|2 c|3 d|4 a "),
+                client().prepareIndex("test", "type1", "3").setSource("int_payload_field", "b|1 c|2 d|3 a|4 b "));
         ensureGreen();
+
+    }
+
+    @Test
+    public void testTwoScripts() throws Exception {
 
         initTestData();
 
@@ -166,18 +167,6 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCallWithDifferentFlagsFails() throws Exception {
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
-                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
-                        .put("index.analysis.filter.delimited_int.delimiter", "|")
-                        .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 1)));
-        ensureGreen();
 
         initTestData();
 
@@ -212,18 +201,6 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDocumentationExample() throws Exception {
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
-                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
-                        .put("index.analysis.filter.delimited_int.delimiter", "|")
-                        .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 3)));
-        ensureGreen();
-
         initTestData();
 
         String script = "termInfo = _shard['float_payload_field'].get('b'," + includeAllFlag
@@ -249,18 +226,6 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
     @Test
     public void testIteratorAndRecording() throws Exception {
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
-                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
-                        .put("index.analysis.filter.delimited_int.delimiter", "|")
-                        .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 3)));
-        ensureGreen();
-
         initTestData();
 
         // call twice with record: should work as expected
@@ -275,23 +240,23 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
         // no record and get iterator twice: should fail
         script = createPositionsArrayScriptIterateTwice("b", includeAllWithoutRecordFlag, "position");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptIterateTwice("b", includeAllWithoutRecordFlag, "startOffset");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptIterateTwice("b", includeAllWithoutRecordFlag, "endOffset");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptIterateTwice("b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
-        checkExceptions(script, 3);
+        checkExceptions(script);
 
         // no record and get TermInfoObject twice and iterate: should fail
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "position");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "startOffset");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "endOffset");
-        checkExceptions(script, 3);
+        checkExceptions(script);
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
-        checkExceptions(script, 3);
+        checkExceptions(script);
 
     }
 
@@ -323,18 +288,6 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFlags() throws Exception {
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
-                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
-                        .put("index.analysis.filter.delimited_int.delimiter", "|")
-                        .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 3)));
-        ensureGreen();
 
         initTestData();
 
@@ -610,17 +563,20 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private void checkExceptions(String script, int expectedFailures) {
-        SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
-                .execute().actionGet();
-        ShardSearchFailure[] shardFails = sr.getShardFailures();
-        assertThat(shardFails.length, equalTo(expectedFailures));
+    private void checkExceptions(String script) {
+        try {
+            SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
+                    .execute().actionGet();
+            assertThat(sr.getHits().hits().length, equalTo(0));
+            ShardSearchFailure[] shardFails = sr.getShardFailures();
+            for (ShardSearchFailure fail : shardFails) {
+                assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
+                        Matchers.greaterThan(-1));
+            }
+        } catch (SearchPhaseExecutionException ex) {
 
-        for (ShardSearchFailure fail : shardFails) {
             assertThat(
-                    fail.reason()
-                            .indexOf(
-                                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
+                    ex.getDetailedMessage().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
                     Matchers.greaterThan(-1));
         }
     }

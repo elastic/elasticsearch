@@ -36,8 +36,7 @@ public class ScriptTerm implements Iterable<TermPosition> {
     // exist. Can be DocsEnum or DocsAndPositionsEnum.
     DocsEnum docsEnum;
 
-    // Stores if positions, offsets and payloads are requested, see
-    // ShardLookup
+    // Stores if positions, offsets and payloads are requested.
     final private int flags;
 
     final private String fieldName;

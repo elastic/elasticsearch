@@ -58,7 +58,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start all the replica shards");
@@ -66,16 +66,19 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-
+        final String nodeHoldingPrimary = routingTable.index("test").shard(0).primaryShard().currentNodeId();
+        final String nodeHoldingReplica = routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId();
+        assertThat(nodeHoldingPrimary, not(equalTo(nodeHoldingReplica)));
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo(nodeHoldingReplica));
+
 
         logger.info("add another replica");
         routingNodes = clusterState.routingNodes();
@@ -90,10 +93,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo(nodeHoldingReplica));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(UNASSIGNED));
 
         logger.info("Add another node and start the added replica");
@@ -106,10 +109,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo(nodeHoldingReplica));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(INITIALIZING));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
@@ -122,10 +125,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo(nodeHoldingReplica));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
@@ -142,10 +145,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
         assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node3")));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), anyOf(equalTo(nodeHoldingReplica), equalTo("node3")));
 
         logger.info("do a reroute, should remain the same");
         prevRoutingTable = routingTable;

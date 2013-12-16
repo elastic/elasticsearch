@@ -64,4 +64,20 @@ public abstract class AllocationDecider extends AbstractComponent {
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be allocated at all at this state of the
+     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
+     */
+    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given node can allow any allocation at all at this state of the
+     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
+     */
+    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
 }

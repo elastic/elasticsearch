@@ -33,6 +33,12 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     private SpanQueryBuilder exclude;
 
+    private int dist = -1;
+
+    private int pre = -1;
+
+    private int post = -1;
+
     private float boost = -1;
 
     private String queryName;
@@ -44,6 +50,21 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     public SpanNotQueryBuilder exclude(SpanQueryBuilder exclude) {
         this.exclude = exclude;
+        return this;
+    }
+
+    public SpanNotQueryBuilder dist(int dist) {
+        this.dist = dist;
+        return this;
+    }
+
+    public SpanNotQueryBuilder pre(int pre) {
+        this.pre = pre;
+        return this;
+    }
+
+    public SpanNotQueryBuilder post(int post) {
+        this.post = post;
         return this;
     }
 
@@ -68,11 +89,25 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         if (exclude == null) {
             throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
         }
+
+        if ((dist != -1 && (pre != -1 || post != -1)) || (pre != -1 && post == -1) || (pre == -1 && post != -1))  {
+            throw new ElasticSearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+        }
+
         builder.startObject(SpanNotQueryParser.NAME);
         builder.field("include");
         include.toXContent(builder, params);
         builder.field("exclude");
         exclude.toXContent(builder, params);
+        if (dist != -1) {
+            builder.field("dist", dist);
+        }
+        if (pre != -1) {
+            builder.field("pre", pre);
+        }
+        if (post != -1) {
+            builder.field("post", post);
+        }
         if (boost != -1) {
             builder.field("boost", boost);
         }

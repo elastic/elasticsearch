@@ -41,7 +41,7 @@ to use the ability to pass parameters to the script itself, for example:
         }
     }
 }
----------------------------------------------------
+----------------------------------------------
 
 [float]
 ==== Caching

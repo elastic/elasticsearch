@@ -43,6 +43,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -300,6 +301,25 @@ public class AllocationCommandsTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), equalTo(1));
+
+        logger.info("--> move the replica shard");
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand(new ShardId("test", 0), "node2", "node3")));
+        clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shardsWithState(RELOCATING).size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node3").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node3").shardsWithState(INITIALIZING).size(), equalTo(1));
+
+        logger.info("--> cancel the move of the replica shard");
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node3", false)));
+        clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        assertThat(clusterState.routingNodes().node("node1").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").size(), equalTo(1));
+        assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), equalTo(1));
+
 
         logger.info("--> cancel the primary allocation (with allow_primary set to true)");
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", true)));

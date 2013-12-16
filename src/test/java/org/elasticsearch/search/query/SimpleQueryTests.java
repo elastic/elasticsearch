@@ -1527,6 +1527,48 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
+        client().prepareIndex("test", "test", "2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "brown"))).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "sleeping")).dist(5)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+        assertHitCount(searchResponse, 1l);
+
+        SearchRequestBuilder builder = client().prepareSearch("test")
+                .setQuery(spanNotQuery().include(spanNearQuery()
+                        .clause(QueryBuilders.spanTermQuery("description", "quick"))
+                        .clause(QueryBuilders.spanTermQuery("description", "fox")).slop(1)).exclude(spanTermQuery("description", "jumped")).dist(2).pre(2));
+        boolean caught = false;
+        try {
+            builder.execute();
+        } catch (ElasticsearchException e) {
+            assertTrue("ElasticsearchIllegalArgumentException should have been caught", e.getDetailedMessage().endsWith("spanNot can either use [dist] or [pre] & [post] (or none)"));
+            caught = true;
+        } finally {
+            assertTrue("ElasticsearchIllegalArgumentException should have been caught", caught);
+        }
+    }
+
+    @Test
     public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()

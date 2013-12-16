@@ -150,8 +150,24 @@ launch_service()
     fi
 }
 
+# Parse any long getopt options and put them into properties before calling getopt below
+# Be dash compatible to make sure running under ubuntu works
+ARGV=""
+while [ $# -gt 0 ]
+do
+    case $1 in
+      --*=*) properties="$properties -Des.${1#--}"
+           shift 1
+           ;;
+      --*) properties="$properties -Des.${1#--}=$2"
+           shift 2
+           ;;
+      *) ARGV="$ARGV $1" ; shift
+    esac
+done
+
 # Parse any command line options.
-args=`getopt vdhp:D:X: "$@"`
+args=`getopt vfhp:D:X: $ARGV`
 eval set -- "$args"
 
 while true; do

@@ -28,9 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
@@ -223,6 +221,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         }
     }
 
+
     private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
@@ -244,64 +243,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             if (indexRoutingTable == null) {
                 continue;
             }
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), validation.indexFailures(indexMetaData.index()));
 
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
-                for (ShardRouting shardRouting : shardRoutingTable) {
-                    if (shardRouting.active()) {
-                        shardHealth.activeShards++;
-                        if (shardRouting.relocating()) {
-                            // the shard is relocating, the one he is relocating to will be in initializing state, so we don't count it
-                            shardHealth.relocatingShards++;
-                        }
-                        if (shardRouting.primary()) {
-                            shardHealth.primaryActive = true;
-                        }
-                    } else if (shardRouting.initializing()) {
-                        shardHealth.initializingShards++;
-                    } else if (shardRouting.unassigned()) {
-                        shardHealth.unassignedShards++;
-                    }
-                }
-                if (shardHealth.primaryActive) {
-                    if (shardHealth.activeShards == shardRoutingTable.size()) {
-                        shardHealth.status = ClusterHealthStatus.GREEN;
-                    } else {
-                        shardHealth.status = ClusterHealthStatus.YELLOW;
-                    }
-                } else {
-                    shardHealth.status = ClusterHealthStatus.RED;
-                }
-                indexHealth.shards.put(shardHealth.getId(), shardHealth);
-            }
-
-            for (ClusterShardHealth shardHealth : indexHealth) {
-                if (shardHealth.isPrimaryActive()) {
-                    indexHealth.activePrimaryShards++;
-                }
-                indexHealth.activeShards += shardHealth.activeShards;
-                indexHealth.relocatingShards += shardHealth.relocatingShards;
-                indexHealth.initializingShards += shardHealth.initializingShards;
-                indexHealth.unassignedShards += shardHealth.unassignedShards;
-            }
-            // update the index status
-            indexHealth.status = ClusterHealthStatus.GREEN;
-            if (!indexHealth.getValidationFailures().isEmpty()) {
-                indexHealth.status = ClusterHealthStatus.RED;
-            } else if (indexHealth.getShards().isEmpty()) { // might be since none has been created yet (two phase index creation)
-                indexHealth.status = ClusterHealthStatus.RED;
-            } else {
-                for (ClusterShardHealth shardHealth : indexHealth) {
-                    if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
-                        indexHealth.status = ClusterHealthStatus.RED;
-                        break;
-                    }
-                    if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW) {
-                        indexHealth.status = ClusterHealthStatus.YELLOW;
-                    }
-                }
-            }
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
 
             response.indices.put(indexHealth.getIndex(), indexHealth);
         }

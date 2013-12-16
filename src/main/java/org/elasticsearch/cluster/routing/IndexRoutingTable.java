@@ -21,22 +21,21 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenLongMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -124,6 +123,18 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             return;
         }
         IndexMetaData indexMetaData = metaData.index(index());
+        for (String failure : validate(indexMetaData)) {
+            validation.addIndexFailure(index, failure);
+        }
+
+    }
+
+    /**
+     * validate based on a meta data, returning failures found
+     */
+    public List<String> validate(IndexMetaData indexMetaData) {
+        ArrayList<String> failures = new ArrayList<String>();
+
         // check the number of shards
         if (indexMetaData.numberOfShards() != shards().size()) {
             Set<Integer> expected = Sets.newHashSet();
@@ -133,21 +144,22 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
                 expected.remove(indexShardRoutingTable.shardId().id());
             }
-            validation.addIndexFailure(index(), "Wrong number of shards in routing table, missing: " + expected);
+            failures.add("Wrong number of shards in routing table, missing: " + expected);
         }
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
             if (routingNumberOfReplicas != indexMetaData.numberOfReplicas()) {
-                validation.addIndexFailure(index(), "Shard [" + indexShardRoutingTable.shardId().id()
+                failures.add("Shard [" + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index())) {
-                    validation.addIndexFailure(index(), "shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
+                    failures.add("shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
                 }
             }
         }
+        return failures;
     }
 
     @Override

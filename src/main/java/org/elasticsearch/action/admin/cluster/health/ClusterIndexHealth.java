@@ -21,6 +21,10 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -67,6 +71,68 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
         this.validationFailures = validationFailures;
+    }
+
+    public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
+        this.index = indexMetaData.index();
+        this.numberOfShards = indexMetaData.getNumberOfShards();
+        this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
+        this.validationFailures = indexRoutingTable.validate(indexMetaData);
+
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
+            for (ShardRouting shardRouting : shardRoutingTable) {
+                if (shardRouting.active()) {
+                    shardHealth.activeShards++;
+                    if (shardRouting.relocating()) {
+                        // the shard is relocating, the one he is relocating to will be in initializing state, so we don't count it
+                        shardHealth.relocatingShards++;
+                    }
+                    if (shardRouting.primary()) {
+                        shardHealth.primaryActive = true;
+                    }
+                } else if (shardRouting.initializing()) {
+                    shardHealth.initializingShards++;
+                } else if (shardRouting.unassigned()) {
+                    shardHealth.unassignedShards++;
+                }
+            }
+            if (shardHealth.primaryActive) {
+                if (shardHealth.activeShards == shardRoutingTable.size()) {
+                    shardHealth.status = ClusterHealthStatus.GREEN;
+                } else {
+                    shardHealth.status = ClusterHealthStatus.YELLOW;
+                }
+            } else {
+                shardHealth.status = ClusterHealthStatus.RED;
+            }
+            shards.put(shardHealth.getId(), shardHealth);
+        }
+
+        // update the index status
+        status = ClusterHealthStatus.GREEN;
+
+        for (ClusterShardHealth shardHealth : shards.values()) {
+            if (shardHealth.isPrimaryActive()) {
+                activePrimaryShards++;
+            }
+            activeShards += shardHealth.activeShards;
+            relocatingShards += shardHealth.relocatingShards;
+            initializingShards += shardHealth.initializingShards;
+            unassignedShards += shardHealth.unassignedShards;
+
+            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
+                status = ClusterHealthStatus.RED;
+            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
+                // do not override an existing red
+                status = ClusterHealthStatus.YELLOW;
+            }
+        }
+        if (!validationFailures.isEmpty()) {
+            status = ClusterHealthStatus.RED;
+        } else if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+            status = ClusterHealthStatus.RED;
+        }
     }
 
     public String getIndex() {

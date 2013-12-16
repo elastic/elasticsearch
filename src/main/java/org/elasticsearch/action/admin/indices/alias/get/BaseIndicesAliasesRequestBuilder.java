@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -54,6 +55,12 @@ public abstract class BaseIndicesAliasesRequestBuilder<Response extends ActionRe
     @SuppressWarnings("unchecked")
     public Builder addIndices(String... indices) {
         request.indices(ObjectArrays.concat(request.indices(), indices, String.class));
+        return (Builder) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Builder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request.ignoreIndices(ignoreIndices);
         return (Builder) this;
     }
 

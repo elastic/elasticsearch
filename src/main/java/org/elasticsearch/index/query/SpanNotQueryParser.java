@@ -52,6 +52,11 @@ public class SpanNotQueryParser implements QueryParser {
 
         SpanQuery include = null;
         SpanQuery exclude = null;
+
+        int dist = -1;
+        int pre  = -1;
+        int post = -1;
+
         String queryName = null;
 
         String currentFieldName = null;
@@ -76,7 +81,13 @@ public class SpanNotQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if ("boost".equals(currentFieldName)) {
+                if ("dist".equals(currentFieldName)) {
+                    dist = parser.intValue();
+                } else if ("pre".equals(currentFieldName)) {
+                    pre = parser.intValue();
+                } else if ("post".equals(currentFieldName)) {
+                    post = parser.intValue();
+                } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
@@ -91,8 +102,19 @@ public class SpanNotQueryParser implements QueryParser {
         if (exclude == null) {
             throw new QueryParsingException(parseContext.index(), "spanNot must have [exclude] span query clause");
         }
+        if ((dist != -1 && (pre != -1 || post != -1)) || (pre != -1 && post == -1) || (pre == -1 && post != -1))  {
+            throw new QueryParsingException(parseContext.index(), "spanNot can either use [dist] or [pre] & [post] (or none)");
+        }
 
-        SpanNotQuery query = new SpanNotQuery(include, exclude);
+        SpanNotQuery query;
+        if (pre != -1 && post != -1) {
+            query = new SpanNotQuery(include, exclude, pre, post);
+        } else if (dist != -1) {
+            query = new SpanNotQuery(include, exclude, dist);
+        } else {
+            query = new SpanNotQuery(include, exclude);
+        }
+
         query.setBoost(boost);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

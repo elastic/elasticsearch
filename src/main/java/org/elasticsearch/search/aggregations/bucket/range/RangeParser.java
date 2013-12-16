@@ -24,10 +24,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -70,6 +70,8 @@ public class RangeParser implements Aggregator.Parser {
                     script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
@@ -102,17 +104,25 @@ public class RangeParser implements Aggregator.Parser {
                         }
                         ranges.add(new RangeAggregator.Range(key, from, fromAsStr, to, toAsStr));
                     }
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

@@ -22,11 +22,12 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -64,15 +65,23 @@ public abstract class ValuesSourceMetricsAggregatorParser<S extends MetricsAggre
                     script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

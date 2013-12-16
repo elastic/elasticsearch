@@ -25,10 +25,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -75,10 +75,14 @@ public class HistogramParser implements Aggregator.Parser {
                     scriptLang = parser.text();
                 } else if ("format".equals(currentFieldName)) {
                     format = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("interval".equals(currentFieldName)) {
                     interval = parser.longValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
@@ -87,6 +91,8 @@ public class HistogramParser implements Aggregator.Parser {
                     emptyBuckets = parser.booleanValue();
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
@@ -102,7 +108,11 @@ public class HistogramParser implements Aggregator.Parser {
                             //TODO should we throw an error if the value is not "asc" or "desc"???
                         }
                     }
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

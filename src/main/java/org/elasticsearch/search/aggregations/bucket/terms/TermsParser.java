@@ -97,16 +97,22 @@ public class TermsParser implements Aggregator.Parser {
                     exclude = parser.text();
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("script_values_unique".equals(currentFieldName)) {
                     assumeUnique = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("size".equals(currentFieldName)) {
                     requiredSize = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
                     shardSize = parser.intValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
@@ -124,6 +130,8 @@ public class TermsParser implements Aggregator.Parser {
                             } else {
                                 throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
                             }
+                        } else {
+                            throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
                         }
                     }
                 } else if ("include".equals(currentFieldName)) {
@@ -158,7 +166,11 @@ public class TermsParser implements Aggregator.Parser {
                             }
                         }
                     }
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 

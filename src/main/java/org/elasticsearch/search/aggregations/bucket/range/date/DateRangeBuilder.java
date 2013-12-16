@@ -51,7 +51,9 @@ public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         super.doInternalXContent(builder, params);
-        builder.field("format", format);
+        if (format != null) {
+            builder.field("format", format);
+        }
         return builder;
     }
 }

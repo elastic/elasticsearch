@@ -312,9 +312,14 @@ public class SearchPhaseController extends AbstractComponent {
             maxScore = Float.NaN;
         }
 
-        // clean the fetch counter
+        // clean the fetch counter and report any fetch time-outs
         for (AtomicArray.Entry<? extends FetchSearchResultProvider> entry : fetchResults) {
-            entry.value.fetchResult().initCounter();
+            FetchSearchResult fetchResult=entry.value.fetchResult();
+            if(fetchResult.isTimedOut())
+            {
+                timedOut=true;
+            }
+            fetchResult.initCounter();
         }
 
         // merge hits
@@ -326,21 +331,23 @@ public class SearchPhaseController extends AbstractComponent {
                     continue;
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
-                int index = fetchResult.counterGetAndIncrement();
-                if (index < fetchResult.hits().internalHits().length) {
-                    InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
-                    searchHit.score(shardDoc.score);
-                    searchHit.shard(fetchResult.shardTarget());
-
-                    if (sorted) {
-                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                        searchHit.sortValues(fieldDoc.fields);
-                        if (sortScoreIndex != -1) {
-                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
+                if(!fetchResult.isTimedOut()){
+                    int index = fetchResult.counterGetAndIncrement();
+                    if (index < fetchResult.hits().internalHits().length) {
+                        InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
+                        searchHit.score(shardDoc.score);
+                        searchHit.shard(fetchResult.shardTarget());
+    
+                        if (sorted) {
+                            FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                            searchHit.sortValues(fieldDoc.fields);
+                            if (sortScoreIndex != -1) {
+                                searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
+                            }
                         }
+    
+                        hits.add(searchHit);
                     }
-
-                    hits.add(searchHit);
                 }
             }
         }
@@ -369,7 +376,9 @@ public class SearchPhaseController extends AbstractComponent {
             if (firstResult.aggregations() != null && firstResult.aggregations().asList() != null) {
                 List<InternalAggregations> aggregationsList = new ArrayList<>(queryResults.size());
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                    aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
+                    if(!entry.value.queryResult().queryResult().searchTimedOut()){
+                        aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
+                    }
                 }
                 aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
             }

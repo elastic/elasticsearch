@@ -74,6 +74,39 @@ public final class ExceptionsHelper {
         }
         return result;
     }
+    
+  
+    
+    /**
+     * Determines if a given exception has a particular type of exception
+     * as a cause.
+     * @param e The exception received
+     * @param exType The type of exception that is being looked for as a cause
+     * @return true if the exception or any of the nested exceptions revealed by 
+     * getCause() are of the given exType.
+     */
+    public static boolean wasCausedBy(Throwable e, Class<? extends Throwable> exType) {
+        if (exType == null) {
+            return false;
+        }
+        if (exType.isInstance(e)) {
+            return true;
+        }
+        Throwable cause = e.getCause();
+        if (cause == e) {
+            return false;
+        }
+        while (cause != null) {
+            if (exType.isInstance(cause)) {
+                return true;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }    
 
     public static String detailedMessage(Throwable t) {
         return detailedMessage(t, false, 0);
@@ -184,4 +217,31 @@ public final class ExceptionsHelper {
                         )
                     );
     }
+
+    /**
+     * Extracts ElasticsearchException causes from non-serializable exceptions e.g.
+     * those produced by script.
+     * @param e The exception received
+     * @return null or the top-most exception revealed by 
+     * getCause() which is of the type ElasticsearchException
+     */
+    public static ElasticsearchException extractElasticsearchCause(Throwable e) {
+        if (e instanceof ElasticsearchException) {
+            return (ElasticsearchException) e;
+        }
+        Throwable cause = e.getCause();
+        if (cause == e) {
+            return null;
+        }
+        while (cause != null) {
+            if (cause instanceof ElasticsearchException) {
+                return (ElasticsearchException) cause;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+            cause = cause.getCause();
+        }
+        return null;
+    }    
 }

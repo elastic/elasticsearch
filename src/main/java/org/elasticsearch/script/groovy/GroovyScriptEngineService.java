@@ -241,7 +241,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 if (logger.isTraceEnabled()) {
                     logger.trace("exception running Groovy script", e);
                 }
-                throw new GroovyScriptExecutionException(ExceptionsHelper.detailedMessage(e));
+                // Cause needs to be discovered by peeling away layers of non-serializable classes introduced by 
+                // dynamic Groovy classes - was getting an "unrecognised class" error on the reducer node when deserializing
+                // unknown "cause" exceptions.
+                throw new GroovyScriptExecutionException(ExceptionsHelper.detailedMessage(e), ExceptionsHelper.extractElasticsearchCause(e));
             }
         }
 

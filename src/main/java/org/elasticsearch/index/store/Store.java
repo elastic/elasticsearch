@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
+import org.apache.lucene.store.IOContext.Context;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -421,8 +423,106 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     IOUtils.closeWhileHandlingException(in);
                 }
             }
+            // Merges and other non-search operations are not
+            // subject to timeout constraints. Only add timeout
+            // capable wrappers for search operations.
+            if (context.context == Context.READ) {
+                in = new TimeLimitedIndexInput(name, in, null);
+            }
             return in;
         }
+
+        class TimeLimitedIndexInput extends IndexInput {
+
+            private final IndexInput in;
+            private final String name;
+            private final ActivityTimeMonitor activityState;
+
+            public TimeLimitedIndexInput(String resourceDescription, IndexInput in, ActivityTimeMonitor monitor) {
+                super(resourceDescription);
+                this.in = in;
+                this.activityState = monitor;
+                this.name = resourceDescription;
+            }
+
+            @Override
+            public void close() throws IOException {
+                try {
+                    if (activityState != null) {
+                        activityState.checkForTimeout();
+                    }
+                } finally {
+                    in.close();
+                }
+            }
+
+            @Override
+            public long getFilePointer() {
+                if (activityState != null) {
+                    activityState.checkForTimeout();
+                }
+                return in.getFilePointer();
+            }
+
+            @Override
+            public void seek(long pos) throws IOException {
+                if (activityState != null) {
+                    activityState.checkForTimeout();
+                }
+                in.seek(pos);
+            }
+
+            @Override
+            public long length() {
+                if (activityState != null) {
+                    activityState.checkForTimeout();
+                }
+                return in.length();
+            }
+
+            @Override
+            public byte readByte() throws IOException {
+                if (activityState != null) {
+                    activityState.checkForTimeout();
+                }
+                return in.readByte();
+            }
+
+            @Override
+            public void readBytes(byte[] b, int offset, int len) throws IOException {
+                if (activityState != null) {
+                    activityState.checkForTimeout();
+                }
+                in.readBytes(b, offset, len);
+            }
+
+            @Override
+            public IndexInput clone() {
+                // because of reuse of IndexInput clones in search thread pools
+                // we may alternate between timed and untimed search operations 
+                // and we cannot pre-empt here how this IndexInput might be used.
+                // So always need to assume the worst and wrap IndexInputs with 
+                // timeout monitoring capabilities.
+                return new TimeLimitedIndexInput(name, in.clone(), ActivityTimeMonitor.getOrCreateCurrentThreadMonitor());
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return in.equals(o);
+            }
+
+            @Override
+            public int hashCode() {
+                return in.hashCode();
+            }
+
+            @Override
+            public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+                return new TimeLimitedIndexInput(sliceDescription, in.slice(sliceDescription, offset, length), this.activityState);
+            }
+        }
+        
+        
 
         @Override
         public void close() throws IOException {

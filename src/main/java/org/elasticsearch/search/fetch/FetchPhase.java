@@ -23,9 +23,11 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.ActivityTimedOutException;
 import org.elasticsearch.index.fieldvisitor.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -80,8 +82,18 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void preProcess(SearchContext context) {
     }
-
     public void execute(SearchContext context) {
+        try{
+            internalExecute(context);
+        }catch(RuntimeException e){
+            if(ExceptionsHelper.wasCausedBy(e,ActivityTimedOutException.class)){
+                context.fetchResult().setTimedOut(true);
+            }else {
+                throw e;
+            }
+        }
+    }
+    private void internalExecute(SearchContext context) {
         FieldsVisitor fieldsVisitor;
         List<String> extractFieldNames = null;
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.util.concurrent.ActivityTimedOutException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -167,9 +169,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     assert terminateAfterSet : "EarlyTerminationException thrown even though terminateAfter wasn't set";
                     searchContext.queryResult().terminatedEarly(true);
                 }
+                catch (RuntimeException e) {
+                    if (ExceptionsHelper.wasCausedBy(e, ActivityTimedOutException.class)) {
+                        searchContext.queryResult().searchTimedOut(true);
+                        searchContext.queryResult().topDocs(new TopDocs(0, new ScoreDoc[0], 0f));
+                    } else {
+                        throw e;
+                    }
+                }
                 if (terminateAfterSet && searchContext.queryResult().terminatedEarly() == null) {
                     searchContext.queryResult().terminatedEarly(false);
                 }
+
             } else {
                 super.search(leaves, weight, collector);
             }

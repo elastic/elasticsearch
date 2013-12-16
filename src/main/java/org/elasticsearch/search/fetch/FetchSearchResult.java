@@ -23,11 +23,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.internal.InternalSearchHits.StreamContext;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.internal.InternalSearchHits.StreamContext;
 
 /**
  *
@@ -39,6 +38,7 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     private InternalSearchHits hits;
     // client side counter
     private transient int counter;
+    private boolean timedOut;
 
     public FetchSearchResult() {
 
@@ -94,13 +94,27 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readLong();
-        hits = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        timedOut = in.readBoolean();
+        if (!timedOut) {
+            hits = InternalSearchHits.readSearchHits(in,
+                    InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(id);
-        hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        out.writeBoolean(timedOut);
+        if (!timedOut) {
+            hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        }
+    }
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
+    public void setTimedOut(boolean timedOut) {
+        this.timedOut=timedOut;
     }
 }

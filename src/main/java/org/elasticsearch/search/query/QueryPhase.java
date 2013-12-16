@@ -24,9 +24,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.concurrent.ActivityTimedOutException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -155,14 +157,31 @@ public class QueryPhase implements SearchPhase {
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Throwable e) {
-            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
+            if(ExceptionsHelper.wasCausedBy(e,ActivityTimedOutException.class)){
+                searchContext.queryResult().searchTimedOut(true);
+                searchContext.queryResult().topDocs(new TopDocs(0, new ScoreDoc[0], 0f));
+            }else
+            {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
         } finally {
             searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         }
-        if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
+        //We don't want to do any more than necessary if timed out
+        if(!searchContext.queryResult().searchTimedOut()){
+            try{
+                if (rescore) { // only if we do a regular search
+                    rescorePhase.execute(searchContext);
+                }
+                suggestPhase.execute(searchContext);
+                aggregationPhase.execute(searchContext);
+            } catch (RuntimeException rte) {
+                if (ExceptionsHelper.wasCausedBy(rte, ActivityTimedOutException.class)) {
+                    searchContext.queryResult().searchTimedOut(true);
+                } else {
+                    throw rte;
+                }
+            } 
         }
-        suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
     }
 }

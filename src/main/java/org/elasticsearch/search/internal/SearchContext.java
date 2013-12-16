@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
@@ -74,14 +75,35 @@ public abstract class SearchContext implements Releasable {
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
 
+    /**
+     * Sets the SearchContext for the current thread. Any required timeout settings
+     * for the SearchContext must be present at this point as this, figuratively speaking, 
+     * is where any countdown clock starts ticking
+     * 
+     * @param value The new current search context
+     */
     public static void setCurrent(SearchContext value) {
         current.set(value);
         QueryParseContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
+        //The Junit test FieldDataTermsFilterTests calls removeCurrent without first calling setCurrent.
+        //Rather than change that I have chosen to make this method resilient in such cases.
+        SearchContext currentContext = current.get();
+        if(currentContext!=null && currentContext.timeoutInMillis() > 0)
+        {
+            // It would have been cleaner and more symmetrical to have the setCurrent/removeCurrent methods
+            // in this class call the timeout start/stop functions but there are 2 complications:
+            // 1) The parsing logic means that the setCurrent() method is called before the timeout value
+            //    has actually been parsed.
+            // 2) It is conceivable that the timeout setting may be adjusted in-flight eg a future admin tool might revise
+            //    the time allowed for a query to run.
+            ActivityTimeMonitor.stopActivity();
+        }
         current.remove();
         QueryParseContext.removeTypes();
+        assert ActivityTimeMonitor.getCurrentThreadMonitor() == null || ActivityTimeMonitor.getCurrentThreadMonitor().getStatus() == ActivityTimeMonitor.ActivityStatus.INACTIVE;
     }
 
     public static SearchContext current() {
@@ -374,4 +396,16 @@ public abstract class SearchContext implements Releasable {
          */
         CONTEXT;
     }
+
+    public void startTimedActivityForThisThread(long timeoutInMillis) {
+        ActivityTimeMonitor atm = ActivityTimeMonitor.getCurrentThreadMonitor();
+        if (atm != null) {
+            // We had a prior timeout threshold in place that needs revising
+            atm.stop();
+        }
+        if (timeoutInMillis() > 0) {
+            ActivityTimeMonitor.startActivity(timeoutInMillis);
+        }
+    }
+    
 }

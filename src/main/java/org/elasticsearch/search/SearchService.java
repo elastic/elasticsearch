@@ -134,6 +134,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
+    private final long defaultSearchTimeout;
+
     @Inject
     public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
@@ -150,6 +152,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
         this.indicesQueryCache = indicesQueryCache;
+        /*
+         * TODO: This default timeout here should be used if no timeout on the request is set - we can
+         * randomly set this to high values to exercise it?
+         */
+        this.defaultSearchTimeout = componentSettings.getAsTime("default_timeout", timeValueMinutes(1)).millis();
 
         TimeValue keepAliveInterval = componentSettings.getAsTime(KEEPALIVE_INTERVAL_COMPONENENT_KEY, timeValueMinutes(1));
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
@@ -582,8 +589,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void contextProcessing(SearchContext context) {
-        // disable timeout while executing a search
+        // disable context tidy-ups while executing a search
         context.accessed(-1);
+        // start any timer required for this thread
+        if(context.timeoutInMillis()>0){
+            // TODO could adjust remaining time spent executing this phase 
+            // based on time already spent on prior phases
+            context.startTimedActivityForThisThread(context.timeoutInMillis());
+        }
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {

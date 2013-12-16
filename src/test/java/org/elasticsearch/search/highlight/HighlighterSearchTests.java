@@ -318,7 +318,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "bug"))
+                .setQuery(matchQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .get();
 
@@ -327,7 +327,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         }
 
         search = client().prepareSearch()
-                .setQuery(fieldQuery("attachments.body", "attachment"))
+                .setQuery(matchQuery("attachments.body", "attachment"))
                 .addHighlightedField("attachments.body", -1, 0)
                 .get();
 
@@ -358,7 +358,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "bug"))
+                .setQuery(matchQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .get();
 
@@ -367,7 +367,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         }
 
         search = client().prepareSearch()
-                .setQuery(fieldQuery("attachments.body", "attachment"))
+                .setQuery(matchQuery("attachments.body", "attachment"))
                 .addHighlightedField("attachments.body", -1, 2)
                 .execute().get();
 
@@ -443,7 +443,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setSource("titleTV", new String[]{"some text to highlight", "highlight other text"}));
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "bug"))
+                .setQuery(matchQuery("title", "bug"))
                 .addHighlightedField("title", -1, 2)
                 .addHighlightedField("titleTV", -1, 2)
                 .get();
@@ -454,7 +454,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(search, 0, "titleTV", 1, 2,  equalTo("The <em>bug</em> is bugging us"));
 
         search = client().prepareSearch()
-                .setQuery(fieldQuery("titleTV", "highlight"))
+                .setQuery(matchQuery("titleTV", "highlight"))
                 .addHighlightedField("titleTV", -1, 2)
                 .get();
 
@@ -909,7 +909,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "bug"))
+                .setQuery(matchQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .get();
 
@@ -932,7 +932,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "bug"))
+                .setQuery(matchQuery("title", "bug"))
                 .addHighlightedField("title", 30, 1, 10)
                 .get();
 
@@ -956,7 +956,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "test"))
+                .setQuery(matchQuery("title", "test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
                 .get();
@@ -980,7 +980,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "test"))
+                .setQuery(matchQuery("title", "test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 30, 1, 10)
                 .get();
@@ -1004,7 +1004,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         refresh();
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "this is a test"))
+                .setQuery(matchQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .get();
@@ -1013,7 +1013,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // search on title.key and highlight on title
         search = client().prepareSearch()
-                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setQuery(matchQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .get();
@@ -1037,7 +1037,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "this is a test"))
+                .setQuery(matchQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .get();
@@ -1046,7 +1046,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // search on title.key and highlight on title.key
         search = client().prepareSearch()
-                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setQuery(matchQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .get();
@@ -1070,7 +1070,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "this is a test"))
+                .setQuery(matchQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .get();
@@ -1079,7 +1079,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // search on title.key and highlight on title
         search = client().prepareSearch()
-                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setQuery(matchQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .get();
@@ -1102,7 +1102,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
-                .setQuery(fieldQuery("title", "this is a test"))
+                .setQuery(matchQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .get();
@@ -1111,7 +1111,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // search on title.key and highlight on title.key
         search = client().prepareSearch()
-                .setQuery(fieldQuery("title.key", "this is a test"))
+                .setQuery(matchQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .get();

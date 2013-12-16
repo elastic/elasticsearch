@@ -176,9 +176,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     RoutingNode relocatingFromNode = allocation.routingNodes().node(shardRouting.relocatingNodeId());
                     if (relocatingFromNode != null) {
                         for (MutableShardRouting fromShardRouting : relocatingFromNode) {
-                            assert shardRouting.state() != RELOCATING;
-                            if (fromShardRouting.shardId().equals(shardRouting.shardId()) && shardRouting.state() == RELOCATING) {
-                                // NOCOMMIT @Shay the check on the shardRouting.state() == RELOCATING can never be true right this should be fromShardRouting?
+                            if (fromShardRouting.shardId().equals(shardRouting.shardId()) && fromShardRouting.state() == RELOCATING) {
                                 allocation.routingNodes().cancelRelocation(fromShardRouting);
                                 break;
                             }

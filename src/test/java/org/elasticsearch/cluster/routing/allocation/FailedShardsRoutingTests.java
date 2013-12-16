@@ -298,6 +298,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        final String nodeHoldingPrimary = routingTable.index("test").shard(0).primaryShard().currentNodeId();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -305,14 +306,14 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
             assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
+            assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo(nodeHoldingPrimary));
             assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
             assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
         logger.info("fail the first shard, will start INITIALIZING on the second node");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).routingTable();
+        routingTable = strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
@@ -322,13 +323,13 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
             assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node2"));
+            assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), not(equalTo(nodeHoldingPrimary)));
             assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
             assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
         logger.info("fail the shard again, see that nothing happens");
-        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, "node1", true, INITIALIZING, 0)).changed(), equalTo(false));
+        assertThat(strategy.applyFailedShard(clusterState, new ImmutableShardRouting("test", 0, nodeHoldingPrimary, true, INITIALIZING, 0)).changed(), equalTo(false));
     }
 
     @Test

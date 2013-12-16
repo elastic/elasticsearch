@@ -39,7 +39,7 @@ public class ClusterAllocationRerouteBenchmark {
     private static final ESLogger logger = Loggers.getLogger(ClusterAllocationRerouteBenchmark.class);
 
     public static void main(String[] args) {
-        final int numberOfRuns = 10;
+        final int numberOfRuns = 1;
         final int numIndices = 5 * 365; // five years
         final int numShards = 6;
         final int numReplicas = 2;

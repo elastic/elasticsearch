@@ -77,7 +77,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // primary is unassigned, means we are going to do recovery from gateway
                 // count *just the primary* currently doing recovery on the node and check against concurrent_recoveries
                 int primariesInRecovery = 0;
-                for (MutableShardRouting shard : node) {;
+                for (MutableShardRouting shard : node) {
                     // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                     // we only count initial recoveries here, so we need to make sure that relocating node is null
                     if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
@@ -95,13 +95,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         // either primary or replica doing recovery (from peer shard)
 
         // count the number of recoveries on the node, its for both target (INITIALIZING) and source (RELOCATING)
+        return canAllocate(node, allocation);
+    }
+
+    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
         for (MutableShardRouting shard : node) {
             if (shard.state() == ShardRoutingState.INITIALIZING || shard.state() == ShardRoutingState.RELOCATING) {
                 currentRecoveries++;
             }
         }
-
         if (currentRecoveries >= concurrentRecoveries) {
             return Decision.THROTTLE;
         } else {

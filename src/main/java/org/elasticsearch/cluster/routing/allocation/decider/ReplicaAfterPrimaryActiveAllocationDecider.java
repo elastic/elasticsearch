@@ -38,6 +38,10 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, allocation);
+    }
+
+    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             return Decision.YES;
         }

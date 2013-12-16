@@ -95,6 +95,8 @@ public class AggregatorParsers {
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("aggregations".equals(currentFieldName) || "aggs".equals(currentFieldName)) {
                             subFactories = parseAggregators(parser, context, level+1);
+                        } else if (aggregatorType != null) {
+                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: [" + aggregatorType + "] and [" + currentFieldName + "]. Only one type is allowed.");
                         } else {
                             aggregatorType = currentFieldName;
                             Aggregator.Parser aggregatorParser = parser(aggregatorType);

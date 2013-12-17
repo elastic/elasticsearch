@@ -58,8 +58,8 @@ public class NettyHttpChannel implements HttpChannel {
         // Decide whether to close the connection or not.
         boolean http10 = request.getProtocolVersion().equals(HttpVersion.HTTP_1_0);
         boolean close =
-                HttpHeaders.Values.CLOSE.equalsIgnoreCase(request.getHeader(HttpHeaders.Names.CONNECTION)) ||
-                        (http10 && !HttpHeaders.Values.KEEP_ALIVE.equalsIgnoreCase(request.getHeader(HttpHeaders.Names.CONNECTION)));
+                HttpHeaders.Values.CLOSE.equalsIgnoreCase(request.headers().get(HttpHeaders.Names.CONNECTION)) ||
+                        (http10 && !HttpHeaders.Values.KEEP_ALIVE.equalsIgnoreCase(request.headers().get(HttpHeaders.Names.CONNECTION)));
 
         // Build the response object.
         HttpResponseStatus status = getStatus(response.status());
@@ -67,27 +67,27 @@ public class NettyHttpChannel implements HttpChannel {
         if (http10) {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_0, status);
             if (!close) {
-                resp.addHeader(HttpHeaders.Names.CONNECTION, "Keep-Alive");
+                resp.headers().add(HttpHeaders.Names.CONNECTION, "Keep-Alive");
             }
         } else {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
-        if (RestUtils.isBrowser(request.getHeader(HttpHeaders.Names.USER_AGENT))) {
+        if (RestUtils.isBrowser(request.headers().get(HttpHeaders.Names.USER_AGENT))) {
             if (transport.settings().getAsBoolean("http.cors.enabled", true)) {
                 // Add support for cross-origin Ajax requests (CORS)
-                resp.addHeader("Access-Control-Allow-Origin", transport.settings().get("http.cors.allow-origin", "*"));
+                resp.headers().add("Access-Control-Allow-Origin", transport.settings().get("http.cors.allow-origin", "*"));
                 if (request.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
-                    resp.addHeader("Access-Control-Max-Age", transport.settings().getAsInt("http.cors.max-age", 1728000));
-                    resp.addHeader("Access-Control-Allow-Methods", transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
-                    resp.addHeader("Access-Control-Allow-Headers", transport.settings().get("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length"));
+                    resp.headers().add("Access-Control-Max-Age", transport.settings().getAsInt("http.cors.max-age", 1728000));
+                    resp.headers().add("Access-Control-Allow-Methods", transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
+                    resp.headers().add("Access-Control-Allow-Headers", transport.settings().get("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length"));
                 }
             }
         }
 
-        String opaque = request.getHeader("X-Opaque-Id");
+        String opaque = request.headers().get("X-Opaque-Id");
         if (opaque != null) {
-            resp.addHeader("X-Opaque-Id", opaque);
+            resp.headers().add("X-Opaque-Id", opaque);
         }
 
         // Add all custom headers
@@ -95,7 +95,7 @@ public class NettyHttpChannel implements HttpChannel {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {
-                    resp.addHeader(headerEntry.getKey(), headerValue);
+                    resp.headers().add(headerEntry.getKey(), headerValue);
                 }
             }
         }
@@ -134,12 +134,12 @@ public class NettyHttpChannel implements HttpChannel {
             buf = ChannelBuffers.wrappedBuffer(prefixBuf, buf, suffixBuf);
         }
         resp.setContent(buf);
-        resp.setHeader(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
+        resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
 
-        resp.setHeader(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buf.readableBytes()));
+        resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buf.readableBytes()));
 
         if (transport.resetCookies) {
-            String cookieString = request.getHeader(HttpHeaders.Names.COOKIE);
+            String cookieString = request.headers().get(HttpHeaders.Names.COOKIE);
             if (cookieString != null) {
                 CookieDecoder cookieDecoder = new CookieDecoder();
                 Set<Cookie> cookies = cookieDecoder.decode(cookieString);
@@ -149,7 +149,7 @@ public class NettyHttpChannel implements HttpChannel {
                     for (Cookie cookie : cookies) {
                         cookieEncoder.addCookie(cookie);
                     }
-                    resp.addHeader(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
+                    resp.headers().add(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
                 }
             }
         }

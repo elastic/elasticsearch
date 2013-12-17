@@ -19,17 +19,19 @@
 
 package org.elasticsearch.index.mapper.numeric;
 
+import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -140,6 +142,85 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                     .bytes());
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        }
+    }
+
+    public void testDocValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                    .startObject("fielddata")
+                        .field("format", "doc_values")
+                    .endObject()
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .startObject("fielddata")
+                        .field("format", "doc_values")
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("int", "1234")
+                .field("double", "1234")
+                .endObject()
+                .bytes());
+        final Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "int"));
+        assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "double"));
+    }
+
+    public void testDocValuesOnNested() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("nested")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("int")
+                            .field("type", "integer")
+                            .startObject("fielddata")
+                                .field("format", "doc_values")
+                            .endObject()
+                        .endObject()
+                        .startObject("double")
+                            .field("type", "double")
+                            .startObject("fielddata")
+                                .field("format", "doc_values")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .startArray("nested")
+                        .startObject()
+                            .field("int", "1234")
+                            .field("double", "1234")
+                        .endObject()
+                        .startObject()
+                            .field("int", "-1")
+                            .field("double", "-2")
+                        .endObject()
+                    .endArray()
+                .endObject()
+                .bytes());
+        for (Document doc : parsedDoc.docs()) {
+            if (doc == parsedDoc.rootDoc()) {
+                continue;
+            }
+            assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.int"));
+            assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.double"));
         }
     }
 }

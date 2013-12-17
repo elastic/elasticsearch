@@ -19,21 +19,25 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.hppc.DoubleArrayList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
@@ -309,8 +313,14 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             field.setBoost(boost);
             fields.add(field);
         }
-        if (hasDocValues()) {
-            fields.add(toDocValues(value));
+        if (hasDocValues() && !Double.isNaN(value)) {
+            CustomDoubleNumericDocValuesField field = context.doc().getField(names().indexName(), CustomDoubleNumericDocValuesField.class);
+            if (field != null) {
+                field.add(value);
+            } else {
+                field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
+                context.doc().add(field);
+            }
         }
     }
 
@@ -373,5 +383,59 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         public String numericAsString() {
             return Double.toString(number);
         }
+    }
+
+    public static class CustomDoubleNumericDocValuesField extends CustomNumericDocValuesField {
+
+        public static final FieldType TYPE = new FieldType();
+        static {
+          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.freeze();
+        }
+
+        private final DoubleArrayList values;
+
+        public CustomDoubleNumericDocValuesField(String  name, double value) {
+            super(name);
+            values = new DoubleArrayList();
+            add(value);
+        }
+
+        public void add(double value) {
+            values.add(value);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            // sort
+            new InPlaceMergeSorter() {
+                @Override
+                protected void swap(int i, int j) {
+                    final double tmp = values.get(i);
+                    values.set(i, values.get(j));
+                    values.set(j, tmp);
+                }
+                @Override
+                protected int compare(int i, int j) {
+                    return Double.compare(values.get(i), values.get(j));
+                }
+            }.sort(0, values.size());
+
+            // deduplicate
+            int numUniqueValues = values.isEmpty() ? 0 : 1;
+            for (int i = 1; i < values.size(); ++i) {
+                if (values.get(i) != values.get(i - 1)) {
+                    values.set(numUniqueValues++, values.get(i));
+                }
+            }
+            values.resize(numUniqueValues);
+
+            final byte[] bytes = new byte[numUniqueValues * 8];
+            for (int i = 0; i < values.size(); ++i) {
+                ByteUtils.writeDoubleLE(values.get(i), bytes, i * 8);
+            }
+            return new BytesRef(bytes);
+        }
+
     }
 }

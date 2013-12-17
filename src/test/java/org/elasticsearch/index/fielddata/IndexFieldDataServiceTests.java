@@ -70,7 +70,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
                 ifdService.clear();
                 fd = ifdService.getForField(mapper);
                 if (docValues) {
-                    assertTrue(fd instanceof SortedSetDVNumericIndexFieldData);
+                    assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
                 } else {
                     assertTrue(fd instanceof PackedArrayIndexFieldData);
                 }
@@ -80,7 +80,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
             ifdService.clear();
             fd = ifdService.getForField(floatMapper);
             if (docValues) {
-                assertTrue(fd instanceof SortedSetDVNumericIndexFieldData);
+                assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
             } else {
                 assertTrue(fd instanceof FloatArrayIndexFieldData);
             }
@@ -89,7 +89,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
             ifdService.clear();
             fd = ifdService.getForField(doubleMapper);
             if (docValues) {
-                assertTrue(fd instanceof SortedSetDVNumericIndexFieldData);
+                assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
             } else {
                 assertTrue(fd instanceof DoubleArrayIndexFieldData);
             }

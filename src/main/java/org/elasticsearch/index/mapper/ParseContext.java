@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -30,15 +34,80 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
  */
 public class ParseContext {
+
+    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
+    public static class Document implements Iterable<IndexableField> {
+
+        // For sequential access, fields are in the same order as they've been added.
+        private final List<IndexableField> fieldList;
+        // For random-access, key is the index field name
+        private final ListMultimap<String, IndexableField> fields = ArrayListMultimap.create();
+
+        public Document() {
+            fieldList = Lists.newArrayList();
+        }
+
+        @Override
+        public Iterator<IndexableField> iterator() {
+            return fieldList.iterator();
+        }
+
+        public List<IndexableField> getFields() {
+            return Collections.unmodifiableList(fieldList);
+        }
+
+        public void add(IndexableField field) {
+            fieldList.add(field);
+            fields.put(field.name(), field);
+        }
+
+        public IndexableField[] getFields(String name) {
+            final List<IndexableField> fields = this.fields.get(name);
+            return fields.toArray(new IndexableField[fields.size()]);
+        }
+
+        public IndexableField getField(String name) {
+            final List<IndexableField> fields = this.fields.get(name);
+            return fields.isEmpty() ? null : fields.get(0);
+        }
+
+        public <F extends IndexableField> F getField(String name, Class<F> clazz) {
+            final List<IndexableField> fields = this.fields.get(name);
+            for (IndexableField f : fields) {
+                if (clazz.isInstance(f)) {
+                    return clazz.cast(f);
+                }
+            }
+            return null;
+        }
+
+        public String get(String name) {
+            final List<IndexableField> fields = this.fields.get(name);
+            for (IndexableField f : fields) {
+                if (f.stringValue() != null) {
+                    return f.stringValue();
+                }
+            }
+            return null;
+        }
+
+        public BytesRef getBinaryValue(String name) {
+            final List<IndexableField> fields = this.fields.get(name);
+            for (IndexableField f : fields) {
+                if (f.binaryValue() != null) {
+                    return f.binaryValue();
+                }
+            }
+            return null;
+        }
+
+    }
 
     private final DocumentMapper docMapper;
 
@@ -50,7 +119,7 @@ public class ParseContext {
 
     private Document document;
 
-    private List<Document> documents = new ArrayList<Document>();
+    private List<Document> documents = Lists.newArrayList();
 
     private Analyzer analyzer;
 
@@ -95,7 +164,7 @@ public class ParseContext {
         this.parser = parser;
         this.document = document;
         if (document != null) {
-            this.documents = new ArrayList<Document>();
+            this.documents = Lists.newArrayList();
             this.documents.add(document);
         } else {
             this.documents = null;
@@ -315,4 +384,5 @@ public class ParseContext {
         stringBuilder.setLength(0);
         return this.stringBuilder;
     }
+
 }

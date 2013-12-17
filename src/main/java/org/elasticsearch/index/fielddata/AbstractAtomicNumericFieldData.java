@@ -31,6 +31,10 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         this.isFloat = isFloat;
     }
 
+    @Override
+    public boolean isValuesOrdered() {
+        return false;
+    }
 
     @Override
     public ScriptDocValues getScriptValues() {

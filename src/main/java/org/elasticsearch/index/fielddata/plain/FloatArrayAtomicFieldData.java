@@ -353,7 +353,7 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
             public double nextValue() {
                 return values.get(docId);
             }
-            
+
         }
     }
 }

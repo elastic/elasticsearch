@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit;
  */
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
-@TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 

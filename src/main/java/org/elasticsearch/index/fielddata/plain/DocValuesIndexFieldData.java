@@ -35,12 +35,10 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** {@link IndexFieldData} impl based on Lucene's doc values. Caching is done on the Lucene side. */
 public abstract class DocValuesIndexFieldData {
 
-    private final AtomicLong maxUniqueValueCount;
     protected final Index index;
     protected final Names fieldNames;
 
@@ -48,7 +46,6 @@ public abstract class DocValuesIndexFieldData {
         super();
         this.index = index;
         this.fieldNames = fieldNames;
-        maxUniqueValueCount = new AtomicLong();
     }
 
     public final Names getFieldNames() {
@@ -65,19 +62,6 @@ public abstract class DocValuesIndexFieldData {
 
     public final Index index() {
         return index;
-    }
-
-    public final long getHighestNumberOfSeenUniqueValues() {
-        return maxUniqueValueCount.get();
-    }
-
-    void updateMaxUniqueValueCount(long uniqueValueCount) {
-        while (true) {
-            final long current = maxUniqueValueCount.get();
-            if (current >= uniqueValueCount || maxUniqueValueCount.compareAndSet(current, uniqueValueCount)) {
-                break;
-            }
-        }
     }
 
     public static class Builder implements IndexFieldData.Builder {
@@ -108,7 +92,7 @@ public abstract class DocValuesIndexFieldData {
                 assert !numericType.isFloatingPoint();
                 return new NumericDVIndexFieldData(index, fieldNames);
             } else if (numericType != null) {
-                return new SortedSetDVNumericIndexFieldData(index, fieldNames, numericType);
+                return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType);
             } else {
                 return new SortedSetDVBytesIndexFieldData(index, fieldNames);
             }

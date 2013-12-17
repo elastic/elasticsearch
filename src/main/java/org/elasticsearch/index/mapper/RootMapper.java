@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import java.io.IOException;
 
+
 /**
  * A mapper that exists only as a mapper within a root object.
  */
@@ -36,4 +37,5 @@ public interface RootMapper extends Mapper {
      * Should the mapper be included in the root {@link org.elasticsearch.index.mapper.object.ObjectMapper}.
      */
     boolean includeInObject();
+
 }

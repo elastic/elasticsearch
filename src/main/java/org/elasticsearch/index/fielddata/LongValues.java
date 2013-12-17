@@ -136,7 +136,7 @@ public abstract class LongValues {
         }
     }
 
-  
+
     private static final class Empty extends LongValues {
 
         public Empty() {
@@ -147,11 +147,28 @@ public abstract class LongValues {
         public int setDocument(int docId) {
             return 0;
         }
-        
+
         @Override
         public long nextValue() {
             throw new ElasticSearchIllegalStateException("Empty LongValues has no next value");
         }
 
+    }
+
+    /** Wrap a {@link DoubleValues} instance. */
+    public static LongValues asLongValues(final DoubleValues values) {
+        return new LongValues(values.isMultiValued()) {
+
+            @Override
+            public int setDocument(int docId) {
+                return values.setDocument(docId);
+            }
+
+            @Override
+            public long nextValue() {
+                return (long) values.nextValue();
+            }
+
+        };
     }
 }

@@ -43,9 +43,7 @@ public class SortedSetDVBytesIndexFieldData extends DocValuesIndexFieldData impl
 
     @Override
     public SortedSetDVBytesAtomicFieldData load(AtomicReaderContext context) {
-        final SortedSetDVBytesAtomicFieldData atomicFieldData = new SortedSetDVBytesAtomicFieldData(context.reader(), fieldNames.indexName());
-        updateMaxUniqueValueCount(atomicFieldData.getNumberUniqueValues());
-        return atomicFieldData;
+        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldNames.indexName());
     }
 
     @Override

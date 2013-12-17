@@ -147,11 +147,28 @@ public abstract class DoubleValues {
         public int setDocument(int docId) {
             return 0;
         }
-        
+
         @Override
         public double nextValue() {
             throw new ElasticSearchIllegalStateException("Empty DoubleValues has no next value");
         }
+    }
+
+    /** Wrap a {@link LongValues} instance. */
+    public static DoubleValues asDoubleValues(final LongValues values) {
+        return new DoubleValues(values.isMultiValued()) {
+
+            @Override
+            public int setDocument(int docId) {
+                return values.setDocument(docId);
+            }
+
+            @Override
+            public double nextValue() {
+                return (double) values.nextValue();
+            }
+
+        };
     }
 
 }

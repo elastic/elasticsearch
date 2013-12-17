@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -313,19 +312,17 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 }
             }
         }
-        addIntegerFields(fields, value, boost);
+        addIntegerFields(context, fields, value, boost);
     }
 
-    protected void addIntegerFields(List<Field> fields, int value, float boost) {
+    protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
         if (fieldType.indexed() || fieldType.stored()) {
             CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
         }
         if (hasDocValues()) {
-            final BytesRef bytes = new BytesRef();
-            NumericUtils.intToPrefixCoded(value, 0, bytes);
-            fields.add(new SortedSetDocValuesField(names.indexName(), bytes));
+            addDocValue(context, value);
         }
     }
 

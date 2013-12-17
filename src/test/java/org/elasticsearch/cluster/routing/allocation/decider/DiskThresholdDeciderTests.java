@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -46,7 +46,7 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTest
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
+public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void diskThresholdTest() {

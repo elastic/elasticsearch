@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -40,7 +40,7 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTest
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class RoutingIteratorTests extends ElasticsearchTestCase {
+public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testEmptyIterator() {
@@ -248,7 +248,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testAttributePreferenceRouting() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id,zone")
@@ -299,7 +299,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testShardsAndPreferNodeRouting() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .build());
 

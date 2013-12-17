@@ -28,11 +28,14 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+
+import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 public class ClusterAllocationRerouteBenchmark {
 
@@ -45,8 +48,7 @@ public class ClusterAllocationRerouteBenchmark {
         final int numReplicas = 2;
         final int numberOfNodes = 30;
         final int numberOfTags = 2;
-
-        AllocationService strategy = new AllocationService(settingsBuilder().build());
+        AllocationService strategy = ElasticsearchAllocationTestCase.createAllocationService(ImmutableSettings.EMPTY, new Random(1));
 
         MetaData.Builder mb = MetaData.builder();
         for (int i = 1; i <= numIndices; i++) {

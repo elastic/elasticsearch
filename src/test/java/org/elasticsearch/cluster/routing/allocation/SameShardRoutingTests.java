@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -23,14 +23,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SameShardRoutingTests extends ElasticsearchTestCase {
+public class SameShardRoutingTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
     @Test
     @TestLogging("cluster.routing.allocation:TRACE")
     public void sameHost() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))

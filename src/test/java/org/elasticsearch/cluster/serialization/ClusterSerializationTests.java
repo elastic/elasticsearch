@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ClusterSerializationTests extends ElasticsearchTestCase {
+public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testClusterStateSerialization() throws Exception {
@@ -54,7 +54,7 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
-        AllocationService strategy = new AllocationService();
+        AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
@@ -77,7 +77,7 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
-        AllocationService strategy = new AllocationService();
+        AllocationService strategy = createAllocationService();
         RoutingTable source = strategy.reroute(clusterState).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();

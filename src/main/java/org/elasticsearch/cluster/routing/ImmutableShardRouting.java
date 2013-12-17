@@ -63,6 +63,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         this(copy.index(), copy.id(), copy.currentNodeId(), copy.primary(), copy.state(), copy.version());
         this.relocatingNodeId = copy.relocatingNodeId();
         this.restoreSource = copy.restoreSource();
+        if (copy instanceof ImmutableShardRouting) {
+            this.shardIdentifier = ((ImmutableShardRouting) copy).shardIdentifier;
+        }
     }
 
     public ImmutableShardRouting(ShardRouting copy, long version) {
@@ -70,6 +73,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         this.relocatingNodeId = copy.relocatingNodeId();
         this.restoreSource = copy.restoreSource();
         this.version = version;
+        if (copy instanceof ImmutableShardRouting) {
+            this.shardIdentifier = ((ImmutableShardRouting) copy).shardIdentifier;
+        }
     }
 
     public ImmutableShardRouting(String index, int shardId, String currentNodeId,

@@ -302,7 +302,6 @@ public class ChildrenQuery extends Query {
                     }
 
                     HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-                    currentScore = uidToScore.get(uid);
                     if (uidToScore.containsKey(uid)) {
                         // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
                         currentScore = uidToScore.lget();

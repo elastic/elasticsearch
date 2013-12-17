@@ -121,7 +121,7 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override
     public String header(String name) {
-        return request.getHeader(name);
+        return request.headers().get(name);
     }
 
     @Override

@@ -19,19 +19,26 @@
 package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.document.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.junit.Test;
 
 import java.util.*;
@@ -52,49 +59,35 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         return min + random.nextInt(max - min);
     }
 
-    private static SortedSetDocValuesField longDV(String name, long l) {
-        final BytesRef bytes = new BytesRef();
-        NumericUtils.longToPrefixCodedBytes(l, 0, bytes);
-        return new SortedSetDocValuesField(name, bytes);
-    }
-
-    private static SortedSetDocValuesField intDV(String name, int i) {
-        final BytesRef bytes = new BytesRef();
-        NumericUtils.intToPrefixCodedBytes(i, 0, bytes);
-        return new SortedSetDocValuesField(name, bytes);
-    }
-
-    private static SortedSetDocValuesField floatDV(String name, float f) {
-        return intDV(name, NumericUtils.floatToSortableInt(f));
-    }
-
-    private static SortedSetDocValuesField doubleDV(String name, double f) {
-        return longDV(name, NumericUtils.doubleToSortableLong(f));
-    }
-
     @Test
     public void testDuelAllTypesSingleValue() throws Exception {
+        final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", LuceneTestCase.defaultCodecSupportsSortedSet() ? "doc_values" : "fst").endObject().endObject()
+                    .startObject("byte").field("type", "byte").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("short").field("type", "short").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("integer").field("type", "integer").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("long").field("type", "long").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("float").field("type", "float").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                .endObject().endObject().endObject().string();
+        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
-            int v = (random.nextBoolean() ? -1 * random.nextInt(Byte.MAX_VALUE) : random.nextInt(Byte.MAX_VALUE));
-            Document d = new Document();
-            d.add(new StringField("_id", "" + i, Field.Store.NO));
-            if (random.nextInt(15) != 0) {
-                d.add(new LongField("long", v, Field.Store.NO ));
-                d.add(new IntField("integer", v, Field.Store.NO));
-                d.add(new DoubleField("double", v, Field.Store.NO));
-                d.add(new FloatField("float", v, Field.Store.NO));
-                d.add(new StringField("bytes","" + v, Field.Store.NO));
-                if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                    d.add(longDV("long", v));
-                    d.add(intDV("integer", v));
-                    d.add(doubleDV("double", v));
-                    d.add(floatDV("float", v));
-                    d.add(new SortedSetDocValuesField("bytes", new BytesRef("" + v)));
-                }
+            String s = Integer.toString(randomByte());
+
+            XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
+            for (String fieldName : Arrays.asList("bytes", "byte", "short", "integer", "long", "float", "double")) {
+                doc = doc.field(fieldName, s);
             }
-            writer.addDocument(d);
+
+            doc = doc.endObject();
+
+            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+
+            writer.addDocument(d.rootDoc());
+
             if (random.nextInt(10) == 0) {
                 refreshReader();
             }
@@ -109,14 +102,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "array")), Type.Long);
         typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "array")), Type.Double);
         typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "array")), Type.Float);
+        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
+        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
+        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
         if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
             typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
-            typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
-            typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
-            typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
         }
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         Preprocessor pre = new ToDoublePreprocessor();
@@ -149,23 +142,42 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     @Test
     public void testDuelIntegers() throws Exception {
+        final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("byte").field("type", "byte").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("short").field("type", "short").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("integer").field("type", "integer").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("long").field("type", "long").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                .endObject().endObject().endObject().string();
+
+        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
+        final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
+        byte[] values = new byte[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
-            Document d = new Document();
-            d.add(new StringField("_id", "" + i, Field.Store.NO));
-            if (random.nextInt(15) != 0) {
-                int[] numbers = getNumbers(random, Byte.MAX_VALUE);
-                for (int j : numbers) {
-                    d.add(new LongField("long", j, Field.Store.NO ));
-                    d.add(new IntField("integer", j, Field.Store.NO));
-                    if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                        d.add(longDV("long", j));
-                        d.add(intDV("integer", j));
-                    }
+            final int numValues = randomInt(maxNumValues);
+            for (int j = 0; j < numValues; ++j) {
+                if (randomBoolean()) {
+                    values[j] = 1; // test deduplication
+                } else {
+                    values[j] = randomByte();
                 }
             }
-            writer.addDocument(d);
+
+            XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
+            for (String fieldName : Arrays.asList("byte", "short", "integer", "long")) {
+                doc = doc.startArray(fieldName);
+                for (int j = 0; j < numValues; ++j) {
+                    doc = doc.value(values[j]);
+                }
+                doc = doc.endArray();
+            }
+            doc = doc.endObject();
+
+            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+
+            writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {
                 refreshReader();
             }
@@ -176,12 +188,10 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "array")), Type.Integer);
         typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "array")), Type.Integer);
         typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "array")), Type.Long);
-        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-            typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
-            typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
-        }
+        typeMap.put(new FieldDataType("byte", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("short", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("int", ImmutableSettings.builder().put("format", "doc_values")), Type.Integer);
+        typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         while (!list.isEmpty()) {
             Entry<FieldDataType, Type> left;
@@ -212,23 +222,41 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     @Test
     public void testDuelDoubles() throws Exception {
+        final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("float").field("type", "float").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                    .startObject("double").field("type", "double").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                .endObject().endObject().endObject().string();
+
+        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
+        final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
+        float[] values = new float[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
-            Document d = new Document();
-            d.add(new StringField("_id", "" + i, Field.Store.NO));
-            if (random.nextInt(15) != 0) {
-                int[] numbers = getNumbers(random, Short.MAX_VALUE);
-                for (int j : numbers) {
-                    d.add(new FloatField("float", j, Field.Store.NO ));
-                    d.add(new DoubleField("double", j, Field.Store.NO));
-                    if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                        d.add(doubleDV("double", j));
-                        d.add(floatDV("float", j));
-                    }
+            final int numValues = randomInt(maxNumValues);
+            float def = randomBoolean() ? randomFloat() : Float.NaN;
+            for (int j = 0; j < numValues; ++j) {
+                if (randomBoolean()) {
+                    values[j] = def;
+                } else {
+                    values[j] = randomFloat();
                 }
             }
-            writer.addDocument(d);
+
+            XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startArray("float");
+            for (int j = 0; j < numValues; ++j) {
+                doc = doc.value(values[j]);
+            }
+            doc = doc.endArray().startArray("double");
+            for (int j = 0; j < numValues; ++j) {
+                doc = doc.value(values[j]);
+            }
+            doc = doc.endArray().endObject();
+
+            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+
+            writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {
                 refreshReader();
             }
@@ -237,10 +265,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, Type>();
         typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "array")), Type.Double);
         typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "array")), Type.Float);
-        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-            typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
-            typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
-        }
+        typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
+        typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         while (!list.isEmpty()) {
             Entry<FieldDataType, Type> left;
@@ -423,6 +449,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         BytesValues rightBytesValues = rightData.getBytesValues(random.nextBoolean());
         BytesRef leftSpare = new BytesRef();
         BytesRef rightSpare = new BytesRef();
+
         for (int i = 0; i < numDocs; i++) {
             int numValues = 0;
             assertThat((numValues = leftBytesValues.setDocument(i)), equalTo(rightBytesValues.setDocument(i)));
@@ -462,8 +489,12 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             assertThat((numValues = leftDoubleValues.setDocument(i)), equalTo(rightDoubleValues.setDocument(i)));
             double previous = 0;
             for (int j = 0; j < numValues; j++) {
-                double current;
-                assertThat(leftDoubleValues.nextValue(), equalTo(current = rightDoubleValues.nextValue()));
+                double current = rightDoubleValues.nextValue();
+                if (Double.isNaN(current)) {
+                    assertTrue(Double.isNaN(leftDoubleValues.nextValue()));
+                } else {
+                    assertThat(leftDoubleValues.nextValue(), closeTo(current, 0.0001));
+                }
                 if (j > 0) {
                    assertThat(Double.compare(previous,current), lessThan(0));
                 }
@@ -472,7 +503,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         }
     }
 
-    private static void duelFieldDataLong(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
+    private static void duelFieldDataLong(Random random, AtomicReaderContext context, IndexNumericFieldData<?> left, IndexNumericFieldData right) throws Exception {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 

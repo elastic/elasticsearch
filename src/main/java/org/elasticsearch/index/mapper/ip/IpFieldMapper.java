@@ -300,7 +300,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            fields.add(toDocValues(value));
+            addDocValue(context, value);
         }
     }
 

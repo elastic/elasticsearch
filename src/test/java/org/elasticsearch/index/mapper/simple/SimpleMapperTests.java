@@ -20,10 +20,10 @@
 package org.elasticsearch.index.mapper.simple;
 
 import com.google.common.base.Charsets;
-import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

@@ -324,7 +324,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            fields.add(toDocValues((int) value));
+            addDocValue(context, value);
         }
     }
 

@@ -20,9 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
 

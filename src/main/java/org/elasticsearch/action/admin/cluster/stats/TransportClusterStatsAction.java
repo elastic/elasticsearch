@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -80,7 +79,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
 
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest clusterStatsRequest, AtomicReferenceArray responses) {
-        final List<ClusterStatsNodeResponse> nodeStats = Lists.newArrayList();
+        final List<ClusterStatsNodeResponse> nodeStats = new ArrayList<ClusterStatsNodeResponse>(responses.length());
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof ClusterStatsNodeResponse) {

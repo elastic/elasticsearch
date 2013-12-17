@@ -29,38 +29,38 @@ import org.junit.Test;
 public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
-        assertThat(counts.total(), Matchers.equalTo(total));
-        assertThat(counts.masterOnly(), Matchers.equalTo(masterOnly));
-        assertThat(counts.dataOnly(), Matchers.equalTo(dataOnly));
-        assertThat(counts.masterData(), Matchers.equalTo(masterData));
-        assertThat(counts.client(), Matchers.equalTo(client));
+        assertThat(counts.getTotal(), Matchers.equalTo(total));
+        assertThat(counts.getMasterOnly(), Matchers.equalTo(masterOnly));
+        assertThat(counts.getDataOnly(), Matchers.equalTo(dataOnly));
+        assertThat(counts.getMasterData(), Matchers.equalTo(masterData));
+        assertThat(counts.getClient(), Matchers.equalTo(client));
     }
 
     @Test
     public void testNodeCounts() {
         cluster().startNode();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.nodesStats().counts(), 1, 0, 0, 1, 0);
+        assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.data", false));
         response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.nodesStats().counts(), 2, 1, 0, 1, 0);
+        assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.master", false));
         response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.nodesStats().counts(), 3, 1, 1, 1, 0);
+        assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.client", true));
         response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.nodesStats().counts(), 4, 1, 1, 1, 1);
+        assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
     }
 
 
     private void assertShardStats(ClusterStatsIndices.ShardStats stats, int indices, int total, int primaries, double replicationFactor) {
-        assertThat(stats.indices(), Matchers.equalTo(indices));
-        assertThat(stats.total(), Matchers.equalTo(total));
-        assertThat(stats.primaries(), Matchers.equalTo(primaries));
-        assertThat(stats.replication(), Matchers.equalTo(replicationFactor));
+        assertThat(stats.getIndices(), Matchers.equalTo(indices));
+        assertThat(stats.getTotal(), Matchers.equalTo(total));
+        assertThat(stats.getPrimaries(), Matchers.equalTo(primaries));
+        assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
     @Test
@@ -69,9 +69,9 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         prepareCreate("test1").setSettings("number_of_shards", 2, "number_of_replicas", 1).get();
         ensureYellow();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.indicesStats.docs().getCount(), Matchers.equalTo(0l));
-        assertThat(response.indicesStats.indexCount(), Matchers.equalTo(1));
-        assertShardStats(response.indicesStats().shards(), 1, 2, 2, 0.0);
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0l));
+        assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
+        assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
 
         // add another node, replicas should get assigned
         cluster().startNode();
@@ -79,26 +79,26 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         index("test1", "type", "1", "f", "f");
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.indicesStats.docs().getCount(), Matchers.equalTo(1l));
-        assertShardStats(response.indicesStats().shards(), 1, 4, 2, 1.0);
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1l));
+        assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings("number_of_shards", 3, "number_of_replicas", 0).get();
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.indicesStats.indexCount(), Matchers.equalTo(2));
-        assertShardStats(response.indicesStats().shards(), 2, 7, 5, 2.0 / 5);
+        assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
+        assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
 
-        assertThat(response.indicesStats().shards().avgIndexPrimaryShards(), Matchers.equalTo(2.5));
-        assertThat(response.indicesStats().shards().minIndexPrimaryShards(), Matchers.equalTo(2));
-        assertThat(response.indicesStats().shards().maxIndexPrimaryShards(), Matchers.equalTo(3));
+        assertThat(response.getIndicesStats().getShards().getAvgIndexPrimaryShards(), Matchers.equalTo(2.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexPrimaryShards(), Matchers.equalTo(2));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexPrimaryShards(), Matchers.equalTo(3));
 
-        assertThat(response.indicesStats().shards().avgIndexShards(), Matchers.equalTo(3.5));
-        assertThat(response.indicesStats().shards().minIndexShards(), Matchers.equalTo(3));
-        assertThat(response.indicesStats().shards().maxIndexShards(), Matchers.equalTo(4));
+        assertThat(response.getIndicesStats().getShards().getAvgIndexShards(), Matchers.equalTo(3.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexShards(), Matchers.equalTo(3));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexShards(), Matchers.equalTo(4));
 
-        assertThat(response.indicesStats().shards().avgIndexReplication(), Matchers.equalTo(0.5));
-        assertThat(response.indicesStats().shards().minIndexReplication(), Matchers.equalTo(0.0));
-        assertThat(response.indicesStats().shards().maxIndexReplication(), Matchers.equalTo(1.0));
+        assertThat(response.getIndicesStats().getShards().getAvgIndexReplication(), Matchers.equalTo(0.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexReplication(), Matchers.equalTo(0.0));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexReplication(), Matchers.equalTo(1.0));
 
     }
 
@@ -108,15 +108,15 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         index("test1", "type", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.indicesStats.store().getSizeInBytes(), Matchers.greaterThan(0l));
+        assertThat(response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
 
-        assertThat(response.nodesStats.fs().getTotal().bytes(), Matchers.greaterThan(0l));
-        assertThat(response.nodesStats.jvm().versions().size(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.os().availableProcessors(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.os().availableMemory().bytes(), Matchers.greaterThan(0l));
-        assertThat(response.nodesStats.os().cpus().size(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.versions().size(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.plugins().size(), Matchers.greaterThanOrEqualTo(0));
+        assertThat(response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
+        assertThat(response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+        assertThat(response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
+        assertThat(response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
+        assertThat(response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
+        assertThat(response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
+        assertThat(response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
 
     }
 }

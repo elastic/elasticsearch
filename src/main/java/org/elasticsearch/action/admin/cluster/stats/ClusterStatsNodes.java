@@ -96,31 +96,31 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
     }
 
 
-    public Counts counts() {
+    public Counts getCounts() {
         return this.counts;
     }
 
-    public Set<Version> versions() {
+    public Set<Version> getVersions() {
         return versions;
     }
 
-    public OsStats os() {
+    public OsStats getOs() {
         return os;
     }
 
-    public ProcessStats process() {
+    public ProcessStats getProcess() {
         return process;
     }
 
-    public JvmStats jvm() {
+    public JvmStats getJvm() {
         return jvm;
     }
 
-    public FsStats.Info fs() {
+    public FsStats.Info getFs() {
         return fs;
     }
 
-    public Set<PluginInfo> plugins() {
+    public Set<PluginInfo> getPlugins() {
         return plugins;
     }
 
@@ -136,9 +136,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         }
 
         os = OsStats.readOsStats(in);
-
+        process = ProcessStats.readStats(in);
         jvm = JvmStats.readJvmStats(in);
-
         fs = FsStats.Info.readInfoFrom(in);
 
         size = in.readVInt();
@@ -154,6 +153,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         out.writeVInt(versions.size());
         for (Version v : versions) Version.writeVersion(v, out);
         os.writeTo(out);
+        process.writeTo(out);
         jvm.writeTo(out);
         fs.writeTo(out);
         out.writeVInt(plugins.size());
@@ -236,23 +236,23 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             }
         }
 
-        public int total() {
+        public int getTotal() {
             return total;
         }
 
-        public int masterOnly() {
+        public int getMasterOnly() {
             return masterOnly;
         }
 
-        public int dataOnly() {
+        public int getDataOnly() {
             return dataOnly;
         }
 
-        public int masterData() {
+        public int getMasterData() {
             return masterData;
         }
 
-        public int client() {
+        public int getClient() {
             return client;
         }
 
@@ -317,15 +317,15 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             }
         }
 
-        public int availableProcessors() {
+        public int getAvailableProcessors() {
             return availableProcessors;
         }
 
-        public ByteSizeValue availableMemory() {
+        public ByteSizeValue getAvailableMemory() {
             return new ByteSizeValue(availableMemory);
         }
 
-        public ObjectIntOpenHashMap<OsInfo.Cpu> cpus() {
+        public ObjectIntOpenHashMap<OsInfo.Cpu> getCpus() {
             return cpus;
         }
 
@@ -405,11 +405,11 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         /**
          * Cpu usage in percentages - 100 is 1 core.
          */
-        public int cpuPercent() {
+        public int getCpuPercent() {
             return cpuPercent;
         }
 
-        public long avgOpenFileDescriptors() {
+        public long getAvgOpenFileDescriptors() {
             if (count == 0) {
                 return -1;
             }
@@ -420,7 +420,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         public void readFrom(StreamInput in) throws IOException {
             count = in.readVInt();
             cpuPercent = in.readVInt();
-            totalOpenFileDescriptors = in.readLong();
+            totalOpenFileDescriptors = in.readVLong();
         }
 
         @Override
@@ -445,7 +445,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.CPU).field(Fields.PERCENT, cpuPercent).endObject();
-            builder.field(Fields.AVG_OPEN_FD, avgOpenFileDescriptors());
+            builder.field(Fields.AVG_OPEN_FD, getAvgOpenFileDescriptors());
             return builder;
         }
     }
@@ -466,35 +466,35 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             heapUsed = 0;
         }
 
-        public ObjectIntOpenHashMap<JvmVersion> versions() {
+        public ObjectIntOpenHashMap<JvmVersion> getVersions() {
             return versions;
         }
 
         /**
          * The total number of threads in the cluster
          */
-        public long threads() {
+        public long getThreads() {
             return threads;
         }
 
         /**
          * The maximum uptime of a node in the cluster
          */
-        public TimeValue maxUptime() {
+        public TimeValue getMaxUpTime() {
             return new TimeValue(maxUptime);
         }
 
         /**
          * Total heap used in the cluster
          */
-        public ByteSizeValue heapUsed() {
+        public ByteSizeValue getHeapUsed() {
             return new ByteSizeValue(heapUsed);
         }
 
         /**
          * Maximum total heap available to the cluster
          */
-        public ByteSizeValue heapMax() {
+        public ByteSizeValue getHeapMax() {
             return new ByteSizeValue(heapMax);
         }
 

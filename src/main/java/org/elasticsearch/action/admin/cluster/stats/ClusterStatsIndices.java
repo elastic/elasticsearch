@@ -100,43 +100,43 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         }
     }
 
-    public int indexCount() {
+    public int getIndexCount() {
         return indexCount;
     }
 
-    public ShardStats shards() {
+    public ShardStats getShards() {
         return this.shards;
     }
 
-    public DocsStats docs() {
+    public DocsStats getDocs() {
         return docs;
     }
 
-    public StoreStats store() {
+    public StoreStats getStore() {
         return store;
     }
 
-    public FieldDataStats fieldData() {
+    public FieldDataStats getFieldData() {
         return fieldData;
     }
 
-    public FilterCacheStats filterCache() {
+    public FilterCacheStats getFilterCache() {
         return filterCache;
     }
 
-    public IdCacheStats idCache() {
+    public IdCacheStats getIdCache() {
         return idCache;
     }
 
-    public CompletionStats completion() {
+    public CompletionStats getCompletion() {
         return completion;
     }
 
-    public SegmentsStats segments() {
+    public SegmentsStats getSegments() {
         return segments;
     }
 
-    public PercolateStats percolate() {
+    public PercolateStats getPercolate() {
         return peroclate;
     }
 
@@ -214,28 +214,28 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         /**
          * number of indices in the cluster
          */
-        public int indices() {
+        public int getIndices() {
             return this.indices;
         }
 
         /**
          * total number of shards in the cluster
          */
-        public int total() {
+        public int getTotal() {
             return this.total;
         }
 
         /**
          * total number of primary shards in the cluster
          */
-        public int primaries() {
+        public int getPrimaries() {
             return this.primaries;
         }
 
         /**
          * returns how many *redundant* copies of the data the cluster holds - running with no replicas will return 0
          */
-        public double replication() {
+        public double getReplication() {
             if (primaries == 0) {
                 return 0;
             }
@@ -243,17 +243,17 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         }
 
         /** the maximum number of shards (primary+replicas) an index has */
-        public int maxIndexShards() {
+        public int getMaxIndexShards() {
             return this.maxIndexShards;
         }
 
         /** the minimum number of shards (primary+replicas) an index has */
-        public int minIndexShards() {
+        public int getMinIndexShards() {
             return this.minIndexShards;
         }
 
         /** average number of shards (primary+replicas) across the indices */
-        public double avgIndexShards() {
+        public double getAvgIndexShards() {
             if (this.indices == 0) {
                 return -1;
             }
@@ -263,17 +263,17 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         /**
          * the maximum number of primary shards an index has
          */
-        public int maxIndexPrimaryShards() {
+        public int getMaxIndexPrimaryShards() {
             return this.maxIndexPrimaryShards;
         }
 
         /** the minimum number of primary shards an index has */
-        public int minIndexPrimaryShards() {
+        public int getMinIndexPrimaryShards() {
             return this.minIndexPrimaryShards;
         }
 
         /** the average number primary shards across the indices */
-        public double avgIndexPrimaryShards() {
+        public double getAvgIndexPrimaryShards() {
             if (this.indices == 0) {
                 return -1;
             }
@@ -281,16 +281,16 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         }
 
         /**
-         * minimum replication factor across the indices. See {@link #replication}
+         * minimum replication factor across the indices. See {@link #getReplication}
          */
-        public double minIndexReplication() {
+        public double getMinIndexReplication() {
             return this.minIndexReplication;
         }
 
         /**
-         * average replication factor across the indices. See {@link #replication}
+         * average replication factor across the indices. See {@link #getReplication}
          */
-        public double avgIndexReplication() {
+        public double getAvgIndexReplication() {
             if (indices == 0) {
                 return -1;
             }
@@ -298,9 +298,9 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         }
 
         /**
-         * maximum replication factor across the indices. See {@link #replication
+         * maximum replication factor across the indices. See {@link #getReplication
          */
-        public double maxIndexReplication() {
+        public double getMaxIndexReplication() {
             return this.maxIndexReplication;
         }
 
@@ -308,23 +308,23 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
             this.indices++;
             this.primaries += indexShardCount.primaries;
             this.total += indexShardCount.total;
-            this.totalIndexReplication += indexShardCount.replication();
+            this.totalIndexReplication += indexShardCount.getReplication();
             if (this.indices == 1) {
                 // first index, uninitialized.
                 minIndexPrimaryShards = indexShardCount.primaries;
                 maxIndexPrimaryShards = indexShardCount.primaries;
                 minIndexShards = indexShardCount.total;
                 maxIndexShards = indexShardCount.total;
-                minIndexReplication = indexShardCount.replication();
+                minIndexReplication = indexShardCount.getReplication();
                 maxIndexReplication = minIndexReplication;
             } else {
                 minIndexShards = Math.min(minIndexShards, indexShardCount.total);
                 minIndexPrimaryShards = Math.min(minIndexPrimaryShards, indexShardCount.primaries);
-                minIndexReplication = Math.min(minIndexReplication, indexShardCount.replication());
+                minIndexReplication = Math.min(minIndexReplication, indexShardCount.getReplication());
 
                 maxIndexShards = Math.max(maxIndexShards, indexShardCount.total);
                 maxIndexPrimaryShards = Math.max(maxIndexPrimaryShards, indexShardCount.primaries);
-                maxIndexReplication = Math.max(maxIndexReplication, indexShardCount.replication());
+                maxIndexReplication = Math.max(maxIndexReplication, indexShardCount.getReplication());
             }
         }
 
@@ -396,12 +396,12 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
 
                 builder.field(Fields.TOTAL, total);
                 builder.field(Fields.PRIMARIES, primaries);
-                builder.field(Fields.REPLICATION, replication());
+                builder.field(Fields.REPLICATION, getReplication());
 
                 builder.startObject(Fields.INDEX);
-                addIntMinMax(Fields.SHARDS, minIndexShards, maxIndexShards, avgIndexShards(), builder);
-                addIntMinMax(Fields.PRIMARIES, minIndexPrimaryShards, maxIndexPrimaryShards, avgIndexPrimaryShards(), builder);
-                addDoubleMinMax(Fields.REPLICATION, minIndexReplication, maxIndexReplication, avgIndexReplication(), builder);
+                addIntMinMax(Fields.SHARDS, minIndexShards, maxIndexShards, getAvgIndexShards(), builder);
+                addIntMinMax(Fields.PRIMARIES, minIndexPrimaryShards, maxIndexPrimaryShards, getAvgIndexPrimaryShards(), builder);
+                addDoubleMinMax(Fields.REPLICATION, minIndexReplication, maxIndexReplication, getAvgIndexReplication(), builder);
                 builder.endObject();
             }
             builder.endObject();

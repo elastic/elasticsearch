@@ -53,11 +53,11 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
         indicesStats = new ClusterStatsIndices(nodes);
     }
 
-    public ClusterStatsNodes nodesStats() {
+    public ClusterStatsNodes getNodesStats() {
         return nodesStats;
     }
 
-    public ClusterStatsIndices indicesStats() {
+    public ClusterStatsIndices getIndicesStats() {
         return indicesStats;
     }
 

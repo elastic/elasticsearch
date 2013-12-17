@@ -28,8 +28,9 @@
       delete_by_query:
         index:  test_1
         body:
-          match:
-            foo: bar
+          query:
+            match:
+              foo: bar
 
   - is_true: ok
 

@@ -172,11 +172,11 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
             if (request.minScore() != -1) {
                 context.minimumScore(request.minScore());
             }
-            BytesReference querySource = request.querySource();
-            if (querySource != null && querySource.length() > 0) {
+            BytesReference source = request.querySource();
+            if (source != null && source.length() > 0) {
                 try {
                     QueryParseContext.setTypes(request.types());
-                    context.parsedQuery(indexService.queryParserService().parse(querySource));
+                    context.parsedQuery(indexService.queryParserService().parseQuery(source));
                 } finally {
                     QueryParseContext.removeTypes();
                 }

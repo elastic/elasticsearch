@@ -40,7 +40,7 @@
       }
     },
     "body": {
-      "description" : "The query definition"
+      "description" : "The query definition specified with the Query DSL"
     }
   }
 }

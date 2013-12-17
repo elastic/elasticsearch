@@ -26,10 +26,10 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
 import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,14 +60,16 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {
-                deleteByQueryRequest.query(request.content(), request.contentUnsafe());
+                deleteByQueryRequest.source(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    deleteByQueryRequest.query(source);
+                    deleteByQueryRequest.source(source);
                 } else {
-                    BytesReference bytes = RestActions.parseQuerySource(request);
-                    deleteByQueryRequest.query(bytes, false);
+                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                    if (querySourceBuilder != null) {
+                        deleteByQueryRequest.source(querySourceBuilder);
+                    }
                 }
             }
             deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

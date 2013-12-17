@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.XSimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,23 +37,23 @@ import java.util.Map;
  * SimpleQueryStringParser is a query parser that acts similar to a query_string
  * query, but won't throw exceptions for any weird string syntax. It supports
  * the following:
- *
+ * <p/>
  * <ul>
- *  <li>'{@code +}' specifies {@code AND} operation: <tt>token1+token2</tt>
- *  <li>'{@code |}' specifies {@code OR} operation: <tt>token1|token2</tt>
- *  <li>'{@code -}' negates a single token: <tt>-token0</tt>
- *  <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
- *  <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
- *  <li>'{@code (}' and '{@code )}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
+ * <li>'{@code +}' specifies {@code AND} operation: <tt>token1+token2</tt>
+ * <li>'{@code |}' specifies {@code OR} operation: <tt>token1|token2</tt>
+ * <li>'{@code -}' negates a single token: <tt>-token0</tt>
+ * <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
+ * <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
+ * <li>'{@code (}' and '{@code)}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
  * </ul>
- *
+ * <p/>
  * See: {@link XSimpleQueryParser} for more information.
- *
+ * <p/>
  * This query supports these options:
- *
+ * <p/>
  * Required:
  * {@code query} - query text to be converted into other queries
- *
+ * <p/>
  * Optional:
  * {@code analyzer} - anaylzer to be used for analyzing tokens to determine
  * which kind of query they should be converted into, defaults to "standard"
@@ -85,9 +85,9 @@ public class SimpleQueryStringParser implements QueryParser {
         String field = null;
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
-        NamedAnalyzer analyzer = null;
-        XContentParser.Token token = null;
+        Analyzer analyzer = null;
 
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -132,8 +132,7 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext.index(),
-                                "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext.index(), "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
@@ -164,13 +163,13 @@ public class SimpleQueryStringParser implements QueryParser {
         }
 
         // Use the default field (_all) if no fields specified
-        if (queryBody != null && fieldsAndWeights == null) {
+        if (fieldsAndWeights == null) {
             field = parseContext.defaultField();
         }
 
         // Use standard analyzer by default
         if (analyzer == null) {
-            analyzer = parseContext.analysisService().analyzer("standard");
+            analyzer = parseContext.mapperService().searchAnalyzer();
         }
 
         XSimpleQueryParser sqp;

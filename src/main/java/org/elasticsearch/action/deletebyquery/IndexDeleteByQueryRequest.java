@@ -39,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<IndexDeleteByQueryRequest> {
 
-    private BytesReference querySource;
+    private BytesReference source;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
     private Set<String> routing;
@@ -49,7 +49,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
         this.index = index;
         this.timeout = request.timeout();
-        this.querySource = request.querySource();
+        this.source = request.source();
         this.types = request.types();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
@@ -60,15 +60,15 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
     IndexDeleteByQueryRequest() {
     }
 
-    BytesReference querySource() {
-        return querySource;
+    BytesReference source() {
+        return source;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (querySource == null) {
-            validationException = addValidationError("querySource is missing", validationException);
+        if (source == null) {
+            validationException = addValidationError("source is missing", validationException);
         }
         return validationException;
     }
@@ -92,7 +92,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = in.readBytesReference();
+        source = in.readBytesReference();
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -118,7 +118,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(querySource);
+        out.writeBytesReference(source);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);

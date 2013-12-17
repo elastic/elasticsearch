@@ -174,7 +174,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         boolean valid;
         String explanation = null;
         String error = null;
-        if (request.querySource().length() == 0) {
+        if (request.source().length() == 0) {
             valid = true;
         } else {
             SearchContext.setCurrent(new DefaultSearchContext(0,
@@ -182,7 +182,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                     null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
                     scriptService, cacheRecycler));
             try {
-                ParsedQuery parsedQuery = queryParserService.parse(request.querySource());
+                ParsedQuery parsedQuery = queryParserService.parseQuery(request.source());
                 valid = true;
                 if (request.explain()) {
                     explanation = parsedQuery.query().toString();

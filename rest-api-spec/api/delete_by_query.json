@@ -67,7 +67,7 @@
       }
     },
     "body": {
-      "description" : "A query to restrict the operation"
+      "description" : "A query to restrict the operation specified with the Query DSL"
     }
   }
 }

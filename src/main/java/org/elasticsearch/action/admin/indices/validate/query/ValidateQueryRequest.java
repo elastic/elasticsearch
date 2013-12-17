@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,15 +41,15 @@ import java.util.Map;
 /**
  * A request to validate a specific query.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #query(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
+ * or {@link #source(byte[])}.
  */
 public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQueryRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
-    private BytesReference querySource;
-    private boolean querySourceUnsafe;
+    private BytesReference source;
+    private boolean sourceUnsafe;
 
     private boolean explain;
 
@@ -76,79 +76,74 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
 
     @Override
     protected void beforeStart() {
-        if (querySourceUnsafe) {
-            querySource = querySource.copyBytesArray();
-            querySourceUnsafe = false;
+        if (sourceUnsafe) {
+            source = source.copyBytesArray();
+            sourceUnsafe = false;
         }
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    BytesReference querySource() {
-        return querySource;
+    BytesReference source() {
+        return source;
     }
 
-    /**
-     * The query source to execute.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public ValidateQueryRequest query(QueryBuilder queryBuilder) {
-        this.querySource = queryBuilder.buildAsBytes();
-        this.querySourceUnsafe = false;
+    public ValidateQueryRequest source(QuerySourceBuilder sourceBuilder) {
+        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to execute in the form of a map.
+     * The source to execute in the form of a map.
      */
-    public ValidateQueryRequest query(Map querySource) {
+    public ValidateQueryRequest source(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.map(querySource);
-            return query(builder);
+            builder.map(source);
+            return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
-    public ValidateQueryRequest query(XContentBuilder builder) {
-        this.querySource = builder.bytes();
-        this.querySourceUnsafe = false;
+    public ValidateQueryRequest source(XContentBuilder builder) {
+        this.source = builder.bytes();
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to validate. It is preferable to use either {@link #query(byte[])}
-     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
+     * The query source to validate. It is preferable to use either {@link #source(byte[])}
+     * or {@link #source(QuerySourceBuilder)}.
      */
-    public ValidateQueryRequest query(String querySource) {
-        this.querySource = new BytesArray(querySource);
-        this.querySourceUnsafe = false;
+    public ValidateQueryRequest source(String source) {
+        this.source = new BytesArray(source);
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      */
-    public ValidateQueryRequest query(byte[] querySource) {
-        return query(querySource, 0, querySource.length, false);
+    public ValidateQueryRequest source(byte[] source) {
+        return source(source, 0, source.length, false);
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      */
-    public ValidateQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
-        return query(new BytesArray(querySource, offset, length), unsafe);
+    public ValidateQueryRequest source(byte[] source, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(source, offset, length), unsafe);
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      */
-    public ValidateQueryRequest query(BytesReference querySource, boolean unsafe) {
-        this.querySource = querySource;
-        this.querySourceUnsafe = unsafe;
+    public ValidateQueryRequest source(BytesReference source, boolean unsafe) {
+        this.source = source;
+        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -185,8 +180,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        querySourceUnsafe = false;
-        querySource = in.readBytesReference();
+        sourceUnsafe = false;
+        source = in.readBytesReference();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -204,7 +199,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeBytesReference(querySource);
+        out.writeBytesReference(source);
 
         out.writeVInt(types.length);
         for (String type : types) {
@@ -218,10 +213,10 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(querySource, false);
+            sSource = XContentHelper.convertToJson(source, false);
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + sSource + "], explain:" + explain;
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain;
     }
 }

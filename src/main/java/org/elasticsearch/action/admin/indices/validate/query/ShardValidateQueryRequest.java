@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
-    private BytesReference querySource;
+    private BytesReference source;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private long nowInMillis;
@@ -48,15 +48,15 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
         super(index, shardId, request);
-        this.querySource = request.querySource();
+        this.source = request.source();
         this.types = request.types();
         this.explain = request.explain();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = request.nowInMillis;
     }
 
-    public BytesReference querySource() {
-        return querySource;
+    public BytesReference source() {
+        return source;
     }
 
     public String[] types() {
@@ -78,7 +78,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = in.readBytesReference();
+        source = in.readBytesReference();
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -107,7 +107,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(querySource);
+        out.writeBytesReference(source);
 
         out.writeVInt(types.length);
         for (String type : types) {

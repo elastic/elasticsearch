@@ -61,7 +61,9 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            CountResponse countResponse = client().prepareCount("test")
+                    .setQuery(termQuery("_type", "type1"))
+                    .setOperationThreading(BroadcastOperationThreading.NO_THREADS).get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -69,7 +71,9 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            CountResponse countResponse = client().prepareCount("test")
+                    .setQuery(termQuery("_type", "type1"))
+                    .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -77,7 +81,9 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            CountResponse countResponse = client().prepareCount("test")
+                    .setQuery(termQuery("_type", "type1"))
+                    .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -86,7 +92,7 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client().count(countRequest("test").query("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getTotalShards(), equalTo(5));

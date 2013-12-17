@@ -37,20 +37,25 @@ import java.util.Map;
  */
 public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNodeResponse> implements ToXContent {
 
-
     ClusterStatsNodes nodesStats;
     ClusterStatsIndices indicesStats;
     String clusterUUID;
+    long timestamp;
 
 
     ClusterStatsResponse() {
     }
 
-    public ClusterStatsResponse(ClusterName clusterName, String clusterUUID, ClusterStatsNodeResponse[] nodes) {
+    public ClusterStatsResponse(long timestamp, ClusterName clusterName, String clusterUUID, ClusterStatsNodeResponse[] nodes) {
         super(clusterName, null);
+        this.timestamp = timestamp;
         this.clusterUUID = clusterUUID;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes);
+    }
+
+    public long getTimestamp() {
+        return this.timestamp;
     }
 
     public ClusterStatsNodes getNodesStats() {
@@ -84,6 +89,7 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        timestamp = in.readVLong();
         clusterUUID = in.readString();
         nodesStats = ClusterStatsNodes.readNodeStats(in);
         indicesStats = ClusterStatsIndices.readIndicesStats(in);
@@ -92,6 +98,7 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(timestamp);
         out.writeString(clusterUUID);
         nodesStats.writeTo(out);
         indicesStats.writeTo(out);
@@ -106,6 +113,7 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("timestamp", getTimestamp());
         builder.field(Fields.CLUSTER_NAME, getClusterName().value());
         if (params.paramAsBoolean("output_uuid", false)) {
             builder.field(Fields.UUID, clusterUUID);

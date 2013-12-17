@@ -121,7 +121,6 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
                 continue;
             }
             for (IndexShard indexShard : indexService) {
-                logger.warn("" + indexShard.shardId() + " " + indexShard.state());
                 if (indexShard.routingEntry().active()) {
                     // only report on fully started shards
                     shardsStats.add(new ShardStats(indexShard, SHARD_STATS_FLAGS));

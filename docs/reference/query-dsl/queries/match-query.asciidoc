@@ -1,3 +1,4 @@
+
 [[query-dsl-match-query]]
 === Match Query
 
@@ -34,12 +35,14 @@ The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It default to the field explicit mapping
 definition, or the default search analyzer.
 
-`fuzziness` can be set to a value (depending on the relevant type, for
-string types it should be a value between `0.0` and `1.0`) to constructs
-fuzzy queries for each term analyzed. The `prefix_length` and
-`max_expansions` can be set in this case to control the fuzzy process.
-Please see the documentation for the <<query-dsl-fuzzy,fuzzy>> query type for
-more information on `max_expansions` and `prefix_length`.
+The `fuzziness` option can be set to search for values slightly different from the query value.
+The fuzziness option controls the maximum Levenshtein distance when querying string fields 
+with distances of `1` or `2` being legal. When querying numeric fields, it can take larger values,
+and is internally converted into a range query.
+For more information on fuzzy queries see <<query-dsl-fuzzy,fuzzy>>, which documents
+this query type more fully. Note that all the options supported by the `fuzzy` query, such as
+such as `max_expansions` and `prefix_length`, are supported within a `match` query when
+`fuzziness` is specified.
 
 If the fuzzy option is set the query will use `constant_score_rewrite`
 as its <<query-dsl-multi-term-rewrite,rewrite method>>

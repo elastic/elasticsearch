@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class FailedShardsRoutingTests extends ElasticsearchTestCase {
+public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
     @Test
     public void testFailedShardPrimaryRelocatingToAndFrom() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -137,7 +137,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void failPrimaryStartedCheckReplicaElected() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -219,7 +219,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void firstAllocationFailureSingleNode() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -276,7 +276,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void firstAllocationFailureTwoNodes() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -334,7 +334,7 @@ public class FailedShardsRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void rebalanceFailure() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());

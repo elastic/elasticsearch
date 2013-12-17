@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -51,13 +51,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class AllocationCommandsTests extends ElasticsearchTestCase {
+public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 
     @Test
     public void moveShardCommand() {
-        AllocationService allocation = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()
@@ -101,7 +101,7 @@ public class AllocationCommandsTests extends ElasticsearchTestCase {
 
     @Test
     public void allocateCommand() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .build());
@@ -182,7 +182,7 @@ public class AllocationCommandsTests extends ElasticsearchTestCase {
 
     @Test
     public void cancelCommand() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .build());

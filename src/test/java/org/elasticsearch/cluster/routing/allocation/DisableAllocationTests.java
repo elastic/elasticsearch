@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDec
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -39,13 +39,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DisableAllocationTests extends ElasticsearchTestCase {
+public class DisableAllocationTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(DisableAllocationTests.class);
 
     @Test
     public void testClusterDisableAllocation() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .build());
@@ -75,7 +75,7 @@ public class DisableAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void testClusterDisableReplicaAllocation() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.disable_replica_allocation", true)
                 .build());
 
@@ -109,7 +109,7 @@ public class DisableAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexDisableAllocation() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .build());
 
         MetaData metaData = MetaData.builder()

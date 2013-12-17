@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.explain;
+package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,18 +29,18 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
 
-public class ExplainSourceBuilder implements ToXContent {
+public class QuerySourceBuilder implements ToXContent {
 
     private QueryBuilder queryBuilder;
 
     private BytesReference queryBinary;
 
-    public ExplainSourceBuilder setQuery(QueryBuilder query) {
+    public QuerySourceBuilder setQuery(QueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
 
-    public ExplainSourceBuilder setQuery(BytesReference queryBinary) {
+    public QuerySourceBuilder setQuery(BytesReference queryBinary) {
         this.queryBinary = queryBinary;
         return this;
     }

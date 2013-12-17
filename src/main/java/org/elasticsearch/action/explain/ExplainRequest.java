@@ -22,6 +22,7 @@ package org.elasticsearch.action.explain;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -114,7 +115,7 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         return sourceUnsafe;
     }
 
-    public ExplainRequest source(ExplainSourceBuilder sourceBuilder) {
+    public ExplainRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(contentType);
         this.sourceUnsafe = false;
         return this;

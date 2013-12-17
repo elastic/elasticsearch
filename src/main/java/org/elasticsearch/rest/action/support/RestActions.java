@@ -21,8 +21,8 @@ package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -81,7 +81,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static BytesReference parseQuerySource(RestRequest request) {
+    public static QuerySourceBuilder parseQuerySource(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -99,6 +99,6 @@ public class RestActions {
                 throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }
         }
-        return queryBuilder.buildAsBytes();
+        return new QuerySourceBuilder().setQuery(queryBuilder);
     }
 }

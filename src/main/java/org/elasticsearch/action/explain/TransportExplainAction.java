@@ -32,14 +32,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -117,7 +113,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         SearchContext.setCurrent(context);
 
         try {
-            context.parsedQuery(parseQuery(request, indexService));
+            context.parsedQuery(indexService.queryParserService().parseQuery(request.source()));
             context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
             Explanation explanation;
@@ -143,28 +139,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             context.release();
             SearchContext.removeCurrent();
         }
-    }
-
-    private ParsedQuery parseQuery(ExplainRequest request, IndexService indexService) {
-        try {
-            XContentParser parser = XContentHelper.createParser(request.source());
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
-                        return indexService.queryParserService().parse(parser);
-                    } else if ("query_binary".equals(fieldName)) {
-                        byte[] querySource = parser.binaryValue();
-                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        return indexService.queryParserService().parse(qSourceParser);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            throw new ElasticSearchException("Couldn't parse query from source.", e);
-        }
-
-        throw new ElasticSearchException("No query specified");
     }
 
     protected ExplainRequest newRequest() {

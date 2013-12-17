@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ShardsLimitAllocationTests extends ElasticsearchTestCase {
+public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(ShardsLimitAllocationTests.class);
 
     @Test
     public void indexLevelShardsLimitAllocate() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -91,7 +91,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void indexLevelShardsLimitRemain() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)

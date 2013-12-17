@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -40,13 +40,13 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class RebalanceAfterActiveTests extends ElasticsearchTestCase {
+public class RebalanceAfterActiveTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
 
     @Test
     public void testRebalanceOnlyAfterAllShardsAreActive() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -44,13 +44,13 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
+public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     @Test
     public void testSingleIndexStartedShard() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -152,7 +152,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void testSingleIndexShardFailed() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -202,7 +202,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultiIndexEvenDistribution() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -315,7 +315,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultiIndexUnevenNodes() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)

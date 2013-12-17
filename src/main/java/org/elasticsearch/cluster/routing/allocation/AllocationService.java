@@ -34,9 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -56,16 +54,6 @@ public class AllocationService extends AbstractComponent {
     private final AllocationDeciders allocationDeciders;
     private final ClusterInfoService clusterInfoService;
     private final ShardsAllocators shardsAllocators;
-
-    public AllocationService() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
-    }
-
-    public AllocationService(Settings settings) {
-        this(settings,
-                new AllocationDeciders(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS)),
-                new ShardsAllocators(settings), ClusterInfoService.EMPTY);
-    }
 
     @Inject
     public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService) {

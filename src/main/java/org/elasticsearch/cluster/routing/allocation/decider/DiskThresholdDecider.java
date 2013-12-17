@@ -110,7 +110,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     @Inject
-    protected DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "0.7");
         String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "0.85");

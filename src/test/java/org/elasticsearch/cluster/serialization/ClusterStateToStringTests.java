@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  *
  */
-public class ClusterStateToStringTests extends ElasticsearchTestCase {
+public class ClusterStateToStringTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
@@ -34,7 +34,7 @@ public class ClusterStateToStringTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
-        AllocationService strategy = new AllocationService();
+        AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
         String clusterStateString = clusterState.toString();

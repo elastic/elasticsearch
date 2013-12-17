@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -36,14 +36,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
+public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(PreferPrimaryAllocationTests.class);
 
     @Test
     public void testPreferPrimaryAllocationOverReplicas() {
         logger.info("create an allocation with 1 initial recoveries");
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
                 .build());

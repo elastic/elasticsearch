@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -36,13 +36,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class AllocatePostApiFlagTests extends ElasticsearchTestCase {
+public class AllocatePostApiFlagTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AllocatePostApiFlagTests.class);
 
     @Test
     public void simpleFlagTests() {
-        AllocationService allocation = new AllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()

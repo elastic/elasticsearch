@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -51,22 +52,27 @@ public class AllocationDecidersModule extends AbstractModule {
     @Override
     protected void configure() {
         Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
-        allocationMultibinder.addBinding().to(SameShardAllocationDecider.class);
-        allocationMultibinder.addBinding().to(FilterAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ThrottlingAllocationDecider.class);
-        allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ClusterRebalanceAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ConcurrentRebalanceAllocationDecider.class);
-        allocationMultibinder.addBinding().to(DisableAllocationDecider.class);
-        allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ShardsLimitAllocationDecider.class);
-        allocationMultibinder.addBinding().to(DiskThresholdDecider.class);
-        allocationMultibinder.addBinding().to(SnapshotInProgressAllocationDecider.class);
+        for (Class<? extends AllocationDecider> deciderClass : DEFAULT_ALLOCATION_DECIDERS) {
+            allocationMultibinder.addBinding().to(deciderClass);
+        }
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }
 
         bind(AllocationDeciders.class).asEagerSingleton();
     }
+
+    public static final ImmutableSet<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS = ImmutableSet.<Class<? extends AllocationDecider>>builder().
+            add(SameShardAllocationDecider.class).
+            add(FilterAllocationDecider.class).
+            add(ReplicaAfterPrimaryActiveAllocationDecider.class).
+            add(ThrottlingAllocationDecider.class).
+            add(RebalanceOnlyWhenActiveAllocationDecider.class).
+            add(ClusterRebalanceAllocationDecider.class).
+            add(ConcurrentRebalanceAllocationDecider.class).
+            add(DisableAllocationDecider.class).
+            add(AwarenessAllocationDecider.class).
+            add(ShardsLimitAllocationDecider.class).
+            add(DiskThresholdDecider.class).
+            add(SnapshotInProgressAllocationDecider.class).build();
 }

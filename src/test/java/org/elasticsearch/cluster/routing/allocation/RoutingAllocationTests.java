@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Ignore;
 
 import java.util.List;
@@ -36,7 +36,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 @Ignore("Not a test")
-public class RoutingAllocationTests extends ElasticsearchTestCase {
+public class RoutingAllocationTests extends ElasticsearchAllocationTestCase {
 
     public static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);

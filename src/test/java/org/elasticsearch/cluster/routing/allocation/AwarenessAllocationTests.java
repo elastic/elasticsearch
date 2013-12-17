@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -39,13 +39,13 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class AwarenessAllocationTests extends ElasticsearchTestCase {
+public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded1() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -114,7 +114,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded2() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -184,7 +184,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded3() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
@@ -285,7 +285,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded4() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
@@ -381,7 +381,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded5() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -460,7 +460,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded6() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
@@ -541,7 +541,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void fullAwareness1() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
@@ -609,7 +609,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void fullAwareness2() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
@@ -678,7 +678,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void fullAwareness3() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
@@ -763,7 +763,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void testUnbalancedZones() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)

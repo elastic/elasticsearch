@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class FilterRoutingTests extends ElasticsearchTestCase {
+public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FilterRoutingTests.class);
 
     @Test
     public void testClusterFilters() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.include.tag1", "value1,value2")
                 .put("cluster.routing.allocation.exclude.tag1", "value3,value4")
                 .build());
@@ -94,7 +94,7 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexFilters() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .build());
 
         logger.info("Building initial routing table");

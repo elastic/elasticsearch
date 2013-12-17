@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -38,13 +38,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DeadNodesAllocationTests extends ElasticsearchTestCase {
+public class DeadNodesAllocationTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(DeadNodesAllocationTests.class);
 
     @Test
     public void simpleDeadNodeOnStartedPrimaryShard() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -96,7 +96,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void deadNodeWhileRelocatingOnToNode() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());
@@ -171,7 +171,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
 
     @Test
     public void deadNodeWhileRelocatingOnFromNode() {
-        AllocationService allocation = new AllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .build());

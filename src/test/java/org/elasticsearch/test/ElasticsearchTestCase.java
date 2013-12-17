@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -31,8 +34,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.engine.MockRobinEngine;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -57,15 +60,15 @@ import java.util.concurrent.TimeUnit;
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;
-    
+
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-    
+
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
-    
+
     public static boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
@@ -83,9 +86,9 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         Thread.sleep(Math.max(timeInMillis, 0));
         return breakPredicate.apply(null);
     }
-    
-    private static final String[] numericTypes = new String[] {"byte", "short", "integer", "long"};
-    
+
+    private static final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
+
     public static String randomNumericType(Random random) {
         return numericTypes[random.nextInt(numericTypes.length)];
     }
@@ -101,7 +104,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
         return new File(uri);
     }
-    
+
     public static void ensureAllFilesClosed() throws IOException {
         try {
             for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
@@ -113,7 +116,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             forceClearMockWrappers();
         }
     }
-    
+
     public static void ensureAllSearchersClosed() {
         /* in some cases we finish a test faster than the freeContext calls make it to the
          * shards. Let's wait for some time if there are still searchers. If the are really 
@@ -144,11 +147,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
-    
+
     public static void forceClearMockWrappers() {
         MockDirectoryHelper.wrappers.clear();
     }
-    
+
     public static boolean hasUnclosedWrapper() {
         for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
             if (w.isOpen()) {
@@ -166,7 +169,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
                 ensureAllFilesClosed();
             }
         });
-        
+
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
@@ -179,15 +182,15 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     @AfterClass
     public static void resetUncaughtExceptionHandler() {
-       Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
     }
 
     public static boolean maybeDocValues() {
         return LuceneTestCase.defaultCodecSupportsSortedSet() && randomBoolean();
     }
-    
+
     private static final List<Version> SORTED_VERSIONS;
-    
+
     static {
         Field[] declaredFields = Version.class.getDeclaredFields();
         Set<Integer> ids = new HashSet<Integer>();
@@ -213,17 +216,17 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
         SORTED_VERSIONS = version.build();
     }
-    
+
     public static Version getPreviousVersion() {
         Version version = SORTED_VERSIONS.get(1);
         assert version.before(Version.CURRENT);
         return version;
     }
-    
+
     public static Version randomVersion() {
         return randomVersion(getRandom());
     }
-    
+
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
     }
@@ -246,7 +249,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
                 }
             } else if (e instanceof OutOfMemoryError) {
                 if (e.getMessage().contains("unable to create new native thread")) {
-                   printStackDump(logger);
+                    printStackDump(logger);
                 }
             }
             parent.uncaughtException(t, e);
@@ -263,11 +266,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     /**
      * Dump threads and their current stack trace.
      */
-    private static String formatThreadStacks(Map<Thread,StackTraceElement[]> threads) {
+    private static String formatThreadStacks(Map<Thread, StackTraceElement[]> threads) {
         StringBuilder message = new StringBuilder();
         int cnt = 1;
         final Formatter f = new Formatter(message, Locale.ENGLISH);
-        for (Map.Entry<Thread,StackTraceElement[]> e : threads.entrySet()) {
+        for (Map.Entry<Thread, StackTraceElement[]> e : threads.entrySet()) {
             if (e.getKey().isAlive())
                 f.format(Locale.ENGLISH, "\n  %2d) %s", cnt++, threadName(e.getKey())).flush();
             if (e.getValue().length == 0) {

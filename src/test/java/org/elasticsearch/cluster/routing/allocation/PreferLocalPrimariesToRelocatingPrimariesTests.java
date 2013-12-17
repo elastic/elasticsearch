@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class PreferLocalPrimariesToRelocatingPrimariesTests extends ElasticsearchTestCase {
+public class PreferLocalPrimariesToRelocatingPrimariesTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testPreferLocalPrimaryAllocationOverFiltered() {
         int concurrentRecoveries = randomIntBetween(1, 10);
@@ -45,7 +45,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends Elasticsearc
         int totalNumberOfShards = numberOfShards * 2;
 
         logger.info("create an allocation with [{}] initial primary recoveries and [{}] concurrent recoveries", primaryRecoveries, concurrentRecoveries);
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", concurrentRecoveries)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", primaryRecoveries)
                 .build());

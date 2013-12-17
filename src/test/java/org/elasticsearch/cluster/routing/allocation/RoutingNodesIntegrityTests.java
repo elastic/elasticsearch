@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -41,13 +41,13 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
+public class RoutingNodesIntegrityTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(IndexBalanceTests.class);
 
     @Test
     public void testBalanceAllNodesStarted() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
@@ -120,7 +120,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
 
     @Test
     public void testBalanceIncrementallyStartNodes() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
@@ -213,7 +213,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchTestCase {
 
     @Test
     public void testBalanceAllNodesStartedAddIndex() {
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .put("cluster.routing.allocation.allow_rebalance", "always")

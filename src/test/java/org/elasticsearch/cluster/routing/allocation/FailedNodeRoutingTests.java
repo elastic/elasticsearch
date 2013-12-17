@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -38,13 +38,13 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTest
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FailedNodeRoutingTests extends ElasticsearchTestCase {
+public class FailedNodeRoutingTests extends ElasticsearchAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FailedNodeRoutingTests.class);
 
     @Test
     public void simpleFailedNodeTest() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -104,7 +104,7 @@ public class FailedNodeRoutingTests extends ElasticsearchTestCase {
 
     @Test
     public void simpleFailedNodeTestNoReassign() {
-        AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))

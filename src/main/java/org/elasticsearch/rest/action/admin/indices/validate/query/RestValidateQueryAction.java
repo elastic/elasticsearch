@@ -24,10 +24,10 @@ import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,15 +74,15 @@ public class RestValidateQueryAction extends BaseRestHandler {
             }
             validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.content(), request.contentUnsafe());
+                validateQueryRequest.source(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateQueryRequest.query(source);
+                    validateQueryRequest.source(source);
                 } else {
-                    BytesReference querySource = RestActions.parseQuerySource(request);
-                    if (querySource != null) {
-                        validateQueryRequest.query(querySource, false);
+                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                    if (querySourceBuilder != null) {
+                        validateQueryRequest.source(querySourceBuilder);
                     }
                 }
             }

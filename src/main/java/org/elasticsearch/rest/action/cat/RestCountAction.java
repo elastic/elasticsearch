@@ -22,15 +22,18 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.table.TimestampedTable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.common.table.TimestampedTable;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -61,11 +64,11 @@ public class RestCountAction extends AbstractCatAction {
 
         String source = request.param("source");
         if (source != null) {
-            countRequest.query(source);
+            countRequest.source(source);
         } else {
-            BytesReference querySource = RestActions.parseQuerySource(request);
-            if (querySource != null) {
-                countRequest.query(querySource, false);
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                countRequest.source(querySourceBuilder);
             }
         }
 

@@ -62,7 +62,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -101,7 +101,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         ValidateQueryResponse response;
         response = client().admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes(Charsets.UTF_8))
+                .setSource("foo".getBytes(Charsets.UTF_8))
                 .setExplain(true)
                 .execute().actionGet();
         assertThat(response.isValid(), equalTo(false));
@@ -207,7 +207,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         
         for (Client client : cluster()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setQuery("foo".getBytes(Charsets.UTF_8))
+                    .setSource("foo".getBytes(Charsets.UTF_8))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(false));

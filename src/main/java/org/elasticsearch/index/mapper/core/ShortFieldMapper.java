@@ -323,7 +323,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            fields.add(toDocValues((int) value));
+            addDocValue(context, value);
         }
     }
 

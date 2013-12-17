@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine.robin;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;

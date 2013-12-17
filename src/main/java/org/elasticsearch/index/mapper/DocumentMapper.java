@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
@@ -474,7 +473,7 @@ public class DocumentMapper implements ToXContent {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            context.reset(parser, new Document(), source, listener);
+            context.reset(parser, new ParseContext.Document(), source, listener);
             // on a newly created instance of document mapper, we always consider it as new mappers that have been added
             if (initMappersAdded) {
                 context.setMappingsModified();
@@ -553,7 +552,7 @@ public class DocumentMapper implements ToXContent {
         // apply doc boost
         if (context.docBoost() != 1.0f) {
             Set<String> encounteredFields = Sets.newHashSet();
-            for (Document doc : context.docs()) {
+            for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
                     if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {

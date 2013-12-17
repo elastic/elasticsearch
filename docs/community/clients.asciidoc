@@ -69,7 +69,9 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 
 
 [[community-javascript]]
-=== Javascript
+=== JavaScript
+
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/elasticsearch/index.html[official Elasticsearch JavaScript client].
 
 * https://github.com/fullscale/elastic.js[Elastic.js]:
   A JavaScript implementation of the ElasticSearch Query DSL and Core API.

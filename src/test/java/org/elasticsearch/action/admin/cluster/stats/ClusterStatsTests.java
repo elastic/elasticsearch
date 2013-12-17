@@ -112,6 +112,7 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         index("test1", "type", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
         assertThat(response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
 
         assertThat(response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));

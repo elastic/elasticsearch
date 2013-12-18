@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,13 +35,15 @@ import java.io.IOException;
 public class SegmentsStats implements Streamable, ToXContent {
 
     private long count;
+    private long memoryInBytes;
 
     public SegmentsStats() {
 
     }
 
-    public void add(long count) {
+    public void add(long count, long memoryInBytes) {
         this.count += count;
+        this.memoryInBytes += memoryInBytes;
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -48,6 +51,7 @@ public class SegmentsStats implements Streamable, ToXContent {
             return;
         }
         this.count += mergeStats.count;
+        this.memoryInBytes += mergeStats.memoryInBytes;
     }
 
     /**
@@ -55,6 +59,13 @@ public class SegmentsStats implements Streamable, ToXContent {
      */
     public long getCount() {
         return this.count;
+    }
+
+    /**
+     * Estimation of the memory usage used by a segment.
+     */
+    public long getMemoryInBytes() {
+        return this.memoryInBytes;
     }
 
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
@@ -67,6 +78,7 @@ public class SegmentsStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENTS);
         builder.field(Fields.COUNT, count);
+        builder.byteSizeField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, memoryInBytes);
         builder.endObject();
         return builder;
     }
@@ -74,15 +86,23 @@ public class SegmentsStats implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString SEGMENTS = new XContentBuilderString("segments");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final XContentBuilderString MEMORY = new XContentBuilderString("memory");
+        static final XContentBuilderString MEMORY_IN_BYTES = new XContentBuilderString("memory_in_bytes");
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
+        if (in.getVersion().after(Version.V_0_90_8)) {
+            memoryInBytes = in.readLong();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
+        if (out.getVersion().after(Version.V_0_90_8)) {
+            out.writeLong(memoryInBytes);
+        }
     }
 }

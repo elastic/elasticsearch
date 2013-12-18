@@ -246,40 +246,27 @@ public class AllocationService extends AbstractComponent {
     private boolean electPrimariesAndUnassignDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
+        if (!routingNodes.hasUnassignedPrimaries()) {
+            // move out if we don't have unassigned primaries
+            return changed;
+        }
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
-            if (shardEntry.primary() && !shardEntry.assignedToNode()) {
-                boolean elected = false;
-                // primary and not assigned, go over and find a replica that is assigned and active (since it might be relocating)
-                for (RoutingNode routingNode : routingNodes) {
-
-                    for (MutableShardRouting shardEntry2 : routingNode) {
-                        if (shardEntry.shardId().equals(shardEntry2.shardId()) && shardEntry2.active()) {
-                            assert shardEntry2.assignedToNode();
-                            assert !shardEntry2.primary();
-
-                            changed = true;
-                            routingNodes.swapPrimaryFlag(shardEntry, shardEntry2);
-
-                            if (shardEntry2.relocatingNodeId() != null) {
-                                // its also relocating, make sure to move the other routing to primary
-                                RoutingNode node = routingNodes.node(shardEntry2.relocatingNodeId());
-                                if (node != null) {
-                                    for (MutableShardRouting shardRouting : node) {
-                                        if (shardRouting.shardId().equals(shardEntry2.shardId()) && !shardRouting.primary()) {
-                                            routingNodes.swapPrimaryFlag(shardRouting);
-                                            break;
-                                        }
-                                    }
+            if (shardEntry.primary()) {
+                MutableShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
+                if (candidate != null) {
+                    routingNodes.swapPrimaryFlag(shardEntry, candidate);
+                    if (candidate.relocatingNodeId() != null) {
+                        changed = true;
+                        // its also relocating, make sure to move the other routing to primary
+                        RoutingNode node = routingNodes.node(candidate.relocatingNodeId());
+                        if (node != null) {
+                            for (MutableShardRouting shardRouting : node) {
+                                if (shardRouting.shardId().equals(candidate.shardId()) && !shardRouting.primary()) {
+                                    routingNodes.swapPrimaryFlag(shardRouting);
+                                    break;
                                 }
                             }
-
-                            elected = true;
-                            break;
                         }
-                    }
-
-                    if (elected) {
-                        break;
                     }
                 }
             }
@@ -287,24 +274,24 @@ public class AllocationService extends AbstractComponent {
 
         // go over and remove dangling replicas that are initializing, but we couldn't elect primary ones...
         List<ShardRouting> shardsToFail = null;
-        for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
-            if (shardEntry.primary() && !shardEntry.assignedToNode()) {
-                for (RoutingNode routingNode : routingNodes) {
-                    for (MutableShardRouting shardEntry2 : routingNode) {
-                        if (shardEntry.shardId().equals(shardEntry2.shardId()) && !shardEntry2.active()) {
+        if (routingNodes.hasUnassignedPrimaries()) {
+            for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
+                if (shardEntry.primary()) {
+                    for(MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
+                        if (!routing.primary()) {
                             changed = true;
                             if (shardsToFail == null) {
                                 shardsToFail = new ArrayList<ShardRouting>();
                             }
-                            shardsToFail.add(shardEntry2);
+                            shardsToFail.add(routing);
                         }
                     }
                 }
             }
-        }
-        if (shardsToFail != null) {
-            for (ShardRouting shardToFail : shardsToFail) {
-                applyFailedShard(allocation, shardToFail, false);
+            if (shardsToFail != null) {
+                for (ShardRouting shardToFail : shardsToFail) {
+                    applyFailedShard(allocation, shardToFail, false);
+                }
             }
         }
         return changed;

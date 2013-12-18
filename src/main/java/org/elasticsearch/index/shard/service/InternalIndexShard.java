@@ -568,21 +568,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
+        final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
         try {
-            final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
-            try {
-                PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
-                if (postingsFormat instanceof Completion090PostingsFormat) {
-                    Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                    completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
-                }
-            } finally {
-                currentSearcher.release();
+            PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
+            if (postingsFormat instanceof Completion090PostingsFormat) {
+                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
+                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
             }
-        } catch (Throwable e) {
-            logger.debug("Can not build 'completion stats' from engine shard state [{}]", e, state);
-            // if we are called during engine stop / start or before start we can run into Exceptions
-            // like the engine is already closed or no saercher is present at this point.
+        } finally {
+            currentSearcher.release();
         }
         return completionStats;
     }

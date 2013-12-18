@@ -34,6 +34,7 @@ import org.junit.Test;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCase {
@@ -434,7 +435,7 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
         routingNodes = clusterState.routingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").get(0).shardId().index().name(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     @Test

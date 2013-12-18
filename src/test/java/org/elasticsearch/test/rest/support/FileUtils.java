@@ -81,7 +81,7 @@ public final class FileUtils {
         URL resource = findResource(path, optionalFileSuffix);
         if (resource == null) {
             //try within classpath with optional prefix: /rest-spec/test (or /rest-test/api) is optional
-            String newPath = optionalPathPrefix + File.separator + path;
+            String newPath = optionalPathPrefix + "/" + path;
             resource = findResource(newPath, optionalFileSuffix);
             if (resource == null) {
                 //if it wasn't on classpath we look outside ouf the classpath

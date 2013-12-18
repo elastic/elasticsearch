@@ -58,18 +58,6 @@ the background merging process, all segments will eventually use the new
 field data format.
 
 [float]
-==== Disallowing field data loading
-
-Field data can take a lot of RAM so it makes sense to disable field data
-loading on the fields that don't need field data, for example those that are
-used for full-text search only. In order to disable field data loading, just
-change the field data type to `disabled`. Request that will try to load field
-data on any field which is configured with this format will then return an
-error.
-
-The `disabled` format is supported by all field types.
-
-[float]
 ==== String field data types
 
 `paged_bytes` (default)::
@@ -123,6 +111,30 @@ It is possible to force field data to be loaded and cached eagerly through the
     }
 }
 --------------------------------------------------
+
+[float]
+==== Disabling field data loading
+
+Field data can take a lot of RAM so it makes sense to disable field data
+loading on the fields that don't need field data, for example those that are
+used for full-text search only. In order to disable field data loading, just
+change the field data format to `disabled`. Request that will try to load field
+data on any field which is configured with this format will then return an
+error.
+
+[source,js]
+--------------------------------------------------
+{
+    text: {
+        type:      "string",
+        fielddata: {
+            format: "disabled"
+        }
+    }
+}
+--------------------------------------------------
+
+The `disabled` format is supported by all field types.
 
 [float]
 [[field-data-filtering]]

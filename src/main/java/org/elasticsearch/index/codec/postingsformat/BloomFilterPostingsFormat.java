@@ -27,8 +27,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.util.BloomFilter;
 
 import java.io.IOException;
@@ -184,10 +182,12 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.sizeOf(this);
+            long size = delegateFieldsProducer.ramBytesUsed();
+            for (BloomFilter bloomFilter : bloomsByFieldName.values()) {
+                size += bloomFilter.getSizeInBytes();
+            }
+            return size;
         }
-
-
     }
     
     public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {

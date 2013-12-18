@@ -52,6 +52,8 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 [[community-php]]
 === PHP
 
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/current/index.html[official Elasticsearch PHP client].
+
 * http://github.com/ruflin/Elastica[Elastica]:
   PHP client.
 

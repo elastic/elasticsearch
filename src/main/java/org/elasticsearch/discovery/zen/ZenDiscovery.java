@@ -370,8 +370,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
-                            .remove(node.id());
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.id());
                     latestDiscoNodes = builder.build();
                     currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
@@ -654,7 +653,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // still send a new cluster state, so it will be re published and possibly update the other node
                         return ClusterState.builder(currentState).build();
                     }
-                    return ClusterState.builder(currentState).nodes(currentState.nodes().newNode(node)).build();
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes());
+                    for (DiscoveryNode existingNode : currentState.nodes()) {
+                        if (node.address().equals(existingNode.address())) {
+                            builder.remove(existingNode.id());
+                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+                        }
+                    }
+                    latestDiscoNodes = builder.build();
+                    // add the new node now (will update latestDiscoNodes on publish)
+                    return ClusterState.builder(currentState).nodes(latestDiscoNodes.newNode(node)).build();
                 }
 
                 @Override

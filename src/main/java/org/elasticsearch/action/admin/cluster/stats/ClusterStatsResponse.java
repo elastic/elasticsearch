@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.support.nodes.NodesOperationResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,6 +42,7 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
     ClusterStatsNodes nodesStats;
     ClusterStatsIndices indicesStats;
     String clusterUUID;
+    ClusterHealthStatus status;
     long timestamp;
 
 
@@ -52,10 +55,21 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
         this.clusterUUID = clusterUUID;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes);
+        for (ClusterStatsNodeResponse response : nodes) {
+            // only the master node populates the status
+            if (response.clusterStatus() != null) {
+                status = response.clusterStatus();
+                break;
+            }
+        }
     }
 
     public long getTimestamp() {
         return this.timestamp;
+    }
+
+    public ClusterHealthStatus getStatus() {
+        return this.status;
     }
 
     public ClusterStatsNodes getNodesStats() {
@@ -90,6 +104,11 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         timestamp = in.readVLong();
+        status = null;
+        if (in.readBoolean()) {
+            // it may be that the master switched on us while doing the operation. In this case the status may be null.
+            status = ClusterHealthStatus.fromValue(in.readByte());
+        }
         clusterUUID = in.readString();
         nodesStats = ClusterStatsNodes.readNodeStats(in);
         indicesStats = ClusterStatsIndices.readIndicesStats(in);
@@ -99,6 +118,12 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(timestamp);
+        if (status == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeByte(status.value());
+        }
         out.writeString(clusterUUID);
         nodesStats.writeTo(out);
         indicesStats.writeTo(out);
@@ -109,6 +134,7 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
         static final XContentBuilderString UUID = new XContentBuilderString("uuid");
         static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
     }
 
     @Override
@@ -118,7 +144,9 @@ public class ClusterStatsResponse extends NodesOperationResponse<ClusterStatsNod
         if (params.paramAsBoolean("output_uuid", false)) {
             builder.field(Fields.UUID, clusterUUID);
         }
-
+        if (status != null) {
+            builder.field(Fields.STATUS, status.name().toLowerCase(Locale.ROOT));
+        }
         builder.startObject(Fields.INDICES);
         indicesStats.toXContent(builder, params);
         builder.endObject();

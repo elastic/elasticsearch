@@ -40,6 +40,7 @@ public class Segment implements Streamable {
     public String version = null;
     public Boolean compound = null;
     public String mergeId;
+    public long memoryInBytes;
 
     Segment() {
     }
@@ -99,6 +100,13 @@ public class Segment implements Streamable {
         return this.mergeId;
     }
 
+    /**
+     * Estimation of the memory usage used by a segment.
+     */
+    public long getMemoryInBytes() {
+        return this.memoryInBytes;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -136,6 +144,9 @@ public class Segment implements Streamable {
         if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
             mergeId = in.readOptionalString();
         }
+        if (in.getVersion().after(Version.V_0_90_8)) {
+            memoryInBytes = in.readLong();
+        }
     }
 
     @Override
@@ -150,6 +161,9 @@ public class Segment implements Streamable {
         out.writeOptionalBoolean(compound);
         if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
             out.writeOptionalString(mergeId);
+        }
+        if (out.getVersion().after(Version.V_0_90_8)) {
+            out.writeLong(memoryInBytes);
         }
     }
 }

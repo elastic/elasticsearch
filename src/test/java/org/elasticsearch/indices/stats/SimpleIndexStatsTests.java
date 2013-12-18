@@ -191,7 +191,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSegmentsStasts() {
+    public void testSegmentsStats() {
         prepareCreate("test1", 2).setSettings("index.number_of_shards", 5, "index.number_of_replicas", 1).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -207,6 +207,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo(10l));
+        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }
 
     @Test

@@ -54,7 +54,7 @@ public class GeoDistanceSortParser implements SortParser {
         String fieldName = null;
         GeoPoint point = new GeoPoint();
         DistanceUnit unit = DistanceUnit.KILOMETERS;
-        GeoDistance geoDistance = GeoDistance.ARC;
+        GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
         SortMode sortMode = null;
         String nestedPath = null;

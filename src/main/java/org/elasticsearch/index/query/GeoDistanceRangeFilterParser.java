@@ -76,7 +76,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         boolean includeLower = true;
         boolean includeUpper = true;
         DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
-        GeoDistance geoDistance = GeoDistance.ARC;
+        GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         boolean normalizeLon = true;
         boolean normalizeLat = true;

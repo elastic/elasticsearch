@@ -277,7 +277,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             builder.endArray();
         }
 
-        if (params.paramAsBoolean("output_shards", false)) {
+        if ("shards".equals(params.param("level", "indices"))) {
             builder.startObject(Fields.SHARDS);
 
             for (ClusterShardHealth shardHealth : shards.values()) {

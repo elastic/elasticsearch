@@ -184,19 +184,17 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntOpenHashMap<String> shardPerAttribute = new ObjectIntOpenHashMap<String>();
-            for (RoutingNode routingNode : allocation.routingNodes()) {
-                for (MutableShardRouting nodeShardRouting : routingNode) {
-                    if (nodeShardRouting.shardId().equals(shardRouting.shardId())) {
-                        // if the shard is relocating, then make sure we count it as part of the node it is relocating to
-                        if (nodeShardRouting.relocating()) {
-                            RoutingNode relocationNode = allocation.routingNodes().node(nodeShardRouting.relocatingNodeId());
-                            shardPerAttribute.addTo(relocationNode.node().attributes().get(awarenessAttribute), 1);
-                        } else if (nodeShardRouting.started()) {
-                            shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
-                        }
-                    }
+            for (MutableShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
+                // if the shard is relocating, then make sure we count it as part of the node it is relocating to
+                if (assignedShard.relocating()) {
+                    RoutingNode relocationNode = allocation.routingNodes().node(assignedShard.relocatingNodeId());
+                    shardPerAttribute.addTo(relocationNode.node().attributes().get(awarenessAttribute), 1);
+                } else if (assignedShard.started()) {
+                    RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
+                    shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
                 }
             }
+
             if (moveToNode) {
                 if (shardRouting.assignedToNode()) {
                     String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();

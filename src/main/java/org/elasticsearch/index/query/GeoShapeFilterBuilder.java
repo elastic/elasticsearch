@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * {@link FilterBuilder} that builds a GeoShape Filter
@@ -46,7 +46,7 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
     private final String indexedShapeType;
 
     private String indexedShapeIndex;
-    private String indexedShapeFieldName;
+    private String indexedShapePath;
 
     private ShapeRelation relation = null;
     
@@ -150,13 +150,13 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Sets the name of the field in the indexed Shape document that has the Shape itself
+     * Sets the path of the field in the indexed Shape document that has the Shape itself
      *
-     * @param indexedShapeFieldName Name of the field where the Shape itself is defined
+     * @param indexedShapePath Path of the field where the Shape itself is defined
      * @return this
      */
-    public GeoShapeFilterBuilder indexedShapeFieldName(String indexedShapeFieldName) {
-        this.indexedShapeFieldName = indexedShapeFieldName;
+    public GeoShapeFilterBuilder indexedShapePath(String indexedShapePath) {
+        this.indexedShapePath = indexedShapePath;
         return this;
     }
 
@@ -190,8 +190,8 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
             if (indexedShapeIndex != null) {
                 builder.field("index", indexedShapeIndex);
             }
-            if (indexedShapeFieldName != null) {
-                builder.field("shape_field_name", indexedShapeFieldName);
+            if (indexedShapePath != null) {
+                builder.field("path", indexedShapePath);
             }
             builder.endObject();
         }

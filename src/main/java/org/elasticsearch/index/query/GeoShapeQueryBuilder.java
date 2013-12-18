@@ -42,7 +42,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     private final String indexedShapeType;
 
     private String indexedShapeIndex;
-    private String indexedShapeFieldName;
+    private String indexedShapePath;
 
     private String queryName;
 
@@ -109,13 +109,13 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     }
 
     /**
-     * Sets the name of the field in the indexed Shape document that has the Shape itself
+     * Sets the path of the field in the indexed Shape document that has the Shape itself
      *
-     * @param indexedShapeFieldName Name of the field where the Shape itself is defined
+     * @param indexedShapePath path of the field where the Shape itself is defined
      * @return this
      */
-    public GeoShapeQueryBuilder indexedShapeFieldName(String indexedShapeFieldName) {
-        this.indexedShapeFieldName = indexedShapeFieldName;
+    public GeoShapeQueryBuilder indexedShapePath(String indexedShapePath) {
+        this.indexedShapePath = indexedShapePath;
         return this;
     }
 
@@ -146,8 +146,8 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
             if (indexedShapeIndex != null) {
                 builder.field("index", indexedShapeIndex);
             }
-            if (indexedShapeFieldName != null) {
-                builder.field("shape_field_name", indexedShapeFieldName);
+            if (indexedShapePath != null) {
+                builder.field("path", indexedShapePath);
             }
             builder.endObject();
         }

@@ -172,7 +172,7 @@ itself.
 be `mi`, `miles`, `in`, `inch`, `yd`, `yards`, `kilometers`, `mm`, `millimeters`, `cm`, `centimeters`, `m` or `meters`.
 
 |`distance_type` |How to compute the distance. Can either be `arc`
-(better precision) or `plane` (faster). Defaults to `arc`.
+(better precision), `sloppy_arc` (faster) or `plane` (fastest). Defaults to `sloppy_arc`.
 |=======================================================================
 
 ==== Value Options

@@ -68,7 +68,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         List<RangeAggregator.Range> ranges = null;
         GeoPoint origin = null;
         DistanceUnit unit = DistanceUnit.KILOMETERS;
-        GeoDistance distanceType = GeoDistance.ARC;
+        GeoDistance distanceType = GeoDistance.DEFAULT;
         boolean keyed = false;
 
         XContentParser.Token token;

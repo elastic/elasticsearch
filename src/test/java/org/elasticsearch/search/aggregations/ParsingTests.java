@@ -22,30 +22,28 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Test;
 
 public class ParsingTests extends ElasticsearchIntegrationTest {
 
+    @Test(expected=SearchPhaseExecutionException.class)
     public void testTwoTypes() throws Exception {
         createIndex("idx");
-        try {
-            client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
-                .startObject()
-                    .startObject("in_stock")
-                        .startObject("filter")
-                            .startObject("range")
-                                .startObject("stock")
-                                    .field("gt", 0)
-                                .endObject()
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("in_stock")
+                    .startObject("filter")
+                        .startObject("range")
+                            .startObject("stock")
+                                .field("gt", 0)
                             .endObject()
                         .endObject()
-                        .startObject("terms")
-                            .field("field", "stock")
-                        .endObject()
                     .endObject()
-                .endObject()).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            // expected
-        }
+                    .startObject("terms")
+                        .field("field", "stock")
+                    .endObject()
+                .endObject()
+            .endObject()).execute().actionGet();
     }
 
 }

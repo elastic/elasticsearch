@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -68,9 +69,15 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testIndicesShardStats() {
         cluster().startNode();
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+
+
         prepareCreate("test1").setSettings("number_of_shards", 2, "number_of_replicas", 1).get();
         ensureYellow();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0l));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
         assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
@@ -81,12 +88,14 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         index("test1", "type", "1", "f", "f");
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1l));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings("number_of_shards", 3, "number_of_replicas", 0).get();
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
         assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
 

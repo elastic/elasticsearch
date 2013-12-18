@@ -18,6 +18,7 @@ Will return, for example:
 --------------------------------------------------
 {
    "cluster_name": "elasticsearch",
+   "status": "green",
    "indices": {
       "count": 3,
       "shards": {

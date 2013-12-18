@@ -331,6 +331,8 @@ def smoke_test_release(release, files):
             raise RuntimeError('Expected non snapshot version')
           if version['build_hash'].strip() !=  get_head_hash():
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (get_head_hash(), version['build_hash']))
+          print('  Running REST Spec tests against package [%s]' % release_file)
+          run_mvn('test -Dtests.rest=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9200"))
         else:
           raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
       finally:

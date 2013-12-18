@@ -104,6 +104,8 @@ public class CommonTermsQueryParser implements QueryParser {
                                 }
                             }
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {

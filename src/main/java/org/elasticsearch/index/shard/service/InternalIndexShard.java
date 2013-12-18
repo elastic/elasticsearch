@@ -81,6 +81,7 @@ import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.ScheduledFuture;
@@ -332,8 +333,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     /**
      * Changes the state of the current shard
+     *
      * @param newState the new shard state
-     * @param reason the reason for the state change
+     * @param reason   the reason for the state change
      * @return the previous shard state
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
@@ -470,16 +472,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public DocsStats docStats() {
+        final Engine.Searcher searcher = acquireSearcher("doc_stats");
         try {
-            final Engine.Searcher searcher = acquireSearcher("doc_stats");
-            try {
-                return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
-            } finally {
-                searcher.release();
-            }
-        } catch (Throwable e) {
-            logger.debug("Can not build 'doc stats' from engine shard state [{}]", e, state);
-            return new DocsStats();
+            return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
+        } finally {
+            searcher.release();
         }
     }
 
@@ -502,9 +499,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public StoreStats storeStats() {
         try {
             return store.stats();
-        } catch (Throwable e) {
-            logger.debug("Can not build 'store stats' from engine shard state [{}]", e, state);
-            return new StoreStats();
+        } catch (IOException e) {
+            throw new ElasticSearchException("io exception while building 'store stats'", e);
         }
     }
 

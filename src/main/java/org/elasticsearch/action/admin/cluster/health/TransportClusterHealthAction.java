@@ -26,13 +26,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -226,54 +223,16 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
-        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
-        ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
-        response.numberOfNodes = clusterState.nodes().size();
-        response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
-
         String[] concreteIndices;
         try {
             concreteIndices = clusterState.metaData().concreteIndicesIgnoreMissing(request.indices());
         } catch (IndexMissingException e) {
+            // one of the specified indices is not there - treat it as RED.
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);
+            response.status = ClusterHealthStatus.RED;
             return response;
         }
-        for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
 
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-
-            response.indices.put(indexHealth.getIndex(), indexHealth);
-        }
-
-        for (ClusterIndexHealth indexHealth : response) {
-            response.activePrimaryShards += indexHealth.activePrimaryShards;
-            response.activeShards += indexHealth.activeShards;
-            response.relocatingShards += indexHealth.relocatingShards;
-            response.initializingShards += indexHealth.initializingShards;
-            response.unassignedShards += indexHealth.unassignedShards;
-        }
-
-        response.status = ClusterHealthStatus.GREEN;
-        if (!response.getValidationFailures().isEmpty()) {
-            response.status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            response.status = ClusterHealthStatus.RED;
-        } else {
-            for (ClusterIndexHealth indexHealth : response) {
-                if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
-                    response.status = ClusterHealthStatus.RED;
-                    break;
-                }
-                if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW) {
-                    response.status = ClusterHealthStatus.YELLOW;
-                }
-            }
-        }
-
-        return response;
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState);
     }
 }

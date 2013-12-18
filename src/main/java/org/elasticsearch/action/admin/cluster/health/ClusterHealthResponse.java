@@ -22,12 +22,21 @@ package org.elasticsearch.action.admin.cluster.health;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -36,7 +45,7 @@ import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.r
 /**
  *
  */
-public class ClusterHealthResponse extends ActionResponse implements Iterable<ClusterIndexHealth> {
+public class ClusterHealthResponse extends ActionResponse implements Iterable<ClusterIndexHealth>, ToXContent {
 
     private String clusterName;
     int numberOfNodes = 0;
@@ -57,6 +66,48 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     public ClusterHealthResponse(String clusterName, List<String> validationFailures) {
         this.clusterName = clusterName;
         this.validationFailures = validationFailures;
+    }
+
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this.clusterName = clusterName;
+        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
+        validationFailures = validation.failures();
+        numberOfNodes = clusterState.nodes().size();
+        numberOfDataNodes = clusterState.nodes().dataNodes().size();
+
+        for (String index : concreteIndices) {
+            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+            IndexMetaData indexMetaData = clusterState.metaData().index(index);
+            if (indexRoutingTable == null) {
+                continue;
+            }
+
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+
+            indices.put(indexHealth.getIndex(), indexHealth);
+        }
+
+        status = ClusterHealthStatus.GREEN;
+
+        for (ClusterIndexHealth indexHealth : indices.values()) {
+            activePrimaryShards += indexHealth.activePrimaryShards;
+            activeShards += indexHealth.activeShards;
+            relocatingShards += indexHealth.relocatingShards;
+            initializingShards += indexHealth.initializingShards;
+            unassignedShards += indexHealth.unassignedShards;
+            if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
+                status = ClusterHealthStatus.RED;
+                break;
+            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
+                status = ClusterHealthStatus.YELLOW;
+            }
+        }
+
+        if (!validationFailures.isEmpty()) {
+            status = ClusterHealthStatus.RED;
+        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+            status = ClusterHealthStatus.RED;
+        }
     }
 
     public String getClusterName() {
@@ -200,5 +251,74 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
             builder.append(" [").append(indexEntry.getKey()).append("][").append(indexEntry.getValue().status).append("]");
         }
         return builder.toString();
+    }
+
+    static final class Fields {
+        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
+        static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
+        static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
+        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
+        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
+        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
+        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
+        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
+        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
+        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.CLUSTER_NAME, getClusterName());
+        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(Fields.TIMED_OUT, isTimedOut());
+        builder.field(Fields.NUMBER_OF_NODES, getNumberOfNodes());
+        builder.field(Fields.NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
+        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
+        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
+
+        String level = params.param("level", "cluster");
+        boolean outputIndices = "indices".equals(level) || "shards".equals(level);
+
+
+        if (!getValidationFailures().isEmpty()) {
+            builder.startArray(Fields.VALIDATION_FAILURES);
+            for (String validationFailure : getValidationFailures()) {
+                builder.value(validationFailure);
+            }
+            // if we don't print index level information, still print the index validation failures
+            // so we know why the status is red
+            if (!outputIndices) {
+                for (ClusterIndexHealth indexHealth : indices.values()) {
+                    builder.startObject(indexHealth.getIndex());
+
+                    if (!indexHealth.getValidationFailures().isEmpty()) {
+                        builder.startArray(Fields.VALIDATION_FAILURES);
+                        for (String validationFailure : indexHealth.getValidationFailures()) {
+                            builder.value(validationFailure);
+                        }
+                        builder.endArray();
+                    }
+
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+        }
+
+        if (outputIndices) {
+            builder.startObject(Fields.INDICES);
+            for (ClusterIndexHealth indexHealth : indices.values()) {
+                builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                indexHealth.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        return builder;
     }
 }

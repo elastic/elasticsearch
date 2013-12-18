@@ -44,8 +44,8 @@ public class FormatDateTimeFormatter {
     public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer, Locale locale) {
         this.format = format;
         this.locale = locale;
-        this.printer = locale == null ? printer : printer.withLocale(locale);
-        this.parser = locale == null ? parser : parser.withLocale(locale);
+        this.printer = locale == null ? printer.withDefaultYear(1970) : printer.withLocale(locale).withDefaultYear(1970);
+        this.parser = locale == null ? parser.withDefaultYear(1970) : parser.withLocale(locale).withDefaultYear(1970);
     }
     
     public String format() {

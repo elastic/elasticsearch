@@ -1,15 +1,16 @@
 package org.elasticsearch.examples.nativescript.script;
 
+import java.math.BigInteger;
+import java.util.Map;
+
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-
-import java.math.BigInteger;
-import java.util.Map;
 
 /**
  * Implementation of the native script that checks that the field exists and contains a prime number.
@@ -65,13 +66,12 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        Longs field = (Longs) doc().get(fieldName);
-
+        ScriptDocValues docValue = (ScriptDocValues) doc().get(fieldName);
         // Check if field exists
-        if (field != null && !field.isEmpty()) {
+        if (docValue != null && !docValue.isEmpty()) {
             try {
                 // Try to parse it as an integer
-                BigInteger bigInteger = new BigInteger(Long.toString(field.getValue()));
+                BigInteger bigInteger = new BigInteger(Long.toString(((Longs) docValue).getValue()));
                 // Check if it's prime
                 return bigInteger.isProbablePrime(certainty);
             } catch (NumberFormatException ex) {

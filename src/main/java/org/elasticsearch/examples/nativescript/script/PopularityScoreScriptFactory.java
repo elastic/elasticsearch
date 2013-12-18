@@ -42,8 +42,9 @@ public class PopularityScoreScriptFactory implements NativeScriptFactory {
 
         @Override
         public float runAsFloat() {
-            ScriptDocValues.Longs fieldData = (ScriptDocValues.Longs) doc().get(field);
-            if (fieldData != null && !fieldData.isEmpty()) {
+            ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
+            if (docValue != null && !docValue.isEmpty()) {
+                ScriptDocValues.Longs fieldData = (ScriptDocValues.Longs) docValue;
                 double boost = 1 + Math.log10(fieldData.getValue() + 1);
                 // Because this script is used in custom_score script the value of score() is populated.
                 // In all other cases doc().getScore() should be used instead.

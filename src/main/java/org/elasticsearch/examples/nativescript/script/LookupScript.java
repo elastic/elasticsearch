@@ -117,12 +117,11 @@ public class LookupScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        ScriptDocValues.Strings  fieldData = (ScriptDocValues.Strings )doc().get(field);
-
+        ScriptDocValues  docValue = (ScriptDocValues)doc().get(field);
         // This is not very efficient
         // Check if field exists
-        if (fieldData != null && !fieldData.isEmpty()) {
-            final String fieldValue = fieldData.getValue();
+        if (docValue != null && !docValue.isEmpty()) {
+            final String fieldValue = ((ScriptDocValues.Strings) docValue).getValue();
             if (fieldValue != null) {
                 try {
                     return cache.get(new Tuple<String, String>(lookupIndex + "/" + lookupType, fieldValue), new Callable<Map<String, Object>>() {

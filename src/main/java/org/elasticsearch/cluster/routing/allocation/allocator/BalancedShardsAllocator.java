@@ -635,7 +635,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
-            final Set<ModelNode> values = new IdentityHashSet<ModelNode>(nodes.values());
+            final Set<ModelNode> throttledNodes = new IdentityHashSet<ModelNode>();
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     MutableShardRouting shard = primary[i];
@@ -658,60 +658,67 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     float minWeight = Float.POSITIVE_INFINITY;
                     ModelNode minNode = null;
                     Decision decision = null;
-                    for (ModelNode node : values) {
-                        /*
-                         * The shard we add is removed below to simulate the
-	                     * addition for weight calculation we use Decision.ALWAYS to
-	                     * not violate the not null condition.
-	                     */
-                        if (!node.containsShard(shard)) {
-                            node.addShard(shard, Decision.ALWAYS);
-                            float currentWeight = weight.weight(Operation.ALLOCATE, this, node, shard.index());
+                    if (throttledNodes.size() < nodes.size()) {
+                        /* Don't iterate over an identity hashset here the
+                         * iteration order is different for each run and makes testing hard */
+                        for (ModelNode node : nodes.values()) {
+                            if (throttledNodes.contains(node)) {
+                                continue;
+                            }
                             /*
-                             * Remove the shard from the node again this is only a
-	                         * simulation
-	                         */
-                            Decision removed = node.removeShard(shard);
-                            assert removed != null;
-	                        /*
-	                         * Unless the operation is not providing any gains we
-	                         * don't check deciders
-	                         */
-                            if (currentWeight <= minWeight) {
-                                Decision currentDecision = deciders.canAllocate(shard, routingNodes.node(node.getNodeId()), allocation);
-                                NOUPDATE:
-                                if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
-                                    if (currentWeight == minWeight) {
-	                                    /*  we have an equal weight tie breaking:
-	                                     *  1. if one decision is YES prefer it
-	                                     *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
-	                                     *  for the 3 shards 2 replica case we try to build up:
-	                                     *    1 2 0
-	                                     *    2 0 1
-	                                     *    0 1 2
-	                                     *  such that if we need to tie-break we try to prefer the node holding a shard with the minimal id greater
-	                                     *  than the id of the shard we need to assign. This works find when new indices are created since 
-	                                     *  primaries are added first and we only add one shard set a time in this algorithm.
-	                                     */
-                                        if (currentDecision.type() == decision.type()) {
-                                            final int repId = shard.id();
-                                            final int nodeHigh = node.highestPrimary(shard.index());
-                                            final int minNodeHigh = minNode.highestPrimary(shard.index());
-                                            if ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId)) && (nodeHigh < minNodeHigh))
-                                                    || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId)) {
-                                                minNode = node;
-                                                minWeight = currentWeight;
-                                                decision = currentDecision;
-                                            } else {
+                             * The shard we add is removed below to simulate the
+                             * addition for weight calculation we use Decision.ALWAYS to
+                             * not violate the not null condition.
+                             */
+                            if (!node.containsShard(shard)) {
+                                node.addShard(shard, Decision.ALWAYS);
+                                float currentWeight = weight.weight(Operation.ALLOCATE, this, node, shard.index());
+                                /*
+                                 * Remove the shard from the node again this is only a
+                                 * simulation
+                                 */
+                                Decision removed = node.removeShard(shard);
+                                assert removed != null;
+                                /*
+                                 * Unless the operation is not providing any gains we
+                                 * don't check deciders
+                                 */
+                                if (currentWeight <= minWeight) {
+                                    Decision currentDecision = deciders.canAllocate(shard, routingNodes.node(node.getNodeId()), allocation);
+                                    NOUPDATE:
+                                    if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
+                                        if (currentWeight == minWeight) {
+                                            /*  we have an equal weight tie breaking:
+                                             *  1. if one decision is YES prefer it
+                                             *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
+                                             *  for the 3 shards 2 replica case we try to build up:
+                                             *    1 2 0
+                                             *    2 0 1
+                                             *    0 1 2
+                                             *  such that if we need to tie-break we try to prefer the node holding a shard with the minimal id greater
+                                             *  than the id of the shard we need to assign. This works find when new indices are created since
+                                             *  primaries are added first and we only add one shard set a time in this algorithm.
+                                             */
+                                            if (currentDecision.type() == decision.type()) {
+                                                final int repId = shard.id();
+                                                final int nodeHigh = node.highestPrimary(shard.index());
+                                                final int minNodeHigh = minNode.highestPrimary(shard.index());
+                                                if ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId)) && (nodeHigh < minNodeHigh))
+                                                        || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId)) {
+                                                    minNode = node;
+                                                    minWeight = currentWeight;
+                                                    decision = currentDecision;
+                                                } else {
+                                                    break NOUPDATE;
+                                                }
+                                            } else if (currentDecision.type() != Type.YES) {
                                                 break NOUPDATE;
                                             }
-                                        } else if (currentDecision.type() != Type.YES) {
-                                            break NOUPDATE;
                                         }
+                                        minNode = node;
+                                        minWeight = currentWeight;
+                                        decision = currentDecision;
                                     }
-                                    minNode = node;
-                                    minWeight = currentWeight;
-                                    decision = currentDecision;
                                 }
                             }
                         }
@@ -732,7 +739,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Can not allocate on node [{}] remove from round decisin [{}]", node, decision.type());
                                 }
-                                values.remove(minNode);
+                                throttledNodes.add(minNode);
                             }
                         }
                         if (logger.isTraceEnabled()) {

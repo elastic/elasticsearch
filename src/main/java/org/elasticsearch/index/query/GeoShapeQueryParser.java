@@ -113,6 +113,8 @@ public class GeoShapeQueryParser implements QueryParser {
                                 throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
                             }
                             shape = fetchService.fetch(id, type, index, shapeFieldName);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -121,6 +123,8 @@ public class GeoShapeQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
                 }
             }
         }

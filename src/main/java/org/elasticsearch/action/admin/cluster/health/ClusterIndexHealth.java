@@ -82,7 +82,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
                 if (shardRouting.active()) {
                     shardHealth.activeShards++;
                     if (shardRouting.relocating()) {
-                        // the shard is relocating, the one he is relocating to will be in initializing state, so we don't count it
+                        // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
                         shardHealth.relocatingShards++;
                     }
                     if (shardRouting.primary()) {

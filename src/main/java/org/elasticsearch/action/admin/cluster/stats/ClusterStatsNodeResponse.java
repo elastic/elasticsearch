@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -34,15 +36,17 @@ public class ClusterStatsNodeResponse extends NodeOperationResponse {
     private NodeInfo nodeInfo;
     private NodeStats nodeStats;
     private ShardStats[] shardsStats;
+    private ClusterHealthStatus clusterStatus;
 
     ClusterStatsNodeResponse() {
     }
 
-    public ClusterStatsNodeResponse(DiscoveryNode node, NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
+    public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus, NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
+        this.clusterStatus = clusterStatus;
     }
 
     public NodeInfo nodeInfo() {
@@ -51,6 +55,14 @@ public class ClusterStatsNodeResponse extends NodeOperationResponse {
 
     public NodeStats nodeStats() {
         return this.nodeStats;
+    }
+
+    /**
+     * Cluster Health Status, only populated on master nodes.
+     */
+    @Nullable
+    public ClusterHealthStatus clusterStatus() {
+        return clusterStatus;
     }
 
     public ShardStats[] shardsStats() {
@@ -66,6 +78,10 @@ public class ClusterStatsNodeResponse extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        clusterStatus = null;
+        if (in.readBoolean()) {
+            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
+        }
         this.nodeInfo = NodeInfo.readNodeInfo(in);
         this.nodeStats = NodeStats.readNodeStats(in);
         int size = in.readVInt();
@@ -78,6 +94,12 @@ public class ClusterStatsNodeResponse extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (clusterStatus == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeByte(clusterStatus.value());
+        }
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeVInt(shardsStats.length);

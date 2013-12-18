@@ -28,10 +28,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.readClusterShardHealth;
@@ -39,7 +43,7 @@ import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.r
 /**
  *
  */
-public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable {
+public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
 
     private String index;
 
@@ -238,5 +242,59 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         for (String failure : validationFailures) {
             out.writeString(failure);
         }
+    }
+
+    static final class Fields {
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
+        static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
+        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
+        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
+        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
+        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
+        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
+        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
+        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+        static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(Fields.NUMBER_OF_SHARDS, getNumberOfShards());
+        builder.field(Fields.NUMBER_OF_REPLICAS, getNumberOfReplicas());
+        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
+        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
+
+        if (!getValidationFailures().isEmpty()) {
+            builder.startArray(Fields.VALIDATION_FAILURES);
+            for (String validationFailure : getValidationFailures()) {
+                builder.value(validationFailure);
+            }
+            builder.endArray();
+        }
+
+        if (params.paramAsBoolean("output_shards", false)) {
+            builder.startObject(Fields.SHARDS);
+
+            for (ClusterShardHealth shardHealth : shards.values()) {
+                builder.startObject(Integer.toString(shardHealth.getId()));
+
+                builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
+                builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
+                builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
+                builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
+                builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
+                builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
+
+                builder.endObject();
+            }
+
+            builder.endObject();
+        }
+        return builder;
     }
 }

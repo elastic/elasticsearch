@@ -192,8 +192,6 @@ yaml suites available through a git submodule within the `rest-spec` folder.
 The submodule gets automatically initialized through maven right before
 running tests (generate-test-resources phase).
 
-To run just the RESTs test using maven, use the following command:
-
 The REST tests cannot be run without the files pulled from the submodule,
 thus if the `rest-spec` folder is empty on your working copy, it means
 that it needs to be initialized with the following command:

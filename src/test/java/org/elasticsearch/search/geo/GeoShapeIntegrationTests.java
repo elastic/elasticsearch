@@ -21,15 +21,17 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -245,10 +247,82 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 + "\"id\": \"1\","
                 + "\"type\": \"type1\","
                 + "\"index\": \"test\","
-                + "\"shape_field_name\": \"location2\""
+                + "\"path\": \"location2\""
                 + "}}}}";
 
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).execute().actionGet();
+        assertHitCount(result, 1);
+    }
+
+    @Test
+    public void testShapeFetching_path() throws IOException {
+        prepareCreate("shapes").execute().actionGet();
+        prepareCreate("test").addMapping("type", "location", "type=geo_shape").execute().actionGet();
+        String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        client().prepareIndex("shapes", "type", "1")
+                .setSource(
+                        String.format(
+                                Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location
+                        )
+                ).get();
+        client().prepareIndex("test", "type", "1")
+                .setSource(jsonBuilder().startObject().startObject("location")
+                        .field("type", "polygon")
+                        .startArray("coordinates").startArray()
+                        .startArray().value(-20).value(-20).endArray()
+                        .startArray().value(20).value(-20).endArray()
+                        .startArray().value(20).value(20).endArray()
+                        .startArray().value(-20).value(20).endArray()
+                        .startArray().value(-20).value(-20).endArray()
+                        .endArray().endArray()
+                        .endObject().endObject()).get();
+        client().admin().indices().prepareRefresh("test", "shapes").execute().actionGet();
+
+        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("location");
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertHitCount(result, 1);
+        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.location");
+        result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertHitCount(result, 1);
+        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.2.location");
+        result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertHitCount(result, 1);
+        filter = FilterBuilders.geoShapeFilter("location", "1", "type", ShapeRelation.INTERSECTS)
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.2.3.location");
+        result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertHitCount(result, 1);
+
+        // now test the query variant
+        GeoShapeQueryBuilder query = QueryBuilders.geoShapeQuery("location", "1", "type")
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("location");
+        result = client().prepareSearch("test").setQuery(query).get();
+        assertHitCount(result, 1);
+        query = QueryBuilders.geoShapeQuery("location", "1", "type")
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.location");
+        result = client().prepareSearch("test").setQuery(query).get();
+        assertHitCount(result, 1);
+        query = QueryBuilders.geoShapeQuery("location", "1", "type")
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.2.location");
+        result = client().prepareSearch("test").setQuery(query).get();
+        assertHitCount(result, 1);
+        query = QueryBuilders.geoShapeQuery("location", "1", "type")
+                .indexedShapeIndex("shapes")
+                .indexedShapePath("1.2.3.location");
+        result = client().prepareSearch("test").setQuery(query).get();
         assertHitCount(result, 1);
     }
 

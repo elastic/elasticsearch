@@ -1,6 +1,7 @@
-curl -XDELETE "http://localhost:9200/test"
+#!/bin/sh
+curl -s -XDELETE "http://localhost:9200/test"
 echo
-curl -XPUT "http://localhost:9200/test/" -d '{
+curl -s -XPUT "http://localhost:9200/test/" -d '{
     "settings": {
         "index.number_of_shards": 1,
         "index.number_of_replicas": 0
@@ -19,10 +20,10 @@ curl -XPUT "http://localhost:9200/test/" -d '{
     }
 }'
 echo
-for i in {0..100}; do curl -XPUT "localhost:9200/test/type1/$i" -d "{\"name\":\"rec $i\", \"number\":$i}"; done
-curl -XPOST "http://localhost:9200/test/_refresh"
+for i in {0..100}; do curl -s -XPUT "localhost:9200/test/type1/$i" -d "{\"name\":\"rec $i\", \"number\":$i}"; done
+curl -s -XPOST "http://localhost:9200/test/_refresh"
 echo
-curl "localhost:9200/test/type1/_search?pretty=true" -d '{
+curl -s "localhost:9200/test/type1/_search?pretty=true" -d '{
     "query": {
         "filtered": {
             "query": {

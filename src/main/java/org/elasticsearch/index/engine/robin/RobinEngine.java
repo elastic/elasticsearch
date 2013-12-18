@@ -1181,7 +1181,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Searcher searcher = acquireSearcher("segments_stats");
             try {
                 SegmentsStats stats = new SegmentsStats();
-                stats.add(searcher.reader().leaves().size());
+                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                    assert reader.reader() instanceof SegmentReader;
+                    stats.add(1, ((SegmentReader) reader.reader()).ramBytesUsed());
+                }
                 return stats;
             } finally {
                 searcher.release();
@@ -1216,6 +1219,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     } catch (IOException e) {
                         logger.trace("failed to get size for [{}]", e, info.info.name);
                     }
+                    segment.memoryInBytes = ((SegmentReader) reader.reader()).ramBytesUsed();
                     segments.put(info.info.name, segment);
                 }
             } finally {

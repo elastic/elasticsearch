@@ -270,7 +270,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private final IndexGeoPointFieldData<?> fieldData;
         private GeoPointValues geoPointValues = null;
 
-        private static final GeoDistance distFunction = GeoDistance.fromString("arc");
+        private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
         public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                 IndexGeoPointFieldData<?> fieldData) {

@@ -52,9 +52,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        for (MutableShardRouting nodeShard : node) {
-            // we do not allow for two shards of the same shard id to exists on the same node
-            if (nodeShard.shardId().equals(shardRouting.shardId())) {
+        Iterable<MutableShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting);
+        for (MutableShardRouting assignedShard : assignedShards) {
+            if (node.nodeId().equals(assignedShard.currentNodeId())) {
                 return Decision.NO;
             }
         }
@@ -68,8 +68,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
                     if (!checkNode.node().address().sameHost(node.node().address())) {
                         continue;
                     }
-                    for (MutableShardRouting nodeShard : checkNode) {
-                        if (nodeShard.shardId().equals(shardRouting.shardId())) {
+                    for (MutableShardRouting assignedShard : assignedShards) {
+                        if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
                             return Decision.NO;
                         }
                     }

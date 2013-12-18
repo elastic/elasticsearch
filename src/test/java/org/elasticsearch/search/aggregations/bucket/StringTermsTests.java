@@ -30,6 +30,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -511,6 +513,37 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(1l));
 
             Stats stats = (Stats) bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueExtendedStatsAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.variance", asc))
+                        .subAggregation(extendedStats("stats").field("i"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            ExtendedStats stats = (ExtendedStats) bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
         }

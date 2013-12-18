@@ -109,6 +109,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             spare.term = Double.longBitsToDouble(bucketOrds.key(i));
             spare.docCount = bucketDocCount(ord);
             spare.bucketOrd = ord;
+            spare.aggregations = bucketAggregations(ord);
             spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
         }
 

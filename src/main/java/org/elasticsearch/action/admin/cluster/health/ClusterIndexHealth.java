@@ -70,13 +70,6 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
     private ClusterIndexHealth() {
     }
 
-    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, List<String> validationFailures) {
-        this.index = index;
-        this.numberOfShards = numberOfShards;
-        this.numberOfReplicas = numberOfReplicas;
-        this.validationFailures = validationFailures;
-    }
-
     public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
         this.index = indexMetaData.index();
         this.numberOfShards = indexMetaData.getNumberOfShards();
@@ -277,7 +270,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             builder.endArray();
         }
 
-        if (params.paramAsBoolean("output_shards", false)) {
+        if ("shards".equals(params.param("level", "indices"))) {
             builder.startObject(Fields.SHARDS);
 
             for (ClusterShardHealth shardHealth : shards.values()) {

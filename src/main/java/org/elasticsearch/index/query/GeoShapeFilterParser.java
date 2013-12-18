@@ -135,6 +135,8 @@ public class GeoShapeFilterParser implements FilterParser {
                                 throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
                             }
                             shape = fetchService.fetch(id, type, index, shapeFieldName);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -145,6 +147,8 @@ public class GeoShapeFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

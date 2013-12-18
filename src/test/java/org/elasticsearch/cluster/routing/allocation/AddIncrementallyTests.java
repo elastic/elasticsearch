@@ -1,6 +1,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -17,6 +18,9 @@ import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -308,6 +312,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
@@ -352,6 +357,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
@@ -366,8 +372,9 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
     private ClusterState removeNodes(ClusterState clusterState, AllocationService service, int numNodes) {
         logger.info("Removing [{}] nodes", numNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-
-        for (DiscoveryNode node : clusterState.nodes()) {
+        ArrayList<DiscoveryNode> discoveryNodes = Lists.newArrayList(clusterState.nodes());
+        Collections.shuffle(discoveryNodes, getRandom());
+        for (DiscoveryNode node : discoveryNodes) {
             nodes.remove(node.id());
             numNodes--;
             if (numNodes <= 0) {
@@ -396,6 +403,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();

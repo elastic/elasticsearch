@@ -148,8 +148,9 @@ The following are options allowed on the filter:
 
 `distance_type`::
 
-    How to compute the distance. Can either be `arc` (better precision) or
-    `plane` (faster). Defaults to `arc`.
+    How to compute the distance. Can either be `arc` (better precision),
+    `sloppy_arc` (faster but less precise) or `plane` (fastest). Defaults
+    to `sloppy_arc`.
 
 `optimize_bbox`::
 

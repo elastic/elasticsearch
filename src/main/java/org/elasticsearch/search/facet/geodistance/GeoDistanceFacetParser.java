@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.geodistance;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -77,7 +75,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
         Map<String, Object> params = null;
         GeoPoint point = new GeoPoint();
         DistanceUnit unit = DistanceUnit.KILOMETERS;
-        GeoDistance geoDistance = GeoDistance.ARC;
+        GeoDistance geoDistance = GeoDistance.DEFAULT;
         List<GeoDistanceFacet.Entry> entries = Lists.newArrayList();
 
         boolean normalizeLon = true;

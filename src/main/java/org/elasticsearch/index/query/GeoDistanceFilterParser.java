@@ -74,7 +74,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         double distance = 0;
         Object vDistance = null;
         DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
-        GeoDistance geoDistance = GeoDistance.ARC;
+        GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         boolean normalizeLon = true;
         boolean normalizeLat = true;

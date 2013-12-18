@@ -46,7 +46,7 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTests {
                     client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("name", "rec " + i)
-                            .field("number", i)
+                            .field("number", i + 1)
                             .endObject()));
         }
         // Index a few records with empty number

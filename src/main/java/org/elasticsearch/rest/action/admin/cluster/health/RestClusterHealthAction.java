@@ -19,12 +19,17 @@
 
 package org.elasticsearch.rest.action.admin.cluster.health;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.*;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
@@ -32,6 +37,7 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
@@ -40,6 +46,8 @@ import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
  *
  */
 public class RestClusterHealthAction extends BaseRestHandler {
+
+    private static final Map<String, String> SHARD_LEVEL_PARAMS = ImmutableMap.of("output_shards", "true");
 
     @Inject
     public RestClusterHealthAction(Settings settings, Client client, RestController controller) {
@@ -139,41 +147,13 @@ public class RestClusterHealthAction extends BaseRestHandler {
                         for (ClusterIndexHealth indexHealth : response) {
                             builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            builder.field(Fields.STATUS, indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
-                            builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.getNumberOfShards());
-                            builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.getNumberOfReplicas());
-                            builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.getActivePrimaryShards());
-                            builder.field(Fields.ACTIVE_SHARDS, indexHealth.getActiveShards());
-                            builder.field(Fields.RELOCATING_SHARDS, indexHealth.getRelocatingShards());
-                            builder.field(Fields.INITIALIZING_SHARDS, indexHealth.getInitializingShards());
-                            builder.field(Fields.UNASSIGNED_SHARDS, indexHealth.getUnassignedShards());
-
-                            if (!indexHealth.getValidationFailures().isEmpty()) {
-                                builder.startArray(Fields.VALIDATION_FAILURES);
-                                for (String validationFailure : indexHealth.getValidationFailures()) {
-                                    builder.value(validationFailure);
-                                }
-                                builder.endArray();
-                            }
-
+                            ToXContent.Params params;
                             if (fLevel > 1) {
-                                builder.startObject(Fields.SHARDS);
-
-                                for (ClusterShardHealth shardHealth : indexHealth) {
-                                    builder.startObject(Integer.toString(shardHealth.getId()));
-
-                                    builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
-                                    builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
-                                    builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
-                                    builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
-                                    builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
-                                    builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
-
-                                    builder.endObject();
-                                }
-
-                                builder.endObject();
+                                params = new ToXContent.DelegatingMapParams(SHARD_LEVEL_PARAMS, request);
+                            } else {
+                                params = request;
                             }
+                            indexHealth.toXContent(builder, params);
 
                             builder.endObject();
                         }
@@ -203,8 +183,6 @@ public class RestClusterHealthAction extends BaseRestHandler {
         static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
-        static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
-        static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
         static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
         static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
         static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
@@ -214,7 +192,5 @@ public class RestClusterHealthAction extends BaseRestHandler {
         static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
         static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
     }
 }

@@ -150,6 +150,38 @@ Format in `lat,lon`.
 --------------------------------------------------
 
 [float]
+==== Vertices
+
+The vertices of the bounding box can either be set by `top_left` and
+`bottom_right` or by `top_right` and `bottom_left` parameters. More
+over the names `topLeft`, `bottomRight`, `topRight` and `bottomLeft`
+are supported. Instead of setting the values pairwise, one can use
+the simple names `top`, `left`, `bottom` and `right` to set the
+values separately.
+
+[source,js]
+--------------------------------------------------
+{
+    "filtered" : {
+        "query" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top" : -74.1,
+                    "left" : 40.73,
+                    "bottom" : -71.12,
+                    "right" : 40.01
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+[float]
 ==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant

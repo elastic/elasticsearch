@@ -71,7 +71,7 @@ public class GeoMappingTests extends ElasticsearchIntegrationTest {
         Map<String, ?> properties = (Map<String, ?>) mappings.get("test").get("type1").getSourceAsMap().get("properties");
         Map<String, ?> pinProperties = (Map<String, ?>) properties.get("pin");
         Map<String, ?> pinFieldData = (Map<String, ?>) pinProperties.get("fielddata");
-        Distance precision = Distance.parseDistance(pinFieldData.get("precision").toString(), DistanceUnit.METERS);
+        Distance precision = Distance.parseDistance(pinFieldData.get("precision").toString());
         assertEquals(expected, precision);
     }
 

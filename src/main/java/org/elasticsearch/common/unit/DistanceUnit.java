@@ -30,25 +30,29 @@ import java.io.IOException;
  * The DistanceUnit enumerates several units for measuring distances. These units 
  * provide methods for converting strings and methods to convert units among each
  * others. Some methods like {@link DistanceUnit#getEarthCircumference} refer to
- * the earth ellipsoid defined in {@link GeoUtils}.
+ * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
+ * this project is <code>METERS</code> which is defined by <code>DEFAULT</code>
  */
 public enum DistanceUnit {
     INCH(0.0254, "in", "inch"),
     YARD(0.9144, "yd", "yards"),
+    FEET(0.3048, "ft", "feet"),
     MILES(1609.344, "mi", "miles"),
     KILOMETERS(1000.0, "km", "kilometers"),
     MILLIMETERS(0.001, "mm", "millimeters"),
     CENTIMETERS(0.01, "cm", "centimeters"),
-    
+
     // since 'm' is suffix of other unit
     // it must be the last entry of unit
     // names ending with 'm'. otherwise
     // parsing would fail
-    METERS(1, "m", "meters");   
+    METERS(1, "m", "meters");
+
+    public static DistanceUnit DEFAULT = METERS;
 
     private double meters; 
     private final String[] names;
-    
+
     DistanceUnit(double meters, String...names) {
         this.meters = meters;
         this.names = names;
@@ -82,26 +86,6 @@ public enum DistanceUnit {
     }
 
     /**
-     * Convert a value into miles
-     * 
-     * @param distance distance in this unit
-     * @return value in miles
-     */
-    public double toMiles(double distance) {
-        return convert(distance, this, DistanceUnit.MILES);
-    }
-
-    /**
-     * Convert a value into kilometers
-     * 
-     * @param distance distance in this unit
-     * @return value in kilometers
-     */
-    public double toKilometers(double distance) {
-        return convert(distance, this, DistanceUnit.KILOMETERS);
-    }
-
-    /**
      * Convert a value into meters
      * 
      * @param distance distance in this unit
@@ -125,11 +109,11 @@ public enum DistanceUnit {
      * Convert a given value into another unit
      * 
      * @param distance value in this unit
-     * @param unit target unit
-     * @return value of the target unit
+     * @param unit source unit
+     * @return value in this unit
      */
     public double convert(double distance, DistanceUnit unit) {
-        return convert(distance, this, unit);
+        return convert(distance, unit, this);
     }
 
     /**
@@ -141,7 +125,7 @@ public enum DistanceUnit {
     public String toString(double distance) {
         return distance + toString();
     }
-    
+
     @Override
     public String toString() {
         return names[0];
@@ -174,6 +158,17 @@ public enum DistanceUnit {
     public static double parse(String distance, DistanceUnit defaultUnit, DistanceUnit to) {
         Distance dist = Distance.parseDistance(distance, defaultUnit);
         return convert(dist.value, dist.unit, to);
+    }
+
+    /**
+     * Parses a given distance and converts it to this unit.
+     * 
+     * @param distance String defining a distance (value and unit)
+     * @param defaultUnit unit to expect if none if provided
+     * @return parsed distance
+     */
+    public double parse(String distance, DistanceUnit defaultUnit) {
+        return parse(distance, defaultUnit, this);
     }
 
     /**
@@ -297,6 +292,17 @@ public enum DistanceUnit {
         }
 
         /**
+         * Parse a {@link Distance} from a given String. If no unit is given
+         * <code>DistanceUnit.DEFAULT</code> will be used 
+         * 
+         * @param distance String defining a {@link Distance} 
+         * @return parsed {@link Distance}
+         */
+        public static Distance parseDistance(String distance) {
+            return parseDistance(distance, DEFAULT);
+        }
+
+        /**
          * Parse a {@link Distance} from a given String
          * 
          * @param distance String defining a {@link Distance} 
@@ -304,7 +310,7 @@ public enum DistanceUnit {
          *          if not unit is provided in the first argument  
          * @return parsed {@link Distance}
          */
-        public static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
+        private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
             for (DistanceUnit unit : values()) {
                 for (String name : unit.names) {
                     if(distance.endsWith(name)) {

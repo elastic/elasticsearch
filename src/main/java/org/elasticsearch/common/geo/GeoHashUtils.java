@@ -281,22 +281,26 @@ public class GeoHashUtils {
         }
     }
 
+    /**
+     * Decodes the given geohash
+     *
+     * @param geohash Geohash to decocde
+     * @return {@link GeoPoint} at the center of cell, given by the geohash
+     */
     public static GeoPoint decode(String geohash) {
-        GeoPoint point = new GeoPoint();
-        decode(geohash, point);
-        return point;
+        return decode(geohash, new GeoPoint());
     }
 
     /**
      * Decodes the given geohash into a latitude and longitude
      *
-     * @param geohash Geohash to deocde
-     * @return Array with the latitude at index 0, and longitude at index 1
+     * @param geohash Geohash to decocde
+     * @return the given {@link GeoPoint} reseted to the center of
+     *         cell, given by the geohash
      */
-    public static void decode(String geohash, GeoPoint ret) {
+    public static GeoPoint decode(String geohash, GeoPoint ret) {
         double[] interval = decodeCell(geohash);
-        ret.reset((interval[0] + interval[1]) / 2D, (interval[2] + interval[3]) / 2D);
-
+        return ret.reset((interval[0] + interval[1]) / 2D, (interval[2] + interval[3]) / 2D);
     }
 
     /**

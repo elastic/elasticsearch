@@ -218,8 +218,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         if (origin == null || scaleString == null) {
             throw new ElasticsearchParseException(DecayFunctionBuilder.ORIGIN + " and " + DecayFunctionBuilder.SCALE + " must be set for geo fields.");
         }
-        double scale = DistanceUnit.parse(scaleString, DistanceUnit.METERS, DistanceUnit.METERS);
-        double offset = DistanceUnit.parse(offsetString, DistanceUnit.METERS, DistanceUnit.METERS);
+        double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
+        double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
         IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
         return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData);
 

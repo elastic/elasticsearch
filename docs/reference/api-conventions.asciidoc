@@ -152,6 +152,7 @@ The full list of units is listed below:
 [horizontal]
 Mile::          `mi` or `miles`
 Yard::          `yd` or `yards`
+Feet::          `ft` or `feet`
 Inch::          `in` or `inch`
 Kilometer::     `km` or `kilometers`
 Meter::         `m` or `meters`

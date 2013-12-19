@@ -53,7 +53,7 @@ public class GeoDistanceSortParser implements SortParser {
     public SortField parse(XContentParser parser, SearchContext context) throws Exception {
         String fieldName = null;
         GeoPoint point = new GeoPoint();
-        DistanceUnit unit = DistanceUnit.KILOMETERS;
+        DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
         SortMode sortMode = null;

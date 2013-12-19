@@ -42,11 +42,22 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  */
 public class GeoBoundingBoxFilterParser implements FilterParser {
 
-    public static final String NAME = "geo_bbox";
-    public static final String TOP_LEFT = "top_left";
+    public static final String TOP = "top";
+    public static final String LEFT = "left";
+    public static final String RIGHT = "right";
+    public static final String BOTTOM = "bottom";
+
+    public static final String TOP_LEFT = TOP + "_" + LEFT;
+    public static final String TOP_RIGHT = TOP + "_" + RIGHT;
+    public static final String BOTTOM_LEFT = BOTTOM + "_" + LEFT;
+    public static final String BOTTOM_RIGHT = BOTTOM + "_" + RIGHT;
+
     public static final String TOPLEFT = "topLeft";
-    public static final String BOTTOM_RIGHT = "bottom_right";
+    public static final String TOPRIGHT = "topRight";
+    public static final String BOTTOMLEFT = "bottomLeft";
     public static final String BOTTOMRIGHT = "bottomRight";
+
+    public static final String NAME = "geo_bbox";
     public static final String FIELD = "field";
 
     @Inject
@@ -65,14 +76,19 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        GeoPoint topLeft = new GeoPoint();
-        GeoPoint bottomRight = new GeoPoint();
 
+        double top = Double.NaN;
+        double bottom = Double.NaN;
+        double left = Double.NaN;
+        double right = Double.NaN;
+        
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
         boolean normalize = true;
 
+        GeoPoint sparse = new GeoPoint();
+        
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -87,12 +103,34 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                         token = parser.nextToken();
                         if (FIELD.equals(currentFieldName)) {
                             fieldName = parser.text();
-                        } else if (TOP_LEFT.equals(currentFieldName) || TOPLEFT.equals(currentFieldName)) {
-                            GeoPoint.parse(parser, topLeft);
-                        } else if ( BOTTOM_RIGHT.equals(currentFieldName) || BOTTOMRIGHT.equals(currentFieldName)) {
-                            GeoPoint.parse(parser, bottomRight);
+                        } else if (TOP.equals(currentFieldName)) {
+                            top = parser.doubleValue();
+                        } else if (BOTTOM.equals(currentFieldName)) {
+                            bottom = parser.doubleValue();
+                        } else if (LEFT.equals(currentFieldName)) {
+                            left = parser.doubleValue();
+                        } else if (RIGHT.equals(currentFieldName)) {
+                            right = parser.doubleValue();
                         } else {
-                            throw new ElasticsearchParseException("Unexpected field [" + currentFieldName + "]");
+                            if (TOP_LEFT.equals(currentFieldName) || TOPLEFT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                top = sparse.getLat();
+                                left = sparse.getLon();
+                            } else if (BOTTOM_RIGHT.equals(currentFieldName) || BOTTOMRIGHT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                bottom = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (TOP_RIGHT.equals(currentFieldName) || TOPRIGHT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                top = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (BOTTOM_LEFT.equals(currentFieldName) || BOTTOMLEFT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                bottom = sparse.getLat();
+                                left = sparse.getLon();
+                            } else {
+                                throw new ElasticsearchParseException("Unexpected field [" + currentFieldName + "]");
+                            }
                         }
                     } else {
                         throw new ElasticsearchParseException("fieldname expected but [" + token + "] found");
@@ -115,6 +153,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             }
         }
 
+        final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
+        final GeoPoint bottomRight = new GeoPoint(bottom, right);
+        
         if (normalize) {
             GeoUtils.normalizePoint(topLeft);
             GeoUtils.normalizePoint(bottomRight);
@@ -148,5 +189,5 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             parseContext.addNamedFilter(filterName, filter);
         }
         return filter;
-    }
+    }    
 }

@@ -42,7 +42,7 @@ public class BloomFilterPostingsFormatProvider extends AbstractPostingsFormatPro
         this.delegate = Helper.lookup(indexSettings, postingsFormatSettings.get("delegate"), postingFormatFactories);
         this.postingsFormat = new BloomFilterPostingsFormat(
                 delegate.get(),
-                BloomFilter.Factory.buildFromString(indexSettings.get("fpp"))
+                BloomFilter.Factory.buildFromString(postingsFormatSettings.get("fpp"))
         );
     }
 

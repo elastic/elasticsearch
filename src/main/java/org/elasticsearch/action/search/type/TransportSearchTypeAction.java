@@ -278,14 +278,23 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     }
                 }
             } else {
-                ShardRouting nextShard = shardIt.nextOrNull();
+                final ShardRouting nextShard = shardIt.nextOrNull();
                 final boolean lastShard = nextShard == null;
                 // trace log this exception
                 if (logger.isTraceEnabled() && t != null) {
                     logger.trace(executionFailureMsg(shard, shardIt, request, lastShard), t);
                 }
                 if (!lastShard) {
-                    performFirstPhase(shardIndex, shardIt, nextShard);
+                    try {
+                        threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                performFirstPhase(shardIndex, shardIt, nextShard);
+                            }
+                        });
+                    } catch (Throwable t1) {
+                        onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t1);
+                    }
                 } else {
                     // no more shards active, add a failure
                     if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception

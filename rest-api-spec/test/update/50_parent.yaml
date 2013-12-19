@@ -44,7 +44,7 @@
  - match: { fields._routing: "5"}
 
  - do:
-      catch:      missing
+      catch:      param
       update:
           index:   test_1
           type:    test

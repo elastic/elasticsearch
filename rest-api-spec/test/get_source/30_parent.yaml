@@ -32,7 +32,7 @@
  - match:   { '': {foo: bar}}
 
  - do:
-      catch: missing
+      catch: param
       get_source:
           index:   test_1
           type:    test

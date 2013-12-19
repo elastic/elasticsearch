@@ -3,8 +3,8 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -290,6 +290,10 @@ public class SimpleIcuCollationTokenFilterTests {
                 .addAttribute(CharTermAttribute.class);
         CharTermAttribute term2 = stream2
                 .addAttribute(CharTermAttribute.class);
+
+        stream1.reset();
+        stream2.reset();
+
         assertThat(stream1.incrementToken(), equalTo(true));
         assertThat(stream2.incrementToken(), equalTo(true));
         assertThat(Integer.signum(term1.toString().compareTo(term2.toString())), equalTo(Integer.signum(comparison)));

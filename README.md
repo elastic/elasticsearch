@@ -5,88 +5,22 @@ The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding 
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-icu/1.12.0`.
 
-
-<table>
-	<thead>
-		<tr>
-			<td>ICU Analysis Plugin</td>
-			<td>Elasticsearch</td>
-			<td>Release date</td>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>1.13.0-SNAPSHOT (master)</td>
-			<td>0.90.6 -> master</td>
-			<td></td>
-		</tr>
-		<tr>
-			<td>1.12.0</td>
-			<td>0.90.6 -> master</td>
-			<td>2013-11-06</td>
-		</tr>
-		<tr>
-			<td>1.11.0</td>
-			<td>0.90.3 -> 0.90.5</td>
-			<td>2013-08-08</td>
-		</tr>
-		<tr>
-			<td>1.10.0</td>
-			<td>0.90.1 -> 0.90.2</td>
-			<td>2013-05-30</td>
-		</tr>
-		<tr>
-			<td>1.9.0</td>
-			<td>0.90.0</td>
-			<td>2013-04-29</td>
-		</tr>
-		<tr>
-			<td>1.8.0</td>
-			<td>0.90.0</td>
-			<td>2013-02-26</td>
-		</tr>
-		<tr>
-			<td>1.7.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-09-28</td>
-		</tr>
-		<tr>
-			<td>1.6.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-09-27</td>
-		</tr>
-		<tr>
-			<td>1.5.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-04-30</td>
-		</tr>
-		<tr>
-			<td>1.4.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-03-20</td>
-		</tr>
-		<tr>
-			<td>1.3.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-03-20</td>
-		</tr>
-		<tr>
-			<td>1.2.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>2012-02-07</td>
-		</tr>
-		<tr>
-			<td>1.1.0</td>
-			<td>0.18</td>
-			<td>2011-12-13</td>
-		</tr>
-		<tr>
-			<td>1.0.0</td>
-			<td>0.18</td>
-			<td>2011-12-05</td>
-		</tr>
-	</tbody>
-</table>
+|   ICU Analysis Plugin    | elasticsearch    | Release date |
+|--------------------------|------------------|:------------:|
+| 1.13.0-SNAPSHOT (master) | 0.90.8 -> master |  2013-12-19  |
+| 1.12.0                   | 0.90.6 -> 0.90.7 |  2013-11-06  |
+| 1.11.0                   | 0.90.3 -> 0.90.5 |  2013-08-08  |
+| 1.10.0                   | 0.90.1 -> 0.90.2 |  2013-05-30  |
+| 1.9.0                    | 0.90.0           |  2013-04-29  |
+| 1.8.0                    | 0.90.0           |  2013-02-26  |
+| 1.7.0                    | 0.19 -> 0.20     |  2012-09-28  |
+| 1.6.0                    | 0.19 -> 0.20     |  2012-09-27  |
+| 1.5.0                    | 0.19 -> 0.20     |  2012-04-30  |
+| 1.4.0                    | 0.19 -> 0.20     |  2012-03-20  |
+| 1.3.0                    | 0.19 -> 0.20     |  2012-03-20  |
+| 1.2.0                    | 0.19 -> 0.20     |  2012-02-07  |
+| 1.1.0                    | 0.18             |  2011-12-13  |
+| 1.0.0                    | 0.18             |  2011-12-05  |
 
 
 ICU Normalization

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.geo;
 
 import com.spatial4j.core.shape.Shape;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -185,19 +184,19 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     public void testParsingMultipleShapes() throws IOException {
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type1")
-                        .startObject("properties")
-                            .startObject("location1")
-                                .field("type", "geo_shape")
-                            .endObject()
-                            .startObject("location2")
-                                .field("type", "geo_shape")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("location1")
+                .field("type", "geo_shape")
                 .endObject()
-            .string();
-   
+                .startObject("location2")
+                .field("type", "geo_shape")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
+
         prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         ensureYellow();
 
@@ -208,17 +207,17 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource(o1).execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        String filter = "{\"geo_shape\": {\"location2\": {\"indexed_shape\": {" 
-                        + "\"id\": \"1\","
-                        + "\"type\": \"type1\","
-                        + "\"index\": \"test\","
-                        + "\"shape_field_name\": \"location2\""
-                        + "}}}}";
+        String filter = "{\"geo_shape\": {\"location2\": {\"indexed_shape\": {"
+                + "\"id\": \"1\","
+                + "\"type\": \"type1\","
+                + "\"index\": \"test\","
+                + "\"shape_field_name\": \"location2\""
+                + "}}}}";
 
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).execute().actionGet();
         assertHitCount(result, 1);
     }
-    
+
     @Test // Issue 2944
     public void testThatShapeIsReturnedEvenWhenExclusionsAreSet() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

@@ -41,7 +41,7 @@ public class GeoPolygonFilter extends Filter {
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoPolygonFilter(GeoPoint[] points, IndexGeoPointFieldData indexFieldData) {
+    public GeoPolygonFilter(IndexGeoPointFieldData indexFieldData, GeoPoint...points) {
         this.points = points;
         this.indexFieldData = indexFieldData;
     }
@@ -62,7 +62,10 @@ public class GeoPolygonFilter extends Filter {
 
     @Override
     public String toString() {
-        return "GeoPolygonFilter(" + indexFieldData.getFieldNames().indexName() + ", " + Arrays.toString(points) + ")";
+        StringBuilder sb = new StringBuilder("GeoPolygonFilter(");
+        sb.append(indexFieldData.getFieldNames().indexName());
+        sb.append(", ").append(Arrays.toString(points)).append(')');
+        return sb.toString();
     }
 
     public static class GeoPolygonDocIdSet extends MatchDocIdSet {
@@ -93,19 +96,16 @@ public class GeoPolygonFilter extends Filter {
         }
 
         private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
-            int i;
-            int j = points.length - 1;
             boolean inPoly = false;
 
-            for (i = 0; i < points.length; i++) {
-                if (points[i].lon() < lon && points[j].lon() >= lon
-                        || points[j].lon() < lon && points[i].lon() >= lon) {
+            for (int i = 1; i < points.length; i++) {
+                if (points[i].lon() < lon && points[i-1].lon() >= lon
+                        || points[i-1].lon() < lon && points[i].lon() >= lon) {
                     if (points[i].lat() + (lon - points[i].lon()) /
-                            (points[j].lon() - points[i].lon()) * (points[j].lat() - points[i].lat()) < lat) {
+                            (points[i-1].lon() - points[i].lon()) * (points[i-1].lat() - points[i].lat()) < lat) {
                         inPoly = !inPoly;
                     }
                 }
-                j = i;
             }
             return inPoly;
         }

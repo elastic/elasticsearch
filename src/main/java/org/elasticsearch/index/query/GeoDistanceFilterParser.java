@@ -73,7 +73,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         String fieldName = null;
         double distance = 0;
         Object vDistance = null;
-        DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
+        DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         boolean normalizeLon = true;
@@ -142,11 +142,11 @@ public class GeoDistanceFilterParser implements FilterParser {
         }
 
         if (vDistance instanceof Number) {
-            distance = unit.toMiles(((Number) vDistance).doubleValue());
+            distance = DistanceUnit.DEFAULT.convert(((Number) vDistance).doubleValue(), unit);
         } else {
-            distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.MILES);
+            distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.DEFAULT);
         }
-        distance = geoDistance.normalize(distance, DistanceUnit.MILES);
+        distance = geoDistance.normalize(distance, DistanceUnit.DEFAULT);
 
         if (normalizeLat || normalizeLon) {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);

@@ -63,9 +63,9 @@ public class GeoDistanceFilter extends Filter {
         this.geoDistance = geoDistance;
         this.indexFieldData = indexFieldData;
 
-        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.DEFAULT);
         if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
-            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, distance, DistanceUnit.MILES);
+            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, distance, DistanceUnit.DEFAULT);
             if ("memory".equals(optimizeBbox)) {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {

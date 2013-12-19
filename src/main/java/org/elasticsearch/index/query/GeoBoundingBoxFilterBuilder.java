@@ -31,21 +31,22 @@ import java.io.IOException;
  */
 public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
+    public static final String TOP_LEFT = GeoBoundingBoxFilterParser.TOP_LEFT;
+    public static final String BOTTOM_RIGHT = GeoBoundingBoxFilterParser.BOTTOM_RIGHT;
+
+    private static final int TOP = 0;
+    private static final int LEFT = 1;
+    private static final int BOTTOM = 2;
+    private static final int RIGHT = 3;
+    
     private final String name;
 
-    private GeoPoint topLeft;
-
-    private String topLeftGeohash;
-
-    private GeoPoint bottomRight;
-
-    private String bottomRightGeohash;
+    private double[] box = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
 
     private Boolean cache;
     private String cacheKey;
 
     private String filterName;
-
     private String type;
 
     public GeoBoundingBoxFilterBuilder(String name) {
@@ -59,43 +60,78 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder topLeft(double lat, double lon) {
-        topLeft = new GeoPoint(lat, lon);
+        box[TOP] = lat;
+        box[LEFT] = lon;
         return this;
     }
 
+    public GeoBoundingBoxFilterBuilder topLeft(GeoPoint point) {
+        return topLeft(point.lat(), point.lon());
+    }
+
+    public GeoBoundingBoxFilterBuilder topLeft(String geohash) {
+        return topLeft(GeoHashUtils.decode(geohash));
+    }
+
     /**
-     * Adds bottom right point.
+     * Adds bottom right corner.
      *
      * @param lat The latitude
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder bottomRight(double lat, double lon) {
-        bottomRight = new GeoPoint(lat, lon);
+        box[BOTTOM] = lat;
+        box[RIGHT] = lon;
         return this;
     }
 
-    public GeoBoundingBoxFilterBuilder topLeft(String geohash) {
-        this.topLeftGeohash = geohash;
-        return this;
+    public GeoBoundingBoxFilterBuilder bottomRight(GeoPoint point) {
+        return bottomRight(point.lat(), point.lon());
     }
 
     public GeoBoundingBoxFilterBuilder bottomRight(String geohash) {
-        this.bottomRightGeohash = geohash;
-        return this;
+        return bottomRight(GeoHashUtils.decode(geohash));
     }
 
     /**
-     * Adds top left and bottom right by geohash cell.
+     * Adds bottom left corner.
      *
-     * @param geohash the geohash of the cell definign the boundingbox
+     * @param lat The latitude
+     * @param lon The longitude
      */
-    public GeoBoundingBoxFilterBuilder geohash(String geohash) {
-        topLeft = new GeoPoint();
-        bottomRight = new GeoPoint();
-        GeoHashUtils.decodeCell(geohash, topLeft, bottomRight);
+    public GeoBoundingBoxFilterBuilder bottomLeft(double lat, double lon) {
+        box[BOTTOM] = lat;
+        box[LEFT] = lon;
         return this;
     }
 
+    public GeoBoundingBoxFilterBuilder bottomLeft(GeoPoint point) {
+        return bottomLeft(point.lat(), point.lon());
+    }
+
+    public GeoBoundingBoxFilterBuilder bottomLeft(String geohash) {
+        return bottomLeft(GeoHashUtils.decode(geohash));
+    }
+    
+    /**
+     * Adds top right point.
+     *
+     * @param lat The latitude
+     * @param lon The longitude
+     */
+    public GeoBoundingBoxFilterBuilder topRight(double lat, double lon) {
+        box[TOP] = lat;
+        box[RIGHT] = lon;
+        return this;
+    }
+
+    public GeoBoundingBoxFilterBuilder topRight(GeoPoint point) {
+        return topRight(point.lat(), point.lon());
+    }
+
+    public GeoBoundingBoxFilterBuilder topRight(String geohash) {
+        return topRight(GeoHashUtils.decode(geohash));
+    }
 
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
@@ -129,24 +165,22 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        // check values
+        if(Double.isNaN(box[TOP])) {
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires top latitude to be set");
+        } else if(Double.isNaN(box[BOTTOM])) {
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires bottom latitude to be set");
+        } else if(Double.isNaN(box[RIGHT])) {
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires right longitude to be set");
+        } else if(Double.isNaN(box[LEFT])) {
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires left longitude to be set");
+        }
+                
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
 
         builder.startObject(name);
-        if (topLeftGeohash != null) {
-            builder.field("top_left", topLeftGeohash);
-        } else if (topLeft != null) {
-            builder.startArray("top_left").value(topLeft.lon()).value(topLeft.lat()).endArray();
-        } else {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires 'top_left' to be set");
-        }
-
-        if (bottomRightGeohash != null) {
-            builder.field("bottom_right", bottomRightGeohash);
-        } else if (bottomRight != null) {
-            builder.startArray("bottom_right").value(bottomRight.lon()).value(bottomRight.lat()).endArray();
-        } else {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires 'bottom_right' to be set");
-        }
+        builder.array(TOP_LEFT, box[LEFT], box[TOP]);
+        builder.array(BOTTOM_RIGHT, box[RIGHT], box[BOTTOM]);
         builder.endObject();
 
         if (filterName != null) {

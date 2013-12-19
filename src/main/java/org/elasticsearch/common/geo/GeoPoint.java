@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
-import java.io.IOException;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+
+import java.io.IOException;
 
 /**
  *

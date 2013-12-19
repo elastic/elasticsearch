@@ -298,11 +298,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             assert (1L << (numBytesPerCoordinate * 8 - 1)) * factor > 180 && (1L << (numBytesPerCoordinate * 8 - 2)) * factor < 180 : numBytesPerCoordinate + " " + factor;
             if (numBytes == MAX_NUM_BYTES) {
                 // no precision loss compared to a double
-                precision = new DistanceUnit.Distance(0, DistanceUnit.METERS);
+                precision = new DistanceUnit.Distance(0, DistanceUnit.DEFAULT);
             } else {
                 precision = new DistanceUnit.Distance(
-                        GeoDistance.PLANE.calculate(0, 0, factor / 2, factor / 2, DistanceUnit.METERS), // factor/2 because we use Math.round instead of a cast to convert the double to a long
-                        DistanceUnit.METERS);
+                        GeoDistance.PLANE.calculate(0, 0, factor / 2, factor / 2, DistanceUnit.DEFAULT), // factor/2 because we use Math.round instead of a cast to convert the double to a long
+                        DistanceUnit.DEFAULT);
             }
         }
 

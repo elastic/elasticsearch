@@ -22,16 +22,12 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.IdentityHashSet;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.*;
@@ -58,7 +54,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final List<MutableShardRouting> ignoredUnassignedShards = newArrayList();
 
-    private final Map<ShardId, Set<MutableShardRouting>> assignedShards = newHashMap();
+    private final Map<ShardId, List<MutableShardRouting>> assignedShards = newHashMap();
 
     private int inactivePrimaryCount = 0;
 
@@ -278,14 +274,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * ID as the given shard.
      */
     public Iterable<MutableShardRouting> assignedShards(ShardRouting shard) {
-        return Iterables.unmodifiableIterable(assignedShards(shard.shardId()));
+        return assignedShards(shard.shardId());
     }
 
     /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
     public boolean allReplicasActive(ShardRouting shardRouting) {
-        final Set<MutableShardRouting> shards = assignedShards(shardRouting.shardId());
+        final List<MutableShardRouting> shards = assignedShards(shardRouting.shardId());
         if (shards.isEmpty() || shards.size() < this.routingTable.index(shardRouting.index()).shard(shardRouting.id()).size()) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }
@@ -427,11 +423,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
-    private static final Set<MutableShardRouting> EMPTY = Collections.emptySet();
+    private static final List<MutableShardRouting> EMPTY = Collections.emptyList();
 
-    private Set<MutableShardRouting> assignedShards(ShardId shardId) {
-        final Set<MutableShardRouting> replicaSet = assignedShards.get(shardId);
-        return replicaSet == null ? EMPTY : Collections.unmodifiableSet(replicaSet);
+    private List<MutableShardRouting> assignedShards(ShardId shardId) {
+        final List<MutableShardRouting> replicaSet = assignedShards.get(shardId);
+        return replicaSet == null ? EMPTY : Collections.unmodifiableList(replicaSet);
     }
 
     /**
@@ -457,28 +453,34 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             // no unassigned
             return;
         }
-        Set<MutableShardRouting> replicaSet = assignedShards.get(shard.shardId());
-        if (replicaSet == null) {
-            replicaSet = new IdentityHashSet<MutableShardRouting>();
-            assignedShards.put(shard.shardId(), replicaSet);
+        List<MutableShardRouting> shards = assignedShards.get(shard.shardId());
+        if (shards == null) {
+            shards = Lists.newArrayList();
+            assignedShards.put(shard.shardId(), shards);
         }
-        replicaSet.add(shard);
+        assert  assertInstanceNotInList(shard, shards);
+        shards.add(shard);
+    }
+
+    private boolean assertInstanceNotInList(MutableShardRouting shard, List<MutableShardRouting> shards) {
+        for (MutableShardRouting s : shards) {
+            assert s != shard;
+        }
+        return true;
     }
 
     private void assignedShardsRemove(MutableShardRouting shard) {
-        Set<MutableShardRouting> replicaSet = assignedShards.get(shard.shardId());
+        final List<MutableShardRouting> replicaSet = assignedShards.get(shard.shardId());
         if (replicaSet != null) {
-            if (replicaSet.contains(shard)) {
-                replicaSet.remove(shard);
-            } else {
-                assert false : "Illegal state";
-                Iterator<MutableShardRouting> iterator = replicaSet.iterator();
-                while(iterator.hasNext()) {
-                    if (shard.equals(iterator.next())) {
-                        iterator.remove();
-                    }
+            final Iterator<MutableShardRouting> iterator = replicaSet.iterator();
+            while(iterator.hasNext()) {
+                // yes we check identity here
+                if (shard == iterator.next()) {
+                    iterator.remove();
+                    return;
                 }
             }
+            assert false : "Illegal state";
         }
     }
 
@@ -654,7 +656,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         // Assert that the active shard routing are identical.
         Set<Map.Entry<String, Integer>> entries = indicesAndShards.entrySet();
-        Set<MutableShardRouting> shards = newHashSet();
+        final List<MutableShardRouting> shards = newArrayList();
         for (Map.Entry<String, Integer> e : entries) {
             String index = e.getKey();
             for (int i = 0; i < e.getValue(); i++) {
@@ -665,7 +667,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         }
                     }
                 }
-                Set<MutableShardRouting> mutableShardRoutings = routingNodes.assignedShards(new ShardId(index, i));
+                List<MutableShardRouting> mutableShardRoutings = routingNodes.assignedShards(new ShardId(index, i));
+                assert mutableShardRoutings.size() == shards.size();
                 for (MutableShardRouting r : mutableShardRoutings) {
                     assert shards.contains(r);
                     shards.remove(r);

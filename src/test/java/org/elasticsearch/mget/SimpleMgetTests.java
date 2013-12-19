@@ -93,8 +93,9 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
 
-        assertThat(mgetResponse.getResponses()[1].isFailed(), is(false));
-        assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(false));
+        assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
+        assertThat(mgetResponse.getResponses()[1].getResponse(), nullValue());
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required, but hasn't been specified"));
     }
 
     @SuppressWarnings("unchecked")

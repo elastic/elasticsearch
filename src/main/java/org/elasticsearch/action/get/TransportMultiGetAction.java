@@ -68,6 +68,10 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "[" + item.index() + "] missing")));
                 continue;
             }
+            if (item.routing() == null && clusterState.getMetaData().routingRequired(item.index(), item.type())) {
+                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "routing is required, but hasn't been specified")));
+                continue;
+            }
 
             item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
             item.index(clusterState.metaData().concreteIndex(item.index()));

@@ -33,7 +33,7 @@
  - match:   { fields._routing: 中文}
 
  - do:
-      catch: missing
+      catch: param
       get:
           index:   test_1
           type:    test

@@ -355,7 +355,12 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
         client().prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            try {
+                client().prepareGet("test", "type1", "1").get();
+                assert false;
+            } catch (RoutingMissingException e) {
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            }
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
 
@@ -367,7 +372,12 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         client().prepareBulk().add(Requests.deleteRequest("test").type("type1").id("1")).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            try {
+                assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+                assert false;
+            } catch (RoutingMissingException e) {
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            }
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
     }

@@ -57,3 +57,4 @@ include::setup/as-a-service-win.asciidoc[]
 
 include::setup/dir-layout.asciidoc[]
 
+include::setup/repositories.asciidoc[]

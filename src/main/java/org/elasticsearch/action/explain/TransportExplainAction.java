@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
@@ -91,6 +92,11 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         String concreteIndex = state.metaData().concreteIndex(request.index());
         request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
         request.index(state.metaData().concreteIndex(request.index()));
+
+        // Fail fast on the node that received the request.
+        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
+            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        }
     }
 
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {

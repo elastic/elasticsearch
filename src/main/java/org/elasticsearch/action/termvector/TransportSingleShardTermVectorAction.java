@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -80,6 +81,11 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
         // update the routing (request#index here is possibly an alias)
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
         request.index(state.metaData().concreteIndex(request.index()));
+
+        // Fail fast on the node that received the request.
+        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
+            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        }
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -49,5 +50,10 @@ public class RoutingMissingException extends ElasticSearchException {
 
     public String id() {
         return id;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

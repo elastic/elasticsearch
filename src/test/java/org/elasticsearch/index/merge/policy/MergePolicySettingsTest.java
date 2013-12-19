@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-
-import java.io.IOException;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,8 +31,11 @@ import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.junit.Test;
 
+import java.io.IOException;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicySettingsTest {
 
@@ -83,7 +82,7 @@ public class MergePolicySettingsTest {
         assertThat(new LogDocMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
     }
-    
+
     @Test
     public void testInvalidValue() throws IOException {
         IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
@@ -174,7 +173,7 @@ public class MergePolicySettingsTest {
 
     protected Store createStore(Settings settings) throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, settings, null, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
 }

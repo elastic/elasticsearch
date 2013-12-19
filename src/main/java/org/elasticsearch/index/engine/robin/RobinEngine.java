@@ -32,6 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -1117,6 +1118,21 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
+    static final boolean allowRamBytesUsed;
+
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46 :
+                "when upgrading to a new lucene version, check if ramBytes is fixed, see https://issues.apache.org/jira/browse/LUCENE-5373";
+        boolean xAllowRamBytesUsed = false;
+        assert xAllowRamBytesUsed = true;
+        allowRamBytesUsed = xAllowRamBytesUsed;
+    }
+
+    private long getReaderRamBytesUsed(AtomicReaderContext reader) {
+        assert reader.reader() instanceof SegmentReader;
+        return allowRamBytesUsed ? ((SegmentReader) reader.reader()).ramBytesUsed() : 0;
+    }
+
     @Override
     public SegmentsStats segmentsStats() {
         rwl.readLock().lock();
@@ -1126,8 +1142,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 SegmentsStats stats = new SegmentsStats();
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
-                    assert reader.reader() instanceof SegmentReader;
-                    stats.add(1, ((SegmentReader) reader.reader()).ramBytesUsed());
+                    stats.add(1, getReaderRamBytesUsed(reader));
                 }
                 return stats;
             } finally {
@@ -1163,7 +1178,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     } catch (IOException e) {
                         logger.trace("failed to get size for [{}]", e, info.info.name);
                     }
-                    segment.memoryInBytes = ((SegmentReader) reader.reader()).ramBytesUsed();
+                    segment.memoryInBytes = getReaderRamBytesUsed(reader);
                     segments.put(info.info.name, segment);
                 }
             } finally {
@@ -1413,8 +1428,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, RobinEngine.this.codecName);
+            final boolean codecBloomLoad = settings.getAsBoolean(CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter());
             boolean requiresFlushing = false;
-            if (indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName) || failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
+            if (indexConcurrency != RobinEngine.this.indexConcurrency ||
+                    !codecName.equals(RobinEngine.this.codecName) ||
+                    failOnMergeFailure != RobinEngine.this.failOnMergeFailure ||
+                    codecBloomLoad != codecService.isLoadBloomFilter()) {
                 rwl.readLock().lock();
                 try {
                     if (indexConcurrency != RobinEngine.this.indexConcurrency) {
@@ -1432,6 +1451,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
                         logger.info("updating {} from [{}] to [{}]", RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure, failOnMergeFailure);
                         RobinEngine.this.failOnMergeFailure = failOnMergeFailure;
+                    }
+                    if (codecBloomLoad != codecService.isLoadBloomFilter()) {
+                        logger.info("updating {} from [{}] to [{}]", CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter(), codecBloomLoad);
+                        codecService.setLoadBloomFilter(codecBloomLoad);
+                        // we need to flush in this case, to load/unload the bloom filters
+                        requiresFlushing = true;
                     }
                 } finally {
                     rwl.readLock().unlock();

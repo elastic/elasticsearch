@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.Compressor;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,6 +63,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     private final IndexStore indexStore;
+    final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
 
@@ -71,9 +74,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final boolean sync;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService, Distributor distributor) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
+        this.codecService = codecService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
         this.directory = new StoreDirectory(distributor);
@@ -322,6 +326,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         public ShardId shardId() {
             return Store.this.shardId();
+        }
+
+        public Settings settings() {
+            return Store.this.indexSettings();
+        }
+
+        @Nullable
+        public CodecService codecService() {
+            return Store.this.codecService;
         }
 
         public Directory[] delegates() {

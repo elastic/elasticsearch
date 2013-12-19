@@ -19,15 +19,19 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -42,6 +46,78 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
     @Test
+    public void testSettingLoadBloomFilterDefaultTrue() throws Exception {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
+        client().prepareIndex("test", "foo").setSource("field", "foo").get();
+        ensureGreen();
+        refresh();
+
+        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+        final long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+        logger.info("segments with bloom: {}", segmentsMemoryWithBloom);
+
+        logger.info("updating the setting to unload bloom filters");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+        logger.info("waiting for memory to match without blooms");
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                logger.info("trying segments without bloom: {}", segmentsMemoryWithoutBloom);
+                return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
+            }
+        });
+
+        logger.info("updating the setting to load bloom filters");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
+        logger.info("waiting for memory to match with blooms");
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                long newSegmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                logger.info("trying segments with bloom: {}", newSegmentsMemoryWithBloom);
+                return newSegmentsMemoryWithBloom == segmentsMemoryWithBloom;
+            }
+        });
+    }
+
+    @Test
+    public void testSettingLoadBloomFilterDefaultFalse() throws Exception {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1).put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+        client().prepareIndex("test", "foo").setSource("field", "foo").get();
+        ensureGreen();
+        refresh();
+
+        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+        final long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+        logger.info("segments without bloom: {}", segmentsMemoryWithoutBloom);
+
+        logger.info("updating the setting to load bloom filters");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
+        logger.info("waiting for memory to match with blooms");
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                logger.info("trying segments with bloom: {}", segmentsMemoryWithoutBloom);
+                return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
+            }
+        });
+
+        logger.info("updating the setting to unload bloom filters");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+        logger.info("waiting for memory to match without blooms");
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                long newSegmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                logger.info("trying segments without bloom: {}", newSegmentsMemoryWithoutBloom);
+                return newSegmentsMemoryWithoutBloom == segmentsMemoryWithoutBloom;
+            }
+        });
+    }
+
+    @Test
     public void testSetIndexCompoundOnFlush() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
@@ -52,13 +128,12 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 2, "test");
-        
+
         client().admin().indices().prepareUpdateSettings("test")
-        .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true)).get();
+                .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(2, 3, "test");
-
     }
 
     private void assertTotalCompoundSegments(int i, int t, String index) {
@@ -83,6 +158,7 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
         assertThat(total, Matchers.equalTo(t));
 
     }
+
     @Test
     public void test4093() {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
@@ -103,8 +179,8 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
         final int numDocs = between(30, 100); // 30 docs are enough to fail without the fix for #4093
         logger.debug("  --> Indexing [{}] documents", numDocs);
         for (int i = 0; i < numDocs; i++) {
-            if ((i+1) % 10 == 0) {
-                logger.debug("  --> Indexed [{}] documents", i+1);
+            if ((i + 1) % 10 == 0) {
+                logger.debug("  --> Indexed [{}] documents", i + 1);
             }
             client().prepareIndex("test", "type1")
                     .setSource("a", "" + i)

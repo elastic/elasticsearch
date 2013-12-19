@@ -114,8 +114,6 @@
                             <goal>junit4</goal>
                         </goals>
                         <configuration>
-                            <!-- We don't have any test yet so we disable launch -->
-                            <skipTests>true</skipTests>
                             <heartbeat>20</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>

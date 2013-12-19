@@ -18,16 +18,16 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
-public class SimpleIcuCollationTokenFilterTests {
+public class SimpleIcuCollationTokenFilterTests extends ElasticsearchTestCase {
 
     /*
     * Turkish has some funny casing.

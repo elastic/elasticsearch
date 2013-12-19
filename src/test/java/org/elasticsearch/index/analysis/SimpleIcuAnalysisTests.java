@@ -29,15 +29,14 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
-
 /**
  */
-public class SimpleIcuAnalysisTests {
+public class SimpleIcuAnalysisTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultsIcuAnalysis() {

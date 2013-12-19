@@ -132,9 +132,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
     }
 
-    // TODO for some reason it get stuck on the get when fetching the source document
     @Test()
-    @AwaitsFix(bugUrl = "for some reason it get stuck on the get when fetching the source document")
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

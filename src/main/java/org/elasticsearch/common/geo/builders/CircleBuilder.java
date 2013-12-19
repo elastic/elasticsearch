@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Circle;
 import com.vividsolutions.jts.geom.Coordinate;
+import java.io.IOException;
 
 public class CircleBuilder extends ShapeBuilder {
 
@@ -64,7 +63,7 @@ public class CircleBuilder extends ShapeBuilder {
      * @return this
      */
     public CircleBuilder radius(String radius) {
-        return radius(DistanceUnit.Distance.parseDistance(radius, DistanceUnit.METERS));
+        return radius(DistanceUnit.Distance.parseDistance(radius));
     }
 
     /**

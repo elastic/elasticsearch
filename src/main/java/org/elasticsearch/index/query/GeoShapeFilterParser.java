@@ -170,7 +170,6 @@ public class GeoShapeFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
         }
 
-
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         PrefixTreeStrategy strategy = shapeFieldMapper.defaultStrategy();
         if (strategyName != null) {

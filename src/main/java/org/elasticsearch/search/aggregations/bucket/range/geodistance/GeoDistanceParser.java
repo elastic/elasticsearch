@@ -66,7 +66,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         String field = null;
         List<RangeAggregator.Range> ranges = null;
         GeoPoint origin = null;
-        DistanceUnit unit = DistanceUnit.KILOMETERS;
+        DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance distanceType = GeoDistance.DEFAULT;
         boolean keyed = false;
 

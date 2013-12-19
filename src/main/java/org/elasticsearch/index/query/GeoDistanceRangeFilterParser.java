@@ -75,7 +75,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         Object vTo = null;
         boolean includeLower = true;
         boolean includeUpper = true;
-        DistanceUnit unit = DistanceUnit.KILOMETERS; // default unit
+        DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         boolean normalizeLon = true;
@@ -176,19 +176,19 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         Double to = null;
         if (vFrom != null) {
             if (vFrom instanceof Number) {
-                from = unit.toMiles(((Number) vFrom).doubleValue());
+                from = unit.toMeters(((Number) vFrom).doubleValue());
             } else {
-                from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.MILES);
+                from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.DEFAULT);
             }
-            from = geoDistance.normalize(from, DistanceUnit.MILES);
+            from = geoDistance.normalize(from, DistanceUnit.DEFAULT);
         }
         if (vTo != null) {
             if (vTo instanceof Number) {
-                to = unit.toMiles(((Number) vTo).doubleValue());
+                to = unit.toMeters(((Number) vTo).doubleValue());
             } else {
-                to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.MILES);
+                to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.DEFAULT);
             }
-            to = geoDistance.normalize(to, DistanceUnit.MILES);
+            to = geoDistance.normalize(to, DistanceUnit.DEFAULT);
         }
 
         if (normalizeLat || normalizeLon) {

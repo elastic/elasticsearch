@@ -73,7 +73,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
         String scriptLang = null;
         Map<String, Object> params = null;
         GeoPoint point = new GeoPoint();
-        DistanceUnit unit = DistanceUnit.KILOMETERS;
+        DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         List<GeoDistanceFacet.Entry> entries = Lists.newArrayList();
 

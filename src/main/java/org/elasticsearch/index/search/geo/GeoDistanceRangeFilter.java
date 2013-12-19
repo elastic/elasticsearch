@@ -46,8 +46,8 @@ public class GeoDistanceRangeFilter extends Filter {
     private final double lat;
     private final double lon;
 
-    private final double inclusiveLowerPoint; // in miles
-    private final double inclusiveUpperPoint; // in miles
+    private final double inclusiveLowerPoint; // in meters
+    private final double inclusiveUpperPoint; // in meters
 
     private final GeoDistance geoDistance;
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
@@ -63,7 +63,7 @@ public class GeoDistanceRangeFilter extends Filter {
         this.geoDistance = geoDistance;
         this.indexFieldData = indexFieldData;
 
-        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.DEFAULT);
 
         if (lowerVal != null) {
             double f = lowerVal.doubleValue();
@@ -85,7 +85,7 @@ public class GeoDistanceRangeFilter extends Filter {
         }
 
         if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
-            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.MILES);
+            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.DEFAULT);
             if ("memory".equals(optimizeBbox)) {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {

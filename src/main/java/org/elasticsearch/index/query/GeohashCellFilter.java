@@ -140,7 +140,7 @@ public class GeohashCellFilter {
         }
 
         public Builder precision(String precision) {
-            double meters = DistanceUnit.parse(precision, DistanceUnit.METERS, DistanceUnit.METERS);
+            double meters = DistanceUnit.parse(precision, DistanceUnit.DEFAULT, DistanceUnit.METERS);
             return precision(GeoUtils.geoHashLevelsForPrecision(meters));
         }
 
@@ -203,7 +203,7 @@ public class GeohashCellFilter {
                         if(token == Token.VALUE_NUMBER) {
                             levels = parser.intValue();
                         } else if(token == Token.VALUE_STRING) {
-                            double meters = DistanceUnit.parse(parser.text(), DistanceUnit.METERS, DistanceUnit.METERS);
+                            double meters = DistanceUnit.parse(parser.text(), DistanceUnit.DEFAULT, DistanceUnit.METERS);
                             levels = GeoUtils.geoHashLevelsForPrecision(meters);
                         }
                     } else if (NEIGHBORS.equals(field)) {

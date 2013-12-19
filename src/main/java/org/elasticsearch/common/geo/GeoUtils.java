@@ -137,7 +137,7 @@ public class GeoUtils {
      * @return levels need to achieve precision  
      */
     public static int quadTreeLevelsForPrecision(String distance) {
-        return quadTreeLevelsForPrecision(DistanceUnit.parse(distance, DistanceUnit.METERS, DistanceUnit.METERS));
+        return quadTreeLevelsForPrecision(DistanceUnit.METERS.parse(distance, DistanceUnit.DEFAULT));
     }
 
     /**
@@ -173,7 +173,7 @@ public class GeoUtils {
      * @return levels need to achieve precision  
      */
     public static int geoHashLevelsForPrecision(String distance) {
-        return geoHashLevelsForPrecision(DistanceUnit.parse(distance, DistanceUnit.METERS, DistanceUnit.METERS));
+        return geoHashLevelsForPrecision(DistanceUnit.METERS.parse(distance, DistanceUnit.DEFAULT));
     }
 
     /**

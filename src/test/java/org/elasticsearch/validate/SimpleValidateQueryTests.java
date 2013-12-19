@@ -39,7 +39,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryString;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -136,7 +136,8 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         .addPoint(40, -70)
                         .addPoint(30, -80)
                         .addPoint(20, -90)
-        ), equalTo("ConstantScore(GeoPolygonFilter(pin.location, [[40.0, -70.0], [30.0, -80.0], [20.0, -90.0]]))"));
+                        .addPoint(40, -70)    // closing polygon
+        ), equalTo("ConstantScore(GeoPolygonFilter(pin.location, [[40.0, -70.0], [30.0, -80.0], [20.0, -90.0], [40.0, -70.0]]))"));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter("pin.location")
                 .topLeft(40, -80)
@@ -144,16 +145,20 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         ), equalTo("ConstantScore(GeoBoundingBoxFilter(pin.location, [40.0, -80.0], [20.0, -70.0]))"));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter("pin.location")
-                .lat(10).lon(20).distance(15, DistanceUnit.MILES).geoDistance(GeoDistance.PLANE)
+                .lat(10).lon(20).distance(15, DistanceUnit.DEFAULT).geoDistance(GeoDistance.PLANE)
         ), equalTo("ConstantScore(GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0))"));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter("pin.location")
-                .lat(10).lon(20).distance(15, DistanceUnit.MILES).geoDistance(GeoDistance.PLANE)
+                .lat(10).lon(20).distance(15, DistanceUnit.DEFAULT).geoDistance(GeoDistance.PLANE)
         ), equalTo("ConstantScore(GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0))"));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceRangeFilter("pin.location")
-                .lat(10).lon(20).from("15miles").to("25miles").geoDistance(GeoDistance.PLANE)
+                .lat(10).lon(20).from("15m").to("25m").geoDistance(GeoDistance.PLANE)
         ), equalTo("ConstantScore(GeoDistanceRangeFilter(pin.location, PLANE, [15.0 - 25.0], 10.0, 20.0))"));
+
+        assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceRangeFilter("pin.location")
+                .lat(10).lon(20).from("15miles").to("25miles").geoDistance(GeoDistance.PLANE)
+        ), equalTo("ConstantScore(GeoDistanceRangeFilter(pin.location, PLANE, [" + DistanceUnit.DEFAULT.convert(15.0, DistanceUnit.MILES) + " - " + DistanceUnit.DEFAULT.convert(25.0, DistanceUnit.MILES) + "], 10.0, 20.0))"));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),

@@ -56,7 +56,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             final String precisionAsString = type.getSettings().get(PRECISION_KEY);
             final Distance precision;
             if (precisionAsString != null) {
-                precision = Distance.parseDistance(precisionAsString, DistanceUnit.METERS);
+                precision = Distance.parseDistance(precisionAsString);
             } else {
                 precision = DEFAULT_PRECISION_VALUE;
             }

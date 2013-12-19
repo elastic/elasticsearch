@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.store.CompoundFileDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
-
-import java.io.IOException;
-import java.util.Collection;
+import org.elasticsearch.common.Nullable;
 
 /**
  * Utils for working with {@link Directory} classes.
@@ -31,6 +30,27 @@ import java.util.Collection;
 public final class DirectoryUtils {
 
     private DirectoryUtils() {} // no instance
+
+    /**
+     * Try and extract a store directory out of a directory, tries to take into
+     * account the fact that a directory is a filter directory, and/or a compound dir.
+     */
+    @Nullable
+    public static Store.StoreDirectory getStoreDirectory(Directory dir) {
+        Directory current = dir;
+        while (true) {
+            if (current instanceof Store.StoreDirectory) {
+                return (Store.StoreDirectory) current;
+            }
+            if (current instanceof FilterDirectory) {
+                current = ((FilterDirectory) current).getDelegate();
+            } else if (current instanceof CompoundFileDirectory) {
+                current = ((CompoundFileDirectory) current).getDirectory();
+            } else {
+                return null;
+            }
+        }
+    }
 
     private static final Directory getLeafDirectory(FilterDirectory dir) {
         Directory current = dir.getDelegate();

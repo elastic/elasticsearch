@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.robin.RobinEngine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
@@ -79,6 +80,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_COMPOUND_FORMAT);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_INDEX_CONCURRENCY, Validator.NON_NEGATIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_COMPOUND_ON_FLUSH, Validator.BOOLEAN);
+        indexDynamicSettings.addDynamicSetting(CodecService.INDEX_CODEC_BLOOM_LOAD, Validator.BOOLEAN);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_GC_DELETES, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_CODEC);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE);

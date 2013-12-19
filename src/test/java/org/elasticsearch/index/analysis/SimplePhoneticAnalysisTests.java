@@ -2,7 +2,6 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -12,13 +11,16 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
-import static org.hamcrest.Matchers.*;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class SimplePhoneticAnalysisTests {
+public class SimplePhoneticAnalysisTests extends ElasticsearchTestCase {
 
     @Test
     public void testPhoneticTokenFilterFactory() {

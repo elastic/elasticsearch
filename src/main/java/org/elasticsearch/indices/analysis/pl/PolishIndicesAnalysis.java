@@ -46,7 +46,7 @@ public class PolishIndicesAnalysis extends AbstractComponent {
     @Inject
     public PolishIndicesAnalysis(Settings settings, IndicesAnalysisService indicesAnalysisService) {
         super(settings);
-        indicesAnalysisService.analyzerProviderFactories().put("default", new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDICES, new PolishAnalyzer(Lucene.ANALYZER_VERSION)));
+        indicesAnalysisService.analyzerProviderFactories().put("polish", new PreBuiltAnalyzerProviderFactory("polish", AnalyzerScope.INDICES, new PolishAnalyzer(Lucene.ANALYZER_VERSION)));
 
         indicesAnalysisService.tokenFilterFactories().put("polish_stem", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {

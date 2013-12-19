@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -147,9 +146,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
     }
 
-    // TODO this test causes hangs, blocking on the action get when fetching the shape for some reason
     @Test
-    @AwaitsFix(bugUrl = "this test causes hangs, blocking on the action get when fetching the shape for some reason")
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

@@ -28,6 +28,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.index.store.DirectoryUtils;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.*;
@@ -129,7 +131,14 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 this.delegateFieldsProducer = delegatePostingsFormat
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
-                if (state.context.context != IOContext.Context.MERGE) {
+
+                boolean load = true;
+                Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(state.directory);
+                if (storeDir != null && storeDir.codecService() != null) {
+                    load = storeDir.codecService().isLoadBloomFilter();
+                }
+
+                if (load && state.context.context != IOContext.Context.MERGE) {
                     // if we merge we don't need to load the bloom filters
                     for (int i = 0; i < numBlooms; i++) {
                         int fieldNum = bloomIn.readInt();
@@ -189,7 +198,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return size;
         }
     }
-    
+
     public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {
         private BloomFilter filter;
 

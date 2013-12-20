@@ -97,7 +97,6 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
             unassignedShards += indexHealth.unassignedShards;
             if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
                 status = ClusterHealthStatus.RED;
-                break;
             } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
                 status = ClusterHealthStatus.YELLOW;
             }

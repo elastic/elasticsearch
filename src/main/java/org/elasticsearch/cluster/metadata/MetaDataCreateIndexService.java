@@ -482,7 +482,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     try {
                         byte[] templatesData = Streams.copyToByteArray(templatesFile);
                         parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
-                        IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser);
+                        IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContentStandalone(parser);
                         if (Regex.simpleMatch(template.template(), request.index)) {
                             templates.add(template);
                         }

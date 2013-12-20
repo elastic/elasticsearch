@@ -1,7 +1,9 @@
 {
-    "template" : "foo*",
-    "settings" : {
-        "number_of_shards": 10,
-        "number_of_replicas": 0
+    "template_1" : {
+        "template" : "foo*",
+        "settings" : {
+            "number_of_shards": 10,
+            "number_of_replicas": 0
+        }
     }
 }

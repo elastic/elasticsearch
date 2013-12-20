@@ -59,6 +59,10 @@ settings API:
 `index.codec`::
     Codec. Default to `default`.
 
+`index.codec.bloom.load`::
+    Whether to load the bloom filter. Defaults to `true`.
+    See <<bloom-postings>>.
+
 `index.fail_on_merge_failure`::
     Default to `true`.
 

@@ -317,7 +317,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     public void validate() throws RoutingValidationException {
     }
 
-    public Builder builder(String index) {
+    public static Builder builder(String index) {
         return new Builder(index);
     }
 

@@ -1,4 +1,6 @@
-= Community Supported Clients 
+= Community Supported Clients
+
+:client: http://www.elasticsearch.org/guide/en/elasticsearch/client
 
 
 include::clients.asciidoc[]

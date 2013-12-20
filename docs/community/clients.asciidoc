@@ -5,12 +5,12 @@
 [[community-perl]]
 === Perl
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/perl-api/current/index.html[official Elasticsearch Perl client].
+See the {client}/perl-api/current/index.html[official Elasticsearch Perl client].
 
 [[community-python]]
 === Python
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/current/index.html[official Elasticsearch Python client].
+See the {client}/python-api/current/index.html[official Elasticsearch Python client].
 
 * http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
   Python client.
@@ -34,7 +34,7 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/cu
 [[community-ruby]]
 === Ruby
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/current/index.html[official Elasticsearch Ruby client].
+See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client].
 
 * http://github.com/karmi/tire[Tire]:
   Ruby API & DSL, with ActiveRecord/ActiveModel integration.
@@ -52,7 +52,7 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 [[community-php]]
 === PHP
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/current/index.html[official Elasticsearch PHP client].
+See the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 
 * http://github.com/ruflin/Elastica[Elastica]:
   PHP client.
@@ -73,7 +73,7 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/curre
 [[community-javascript]]
 === JavaScript
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/elasticsearch/index.html[official Elasticsearch JavaScript client].
+See the {client}/javascript-api/current/index.html[official Elasticsearch JavaScript client].
 
 * https://github.com/fullscale/elastic.js[Elastic.js]:
   A JavaScript implementation of the ElasticSearch Query DSL and Core API.

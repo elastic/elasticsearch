@@ -29,6 +29,7 @@ import java.io.IOException;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -89,6 +90,11 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetaDataBuilder("alias2"))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
+                        .put(IndexTemplateMetaData.builder("foo")
+                                .template("bar")
+                                .order(1).settings(settingsBuilder()
+                                        .put("setting1", "value1")
+                                        .put("setting2", "value2")))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -172,6 +178,12 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.aliases().get("alias3").filter(), nullValue());
         assertThat(indexMetaData.aliases().get("alias4").alias(), equalTo("alias4"));
         assertThat(indexMetaData.aliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
+
+        // templates
+        assertThat(parsedMetaData.templates().get("foo").name(), is("foo"));
+        assertThat(parsedMetaData.templates().get("foo").template(), is("bar"));
+        assertThat(parsedMetaData.templates().get("foo").settings().get("index.setting1"), is("value1"));
+        assertThat(parsedMetaData.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

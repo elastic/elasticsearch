@@ -148,8 +148,8 @@ Type name: `bloom`
 It can sometime make sense to disable bloom filters. For instance, if you are
 logging into an index per day, and you have thousands of indices, the bloom
 filters can take up a sizable amount of memory. For most queries you are only
-interested in recent indices, so you don't mind queries on older indices
-taking slightly longer.
+interested in recent indices, so you don't mind CRUD operations on older
+indices taking slightly longer.
 
 In these cases you can disable loading of the bloom filter on  a per-index
 basis by updating the index settings:

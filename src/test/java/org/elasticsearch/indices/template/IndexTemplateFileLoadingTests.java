@@ -32,13 +32,15 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=1)
+@ClusterScope(scope=Scope.TEST, numNodes=1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
 
     @Rule
@@ -57,8 +59,10 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
             templatesDir.mkdir();
 
             File dst = new File(templatesDir, "template.json");
+            String templatePath = "/org/elasticsearch/indices/template/template" + randomInt(5) + ".json";
+            logger.info("Picking template path [{}]", templatePath);
             // random template, one uses the 'setting.index.number_of_shards', the other 'settings.number_of_shards'
-            String template = Streams.copyToStringFromClasspath("/org/elasticsearch/indices/template/template" + randomInt(2) + ".json");
+            String template = Streams.copyToStringFromClasspath(templatePath);
             Files.write(template, dst, Charsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -69,11 +73,20 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
 
     @Test
     public void testThatLoadingTemplateFromFileWorks() throws Exception {
-        createIndex("foobar");
-        ensureYellow(); // ensuring yellow so the test fails faster if the template cannot be loaded
+        final int iters = atLeast(5);
+        Set<String> indices = new HashSet<String>();
+        for (int i = 0; i < iters; i++) {
+            String indexName = "foo" + randomRealisticUnicodeOfLengthBetween(0, 5);
+            if (indices.contains(indexName)) {
+                continue;
+            }
+            indices.add(indexName);
+            createIndex(indexName);
+            ensureYellow(); // ensuring yellow so the test fails faster if the template cannot be loaded
 
-        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().setFilterIndices("foobar").get();
-        assertThat(stateResponse.getState().getMetaData().indices().get("foobar").getNumberOfShards(), is(10));
-        assertThat(stateResponse.getState().getMetaData().indices().get("foobar").getNumberOfReplicas(), is(0));
+            ClusterStateResponse stateResponse = client().admin().cluster().prepareState().setFilterIndices(indexName).get();
+            assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfShards(), is(10));
+            assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfReplicas(), is(0));
+        }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -146,6 +148,11 @@ public class IndexTemplateMetaData {
     }
 
     public static class Builder {
+
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
+        static {
+            VALID_FIELDS.addAll(IndexMetaData.customFactories.keySet());
+        }
 
         private String name;
 
@@ -296,8 +303,8 @@ public class IndexTemplateMetaData {
         public static IndexTemplateMetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder(parser.currentName());
 
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
+            String currentFieldName = skipTemplateName(parser);
+            XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -357,6 +364,24 @@ public class IndexTemplateMetaData {
                 }
             }
             return builder.build();
+        }
+
+        private static String skipTemplateName(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.nextToken();
+            if (token != null && token == XContentParser.Token.START_OBJECT) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    if (VALID_FIELDS.contains(currentFieldName)) {
+                        return currentFieldName;
+                    } else {
+                        // we just hit the template name, which should be ignored and we move on
+                        parser.nextToken();
+                    }
+                }
+            }
+
+            return null;
         }
 
         public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {

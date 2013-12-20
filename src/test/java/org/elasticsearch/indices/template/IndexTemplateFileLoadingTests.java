@@ -58,7 +58,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
 
             File dst = new File(templatesDir, "template.json");
             // random template, one uses the 'setting.index.number_of_shards', the other 'settings.number_of_shards'
-            String template = Streams.copyToStringFromClasspath("/org/elasticsearch/indices/template/template" + randomInt(1) + ".json");
+            String template = Streams.copyToStringFromClasspath("/org/elasticsearch/indices/template/template" + randomInt(2) + ".json");
             Files.write(template, dst, Charsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException(e);

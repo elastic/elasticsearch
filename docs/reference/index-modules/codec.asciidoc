@@ -40,7 +40,7 @@ curl -XPUT 'http://localhost:9200/twitter/' -d '{
              "my_format" : {
                 "type" : "pulsing",
                 "freq_cut_off" : "5"
-             } 
+             }
           }
        }
         }
@@ -77,13 +77,13 @@ substantial increase in search performance. Because this holds all term
 bytes as a single byte[], you cannot have more than 2.1GB worth of terms
 in a single segment.
 
-This postings format offers the following parameters: 
+This postings format offers the following parameters:
 
-`min_skip_count`:: 
+`min_skip_count`::
     The minimum number terms with a shared prefix to
-    allow a skip pointer to be written. The default is *8*. 
+    allow a skip pointer to be written. The default is *8*.
 
-`low_freq_cutoff`:: 
+`low_freq_cutoff`::
     Terms with a lower document frequency use a
     single array object representation for postings and positions. The
     default is *32*.
@@ -97,15 +97,15 @@ Type name: `direct`
 A postings format that stores terms & postings (docs, positions,
 payloads) in RAM, using an FST. This postings format does write to disk,
 but loads everything into memory. The memory postings format has the
-following options: 
+following options:
 
-`pack_fst`:: 
+`pack_fst`::
     A boolean option that defines if the in memory structure
     should be packed once its build. Packed will reduce the size for the
     data-structure in memory but requires more memory during building.
     Default is *false*.
 
-`acceptable_overhead_ratio`:: 
+`acceptable_overhead_ratio`::
     The compression ratio specified as a
     float, that is used to compress internal structures. Example ratios `0`
     (Compact, no memory overhead at all, but the returned implementation may
@@ -124,13 +124,13 @@ top of this creates a bloom filter that is written to disk. During
 opening this bloom filter is loaded into memory and used to offer
 "fast-fail" reads. This postings format is useful for low doc-frequency
 fields such as primary keys. The bloom filter postings format has the
-following options: 
+following options:
 
-`delegate`:: 
+`delegate`::
     The name of the configured postings format that the
-    bloom filter postings format will wrap. 
+    bloom filter postings format will wrap.
 
-`fpp`:: 
+`fpp`::
     The desired false positive probability specified as a
     floating point number between 0 and 1.0. The `fpp` can be configured for
     multiple expected insertions. Example expression: *10k=0.01,1m=0.03*. If
@@ -141,6 +141,30 @@ following options:
 
 Type name: `bloom`
 
+[[codec-bloom-load]]
+[TIP]
+==================================================
+
+It can sometime make sense to disable bloom filters. For instance, if you are
+logging into an index per day, and you have thousands of indices, the bloom
+filters can take up a sizable amount of memory. For most queries you are only
+interested in recent indices, so you don't mind queries on older indices
+taking slightly longer.
+
+In these cases you can disable loading of the bloom filter on  a per-index
+basis by updating the index settings:
+
+[source,js]
+--------------------------------------------------
+PUT /old_index/_settings?index.codec.bloom.load=false
+--------------------------------------------------
+
+This setting, which defaults to `true`, can be updated on a live index. Note,
+however, that changing the value will cause the index to be reopened, which
+will invalidate any existing caches.
+
+==================================================
+
 [float]
 [[pulsing-postings]]
 ==== Pulsing postings format
@@ -148,17 +172,17 @@ Type name: `bloom`
 The pulsing implementation in-lines the posting lists for very low
 frequent terms in the term dictionary. This is useful to improve lookup
 performance for low-frequent terms. This postings format offers the
-following parameters: 
+following parameters:
 
-`min_block_size`:: 
+`min_block_size`::
     The minimum block size the default Lucene term
-    dictionary uses to encode on-disk blocks. Defaults to *25*. 
+    dictionary uses to encode on-disk blocks. Defaults to *25*.
 
-`max_block_size`:: 
+`max_block_size`::
     The maximum block size the default Lucene term
-    dictionary uses to encode on-disk blocks. Defaults to *48*. 
+    dictionary uses to encode on-disk blocks. Defaults to *48*.
 
-`freq_cut_off`:: 
+`freq_cut_off`::
     The document frequency cut off where pulsing
     in-lines posting lists into the term dictionary. Terms with a document
     frequency less or equal to the cutoff will be in-lined. The default is
@@ -170,11 +194,11 @@ Type name: `pulsing`
 [[default-postings]]
 ==== Default postings format
 
-The default postings format has the following options: 
+The default postings format has the following options:
 
-`min_block_size`:: 
+`min_block_size`::
     The minimum block size the default Lucene term
-    dictionary uses to encode on-disk blocks. Defaults to *25*. 
+    dictionary uses to encode on-disk blocks. Defaults to *25*.
 
 `max_block_size`::
     The maximum block size the default Lucene term

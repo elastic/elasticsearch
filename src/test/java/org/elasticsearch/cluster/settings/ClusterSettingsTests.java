@@ -20,50 +20,34 @@
 package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClusterSettingsTests extends ElasticsearchTestCase {
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 1)
+public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void clusterNonExistingSettingsUpdate() {
-        Node node1 = NodeBuilder.nodeBuilder().node();
-        node1.start();
-        Client client = node1.client();
-
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
 
-        ClusterUpdateSettingsResponse response = client.admin().cluster()
+        ClusterUpdateSettingsResponse response = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder().put(key1, value1).build())
                 .get();
 
         assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
-
     }
 
     @Test
     public void clusterSettingsUpdateResponse() {
-        Node node1 = NodeBuilder.nodeBuilder().node();
-        Node node2 = NodeBuilder.nodeBuilder().node();
-
-        node1.start();
-        node2.start();
-
-        Client client = node1.client();
-
         String key1 = "indices.cache.filter.size";
         int value1 = 10;
 
@@ -73,7 +57,7 @@ public class ClusterSettingsTests extends ElasticsearchTestCase {
         Settings transientSettings1 = ImmutableSettings.builder().put(key1, value1).build();
         Settings persistentSettings1 = ImmutableSettings.builder().put(key2, value2).build();
 
-        ClusterUpdateSettingsResponse response1 = client.admin().cluster()
+        ClusterUpdateSettingsResponse response1 = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(transientSettings1)
                 .setPersistentSettings(persistentSettings1)
@@ -88,7 +72,7 @@ public class ClusterSettingsTests extends ElasticsearchTestCase {
         Settings transientSettings2 = ImmutableSettings.builder().put(key1, value1).put(key2, value2).build();
         Settings persistentSettings2 = ImmutableSettings.EMPTY;
 
-        ClusterUpdateSettingsResponse response2 = client.admin().cluster()
+        ClusterUpdateSettingsResponse response2 = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(transientSettings2)
                 .setPersistentSettings(persistentSettings2)
@@ -103,7 +87,7 @@ public class ClusterSettingsTests extends ElasticsearchTestCase {
         Settings transientSettings3 = ImmutableSettings.EMPTY;
         Settings persistentSettings3 = ImmutableSettings.builder().put(key1, value1).put(key2, value2).build();
 
-        ClusterUpdateSettingsResponse response3 = client.admin().cluster()
+        ClusterUpdateSettingsResponse response3 = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(transientSettings3)
                 .setPersistentSettings(persistentSettings3)
@@ -114,9 +98,5 @@ public class ClusterSettingsTests extends ElasticsearchTestCase {
         assertThat(response3.getTransientSettings().get(key2), nullValue());
         assertThat(response3.getPersistentSettings().get(key1), notNullValue());
         assertThat(response3.getPersistentSettings().get(key2), notNullValue());
-
-        node1.stop();
-        node2.stop();
     }
-
 }

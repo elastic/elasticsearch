@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -53,9 +54,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         File[] dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -63,9 +64,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(), startsWith("store(random[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(random[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -73,9 +74,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(mmapfs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(mmapfs(" + dataPaths[0].getAbsolutePath().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(), containsString("), rate_limited(mmapfs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(mmapfs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -83,9 +84,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(simplefs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[rate_limited(simplefs(" + dataPaths[0].getAbsolutePath().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(), containsString("), rate_limited(simplefs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(simplefs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -99,9 +100,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString.toLowerCase(), startsWith("store(least_used[niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
+        assertThat(storeString.toLowerCase(Locale.ROOT), startsWith("store(least_used[niofs(" + dataPaths[0].getAbsolutePath().toLowerCase(Locale.ROOT)));
         if (dataPaths.length > 1) {
-            assertThat(storeString.toLowerCase(), containsString("), niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
+            assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), niofs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(")])"));
     }

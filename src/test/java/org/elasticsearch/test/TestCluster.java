@@ -164,6 +164,16 @@ public final class TestCluster implements Iterable<Client> {
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
         }
+        // randomize (multi/single) data path, special case for 0, don't set it at all...
+        int numOfDataPaths = random.nextInt(5);
+        if (numOfDataPaths > 0) {
+            StringBuilder dataPath = new StringBuilder();
+            for (int i = 0; i < numOfDataPaths; i++) {
+                dataPath.append("data/d").append(i).append(',');
+            }
+            builder.put("path.data", dataPath.toString());
+        }
+
         this.defaultSettings = builder.build();
         this.nodeSettingsSource = nodeSettingsSource;
     }

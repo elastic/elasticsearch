@@ -53,9 +53,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         File[] dataPaths = dataPaths();
-        assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPaths[0].getAbsolutePath()));
+        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
         if (dataPaths.length > 1) {
-            assertThat(storeString, containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath()));
+            assertThat(storeString.toLowerCase(), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -63,9 +63,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString, startsWith("store(random[rate_limited(niofs(" + dataPaths[0].getAbsolutePath()));
+        assertThat(storeString.toLowerCase(), startsWith("store(random[rate_limited(niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
         if (dataPaths.length > 1) {
-            assertThat(storeString, containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath()));
+            assertThat(storeString.toLowerCase(), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -73,9 +73,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString, startsWith("store(least_used[rate_limited(mmapfs(" + dataPaths[0].getAbsolutePath()));
+        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(mmapfs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
         if (dataPaths.length > 1) {
-            assertThat(storeString, containsString("), rate_limited(mmapfs(" + dataPaths[1].getAbsolutePath()));
+            assertThat(storeString.toLowerCase(), containsString("), rate_limited(mmapfs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -83,9 +83,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString, startsWith("store(least_used[rate_limited(simplefs(" + dataPaths[0].getAbsolutePath()));
+        assertThat(storeString.toLowerCase(), startsWith("store(least_used[rate_limited(simplefs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
         if (dataPaths.length > 1) {
-            assertThat(storeString, containsString("), rate_limited(simplefs(" + dataPaths[1].getAbsolutePath()));
+            assertThat(storeString.toLowerCase(), containsString("), rate_limited(simplefs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -99,9 +99,9 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString, startsWith("store(least_used[niofs(" + dataPaths[0].getAbsolutePath()));
+        assertThat(storeString.toLowerCase(), startsWith("store(least_used[niofs(" + dataPaths[0].getAbsolutePath().toLowerCase()));
         if (dataPaths.length > 1) {
-            assertThat(storeString, containsString("), niofs(" + dataPaths[1].getAbsolutePath()));
+            assertThat(storeString.toLowerCase(), containsString("), niofs(" + dataPaths[1].getAbsolutePath().toLowerCase()));
         }
         assertThat(storeString, endsWith(")])"));
     }

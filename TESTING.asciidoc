@@ -33,12 +33,6 @@ Use local transport:
 export ES_TEST_LOCAL=true && mvn test
 -------------------------------------
 
-Wait on mapping changes:
-
-------------------------------------------------
-export ES_WAIT_ON_MAPPING_CHANGE=true && mvn test
-------------------------------------------------
-
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,

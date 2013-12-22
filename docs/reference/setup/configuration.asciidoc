@@ -132,7 +132,7 @@ node:
 --------------------------------------------------
 
 Internally, all settings are collapsed into "namespaced" settings. For
-example, the above gets collapsed into `network.host`. This means that
+example, the above gets collapsed into `node.name`. This means that
 its easy to support other configuration formats, for example,
 http://www.json.org[JSON]. If JSON is a preferred configuration format,
 simply rename the `elasticsearch.yml` file to `elasticsearch.json` and

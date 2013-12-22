@@ -341,12 +341,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
                 .field("node", currentNodeId())
                 .field("relocating_node", relocatingNodeId())
                 .field("shard", shardId().id())
-                .field("index", shardId().index().name())
-                .field("restore_source");
+                .field("index", shardId().index().name());
         if (restoreSource() != null) {
+            builder.field("restore_source");
             restoreSource().toXContent(builder, params);
-        } else {
-            builder.nullValue();
         }
         return builder.endObject();
     }

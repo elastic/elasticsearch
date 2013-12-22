@@ -199,9 +199,12 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         IndexMetaData indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(2).build();
         ShardCounter counter = new ShardCounter();
         IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
+
+        // generate other meta data settings to cause errors.
         indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(3).build();
 
         ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+        // one failure per shard
         assertThat(indexHealth.getValidationFailures(), Matchers.hasSize(2));
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -210,7 +213,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
-        // currently we have no cluster level validation failures as index validation issues are reported per index.
-        assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));
+
+        assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(2));
     }
 }

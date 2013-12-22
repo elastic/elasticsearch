@@ -29,9 +29,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.empty;
 
 public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
 
@@ -45,6 +47,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
         assertThat(indexHealth.getShards().size(), equalTo(indexMetaData.getNumberOfShards()));
+        assertThat(indexHealth.getValidationFailures(), empty());
         int totalShards = 0;
         for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
             totalShards += shardHealth.getActiveShards() + shardHealth.getInitializingShards() + shardHealth.getUnassignedShards();
@@ -168,6 +171,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         assertThat(clusterHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(clusterHealth.getValidationFailures(), empty());
     }
 
     @Test
@@ -188,5 +192,25 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
 
         assertClusterHealth(clusterHealth, counter);
+    }
+
+    @Test
+    public void testValidations() {
+        IndexMetaData indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(2).build();
+        ShardCounter counter = new ShardCounter();
+        IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
+        indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(3).build();
+
+        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+        assertThat(indexHealth.getValidationFailures(), Matchers.hasSize(2));
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        MetaData.Builder metaData = MetaData.builder();
+        metaData.put(indexMetaData, true);
+        routingTable.add(indexRoutingTable);
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
+        // currently we have no cluster level validation failures as index validation issues are reported per index.
+        assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));
     }
 }

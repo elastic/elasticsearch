@@ -138,6 +138,8 @@ public class Version implements Serializable {
     public static final Version V_0_90_7 = new Version(V_0_90_7_ID, false, org.apache.lucene.util.Version.LUCENE_45);
     public static final int V_0_90_8_ID = /*00*/900899;
     public static final Version V_0_90_8 = new Version(V_0_90_8_ID, false, org.apache.lucene.util.Version.LUCENE_46);
+    public static final int V_0_90_9_ID = /*00*/900999;
+    public static final Version V_0_90_9 = new Version(V_0_90_9_ID, false, org.apache.lucene.util.Version.LUCENE_46);
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
     public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_45);
@@ -164,6 +166,8 @@ public class Version implements Serializable {
                 return V_1_0_0_Beta2;
             case V_1_0_0_Beta1_ID:
                 return V_1_0_0_Beta1;
+            case V_0_90_9_ID:
+                return V_0_90_9;
             case V_0_90_8_ID:
                 return V_0_90_8;
             case V_0_90_7_ID:

@@ -145,7 +145,9 @@ public class TopChildrenQuery extends Query {
             }
         }
 
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
+        ParentWeight parentWeight =  new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
+        searchContext.addReleasable(parentWeight);
+        return parentWeight;
     }
 
     int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) {

@@ -59,12 +59,22 @@ public class Table {
         return this;
     }
 
-    public Table endRow() {
-        if (currentCells.size() != headers.size()) {
+    public Table endRow(boolean check) {
+        if (check && (currentCells.size() != headers.size())) {
             throw new ElasticSearchIllegalArgumentException("mismatch on number of cells in a row compared to header");
         }
         rows.add(currentCells);
         currentCells = null;
+        return this;
+    }
+
+    public Table endRow() {
+        endRow(true);
+        return this;
+    }
+
+    public Table addCell(Cell cell) {
+        currentCells.add(cell);
         return this;
     }
 
@@ -111,6 +121,59 @@ public class Table {
 
     public Iterable<List<Cell>> getRows() {
         return rows;
+    }
+
+    public List<Cell>[] getRowsAsArray() {
+        return (List<Cell>[]) rows.toArray();
+    }
+
+    public Table addTable(Table t2) {
+        Table t1 = this;
+        Table t = new Table();
+
+        t.startHeaders();
+
+        for (Cell c : t1.getHeaders()) {
+            t.addCell(c);
+        }
+
+        for (Cell c : t2.getHeaders()) {
+            t.addCell(c);
+        }
+
+        t.endHeaders();
+
+        if (t1.rows.size() != t2.rows.size()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("cannot add a table with ");
+            sb.append(t2.rows.size());
+            sb.append(" rows to table with ");
+            sb.append(t1.rows.size());
+            sb.append(" rows");
+            throw new ElasticSearchIllegalArgumentException(sb.toString());
+        }
+
+        for (int i = 0; i < t1.rows.size(); i++) {
+            t.startRow();
+            for (Cell c : t1.rows.get(i)) {
+                t.addCell(c);
+            }
+            for (Cell c : t2.rows.get(i)) {
+                t.addCell(c);
+            }
+            t.endRow(false);
+        }
+
+        return t;
+    }
+
+    public Table addColumn(String headerName, String attrs, List<Object> values) {
+        Table t = new Table();
+        t.startHeaders().addCell(headerName, attrs).endHeaders();
+        for (Object val : values) {
+            t.startRow().addCell(val).endRow();
+        }
+        return this.addTable(t);
     }
 
     public static class Cell {

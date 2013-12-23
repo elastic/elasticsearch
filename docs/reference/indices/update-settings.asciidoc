@@ -61,7 +61,7 @@ settings API:
 
 `index.codec.bloom.load`::
     Whether to load the bloom filter. Defaults to `true`.
-    coming[0.90.9]. See <<bloom-postings>>.
+    added[0.90.9]. See <<bloom-postings>>.
 
 `index.fail_on_merge_failure`::
     Default to `true`.

@@ -141,7 +141,7 @@ Type name: `bloom`
 [TIP]
 ==================================================
 
-coming[0.90.9]. It can sometime make sense to disable bloom filters. For
+added[0.90.9]. It can sometime make sense to disable bloom filters. For
 instance, if you are logging into an index per day, and you have thousands of
 indices, the bloom filters can take up a sizable amount of memory. For most
 queries you are only interested in recent indices, so you don't mind CRUD

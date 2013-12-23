@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -207,6 +208,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo(10l));
+        assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_46);
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }
 

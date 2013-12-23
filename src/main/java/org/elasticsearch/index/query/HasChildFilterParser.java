@@ -144,7 +144,7 @@ public class HasChildFilterParser implements FilterParser {
         Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
 
         if (filterName != null) {
-            parseContext.addNamedQuery(filterName, childrenConstantScoreQuery);
+            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
         }
 
         boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());

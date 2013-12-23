@@ -34,7 +34,7 @@ setup:
 ---
 "Basic tests for suggest API - post v1":
   - skip:
-      version:     "0 - 0.90.9"
+      version:     "0 - 0.90.999"
       reason:      "Standard analyzer ignores stopwords"
 
 

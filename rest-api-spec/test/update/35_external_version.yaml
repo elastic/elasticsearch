@@ -2,7 +2,7 @@
 "External version":
 
  - skip:
-      version:      "0 - 0.90.9"
+      version:      "0 - 0.90.999"
       reason:       "Versions not supported by update API before 1.0.0"
 
  - do:

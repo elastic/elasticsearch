@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,7 +52,7 @@ public class TopChildrenQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
+        Query innerQuery = null;
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
@@ -72,7 +73,7 @@ public class TopChildrenQueryParser implements QueryParser {
                     // since we switch types, make sure we change the context
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                     try {
-                        query = parseContext.parseInnerQuery();
+                        innerQuery = parseContext.parseInnerQuery();
                     } finally {
                         QueryParseContext.setTypes(origTypes);
                     }
@@ -108,7 +109,7 @@ public class TopChildrenQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
         }
 
-        if (query == null) {
+        if (innerQuery == null) {
             return null;
         }
 
@@ -125,13 +126,13 @@ public class TopChildrenQueryParser implements QueryParser {
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 
-        query.setBoost(boost);
+        innerQuery.setBoost(boost);
         // wrap the query with type query
-        query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
-        TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler());
+        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        TopChildrenQuery query = new TopChildrenQuery(innerQuery, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler());
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, childQuery);
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }
-        return childQuery;
+        return query;
     }
 }

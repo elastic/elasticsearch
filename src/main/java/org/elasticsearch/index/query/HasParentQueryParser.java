@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.child.ParentQuery;
@@ -170,7 +171,7 @@ public class HasParentQueryParser implements QueryParser {
         }
         query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }
         return query;
     }

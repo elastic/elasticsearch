@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
 import org.elasticsearch.script.SearchScript;
@@ -531,22 +532,12 @@ public abstract class FieldDataSource {
                 @Override
                 public int setDocument(int docId) {
                     final int numValues = super.setDocument(docId);
-                    if (numValues == 0) {
-                        return numUniqueValues = 0;
-                    }
                     array = ArrayUtil.grow(array, numValues);
                     for (int i = 0; i < numValues; ++i) {
                         array[i] = super.nextValue();
                     }
-                    sorter.sort(0, numValues);
-                    numUniqueValues = 1;
-                    for (int i = 1; i < numValues; ++i) {
-                        if (array[i] != array[i-1]) {
-                            array[numUniqueValues++] = array[i];
-                        }
-                    }
                     pos = 0;
-                    return numUniqueValues;
+                    return numUniqueValues = CollectionUtils.sortAndDedup(array, numValues);
                 }
 
                 @Override
@@ -588,22 +579,12 @@ public abstract class FieldDataSource {
                 @Override
                 public int setDocument(int docId) {
                     final int numValues = super.setDocument(docId);
-                    if (numValues == 0) {
-                        return numUniqueValues = 0;
-                    }
                     array = ArrayUtil.grow(array, numValues);
                     for (int i = 0; i < numValues; ++i) {
                         array[i] = super.nextValue();
                     }
-                    sorter.sort(0, numValues);
-                    numUniqueValues = 1;
-                    for (int i = 1; i < numValues; ++i) {
-                        if (array[i] != array[i-1]) {
-                            array[numUniqueValues++] = array[i];
-                        }
-                    }
                     pos = 0;
-                    return numUniqueValues;
+                    return numUniqueValues = CollectionUtils.sortAndDedup(array, numValues);
                 }
 
                 @Override

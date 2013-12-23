@@ -35,12 +35,12 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
@@ -445,36 +445,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         @Override
         public BytesRef binaryValue() {
-            assert values.size() > 0;
-            // sort
-            new InPlaceMergeSorter() {
-                @Override
-                protected void swap(int i, int j) {
-                    final long tmp = values.get(i);
-                    values.set(i, values.get(j));
-                    values.set(j, tmp);
-                }
-                @Override
-                protected int compare(int i, int j) {
-                    final long l1 = values.get(i);
-                    final long l2 = values.get(j);
-                    return l1 < l2 ? -1 : l1 == l2 ? 0 : 1;
-                }
-            }.sort(0, values.size());
-
-            // deduplicate
-            int numUniqueValues = values.isEmpty() ? 0 : 1;
-            for (int i = 1; i < values.size(); ++i) {
-                if (values.get(i) != values.get(i - 1)) {
-                    values.set(numUniqueValues++, values.get(i));
-                }
-            }
-            values.resize(numUniqueValues);
+            CollectionUtils.sortAndDedup(values);
 
             // here is the trick:
             //  - the first value is zig-zag encoded so that eg. -5 would become positive and would be better compressed by vLong
             //  - for other values, we only encode deltas using vLong
-            final byte[] bytes = new byte[numUniqueValues * ByteUtils.MAX_BYTES_VLONG];
+            final byte[] bytes = new byte[values.size() * ByteUtils.MAX_BYTES_VLONG];
             final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
             ByteUtils.writeVLong(out, ByteUtils.zigZagEncode(values.get(0)));
             for (int i = 1; i < values.size(); ++i) {

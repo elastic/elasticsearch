@@ -235,9 +235,10 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         float[] values = new float[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
             final int numValues = randomInt(maxNumValues);
+            float def = randomBoolean() ? randomFloat() : Float.NaN;
             for (int j = 0; j < numValues; ++j) {
                 if (randomBoolean()) {
-                    values[j] = 1;
+                    values[j] = def;
                 } else {
                     values[j] = randomFloat();
                 }
@@ -488,8 +489,12 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             assertThat((numValues = leftDoubleValues.setDocument(i)), equalTo(rightDoubleValues.setDocument(i)));
             double previous = 0;
             for (int j = 0; j < numValues; j++) {
-                double current;
-                assertThat(leftDoubleValues.nextValue(), closeTo(current = rightDoubleValues.nextValue(), 0.0001));
+                double current = rightDoubleValues.nextValue();
+                if (Double.isNaN(current)) {
+                    assertTrue(Double.isNaN(leftDoubleValues.nextValue()));
+                } else {
+                    assertThat(leftDoubleValues.nextValue(), closeTo(current, 0.0001));
+                }
                 if (j > 0) {
                    assertThat(Double.compare(previous,current), lessThan(0));
                 }

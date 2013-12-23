@@ -30,7 +30,6 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
@@ -319,7 +319,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             field.setBoost(boost);
             fields.add(field);
         }
-        if (hasDocValues() && !Float.isNaN(value)) {
+        if (hasDocValues()) {
             CustomDoubleNumericDocValuesField field = context.doc().getField(names().indexName(), CustomDoubleNumericDocValuesField.class);
             if (field != null) {
                 field.add(value);
@@ -414,30 +414,9 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public BytesRef binaryValue() {
-            // sort
-            new InPlaceMergeSorter() {
-                @Override
-                protected void swap(int i, int j) {
-                    final float tmp = values.get(i);
-                    values.set(i, values.get(j));
-                    values.set(j, tmp);
-                }
-                @Override
-                protected int compare(int i, int j) {
-                    return Float.compare(values.get(i), values.get(j));
-                }
-            }.sort(0, values.size());
+            CollectionUtils.sortAndDedup(values);
 
-            // deduplicate
-            int numUniqueValues = values.isEmpty() ? 0 : 1;
-            for (int i = 1; i < values.size(); ++i) {
-                if (values.get(i) != values.get(i - 1)) {
-                    values.set(numUniqueValues++, values.get(i));
-                }
-            }
-            values.resize(numUniqueValues);
-
-            final byte[] bytes = new byte[numUniqueValues * 4];
+            final byte[] bytes = new byte[values.size() * 4];
             for (int i = 0; i < values.size(); ++i) {
                 ByteUtils.writeFloatLE(values.get(i), bytes, i * 4);
             }

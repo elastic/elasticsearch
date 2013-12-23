@@ -26,6 +26,8 @@ import hmac
 import urllib
 import fnmatch
 import socket
+import urllib.request
+
 from http.client import HTTPConnection
 
 """ 
@@ -114,7 +116,10 @@ def verify_mvn_java_version(version, mvn):
 
 # Returns the hash of the current git HEAD revision
 def get_head_hash():
-  return os.popen('git rev-parse --verify HEAD 2>&1').read().strip()
+  return get_hash('HEAD')
+
+def get_hash(version):
+  return os.popen('git rev-parse --verify %s 2>&1' % (version)).read().strip()
 
 # Returns the name of the current branch
 def get_current_branch():
@@ -238,7 +243,7 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
 
 def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
   for _ in range(timeout):
-    conn = HTTPConnection(host, port, timeout);
+    conn = HTTPConnection(host, port, timeout)
     try:
       log('Waiting until node becomes available for 1 second')
       time.sleep(1)
@@ -268,8 +273,11 @@ def find_release_version(src_branch):
         return match.group(1)
     raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
+def artifact_names(release, path = ''):
+  return [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+
 def get_artifacts(release):
-  common_artifacts = [os.path.join('target/releases/', 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  common_artifacts = artifact_names(release, 'target/releases/')
   for f in common_artifacts:
     if not os.path.isfile(f):
       raise RuntimeError('Could not find required artifact at %s' % f)
@@ -300,7 +308,28 @@ def generate_checksums(files):
     res = res + [os.path.join(directory, checksum_file), release_file]
   return res
 
-def smoke_test_release(release, files):
+def download_and_verify(release, files, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
+  print('Downloading and verifying release %s from %s' % (release, base_url))
+  tmp_dir = tempfile.mkdtemp()
+  try:
+    downloaded_files = []
+    for file in files:
+      name = os.path.basename(file)
+      url = '%s/%s' % (base_url, name)
+      abs_file_path = os.path.join(tmp_dir, name)
+      print('  Downloading %s' % (url))
+      downloaded_files.append(abs_file_path)
+      urllib.request.urlretrieve(url, abs_file_path)
+      url = ''.join([url, '.sha1.txt'])
+      checksum_file = os.path.join(tmp_dir, ''.join([abs_file_path, '.sha1.txt']))
+      urllib.request.urlretrieve(url, checksum_file)
+      print('  Verifying checksum %s' % (checksum_file))
+      run('cd %s && sha1sum -c %s' % (tmp_dir, os.path.basename(checksum_file)))
+    smoke_test_release(release, downloaded_files, get_hash('v%s' % release))
+  finally:
+    shutil.rmtree(tmp_dir)
+
+def smoke_test_release(release, files, expected_hash):
   for release_file in files:
     if not os.path.isfile(release_file):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
@@ -329,7 +358,7 @@ def smoke_test_release(release, files):
             raise RuntimeError('Expected version [%s] but was [%s]' % (release, version['number']))
           if version['build_snapshot']:
             raise RuntimeError('Expected non snapshot version')
-          if version['build_hash'].strip() !=  get_head_hash():
+          if version['build_hash'].strip() !=  expected_hash:
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (get_head_hash(), version['build_hash']))
           print('  Running REST Spec tests against package [%s]' % release_file)
           run_mvn('test -Dtests.rest=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9200"))
@@ -418,7 +447,11 @@ if __name__ == '__main__':
                       help='The remote to push the release commit and tag to. Default is [origin]')
   parser.add_argument('--publish', '-d', dest='dryrun', action='store_false',
                       help='Publishes the release. Disable by default.')
+  parser.add_argument('--smoke', '-s', dest='smoke', default='',
+                      help='Smoke tests the given release')
+
   parser.set_defaults(dryrun=True)
+  parser.set_defaults(smoke=None)
   args = parser.parse_args()
 
   src_branch = args.branch
@@ -426,6 +459,8 @@ if __name__ == '__main__':
   run_tests = args.tests
   dry_run = args.dryrun
   cpus = args.cpus
+  build = not args.smoke
+  smoke_test_version = args.smoke
   if not dry_run:
     check_s3_credentials()
     print('WARNING: dryrun is set to "false" - this will push and publish the release') 
@@ -436,58 +471,63 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   release_version = find_release_version(src_branch)
-  head_hash = get_head_hash()
-  run_mvn('clean') # clean the env!
-  print('  Release version: [%s]' % release_version)
-  create_release_branch(remote, src_branch, release_version)
-  print('  Created release branch [%s]' % (release_branch(release_version)))
-  success = False
-  try:
-    pending_files = [POM_FILE, VERSION_FILE]
-    remove_maven_snapshot(POM_FILE, release_version)
-    remove_version_snapshot(VERSION_FILE, release_version)
-    pending_files = pending_files + update_reference_docs(release_version)
-    print('  Done removing snapshot version')
-    add_pending_files(*pending_files) # expects var args use * to expand
-    commit_release(release_version)
-    print('  Committed release version [%s]' % release_version)
-    print(''.join(['-' for _ in range(80)]))
-    print('Building Release candidate')
-    input('Press Enter to continue...')
-    print('  Running maven builds now and publish to sonartype- run-tests [%s]' % run_tests)
-    build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
-    artifacts = get_artifacts(release_version)
-    artifacts_and_checksum = generate_checksums(artifacts)
-    smoke_test_release(release_version, artifacts)
-    print(''.join(['-' for _ in range(80)]))
-    print('Finish Release -- dry_run: %s' % dry_run)
-    input('Press Enter to continue...')
-    print('  merge release branch, tag and push to %s %s -- dry_run: %s' % (remote, src_branch, dry_run))
-    merge_tag_push(remote, src_branch, release_version, dry_run)
-    print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
-    publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
-    pending_msg = """
-    Release successful pending steps: 
-      * create a version tag on github for version 'v%(version)s'
-      * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
-      * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
-         - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
-      * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
-      * announce the release on the website / blog post
-      * tweet about the release
-    """
-    print(pending_msg % { 'version' : release_version} )
-    success = True
-  finally:
-    if not success:
-      run('git reset --hard HEAD')
-      run('git checkout %s' %  src_branch)
-    elif dry_run:
-      run('git reset --hard %s' % head_hash)
-      run('git tag -d v%s' % release_version) 
-    # we delete this one anyways
-    run('git branch -D %s' %  (release_branch(release_version)))
 
+  if not smoke_test_version and not dry_run:
+    smoke_test_version = release_version
+  elif smoke_test_version:
+    print("Skipping build - smoketest only against version %s" % smoke_test_version)
 
-
-
+  if build:
+    head_hash = get_head_hash()
+    run_mvn('clean') # clean the env!
+    print('  Release version: [%s]' % release_version)
+    create_release_branch(remote, src_branch, release_version)
+    print('  Created release branch [%s]' % (release_branch(release_version)))
+    success = False
+    try:
+      pending_files = [POM_FILE, VERSION_FILE]
+      remove_maven_snapshot(POM_FILE, release_version)
+      remove_version_snapshot(VERSION_FILE, release_version)
+      pending_files = pending_files + update_reference_docs(release_version)
+      print('  Done removing snapshot version')
+      add_pending_files(*pending_files) # expects var args use * to expand
+      commit_release(release_version)
+      print('  Committed release version [%s]' % release_version)
+      print(''.join(['-' for _ in range(80)]))
+      print('Building Release candidate')
+      input('Press Enter to continue...')
+      print('  Running maven builds now and publish to sonartype- run-tests [%s]' % run_tests)
+      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
+      artifacts = get_artifacts(release_version)
+      artifacts_and_checksum = generate_checksums(artifacts)
+      smoke_test_release(release_version, artifacts, get_head_hash())
+      print(''.join(['-' for _ in range(80)]))
+      print('Finish Release -- dry_run: %s' % dry_run)
+      input('Press Enter to continue...')
+      print('  merge release branch, tag and push to %s %s -- dry_run: %s' % (remote, src_branch, dry_run))
+      merge_tag_push(remote, src_branch, release_version, dry_run)
+      print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
+      publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
+      pending_msg = """
+      Release successful pending steps:
+        * create a version tag on github for version 'v%(version)s'
+        * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
+        * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
+           - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
+        * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
+        * announce the release on the website / blog post
+        * tweet about the release
+      """
+      print(pending_msg % { 'version' : release_version} )
+      success = True
+    finally:
+      if not success:
+        run('git reset --hard HEAD')
+        run('git checkout %s' %  src_branch)
+      elif dry_run:
+        run('git reset --hard %s' % head_hash)
+        run('git tag -d v%s' % release_version)
+      # we delete this one anyways
+      run('git branch -D %s' %  (release_branch(release_version)))
+  if smoke_test_version:
+    download_and_verify(smoke_test_version, artifact_names(smoke_test_version))

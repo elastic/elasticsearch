@@ -81,8 +81,8 @@ each time. In this situation it is only necessary to provide:
 * `index` - Name of the index where the pre-indexed shape is. Defaults
 to 'shapes'.
 * `type` - Index type where the pre-indexed shape is.
-* `shape_field_name` - Name of the field in the document containing the
-pre-indexed shape. Defaults to 'shape'.
+* `path` - The field specified as path containing the pre-indexed shape.
+Defaults to 'shape'.
 
 The following is an example of using the Filter with a pre-indexed
 shape:
@@ -101,7 +101,7 @@ shape:
                         "id": "DEU",
                         "type": "countries",
                         "index": "shapes",
-                        "shape_field_name": "location"
+                        "path": "location"
                     }
                 }
             }

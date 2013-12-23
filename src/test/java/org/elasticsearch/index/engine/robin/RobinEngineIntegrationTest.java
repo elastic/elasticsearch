@@ -38,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -47,74 +48,89 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSettingLoadBloomFilterDefaultTrue() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
-        client().prepareIndex("test", "foo").setSource("field", "foo").get();
-        ensureGreen();
-        refresh();
+        Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
+        allowRamBytesUsed.setAccessible(true);
+        allowRamBytesUsed.set(RobinEngine.class, Boolean.TRUE);
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-        final long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
-        logger.info("segments with bloom: {}", segmentsMemoryWithBloom);
+        try {
+            client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
+            client().prepareIndex("test", "foo").setSource("field", "foo").get();
+            ensureGreen();
+            refresh();
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+            final long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+            logger.info("segments with bloom: {}", segmentsMemoryWithBloom);
 
-        logger.info("updating the setting to unload bloom filters");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
-        logger.info("waiting for memory to match without blooms");
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-                long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
-                logger.info("trying segments without bloom: {}", segmentsMemoryWithoutBloom);
-                return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
-            }
-        });
+            logger.info("updating the setting to unload bloom filters");
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+            logger.info("waiting for memory to match without blooms");
+            awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                    long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                    logger.info("trying segments without bloom: {}", segmentsMemoryWithoutBloom);
+                    return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
+                }
+            });
 
-        logger.info("updating the setting to load bloom filters");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
-        logger.info("waiting for memory to match with blooms");
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-                long newSegmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
-                logger.info("trying segments with bloom: {}", newSegmentsMemoryWithBloom);
-                return newSegmentsMemoryWithBloom == segmentsMemoryWithBloom;
-            }
-        });
+            logger.info("updating the setting to load bloom filters");
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
+            logger.info("waiting for memory to match with blooms");
+            awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                    long newSegmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                    logger.info("trying segments with bloom: {}", newSegmentsMemoryWithBloom);
+                    return newSegmentsMemoryWithBloom == segmentsMemoryWithBloom;
+                }
+            });
+        } finally {
+            allowRamBytesUsed.set(RobinEngine.class, Boolean.FALSE);
+        }
     }
 
     @Test
     public void testSettingLoadBloomFilterDefaultFalse() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1).put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
-        client().prepareIndex("test", "foo").setSource("field", "foo").get();
-        ensureGreen();
-        refresh();
+        Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
+        allowRamBytesUsed.setAccessible(true);
+        allowRamBytesUsed.set(RobinEngine.class, Boolean.TRUE);
+        try {
+            client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1).put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+            client().prepareIndex("test", "foo").setSource("field", "foo").get();
+            ensureGreen();
+            refresh();
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-        final long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
-        logger.info("segments without bloom: {}", segmentsMemoryWithoutBloom);
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+            final long segmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+            logger.info("segments without bloom: {}", segmentsMemoryWithoutBloom);
 
-        logger.info("updating the setting to load bloom filters");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
-        logger.info("waiting for memory to match with blooms");
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-                long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
-                logger.info("trying segments with bloom: {}", segmentsMemoryWithoutBloom);
-                return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
-            }
-        });
+            logger.info("updating the setting to load bloom filters");
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, true)).get();
+            logger.info("waiting for memory to match with blooms");
+            awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                    long segmentsMemoryWithBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                    logger.info("trying segments with bloom: {}", segmentsMemoryWithoutBloom);
+                    return segmentsMemoryWithoutBloom == (segmentsMemoryWithBloom - BloomFilter.Factory.DEFAULT.createFilter(1).getSizeInBytes());
+                }
+            });
 
-        logger.info("updating the setting to unload bloom filters");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
-        logger.info("waiting for memory to match without blooms");
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-                long newSegmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
-                logger.info("trying segments without bloom: {}", newSegmentsMemoryWithoutBloom);
-                return newSegmentsMemoryWithoutBloom == segmentsMemoryWithoutBloom;
-            }
-        });
+            logger.info("updating the setting to unload bloom filters");
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
+            logger.info("waiting for memory to match without blooms");
+            awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+                    long newSegmentsMemoryWithoutBloom = stats.getTotal().getSegments().getMemoryInBytes();
+                    logger.info("trying segments without bloom: {}", newSegmentsMemoryWithoutBloom);
+                    return newSegmentsMemoryWithoutBloom == segmentsMemoryWithoutBloom;
+                }
+            });
+        } finally {
+            allowRamBytesUsed.set(RobinEngine.class, Boolean.FALSE);
+        }
+
     }
 
     @Test

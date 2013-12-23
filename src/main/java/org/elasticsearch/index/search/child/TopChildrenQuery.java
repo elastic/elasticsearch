@@ -206,10 +206,10 @@ public class TopChildrenQuery extends Query {
                 ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
                 Arrays.sort(_parentDocs, PARENT_DOC_COMP);
                 parentDocs.v().put(keys[i], _parentDocs);
-                value.release();
+                RecyclerUtils.release(value);
             }
         }
-        parentDocsPerReader.release();
+        RecyclerUtils.release(parentDocsPerReader);
         return parentHitsResolved;
     }
 

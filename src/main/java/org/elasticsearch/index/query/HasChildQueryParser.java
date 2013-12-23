@@ -27,10 +27,7 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
-import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
-import org.elasticsearch.index.search.child.ScoreType;
+import org.elasticsearch.index.search.child.*;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -154,7 +151,7 @@ public class HasChildQueryParser implements QueryParser {
             }
         }
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }
         query.setBoost(boost);
         return query;

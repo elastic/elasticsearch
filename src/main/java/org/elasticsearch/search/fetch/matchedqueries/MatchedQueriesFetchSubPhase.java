@@ -97,6 +97,8 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 }
             } catch (IOException e) {
                 // ignore
+            } finally {
+                SearchContext.current().clearReleasables();
             }
         }
     }

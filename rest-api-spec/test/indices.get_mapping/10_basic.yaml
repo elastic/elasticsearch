@@ -39,7 +39,7 @@ setup:
 "Get type mapping - post 1.0":
 
   - skip:
-      version:     "0 - 0.90.9"
+      version:     "0 - 0.90.999"
       reason:      "for older versions, just the type name is returned"
 
   - do:

@@ -35,6 +35,38 @@ EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
 --------------------------------------------------
 
 [float]
+[[help]]
+=== Help
+
+Each of the commands accepts a query string parameter `h` which will
+output its available columns.
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/master?h'
+id   | node id
+ip   | node transport ip address
+node | node name
+--------------------------------------------------
+
+[float]
+[[headers]]
+=== Headers
+
+Each of the commands accepts a query string parameter `h` which will
+output its available columns.
+
+[source,shell]
+--------------------------------------------------
+% curl 'n1:9200/_cat/nodes?headers=ip,port,heapPercent,name'
+192.168.56.40 9300 40.3 Captain Universe
+192.168.56.20 9300 15.3 Kaluu
+192.168.56.50 9300 17.0 Yellowjacket
+192.168.56.10 9300 12.3 Remy LeBeau
+192.168.56.30 9300 43.9 Ramsey, Doug
+--------------------------------------------------
+
+[float]
 [[numeric-formats]]
 === Numeric formats
 

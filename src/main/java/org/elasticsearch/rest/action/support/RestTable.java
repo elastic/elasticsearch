@@ -29,9 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  */
@@ -47,19 +45,16 @@ public class RestTable {
 
     public static RestResponse buildXContentBuilder(Table table, RestRequest request, RestChannel channel) throws Exception {
         XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-        Set<String> displayHeaders = buildDisplayHeaders(table, request);
+        List<String> displayHeaders = buildDisplayHeaders(table, request);
 
-        List<Table.Cell> headers = table.getHeaders();
         builder.startArray();
-        for (List<Table.Cell> row : table.getRows()) {
+        for (int row = 0; row < table.getRows().size(); row++) {
             builder.startObject();
-            for (int i = 0; i < headers.size(); i++) {
-                String headerName = headers.get(i).value.toString();
-                if (displayHeaders.contains(headerName)) {
-                    builder.field(headerName, renderValue(request, row.get(i).value));
-                }
+            for (String header : displayHeaders) {
+                builder.field(header, renderValue(request, table.getAsMap().get(header).get(row).value));
             }
             builder.endObject();
+
         }
         builder.endArray();
         return new XContentRestResponse(request, RestStatus.OK, builder);
@@ -81,28 +76,25 @@ public class RestTable {
             return new StringRestResponse(RestStatus.OK, out.toString());
         }
 
-        int[] width = buildWidths(table, request, verbose);
-        Set<String> displayHeaders = buildDisplayHeaders(table, request);
+        List<String> displayHeaders = buildDisplayHeaders(table, request);
+        int[] width = buildWidths(table, request, verbose, displayHeaders);
 
+        int col = 0;
         StringBuilder out = new StringBuilder();
         if (verbose) {
             // print the headers
-            for (int i = 0; i < width.length; i++) {
-                String headerName = table.getHeaders().get(i).value.toString();
-                if (displayHeaders.contains(headerName)) {
-                    pad(table.getHeaders().get(i), width[i], request, out);
-                    out.append(" ");
-                }
+            for (Table.Cell header : table.getHeadersFromNames(displayHeaders)) {
+                pad(header, width[col], request, out);
+                out.append(" ");
+                col++;
             }
             out.append("\n");
         }
-        for (List<Table.Cell> row : table.getRows()) {
-            for (int i = 0; i < width.length; i++) {
-                String headerName = table.getHeaders().get(i).value.toString();
-                if (displayHeaders.contains(headerName)) {
-                    pad(row.get(i), width[i], request, out);
-                    out.append(" ");
-                }
+
+        for (int row = 0; row < table.getRows().size(); row++) {
+            for (String header : displayHeaders) {
+                pad(table.getAsMap().get(header).get(row), width[displayHeaders.indexOf(header)], request, out);
+                out.append(" ");
             }
             out.append("\n");
         }
@@ -110,13 +102,16 @@ public class RestTable {
         return new StringRestResponse(RestStatus.OK, out.toString());
     }
 
-    private static Set<String> buildDisplayHeaders(Table table, RestRequest request) {
+    private static List<String> buildDisplayHeaders(Table table, RestRequest request) {
         String pHeaders = request.param("headers");
-        Set<String> display;
+        List<String> display = new ArrayList<String>();
         if (pHeaders != null) {
-            display = Strings.commaDelimitedListToSet(pHeaders);
+            for (String possibility : Arrays.asList(Strings.splitStringByCommaToArray(pHeaders))) {
+                if (table.getAsMap().containsKey(possibility)) {
+                    display.add(possibility);
+                }
+            }
         } else {
-            display = new HashSet<String>();
             for (Table.Cell cell : table.getHeaders()) {
                 String d = cell.attr.get("default");
                 if (Booleans.parseBoolean(d, true)) {
@@ -145,27 +140,31 @@ public class RestTable {
         return width;
     }
 
-    private static int[] buildWidths(Table table, RestRequest request, boolean verbose) {
-        int[] width = new int[table.getHeaders().size()];
+    private static int[] buildWidths(Table table, RestRequest request, boolean verbose, List<String> headers) {
+        int[] width = new int[headers.size()];
+        int i;
 
         if (verbose) {
-            for (int col = 0; col < width.length; col++) {
-                String v = renderValue(request, table.getHeaders().get(col).value);
-                int vWidth = v == null ? 0 : v.length();
-                if (width[col] < vWidth) {
-                    width[col] = vWidth;
+            i = 0;
+            for (String hdr : headers) {
+                int vWidth = hdr.length();
+                if (width[i] < vWidth) {
+                    width[i] = vWidth;
                 }
+                i++;
             }
         }
 
-        for (List<Table.Cell> row : table.getRows()) {
-            for (int col = 0; col < width.length; col++) {
-                String v = renderValue(request, row.get(col).value);
+        i = 0;
+        for (String hdr : headers) {
+            for (Table.Cell cell : table.getAsMap().get(hdr)) {
+                String v = renderValue(request, cell.value);
                 int vWidth = v == null ? 0 : v.length();
-                if (width[col] < vWidth) {
-                    width[col] = vWidth;
+                if (width[i] < vWidth) {
+                    width[i] = vWidth;
                 }
             }
+            i++;
         }
         return width;
     }

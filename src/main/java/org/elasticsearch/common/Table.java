@@ -20,12 +20,10 @@
 package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  */
@@ -33,6 +31,8 @@ public class Table {
 
     protected List<Cell> headers = new ArrayList<Cell>();
     protected List<List<Cell>> rows = new ArrayList<List<Cell>>();
+
+    protected Map<String,List<Cell>> map = Maps.newHashMap();
 
     protected List<Cell> currentCells;
 
@@ -48,6 +48,18 @@ public class Table {
         inHeaders = false;
         headers = currentCells;
         currentCells = null;
+
+        /* Create associative structure for columns that
+         * contain the same cells as the rows:
+         *
+         *     header1 => [Cell, Cell, ...]
+         *     header2 => [Cell, Cell, ...]
+         *     header3 => [Cell, Cell, ...]
+         */
+        for (Cell header : headers) {
+            map.put((String) header.value, new ArrayList<Cell>());
+        }
+
         return this;
     }
 
@@ -75,6 +87,13 @@ public class Table {
 
     public Table addCell(Cell cell) {
         currentCells.add(cell);
+
+        // If we're in a value row, also populate the named column.
+        if (!inHeaders) {
+            String hdr = (String) headers.get(currentCells.indexOf(cell)).value;
+            map.get(hdr).add(cell);
+        }
+
         return this;
     }
 
@@ -111,7 +130,7 @@ public class Table {
                 mAttr.put(sAttr.substring(0, idx), sAttr.substring(idx + 1));
             }
         }
-        currentCells.add(new Cell(value, mAttr));
+        addCell(new Cell(value, mAttr));
         return this;
     }
 
@@ -119,12 +138,28 @@ public class Table {
         return this.headers;
     }
 
-    public Iterable<List<Cell>> getRows() {
+    public Iterable<List<Cell>> rowIterator() { return rows; }
+
+    public List<List<Cell>> getRows() {
         return rows;
     }
 
     public List<Cell>[] getRowsAsArray() {
         return (List<Cell>[]) rows.toArray();
+    }
+
+    public Map<String, List<Cell>> getAsMap() { return this.map; }
+
+    public List<Cell> getHeadersFromNames(List<String> headerNames) {
+        List<Cell> hdrs = new ArrayList<Cell>();
+        for (String hdrToFind : headerNames) {
+            for (Cell header : headers) {
+                if (((String) header.value).equalsIgnoreCase(hdrToFind)) {
+                    hdrs.add(header);
+                }
+            }
+        }
+        return hdrs;
     }
 
     public Table addTable(Table t2) {

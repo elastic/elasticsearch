@@ -121,21 +121,21 @@ public class RestNodesAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("nodeId", "desc:unique node id");
-        table.addCell("pid", "desc:process id");
+        table.addCell("nodeId", "default:false;desc:unique node id");
+        table.addCell("pid", "default:false;desc:process id");
         table.addCell("ip", "desc:ip address");
         table.addCell("port", "desc:bound transport port");
 
-        table.addCell("es", "desc:es version");
-        table.addCell("jdk", "desc:jdk version");
-        table.addCell("diskAvail", "text-align:right;desc:available disk space");
+        table.addCell("es", "default:false;desc:es version");
+        table.addCell("jdk", "default:false;desc:jdk version");
+        table.addCell("diskAvail", "default:false;text-align:right;desc:available disk space");
         table.addCell("heapPercent", "text-align:right;desc:used heap ratio");
-        table.addCell("heapMax", "text-align:right;desc:max configured heap");
+        table.addCell("heapMax", "default:false;text-align:right;desc:max configured heap");
         table.addCell("ramPercent", "text-align:right;desc:used machine memory ratio");
-        table.addCell("ramMax", "text-align:right;desc:total machine memory");
+        table.addCell("ramMax", "default:false;text-align:right;desc:total machine memory");
 
         table.addCell("load", "text-align:right;desc:most recent load avg");
-        table.addCell("uptime", "text-align:right;desc:node uptime");
+        table.addCell("uptime", "default:false;text-align:right;desc:node uptime");
         table.addCell("data/client", "desc:d:data node, c:client node");
         table.addCell("master", "desc:m:master-eligible, *:current master");
         table.addCell("name", "desc:node name");

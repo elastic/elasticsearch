@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Queue;
@@ -54,7 +55,7 @@ public class QueueRecycler<T> extends Recycler<T> {
 
     class QV implements Recycler.V<T> {
 
-        final T value;
+        T value;
 
         QV(T value) {
             this.value = value;
@@ -72,8 +73,12 @@ public class QueueRecycler<T> extends Recycler<T> {
 
         @Override
         public void release() {
+            if (value == null) {
+                throw new ElasticSearchIllegalStateException("recycler entry already released...");
+            }
             c.clear(value);
             queue.offer(this);
+            value = null;
         }
     }
 }

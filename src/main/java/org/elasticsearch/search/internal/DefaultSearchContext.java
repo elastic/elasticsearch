@@ -652,6 +652,7 @@ public class DefaultSearchContext extends SearchContext {
                     }
                 }
             }
+            clearables.clear();
             if (th != null) {
                 throw new RuntimeException(th);
             }

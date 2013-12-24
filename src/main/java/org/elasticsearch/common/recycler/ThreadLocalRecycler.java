@@ -22,6 +22,7 @@ package org.elasticsearch.common.recycler;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 
 /**
  */
@@ -60,7 +61,7 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
 
         final Stack<T> stack;
         final C<T> c;
-        final T value;
+        T value;
 
         TV(Stack<T> stack, C<T> c, T value) {
             this.stack = stack;
@@ -81,8 +82,12 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
         @Override
         public void release() {
             assert Thread.currentThread() == stack.thread;
+            if (value == null) {
+                throw new ElasticSearchIllegalStateException("recycler entry already released...");
+            }
             c.clear(value);
             stack.push(value);
+            value = null;
         }
     }
 

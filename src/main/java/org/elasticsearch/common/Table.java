@@ -85,18 +85,6 @@ public class Table {
         return this;
     }
 
-    public Table addCell(Cell cell) {
-        currentCells.add(cell);
-
-        // If we're in a value row, also populate the named column.
-        if (!inHeaders) {
-            String hdr = (String) headers.get(currentCells.indexOf(cell)).value;
-            map.get(hdr).add(cell);
-        }
-
-        return this;
-    }
-
     public Table addCell(Object value) {
         return addCell(value, "");
     }
@@ -130,7 +118,16 @@ public class Table {
                 mAttr.put(sAttr.substring(0, idx), sAttr.substring(idx + 1));
             }
         }
-        addCell(new Cell(value, mAttr));
+
+        Cell cell = new Cell(value, mAttr);
+        currentCells.add(cell);
+
+        // If we're in a value row, also populate the named column.
+        if (!inHeaders) {
+            String hdr = (String) headers.get(currentCells.indexOf(cell)).value;
+            map.get(hdr).add(cell);
+        }
+
         return this;
     }
 

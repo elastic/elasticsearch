@@ -167,7 +167,7 @@ do
 done
 
 # Parse any command line options.
-args=`getopt vfhp:D:X: $ARGV`
+args=`getopt vdhp:D:X: $ARGV`
 eval set -- "$args"
 
 while true; do

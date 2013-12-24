@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.recycler;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
+
 /**
  */
 public class NoneRecycler<T> extends Recycler<T> {
@@ -39,7 +41,7 @@ public class NoneRecycler<T> extends Recycler<T> {
 
     public static class NV<T> implements Recycler.V<T> {
 
-        final T value;
+        T value;
 
         NV(T value) {
             this.value = value;
@@ -57,6 +59,10 @@ public class NoneRecycler<T> extends Recycler<T> {
 
         @Override
         public void release() {
+            if (value == null) {
+                throw new ElasticSearchIllegalStateException("recycler entry already released...");
+            }
+            value = null;
         }
     }
 }

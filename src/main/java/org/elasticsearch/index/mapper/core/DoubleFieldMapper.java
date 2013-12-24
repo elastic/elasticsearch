@@ -314,12 +314,12 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomDoubleNumericDocValuesField field = context.doc().getField(names().indexName(), CustomDoubleNumericDocValuesField.class);
+            CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
             if (field != null) {
                 field.add(value);
             } else {
                 field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                context.doc().add(field);
+                context.doc().addWithKey(names().indexName(), field);
             }
         }
     }

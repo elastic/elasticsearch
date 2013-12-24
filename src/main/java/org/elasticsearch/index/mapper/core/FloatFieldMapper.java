@@ -320,12 +320,12 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomDoubleNumericDocValuesField field = context.doc().getField(names().indexName(), CustomDoubleNumericDocValuesField.class);
+            CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
             if (field != null) {
                 field.add(value);
             } else {
-                field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                context.doc().add(field);
+                field = new CustomFloatNumericDocValuesField(names().indexName(), value);
+                context.doc().addWithKey(names().indexName(), field);
             }
         }
     }
@@ -392,7 +392,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
     }
 
-    public static class CustomDoubleNumericDocValuesField extends CustomNumericDocValuesField {
+    public static class CustomFloatNumericDocValuesField extends CustomNumericDocValuesField {
 
         public static final FieldType TYPE = new FieldType();
         static {
@@ -402,7 +402,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         private final FloatArrayList values;
 
-        public CustomDoubleNumericDocValuesField(String  name, float value) {
+        public CustomFloatNumericDocValuesField(String  name, float value) {
             super(name);
             values = new FloatArrayList();
             add(value);

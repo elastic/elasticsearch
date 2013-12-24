@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
+import com.carrotsearch.hppc.ObjectObjectMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -44,53 +45,64 @@ public class ParseContext {
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
 
-        // For sequential access, fields are in the same order as they've been added.
-        private final List<IndexableField> fieldList;
-        // For random-access, key is the index field name
-        private final ListMultimap<String, IndexableField> fields = ArrayListMultimap.create();
+        private final List<IndexableField> fields;
+        private ObjectObjectMap<Object, IndexableField> keyedFields;
 
         public Document() {
-            fieldList = Lists.newArrayList();
+            fields = Lists.newArrayList();
         }
 
         @Override
         public Iterator<IndexableField> iterator() {
-            return fieldList.iterator();
+            return fields.iterator();
         }
 
         public List<IndexableField> getFields() {
-            return Collections.unmodifiableList(fieldList);
+            return fields;
         }
 
         public void add(IndexableField field) {
-            fieldList.add(field);
-            fields.put(field.name(), field);
+            fields.add(field);
+        }
+
+        /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
+        public void addWithKey(Object key, IndexableField field) {
+            if (keyedFields == null) {
+                keyedFields = new ObjectObjectOpenHashMap<Object, IndexableField>();
+            } else if (keyedFields.containsKey(key)) {
+                throw new ElasticSearchIllegalStateException("Only one field can be stored per key");
+            }
+            keyedFields.put(key, field);
+            add(field);
+        }
+
+        /** Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}. */
+        public IndexableField getByKey(Object key) {
+            return keyedFields == null ? null : keyedFields.get(key);
         }
 
         public IndexableField[] getFields(String name) {
-            final List<IndexableField> fields = this.fields.get(name);
-            return fields.toArray(new IndexableField[fields.size()]);
+            List<IndexableField> f = new ArrayList<IndexableField>();
+            for (IndexableField field : fields) {
+                if (field.name().equals(name)) {
+                    f.add(field);
+                }
+            }
+            return f.toArray(new IndexableField[f.size()]);
         }
 
         public IndexableField getField(String name) {
-            final List<IndexableField> fields = this.fields.get(name);
-            return fields.isEmpty() ? null : fields.get(0);
-        }
-
-        public <F extends IndexableField> F getField(String name, Class<F> clazz) {
-            final List<IndexableField> fields = this.fields.get(name);
-            for (IndexableField f : fields) {
-                if (clazz.isInstance(f)) {
-                    return clazz.cast(f);
+            for (IndexableField field : fields) {
+                if (field.name().equals(name)) {
+                    return field;
                 }
             }
             return null;
         }
 
         public String get(String name) {
-            final List<IndexableField> fields = this.fields.get(name);
             for (IndexableField f : fields) {
-                if (f.stringValue() != null) {
+                if (f.name().equals(name) && f.stringValue() != null) {
                     return f.stringValue();
                 }
             }
@@ -98,9 +110,8 @@ public class ParseContext {
         }
 
         public BytesRef getBinaryValue(String name) {
-            final List<IndexableField> fields = this.fields.get(name);
             for (IndexableField f : fields) {
-                if (f.binaryValue() != null) {
+                if (f.name().equals(name) && f.binaryValue() != null) {
                     return f.binaryValue();
                 }
             }

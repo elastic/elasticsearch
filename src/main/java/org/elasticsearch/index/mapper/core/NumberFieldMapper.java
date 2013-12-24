@@ -197,12 +197,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     protected final void addDocValue(ParseContext context, long value) {
-        CustomLongNumericDocValuesField field = context.doc().getField(names().indexName(), CustomLongNumericDocValuesField.class);
+        CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(names().indexName());
         if (field != null) {
             field.add(value);
         } else {
             field = new CustomLongNumericDocValuesField(names().indexName(), value);
-            context.doc().add(field);
+            context.doc().addWithKey(names().indexName(), field);
         }
     }
 

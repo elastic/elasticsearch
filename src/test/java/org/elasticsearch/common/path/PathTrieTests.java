@@ -25,7 +25,6 @@ import org.junit.Test;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -113,11 +112,32 @@ public class PathTrieTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testEndWithNamedWildcardAndLookupWithWildcard() {
+    public void testNamedWildcardAndLookupWithWildcard() {
         PathTrie<String> trie = new PathTrie<String>();
         trie.insert("x/{test}", "test1");
+        trie.insert("{test}/a", "test2");
+        trie.insert("/{test}", "test3");
+        trie.insert("/{test}/_endpoint", "test4");
+        trie.insert("/*/{test}/_endpoint", "test5");
+
         Map<String, String> params = newHashMap();
         assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = newHashMap();
+        assertThat(trie.retrieve("/b/a", params), equalTo("test2"));
+        assertThat(params.get("test"), equalTo("b"));
+
+        params = newHashMap();
+        assertThat(trie.retrieve("/*", params), equalTo("test3"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = newHashMap();
+        assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
+        assertThat(params.get("test"), equalTo("*"));
+
+        params = newHashMap();
+        assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
         assertThat(params.get("test"), equalTo("*"));
     }
 }

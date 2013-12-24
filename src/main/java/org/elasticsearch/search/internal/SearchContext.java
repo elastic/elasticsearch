@@ -626,6 +626,7 @@ public class SearchContext implements Releasable {
                     }
                 }
             }
+            clearables.clear();
             if (th != null) {
                 throw new RuntimeException(th);
             }

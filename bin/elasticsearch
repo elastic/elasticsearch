@@ -136,7 +136,7 @@ launch_service()
     fi
 
     # The es-foreground option will tell ElasticSearch not to close stdout/stderr, but it's up to us not to daemonize.
-    if [ "x$daemonized" == "x" ]; then
+    if [ "x$daemonized" = "x" ]; then
         es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch

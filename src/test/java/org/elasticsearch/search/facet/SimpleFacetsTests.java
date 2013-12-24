@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facet;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -70,6 +69,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     private int numRuns = -1;
+
     @Override
     public Settings indexSettings() {
         return ImmutableSettings.builder()
@@ -2003,7 +2003,6 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "This: https://github.com/elasticsearch/elasticsearch/commit/9c67be5181085c9a422f06ef970b84489bda84ed somehow fails this test")
     public void testTermsStatsFacets() throws Exception {
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")

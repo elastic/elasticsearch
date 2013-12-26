@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.base.Strings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -122,6 +123,38 @@ public interface FieldMapper<T> extends Mapper {
         }
     }
 
+    public static enum Loading {
+        LAZY {
+            @Override
+            public String toString() {
+                return LAZY_VALUE;
+            }
+        },
+        EAGER {
+            @Override
+            public String toString() {
+                return EAGER_VALUE;
+            }
+        };
+
+        public static final String KEY = "loading";
+        public static final String EAGER_VALUE = "eager";
+        public static final String LAZY_VALUE = "lazy";
+
+        public static Loading parse(String loading, Loading defaultValue) {
+            if (Strings.isNullOrEmpty(loading)) {
+                return defaultValue;
+            } else if (EAGER_VALUE.equalsIgnoreCase(loading)) {
+                return EAGER;
+            } else if (LAZY_VALUE.equalsIgnoreCase(loading)) {
+                return LAZY;
+            } else {
+                throw new MapperParsingException("Unknown [" + KEY + "] value: [" + loading + "]");
+            }
+        }
+
+    }
+
     Names names();
 
     FieldType fieldType();
@@ -214,4 +247,6 @@ public interface FieldMapper<T> extends Mapper {
     boolean isSortable();
 
     boolean hasDocValues();
+
+    Loading normsLoading(Loading defaultLoading);
 }

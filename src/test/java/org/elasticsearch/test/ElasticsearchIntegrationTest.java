@@ -49,10 +49,12 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -267,13 +269,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             client().admin().indices().preparePutTemplate("random_index_template")
             .setTemplate("*")
             .setOrder(0)
-            .setSettings(setRandomMergePolicy(getRandom(), ImmutableSettings.builder()
-                    .put(INDEX_SEED_SETTING, getRandom().nextLong())))
+            .setSettings(setRandomNormsLoading(setRandomMergePolicy(getRandom(), ImmutableSettings.builder())
+                    .put(INDEX_SEED_SETTING, randomLong())))
                     .execute().actionGet();
         }
     }
-    
-    
+
+    private static ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
+        if (randomBoolean()) {
+            builder.put(SearchService.NORMS_LOADING_KEY, randomFrom(Arrays.asList(Loading.EAGER, Loading.LAZY)));
+        }
+        return builder;
+    }
+
     private static ImmutableSettings.Builder setRandomMergePolicy(Random random, ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,

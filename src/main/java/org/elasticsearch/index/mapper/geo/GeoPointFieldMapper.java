@@ -400,7 +400,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,
             boolean validateLon, boolean validateLat,
             boolean normalizeLon, boolean normalizeLat) {
-        super(names, 1f, fieldType, docValues, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, fieldDataSettings, indexSettings);
+        super(names, 1f, fieldType, docValues, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, null, fieldDataSettings, indexSettings);
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
         this.enableGeoHash = enableGeoHash || enableGeohashPrefix; // implicitly enable geohashes if geohash_prefix is set

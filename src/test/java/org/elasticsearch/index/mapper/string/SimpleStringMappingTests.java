@@ -120,7 +120,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         // now test it explicitly set
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", false).field("index_options", "freqs").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").startObject("norms").field("enabled", true).endObject().field("index_options", "freqs").endObject().endObject()
                 .endObject().endObject().string();
 
         defaultMapper = MapperTestUtils.newParser().parse(mapping);
@@ -137,6 +137,22 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
         assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
         assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        // also test the deprecated omit_norms
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", false).endObject().endObject()
+                .endObject().endObject().string();
+
+        defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "1234")
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
     }
 
     @Test

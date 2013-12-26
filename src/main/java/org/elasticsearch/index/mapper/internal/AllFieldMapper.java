@@ -107,7 +107,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -139,15 +139,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, ImmutableSettings.EMPTY);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                              boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
-                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings,
-                             Settings indexSettings) {
+                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
-                similarity, fieldDataSettings, indexSettings);
+                similarity, normsLoading, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 

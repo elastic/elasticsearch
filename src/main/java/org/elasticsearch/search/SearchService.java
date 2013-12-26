@@ -19,8 +19,12 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -44,6 +48,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -67,8 +72,10 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -78,6 +85,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  *
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
+
+    public static final String NORMS_LOADING_KEY = "index.norms.loading";
 
     private final ThreadPool threadPool;
 
@@ -134,6 +143,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 
+        this.indicesWarmer.addListener(new NormsWarmer());
         this.indicesWarmer.addListener(new FieldDataWarmer());
         this.indicesWarmer.addListener(new SearchWarmer());
     }
@@ -628,10 +638,62 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    static class NormsWarmer extends IndicesWarmer.Listener {
+
+        @Override
+        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+            final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
+            final MapperService mapperService = indexShard.mapperService();
+            final ObjectSet<String> warmUp = new ObjectOpenHashSet<String>();
+            for (DocumentMapper docMapper : mapperService) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                    final String indexName = fieldMapper.names().indexName();
+                    if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                        warmUp.add(indexName);
+                    }
+                }
+            }
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            // Norms loading may be I/O intensive but is not CPU intensive, so we execute it in a single task
+            threadPool.executor(executor()).execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
+                            final String indexName = it.next().value;
+                            final long start = System.nanoTime();
+                            for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
+                                final NumericDocValues values = ctx.reader().getNormValues(indexName);
+                                if (values != null) {
+                                    values.get(0);
+                                }
+                            }
+                            if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName, TimeValue.timeValueNanos(System.nanoTime() - start));
+                            }
+                        }
+                    } catch (Throwable t) {
+                        indexShard.warmerService().logger().warn("failed to warm-up norms", t);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
+        }
+    }
+
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public void warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
             boolean parentChild = false;
@@ -644,7 +706,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != FieldDataType.Loading.EAGER) {
+                    if (fieldDataType.getLoading() != Loading.EAGER) {
                         continue;
                     }
                     final String indexName = fieldMapper.names().indexName();
@@ -655,11 +717,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final int numTasks = warmUp.size() * context.newSearcher().reader().leaves().size() + (parentChild ? 1 : 0);
-            final CountDownLatch latch = new CountDownLatch(numTasks);
+            final Executor executor = threadPool.executor(executor());
+            final CountDownLatch latch = new CountDownLatch(context.newSearcher().reader().leaves().size() * warmUp.size() + (parentChild ? 1 : 0));
             for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
-                    threadPool.executor(executor()).execute(new Runnable() {
+                    executor.execute(new Runnable() {
 
                         @Override
                         public void run() {
@@ -681,7 +743,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
 
             if (parentChild) {
-                threadPool.executor(executor()).execute(new Runnable() {
+                executor.execute(new Runnable() {
 
                     @Override
                     public void run() {
@@ -701,11 +763,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 });
             }
 
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
         }
 
     }
@@ -713,14 +776,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public void warm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool) {
+        public TerminationHandle warm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
-                return;
+                return TerminationHandle.NO_WAIT;
             }
+            final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(custom.entries().size());
             for (final IndexWarmersMetaData.Entry entry : custom.entries()) {
-                threadPool.executor(executor()).execute(new Runnable() {
+                executor.execute(new Runnable() {
 
                     @Override
                     public void run() {
@@ -753,12 +817,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
                 });
             }
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.wait();
+                }
+            };
         }
     }
 

@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.mapper.geo;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +36,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -40,14 +45,13 @@ import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -413,10 +417,6 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         this.normalizeLat = normalizeLat;
         this.normalizeLon = normalizeLon;
-
-        if (hasDocValues()) {
-            throw new ElasticSearchIllegalStateException("Geo points don't support doc values"); // yet
-        }
     }
 
     @Override
@@ -571,42 +571,15 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-        if (normalizeLat || normalizeLon) {
-            GeoPoint point = new GeoPoint(lat, lon);
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat();
-            lon = point.lon();
-        }
-
-        if (validateLat) {
-            if (lat > 90.0 || lat < -90.0) {
-                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name());
-            }
-        }
-        if (validateLon) {
-            if (lon > 180.0 || lon < -180) {
-                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name());
-            }
-        }
-
-        if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new Field(names.indexName(), Double.toString(lat) + ',' + Double.toString(lon), fieldType);
-            context.doc().add(field);
-        }
-        if (enableGeoHash) {
-            parseGeohashField(context, GeoHashUtils.encode(lat, lon, geoHashPrecision));
-        }
-        if (enableLatLon) {
-            context.externalValue(lat);
-            latMapper.parse(context);
-            context.externalValue(lon);
-            lonMapper.parse(context);
-        }
+        parse(context, new GeoPoint(lat, lon), null);
     }
 
     private void parseGeohash(ParseContext context, String geohash) throws IOException {
         GeoPoint point = GeoHashUtils.decode(geohash);
+        parse(context, point, geohash);
+    }
 
+    private void parse(ParseContext context, GeoPoint point, String geohash) throws IOException {
         if (normalizeLat || normalizeLon) {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
@@ -627,6 +600,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             context.doc().add(field);
         }
         if (enableGeoHash) {
+            if (geohash == null) {
+                geohash = GeoHashUtils.encode(point.lat(), point.lon());
+            }
             parseGeohashField(context, geohash);
         }
         if (enableLatLon) {
@@ -634,6 +610,15 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             latMapper.parse(context);
             context.externalValue(point.lon());
             lonMapper.parse(context);
+        }
+        if (hasDocValues()) {
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(names().indexName());
+            if (field == null) {
+                field = new CustomGeoPointDocValuesField(names().indexName(), point.lat(), point.lon());
+                context.doc().addWithKey(names().indexName(), field);
+            } else {
+                field.add(point.lat(), point.lon());
+            }
         }
     }
 
@@ -713,6 +698,40 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             if (normalizeLon != Defaults.NORMALIZE_LON) {
                 builder.field("normalize_lon", normalizeLon);
             }
+        }
+    }
+
+    public static class CustomGeoPointDocValuesField extends CustomNumericDocValuesField {
+
+        public static final FieldType TYPE = new FieldType();
+        static {
+          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.freeze();
+        }
+
+        private final ObjectOpenHashSet<GeoPoint> points;
+
+        public CustomGeoPointDocValuesField(String  name, double lat, double lon) {
+            super(name);
+            points = new ObjectOpenHashSet<GeoPoint>(2);
+            points.add(new GeoPoint(lat, lon));
+        }
+
+        public void add(double lat, double lon) {
+            points.add(new GeoPoint(lat, lon));
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            final byte[] bytes = new byte[points.size() * 16];
+            int off = 0;
+            for (Iterator<ObjectCursor<GeoPoint>> it = points.iterator(); it.hasNext(); ) {
+                final GeoPoint point = it.next().value;
+                ByteUtils.writeDoubleLE(point.getLat(), bytes, off);
+                ByteUtils.writeDoubleLE(point.getLon(), bytes, off + 8);
+                off += 16;
+            }
+            return new BytesRef(bytes);
         }
     }
 

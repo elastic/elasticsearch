@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -74,6 +75,56 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
         createIndex("idx_unmapped");
         ensureSearchable();
+    }
+
+    @Test
+    public void rangeAsSubAggregation() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(terms("terms").field("values").size(100).subAggregation(
+                        range("range").field("value")
+                            .addUnboundedTo(3)
+                            .addRange(3, 6)
+                            .addUnboundedFrom(6)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.buckets().size(), equalTo(numDocs + 1));
+        for (int i = 1; i < numDocs + 2; ++i) {
+            Terms.Bucket bucket = terms.getByTerm("" + i);
+            assertThat(bucket, notNullValue());
+            final long docCount = i == 1 || i == numDocs + 1 ? 1 : 2;
+            assertThat(bucket.getDocCount(), equalTo(docCount));
+            Range range = bucket.getAggregations().get("range");
+            Range.Bucket rangeBucket = range.getByKey("*-3.0");
+            assertThat(rangeBucket, notNullValue());
+            if (i == 1 || i == 3) {
+                assertThat(rangeBucket.getDocCount(), equalTo(1L));
+            } else if (i == 2) {
+                assertThat(rangeBucket.getDocCount(), equalTo(2L));
+            } else {
+                assertThat(rangeBucket.getDocCount(), equalTo(0L));
+            }
+            rangeBucket = range.getByKey("3.0-6.0");
+            assertThat(rangeBucket, notNullValue());
+            if (i == 3 || i == 6) {
+                assertThat(rangeBucket.getDocCount(), equalTo(1L));
+            } else if (i == 4 || i == 5) {
+                assertThat(rangeBucket.getDocCount(), equalTo(2L));
+            } else {
+                assertThat(rangeBucket.getDocCount(), equalTo(0L));
+            }
+            rangeBucket = range.getByKey("6.0-*");
+            assertThat(rangeBucket, notNullValue());
+            if (i == 6 || i == numDocs + 1) {
+                assertThat(rangeBucket.getDocCount(), equalTo(1L));
+            } else if (i < 6) {
+                assertThat(rangeBucket.getDocCount(), equalTo(0L));
+            } else {
+                assertThat(rangeBucket.getDocCount(), equalTo(2L));
+            }
+        }
     }
 
     @Test

@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
@@ -382,5 +383,13 @@ public class XContentMapValues {
             return TimeValue.timeValueMillis(((Number) node).longValue());
         }
         return TimeValue.parseTimeValue(node.toString(), null);
+    }
+
+    public static Map<String, Object> nodeMapValue(Object node, String desc) {
+        if (node instanceof Map) {
+            return (Map<String, Object>) node;
+        } else {
+            throw new ElasticSearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+        }
     }
 }

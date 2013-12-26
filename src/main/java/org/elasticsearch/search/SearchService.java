@@ -19,8 +19,12 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.ObjectSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -44,6 +48,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -67,6 +72,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -78,6 +84,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
  *
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
+
+    public static final String NORMS_LOADING_KEY = "index.norms.loading";
 
     private final ThreadPool threadPool;
 
@@ -134,6 +142,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 
+        this.indicesWarmer.addListener(new NormsWarmer());
         this.indicesWarmer.addListener(new FieldDataWarmer());
         this.indicesWarmer.addListener(new SearchWarmer());
     }
@@ -628,6 +637,59 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    static class NormsWarmer extends IndicesWarmer.Listener {
+
+        @Override
+        public void warm(final IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
+            final MapperService mapperService = indexShard.mapperService();
+            final ObjectSet<String> warmUp = new ObjectOpenHashSet<String>();
+            for (DocumentMapper docMapper : mapperService) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                    final String indexName = fieldMapper.names().indexName();
+                    if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                        warmUp.add(indexName);
+                    }
+                }
+            }
+
+            final int numTasks = warmUp.size() * context.newSearcher().reader().leaves().size();
+            final CountDownLatch latch = new CountDownLatch(numTasks);
+            for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
+                for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
+                    final String indexName = it.next().value;
+                    threadPool.executor(executor()).execute(new Runnable() {
+
+                        @Override
+                        public void run() {
+                            try {
+                                final long start = System.nanoTime();
+                                final NumericDocValues values = ctx.reader().getNormValues(indexName);
+                                if (values != null) {
+                                    values.get(0);
+                                }
+                                if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                    indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                }
+                            } catch (Throwable t) {
+                                indexShard.warmerService().logger().warn("failed to warm-up norms for [{}]", t, indexName);
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+
+                    });
+                }
+            }
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+    }
+
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
@@ -644,7 +706,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != FieldDataType.Loading.EAGER) {
+                    if (fieldDataType.getLoading() != Loading.EAGER) {
                         continue;
                     }
                     final String indexName = fieldMapper.names().indexName();

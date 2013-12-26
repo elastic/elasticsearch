@@ -103,7 +103,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider, null, fieldDataSettings);
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider, null, null, fieldDataSettings);
         this.enabledState = enabled;
     }
 

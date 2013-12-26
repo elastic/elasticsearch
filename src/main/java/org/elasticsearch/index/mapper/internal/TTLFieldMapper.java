@@ -123,7 +123,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                              PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
-                provider, null, fieldDataSettings);
+                provider, null, null, fieldDataSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }

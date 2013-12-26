@@ -90,7 +90,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, nullValue,
-                    ignoreMalformed(context), provider, similarity, fieldDataSettings);
+                    ignoreMalformed(context), provider, similarity, normsLoading, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,10 +117,10 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     private String nullValueAsString;
 
     protected FloatFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
-                               Float nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+                               Float nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, boost, fieldType, ignoreMalformed,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                provider, similarity, fieldDataSettings);
+                provider, similarity, normsLoading, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

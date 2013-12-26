@@ -129,7 +129,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path,
                             PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, provider, null, fieldDataSettings);
+                Lucene.KEYWORD_ANALYZER, provider, null, null, fieldDataSettings);
         this.path = path;
     }
 

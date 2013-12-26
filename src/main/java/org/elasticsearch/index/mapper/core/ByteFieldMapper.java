@@ -90,7 +90,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, nullValue, ignoreMalformed(context),
-                    provider, similarity, fieldDataSettings);
+                    provider, similarity, normsLoading, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,10 +117,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     private String nullValueAsString;
 
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
-                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
+                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, normsLoading, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

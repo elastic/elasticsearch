@@ -124,7 +124,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             if (!locale.equals(dateTimeFormatter.locale())) {
                 dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
             }
-            DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter, precisionStep, boost, fieldType, nullValue, timeUnit, roundCeil, ignoreMalformed(context), provider, similarity, fieldDataSettings);
+            DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter, precisionStep, boost, fieldType, nullValue, timeUnit, roundCeil, ignoreMalformed(context), provider, similarity, normsLoading, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -197,12 +197,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, float boost, FieldType fieldType,
                               String nullValue, TimeUnit timeUnit, boolean roundCeil, Explicit<Boolean> ignoreMalformed,
-                              PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+                              PostingsFormatProvider provider, SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())),
-                provider, similarity, fieldDataSettings);
+                provider, similarity, normsLoading, fieldDataSettings);
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;

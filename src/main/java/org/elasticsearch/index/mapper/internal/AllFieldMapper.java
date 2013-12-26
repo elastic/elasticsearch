@@ -104,7 +104,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity, fieldDataSettings);
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity, normsLoading, fieldDataSettings);
         }
     }
 
@@ -136,12 +136,13 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, fieldDataSettings);
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity,
+                             Loading normsLoading, @Nullable Settings fieldDataSettings) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, normsLoading, fieldDataSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 

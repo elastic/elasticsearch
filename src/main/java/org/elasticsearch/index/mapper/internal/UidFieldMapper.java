@@ -120,7 +120,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     protected UidFieldMapper(String name, String indexName, PostingsFormatProvider postingsFormat) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null);
     }
 
     @Override

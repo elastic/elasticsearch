@@ -35,7 +35,20 @@ public interface IndicesWarmer {
             return ThreadPool.Names.WARMER;
         }
 
-        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        /** A handle on the execution of  warm-up action. */
+        public static interface TerminationHandle {
+
+            public static TerminationHandle NO_WAIT = new TerminationHandle() {
+                @Override
+                public void awaitTermination() {}
+            };
+
+            /** Wait until execution of the warm-up action completes. */
+            void awaitTermination() throws InterruptedException;
+        }
+
+        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
+        public abstract TerminationHandle warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {

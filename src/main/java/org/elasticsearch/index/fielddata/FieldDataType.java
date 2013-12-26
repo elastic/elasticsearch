@@ -21,20 +21,11 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 
 /**
  */
 public class FieldDataType {
-
-    public static final String FORMAT_KEY = "format";
-    private static final String LOADING_KEY = "loading";
-    private static final String EAGER_LOADING_VALUE = "eager";
-    private static final String LAZY_LOADING_VALUE = "lazy";
-
-    public static enum Loading {
-        LAZY, EAGER;
-    }
 
     private final String type;
     private final Loading loading;
@@ -51,14 +42,8 @@ public class FieldDataType {
     public FieldDataType(String type, Settings settings) {
         this.type = type;
         this.settings = settings;
-        final String loading = settings.get(LOADING_KEY);
-        if (loading == null || loading.equals(LAZY_LOADING_VALUE)) {
-            this.loading = Loading.LAZY;
-        } else if (loading.equals(EAGER_LOADING_VALUE)) {
-            this.loading = Loading.EAGER;
-        } else {
-            throw new MapperParsingException("Unknown [" + LOADING_KEY + "] value: [" + loading + "]");
-        }
+        final String loading = settings.get(Loading.KEY);
+        this.loading = Loading.parse(loading, Loading.LAZY);
     }
 
     public String getType() {

@@ -137,7 +137,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
-                    positionOffsetGap, ignoreAbove, provider, similarity, fieldDataSettings);
+                    positionOffsetGap, ignoreAbove, provider, similarity, normsLoading, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -193,8 +193,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
-                                PostingsFormatProvider postingsFormat, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat, similarity, fieldDataSettings);
+                                PostingsFormatProvider postingsFormat, SimilarityProvider similarity,
+                                Loading normsLoading, @Nullable Settings fieldDataSettings) {
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat, similarity, normsLoading, fieldDataSettings);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;

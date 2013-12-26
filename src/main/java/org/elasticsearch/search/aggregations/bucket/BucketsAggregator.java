@@ -22,10 +22,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -75,17 +75,27 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
     protected final long bucketDocCount(long bucketOrd) {
-        assert bucketOrd < docCounts.size();
-        return docCounts.get(bucketOrd);
+        if (bucketOrd >= docCounts.size()) {
+            // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
+            // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
+            // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call bucketAggregations(3)
+            // on the filter aggregator anyway to build sub-aggregations.
+            return 0L;
+        } else {
+            return docCounts.get(bucketOrd);
+        }
     }
 
     /**
      * Utility method to build the aggregations of the given bucket (identified by the bucket ordinal)
      */
     protected final InternalAggregations bucketAggregations(long bucketOrd) {
-        InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        final long bucketDocCount = bucketDocCount(bucketOrd);
         for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = subAggregators[i].buildAggregation(bucketOrd);
+            aggregations[i] = bucketDocCount == 0L
+                    ? subAggregators[i].buildEmptyAggregation()
+                    : subAggregators[i].buildAggregation(bucketOrd);
         }
         return new InternalAggregations(Arrays.asList(aggregations));
     }

@@ -23,16 +23,16 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class RangeAggregator extends BucketsAggregator {
                            AggregationContext aggregationContext,
                            Aggregator parent) {
 
-        super(name, BucketAggregationMode.PER_BUCKET, factories, ranges.size(), aggregationContext, parent);
+        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, ranges.size() * parent.estimatedBucketCount(), aggregationContext, parent);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.keyed = keyed;
@@ -118,19 +118,21 @@ public class RangeAggregator extends BucketsAggregator {
         return true;
     }
 
+    private final long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
+        return owningBucketOrdinal * ranges.length + rangeOrd;
+    }
+
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-
         final DoubleValues values = valuesSource.doubleValues();
         final int valuesCount = values.setDocument(doc);
         for (int i = 0, lo = 0; i < valuesCount; ++i) {
             final double value = values.nextValue();
-            lo = collect(doc, value, lo);
+            lo = collect(doc, value, owningBucketOrdinal, lo);
         }
     }
 
-    private int collect(int doc, double value, int lowBound) throws IOException {
+    private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
         int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
         int mid = (lo + hi) >>> 1;
         while (lo <= hi) {
@@ -172,7 +174,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         for (int i = startLo; i <= endHi; ++i) {
             if (ranges[i].matches(value)) {
-                collectBucket(doc, i);
+                collectBucket(doc, subBucketOrdinal(owningBucketOrdinal, i));
             }
         }
 
@@ -181,12 +183,12 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        assert owningBucketOrdinal == 0;
         List<RangeBase.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
-            RangeBase.Bucket bucket = rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(i),
-                    bucketAggregations(i), valuesSource.formatter());
+            final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
+            RangeBase.Bucket bucket = rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),
+                    bucketAggregations(bucketOrd), valuesSource.formatter());
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -246,7 +248,7 @@ public class RangeAggregator extends BucketsAggregator {
                         Aggregator parent,
                         AbstractRangeBase.Factory factory) {
 
-            super(name, BucketAggregationMode.PER_BUCKET, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
+            super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
             this.ranges = ranges;
             for (Range range : this.ranges) {
                 range.process(parser, context);

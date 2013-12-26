@@ -369,19 +369,33 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     }
 
     public void testDuelGeoPoints() throws Exception {
+        final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("geopoint").field("type", "geo_point").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+                .endObject().endObject().endObject().string();
+
+        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
-        int maxValuesPerDoc = randomIntBetween(1, 3);
+        int maxValuesPerDoc = randomBoolean() ? 1 : randomIntBetween(2, 40);
+        // to test deduplication
+        double defaultLat = randomDouble() * 180 - 90;
+        double defaultLon = randomDouble() * 360 - 180;
         for (int i = 0; i < atLeast; i++) {
-            Document d = new Document();
-            d.add(new StringField("_id", "" + i, Field.Store.NO));
             final int numValues = randomInt(maxValuesPerDoc);
+            XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startArray("geopoint");
             for (int j = 0; j < numValues; ++j) {
-                final double lat = randomDouble() * 180 - 90;
-                final double lon = randomDouble() * 360 - 180;
-                d.add(new StringField("geopoint", lat + "," + lon, Field.Store.NO));
+                if (randomBoolean()) {
+                    doc.startObject().field("lat", defaultLat).field("lon", defaultLon).endObject();
+                } else {
+                    doc.startObject().field("lat", randomDouble() * 180 - 90).field("lon", randomDouble() * 360 - 180).endObject();
+                }
             }
-            writer.addDocument(d);
+            doc = doc.endArray().endObject();
+            final ParsedDocument d = mapper.parse("type", Integer.toString(i), doc.bytes());
+
+            writer.addDocument(d.rootDoc());
             if (random.nextInt(10) == 0) {
                 refreshReader();
             }
@@ -391,6 +405,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         final Distance precision = new Distance(1, randomFrom(DistanceUnit.values()));
         typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "array")), Type.GeoPoint);
         typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "compressed").put("precision", precision)), Type.GeoPoint);
+        typeMap.put(new FieldDataType("geo_point", ImmutableSettings.builder().put("format", "doc_values")), Type.GeoPoint);
 
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         while (!list.isEmpty()) {

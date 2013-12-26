@@ -25,6 +25,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.transport.TransportClient;
@@ -173,6 +174,7 @@ public final class TestCluster implements Iterable<Client> {
             }
             builder.put("path.data", dataPath.toString());
         }
+        builder.put("type", CacheRecycler.Type.values()[random.nextInt(CacheRecycler.Type.values().length)]);
 
         this.defaultSettings = builder.build();
         this.nodeSettingsSource = nodeSettingsSource;

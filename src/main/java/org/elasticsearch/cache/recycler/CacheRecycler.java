@@ -23,11 +23,10 @@ import com.carrotsearch.hppc.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.recycler.QueueRecycler;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.recycler.SoftThreadLocalRecycler;
-import org.elasticsearch.common.recycler.ThreadLocalRecycler;
+import org.elasticsearch.common.recycler.*;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Locale;
 
 @SuppressWarnings("unchecked")
 public class CacheRecycler extends AbstractComponent {
@@ -63,7 +62,7 @@ public class CacheRecycler extends AbstractComponent {
     @Inject
     public CacheRecycler(Settings settings) {
         super(settings);
-        String type = settings.get("type", "soft_thread_local");
+        String type = settings.get("type", Type.SOFT_THREAD_LOCAL.name());
         int limit = settings.getAsInt("limit", 10);
         int smartSize = settings.getAsInt("smart_size", 1024);
 
@@ -255,19 +254,39 @@ public class CacheRecycler extends AbstractComponent {
 
     private <T> Recycler<T> build(String type, int limit, int smartSize, Recycler.C<T> c) {
         Recycler<T> recycler;
-        // default to soft_thread_local
-        if (type == null || "soft_thread_local".equals(type)) {
-            recycler = new SoftThreadLocalRecycler<T>(c, limit);
-        } else if ("thread_local".equals(type)) {
-            recycler = new ThreadLocalRecycler<T>(c, limit);
-        } else if ("queue".equals(type)) {
-            recycler = new QueueRecycler<T>(c);
-        } else {
+        try {
+            // default to soft_thread_local
+            final Type t = type == null ? Type.SOFT_THREAD_LOCAL : Type.valueOf(type.toUpperCase(Locale.ROOT));
+            switch (t) {
+                case SOFT_THREAD_LOCAL:
+                recycler = new SoftThreadLocalRecycler<T>(c, limit);
+                break;
+                case THREAD_LOCAL:
+                recycler = new ThreadLocalRecycler<T>(c, limit);
+                break;
+                case  QUEUE:
+                recycler = new QueueRecycler<T>(c);
+                break;
+                case NONE:
+                recycler = new NoneRecycler<T>(c);
+                break;
+                default:
+                    throw new ElasticSearchIllegalArgumentException("no type support [" + type + "] for recycler");
+            }
+            if (smartSize > 0) {
+                recycler = new Recycler.Sizing<T>(recycler, smartSize);
+            }
+        } catch (IllegalArgumentException ex) {
             throw new ElasticSearchIllegalArgumentException("no type support [" + type + "] for recycler");
         }
-        if (smartSize > 0) {
-            recycler = new Recycler.Sizing<T>(recycler, smartSize);
-        }
+
         return recycler;
+    }
+
+    public static enum Type {
+        SOFT_THREAD_LOCAL,
+        THREAD_LOCAL,
+        QUEUE,
+        NONE;
     }
 }

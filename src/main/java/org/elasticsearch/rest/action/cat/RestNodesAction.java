@@ -34,13 +34,13 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.fs.FsStats;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -95,6 +95,7 @@ public class RestNodesAction extends AbstractCatAction {
                             }
                         });
                     }
+
                     @Override
                     public void onFailure(Throwable e) {
                         try {
@@ -152,27 +153,6 @@ public class RestNodesAction extends AbstractCatAction {
         for (DiscoveryNode node : state.getState().nodes()) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
-            long availableDisk = -1;
-            long heapUsed = -1;
-            long heapMax = -1;
-            float heapRatio = -1.0f;
-
-            if (null != stats && null != info) {
-                heapUsed = stats.getJvm().mem().heapUsed().bytes();
-                heapMax = info.getJvm().mem().heapMax().bytes();
-
-                if (heapMax > 0) {
-                    heapRatio = heapUsed / (heapMax * 1.0f);
-                }
-
-                if (!(stats.getFs() == null)) {
-                    availableDisk = 0;
-                    Iterator<FsStats.Info> it = stats.getFs().iterator();
-                    while (it.hasNext()) {
-                        availableDisk += it.next().getAvailable().bytes();
-                    }
-                }
-            }
 
             table.startRow();
 
@@ -180,13 +160,15 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getProcess().id());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+
             table.addCell(info == null ? null : info.getVersion().number());
             table.addCell(info == null ? null : info.getJvm().version());
-            table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
-            table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f", heapRatio*100.0));
-            table.addCell(heapMax < 0 ? null : new ByteSizeValue(heapMax));
+            table.addCell(stats == null ? null : stats.getFs() == null ? null : stats.getFs().total().getAvailable());
+            table.addCell(stats == null ? null : stats.getJvm().getMem().getHeapUsedPrecent());
+            table.addCell(info == null ? null : info.getJvm().getMem().getHeapMax());
             table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().usedPercent());
             table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", stats.getOs().getLoadAverage()[0]));
             table.addCell(stats == null ? null : stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");

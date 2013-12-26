@@ -215,7 +215,15 @@ public final class TestCluster implements Iterable<Client> {
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }
-        builder.put("type", RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
+        if (random.nextBoolean()) {
+            builder.put(CacheRecycler.TYPE_SETTINGS, RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
+            builder.put(CacheRecycler.LIMIT_SETTINGS, 1 + random.nextInt(25));
+            if (random.nextBoolean()) {
+                builder.put(CacheRecycler.SMART_SIZE_SETTINGS, random.nextInt(2048));
+            } else {
+                builder.put(CacheRecycler.SMART_SIZE_SETTINGS, 0);
+            }
+        }
         return builder.build();
     }
 

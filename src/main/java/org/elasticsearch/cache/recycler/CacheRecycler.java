@@ -24,12 +24,20 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.*;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
 
 @SuppressWarnings("unchecked")
 public class CacheRecycler extends AbstractComponent {
+    private static final String SETTINGS_PREFIX = ImmutableSettings.getSettingPrefix(CacheRecycler.class);
+    private static final String TYPE = "type";
+    private static final String LIMIT = "limit";
+    private static final String SMART_SIZE = "smart_size";
+    public static final String TYPE_SETTINGS = SETTINGS_PREFIX + TYPE;
+    public static final String LIMIT_SETTINGS = SETTINGS_PREFIX + LIMIT;
+    public static final String SMART_SIZE_SETTINGS = SETTINGS_PREFIX + SMART_SIZE;
 
     public final Recycler<ObjectObjectOpenHashMap> hashMap;
     public final Recycler<ObjectOpenHashSet> hashSet;
@@ -62,9 +70,10 @@ public class CacheRecycler extends AbstractComponent {
     @Inject
     public CacheRecycler(Settings settings) {
         super(settings);
-        String type = settings.get("type", Type.SOFT_THREAD_LOCAL.name());
-        int limit = settings.getAsInt("limit", 10);
-        int smartSize = settings.getAsInt("smart_size", 1024);
+        Settings componentSettings = settings.getComponentSettings(CacheRecycler.class);
+        String type = componentSettings.get(TYPE, Type.SOFT_THREAD_LOCAL.name());
+        int limit = componentSettings.getAsInt(LIMIT, 10);
+        int smartSize = componentSettings.getAsInt(SMART_SIZE, 1024);
 
         hashMap = build(type, limit, smartSize, new Recycler.C<ObjectObjectOpenHashMap>() {
             @Override

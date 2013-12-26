@@ -70,7 +70,6 @@ public class IndexGatewayTests extends ElasticsearchIntegrationTest {
             if (between(0, 5) == 0) {
                 builder.put("gateway.fs.chunk_size", between(1, 100) + "kb");
             }
-    
             builder.put("index.number_of_replicas", "1");
             builder.put("index.number_of_shards", rarely() ? Integer.toString(between(2, 6)) : "1");
             storeType = rarely() ? "ram" : "fs";

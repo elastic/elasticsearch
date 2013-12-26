@@ -150,21 +150,8 @@ public final class TestCluster implements Iterable<Client> {
             sharedNodesSeeds[i] = random.nextLong();
         }
         logger.info("Setup TestCluster [{}] with seed [{}] using [{}] nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedNodes);
-        Builder builder = ImmutableSettings.settingsBuilder()
-        /* use RAM directories in 10% of the runs */
-//        .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
-        .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
-        .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
-        .put("cluster.name", clusterName)
-                // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
-        .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                // default to non gateway
-        .put("gateway.type", "none");
-        if (isLocalTransportConfigured()) {
-            builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
-        } else {
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
-        }
+        this.nodeSettingsSource = nodeSettingsSource;
+        Builder builder = ImmutableSettings.settingsBuilder();
         // randomize (multi/single) data path, special case for 0, don't set it at all...
         int numOfDataPaths = random.nextInt(5);
         if (numOfDataPaths > 0) {
@@ -174,10 +161,8 @@ public final class TestCluster implements Iterable<Client> {
             }
             builder.put("path.data", dataPath.toString());
         }
-        builder.put("type", CacheRecycler.Type.values()[random.nextInt(CacheRecycler.Type.values().length)]);
+        defaultSettings = builder.build();
 
-        this.defaultSettings = builder.build();
-        this.nodeSettingsSource = nodeSettingsSource;
     }
 
     private static boolean isLocalTransportConfigured() {
@@ -187,8 +172,9 @@ public final class TestCluster implements Iterable<Client> {
         return Boolean.parseBoolean(System.getProperty("es.node.local", "false"));
     }
 
-    private Settings getSettings(int nodeOrdinal, Settings others) {
-        Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings);
+    private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
+        Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
+                .put(getRandomNodeSettings(nodeSeed, clusterName));
         Settings settings = nodeSettingsSource.settings(nodeOrdinal);
         if (settings != null) {
             builder.put(settings);
@@ -196,6 +182,27 @@ public final class TestCluster implements Iterable<Client> {
         if (others != null) {
             builder.put(others);
         }
+        return builder.build();
+    }
+
+    private static Settings getRandomNodeSettings(long seed, String clusterName) {
+        Random random = new Random(seed);
+        Builder builder = ImmutableSettings.settingsBuilder()
+        /* use RAM directories in 10% of the runs */
+        //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+                .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
+                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
+                .put("cluster.name", clusterName)
+                        // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
+                .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
+                        // default to non gateway
+                .put("gateway.type", "none");
+        if (isLocalTransportConfigured()) {
+            builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
+        } else {
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
+        }
+        builder.put("type", CacheRecycler.Type.values()[random.nextInt(CacheRecycler.Type.values().length)]);
         return builder.build();
     }
 
@@ -298,7 +305,7 @@ public final class TestCluster implements Iterable<Client> {
 
     private NodeAndClient buildNode(int nodeId, long seed, Settings settings) {
         ensureOpen();
-        settings = getSettings(nodeId, settings);
+        settings = getSettings(nodeId, seed, settings);
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
@@ -616,7 +623,7 @@ public final class TestCluster implements Iterable<Client> {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                nodeAndClient = buildNode(i, sharedNodesSeeds[i], defaultSettings);
+                nodeAndClient = buildNode(i, sharedNodesSeeds[i], null);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
             }

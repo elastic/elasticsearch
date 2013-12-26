@@ -571,51 +571,15 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-        if (normalizeLat || normalizeLon) {
-            GeoPoint point = new GeoPoint(lat, lon);
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat();
-            lon = point.lon();
-        }
-
-        if (validateLat) {
-            if (lat > 90.0 || lat < -90.0) {
-                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name());
-            }
-        }
-        if (validateLon) {
-            if (lon > 180.0 || lon < -180) {
-                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name());
-            }
-        }
-
-        if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new Field(names.indexName(), Double.toString(lat) + ',' + Double.toString(lon), fieldType);
-            context.doc().add(field);
-        }
-        if (enableGeoHash) {
-            parseGeohashField(context, GeoHashUtils.encode(lat, lon, geoHashPrecision));
-        }
-        if (enableLatLon) {
-            context.externalValue(lat);
-            latMapper.parse(context);
-            context.externalValue(lon);
-            lonMapper.parse(context);
-        }
-        if (hasDocValues()) {
-            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(names().indexName());
-            if (field == null) {
-                field = new CustomGeoPointDocValuesField(names().indexName(), lat, lon);
-                context.doc().addWithKey(names().indexName(), field);
-            } else {
-                field.add(lat, lon);
-            }
-        }
+        parse(context, new GeoPoint(lat, lon), null);
     }
 
     private void parseGeohash(ParseContext context, String geohash) throws IOException {
         GeoPoint point = GeoHashUtils.decode(geohash);
+        parse(context, point, geohash);
+    }
 
+    private void parse(ParseContext context, GeoPoint point, String geohash) throws IOException {
         if (normalizeLat || normalizeLon) {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
@@ -636,6 +600,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             context.doc().add(field);
         }
         if (enableGeoHash) {
+            if (geohash == null) {
+                geohash = GeoHashUtils.encode(point.lat(), point.lon());
+            }
             parseGeohashField(context, geohash);
         }
         if (enableLatLon) {
@@ -643,6 +610,15 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             latMapper.parse(context);
             context.externalValue(point.lon());
             lonMapper.parse(context);
+        }
+        if (hasDocValues()) {
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(names().indexName());
+            if (field == null) {
+                field = new CustomGeoPointDocValuesField(names().indexName(), point.lat(), point.lon());
+                context.doc().addWithKey(names().indexName(), field);
+            } else {
+                field.add(point.lat(), point.lon());
+            }
         }
     }
 

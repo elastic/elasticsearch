@@ -89,6 +89,9 @@ field data format.
 `array` (default)::
     Stores latitudes and longitudes in arrays.
 
+`doc_values`::
+    Computes and stores field data data-structures on disk at indexing time.
+
 [float]
 === Fielddata loading
 

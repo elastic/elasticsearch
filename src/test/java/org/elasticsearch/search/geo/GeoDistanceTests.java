@@ -52,11 +52,15 @@ import static org.hamcrest.Matchers.*;
  */
 public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
+    private static String randomFieldDataFormat() {
+        return randomFrom(Arrays.asList("array", "compressed", "doc_values"));
+    }
+
     @Test
     public void simpleDistanceTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
+                .startObject("fielddata").field("format", randomFieldDataFormat()).endObject().endObject().endObject()
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -208,7 +212,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     public void testDistanceSortingMVFields() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
+                .startObject("fielddata").field("format", randomFieldDataFormat()).endObject().endObject().endObject()
                 .endObject().endObject().string();
 
         client().admin().indices().prepareCreate("test")
@@ -340,7 +344,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject().endObject()
+                .startObject("fielddata").field("format", randomFieldDataFormat()).endObject().endObject().endObject()
                 .endObject().endObject().string();
 
         client().admin().indices().prepareCreate("test")
@@ -442,7 +446,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                     .startObject("properties")
                         .startObject("name").field("type", "string").endObject()
                         .startObject("location").field("type", "geo_point").field("lat_lon", true)
-                        .startObject("fielddata").field("format", randomFrom(Arrays.asList("array", "compressed"))).endObject().endObject()
+                        .startObject("fielddata").field("format", randomFieldDataFormat()).endObject().endObject()
                     .endObject()
                 .endObject()
                 .endObject()
@@ -617,7 +621,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                                 .field("geohash_precision", 24)
                                 .field("lat_lon", true)
                                 .startObject("fielddata")
-                                    .field("format", randomFrom(Arrays.asList("array", "compressed")))
+                                    .field("format", randomFieldDataFormat())
                                 .endObject()
                             .endObject()
                         .endObject()

@@ -75,6 +75,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("short", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
                 .put("int", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
                 .put("long", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
+                .put("geo_point", new GeoPointBinaryDVIndexFieldData.Builder())
                 .immutableMap();
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
@@ -108,6 +109,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put(Tuple.tuple("long", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
                 .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointDoubleArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new GeoPointBinaryDVIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", COMPRESSED_FORMAT), new GeoPointCompressedIndexFieldData.Builder())
 

@@ -28,13 +28,13 @@ import java.util.Queue;
  */
 public class QueueRecycler<T> extends Recycler<T> {
 
-    final Queue<V<T>> queue;
+    final Queue<T> queue;
 
     public QueueRecycler(C<T> c) {
-        this(c, ConcurrentCollections.<V<T>>newQueue());
+        this(c, ConcurrentCollections.<T>newQueue());
     }
 
-    public QueueRecycler(C<T> c, Queue<V<T>> queue) {
+    public QueueRecycler(C<T> c, Queue<T> queue) {
         super(c);
         this.queue = queue;
     }
@@ -46,11 +46,11 @@ public class QueueRecycler<T> extends Recycler<T> {
 
     @Override
     public V<T> obtain(int sizing) {
-        V<T> v = queue.poll();
+        T v = queue.poll();
         if (v == null) {
-            v = new QV(c.newInstance(sizing));
+            v = c.newInstance(sizing);
         }
-        return v;
+        return new QV(v);
     }
 
     class QV implements Recycler.V<T> {
@@ -77,7 +77,7 @@ public class QueueRecycler<T> extends Recycler<T> {
                 throw new ElasticSearchIllegalStateException("recycler entry already released...");
             }
             c.clear(value);
-            queue.offer(this);
+            queue.offer(value);
             value = null;
         }
     }

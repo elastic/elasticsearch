@@ -239,6 +239,8 @@ public class DocumentMapper implements ToXContent {
         }
     };
 
+    public static final String ALLOW_TYPE_WRAPPER = "index.mapping.allow_type_wrapper";
+
     private final String index;
 
     private final Settings indexSettings;
@@ -494,18 +496,15 @@ public class DocumentMapper implements ToXContent {
             } else if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
-            if (type.equals(parser.currentName())) {
-                // first field is the same as the type, this might be because the type is provided, and the object exists within it
-                // or because there is a valid field that by chance is named as the type
-
-                // Note, in this case, we only handle plain value types, an object type will be analyzed as if it was the type itself
-                // and other same level fields will be ignored
-                token = parser.nextToken();
+            // first field is the same as the type, this might be because the
+            // type is provided, and the object exists within it or because
+            // there is a valid field that by chance is named as the type.
+            // Because of this, by default wrapping a document in a type is
+            // disabled, but can be enabled by setting
+            // index.mapping.allow_type_wrapper to true
+            if (type.equals(parser.currentName()) && indexSettings.getAsBoolean(ALLOW_TYPE_WRAPPER, false)) {
+                parser.nextToken();
                 countDownTokens++;
-                // commented out, allow for same type with START_OBJECT, we do our best to handle it except for the above corner case
-//                if (token != XContentParser.Token.START_OBJECT) {
-//                    throw new MapperException("Malformed content, a field with the same name as the type must be an object with the properties/fields within it");
-//                }
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {

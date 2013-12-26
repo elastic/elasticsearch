@@ -853,6 +853,6 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     }
 
     private String source(String id, String nameValue) {
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+        return "{ \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" }";
     }
 }

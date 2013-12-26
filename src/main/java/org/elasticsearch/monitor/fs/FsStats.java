@@ -301,6 +301,10 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         this.total = null;
     }
 
+    public Info getTotal() {
+        return total();
+    }
+
     public Info total() {
         if (total != null) {
             return total;

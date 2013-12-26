@@ -33,7 +33,7 @@ The result of the above index operation is:
 
 The index operation automatically creates an index if it has not been
 created before (check out the
-<<indices-create-index,create index API>> for manually 
+<<indices-create-index,create index API>> for manually
 creating an index), and also automatically creates a
 dynamic type mapping for the specific type if one has not yet been
 created (check out the <<indices-put-mapping,put mapping>>
@@ -44,12 +44,21 @@ objects will automatically be added to the mapping definition of the
 type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
-Though explained on the <<mapping,mapping>> section,
-it's important to note that the format of the JSON document can also
-include the type (very handy when using JSON mappers), for example:
+Note that the format of the JSON document can also include the type (very handy
+when using JSON mappers) if the `index.mapping.allow_type_wrapper` setting is
+set to true, for example:
 
 [source,js]
 --------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter' -d '{
+  "settings": {
+    "index": {
+      "mapping.allow_type_wrapper": true
+    }
+  }
+}'
+{"acknowledged":true}
+
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
     "tweet" : {
         "user" : "kimchy",

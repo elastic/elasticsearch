@@ -164,11 +164,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .field("field2", "value")
                 .endObject().endObject();
 
-        XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
-                .field("field1", 1)
-                .field("field2", "value")
-                .endObject().endObject().endObject();
-
         PercolateResponse response = client().preparePercolate().setSource(doc)
                 .setIndices("test").setDocumentType("type1")
                 .execute().actionGet();
@@ -183,13 +178,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
-        assertMatchCount(response, 1l);
-        assertThat(response.getMatches(), arrayWithSize(1));
-        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
-
-        response = client().preparePercolate()
-                .setIndices("test").setDocumentType("type1")
-                .setSource(docWithType).execute().actionGet();
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
@@ -430,7 +418,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
-                .setSource(jsonBuilder().startObject().startObject("doc").startObject("type1").field("field1", "value2").endObject().endObject().endObject())
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value2").endObject().endObject())
                 .execute().actionGet();
         assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
@@ -471,7 +459,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
-                .setSource(jsonBuilder().startObject().startObject("doc").startObject("type1").field("field1", "value2").endObject().endObject().endObject())
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value2").endObject().endObject())
                 .execute().actionGet();
         assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
@@ -487,7 +475,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         PercolateSourceBuilder sourceBuilder = new PercolateSourceBuilder()
-                .setDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("type1").field("field1", "value2").endObject().endObject()))
+                .setDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value2").endObject()))
                 .setQueryBuilder(termQuery("color", "red"));
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -533,9 +521,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> percolate a document");
         PercolateResponse percolate = client().preparePercolate().setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject()
-                        .startObject("doc").startObject("type1")
+                        .startObject("doc")
                         .field("field1", "value1")
-                        .endObject().endObject()
+                        .endObject()
                         .endObject())
                 .execute().actionGet();
         assertMatchCount(percolate, 1l);

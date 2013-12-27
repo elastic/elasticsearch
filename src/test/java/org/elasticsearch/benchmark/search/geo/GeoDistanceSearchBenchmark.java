@@ -154,6 +154,22 @@ public class GeoDistanceSearchBenchmark {
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (ARC) - no optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
 
+        System.err.println("--> Warming up (SLOPPY_ARC)");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_WARM; i++) {
+            run(client, GeoDistance.SLOPPY_ARC, "memory");
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Warmup (SLOPPY_ARC) " + (totalTime / NUM_WARM) + "ms");
+
+        System.err.println("--> Perf (SLOPPY_ARC)");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < NUM_RUNS; i++) {
+            run(client, GeoDistance.SLOPPY_ARC, "memory");
+        }
+        totalTime = System.currentTimeMillis() - start;
+        System.err.println("--> Perf (SLOPPY_ARC) " + (totalTime / NUM_RUNS) + "ms");
+
         System.err.println("--> Warming up (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {

@@ -178,7 +178,7 @@ mvn test -Dtests.class=org.elasticsearch.test.rest.ElasticsearchRestTests
 ---------------------------------------------------------------------------
 
 `ElasticsearchRestTests` is the executable test class that runs all the
-yaml suites available within the `rest-spec` folder.
+yaml suites available within the `rest-api-spec` folder.
 
 The following are the options supported by the REST tests runner:
 
@@ -186,11 +186,11 @@ The following are the options supported by the REST tests runner:
 to be run and if so whether to rely on an external cluster (providing host
 and port) or fire a test cluster (default)
 * `tests.rest.suite`: comma separated paths of the test suites to be run
-(by default loaded from /rest-spec/test). It is possible to run only a subset
+(by default loaded from /rest-api-spec/test). It is possible to run only a subset
 of the tests providing a sub-folder or even a single yaml file (the default
-/rest-spec/test prefix is optional when files are loaded from classpath)
+/rest-api-spec/test prefix is optional when files are loaded from classpath)
 e.g. -Dtests.rest.suite=index,get,create/10_with_id
-* `tests.rest.spec`: REST spec path (default /rest-spec/api)
+* `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
 * `tests.iters`: runs multiple iterations
 * `tests.seed`: seed to base the random behaviours on
 * `tests.appendseed[true|false]`: enables adding the seed to each test

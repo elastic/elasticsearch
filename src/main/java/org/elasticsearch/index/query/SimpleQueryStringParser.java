@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,6 +87,7 @@ public class SimpleQueryStringParser implements QueryParser {
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
         Analyzer analyzer = null;
+        int flags = -1;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -146,6 +148,17 @@ public class SimpleQueryStringParser implements QueryParser {
                         throw new QueryParsingException(parseContext.index(),
                                 "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
+                } else if ("flags".equals(currentFieldName)) {
+                    if (parser.hasTextCharacters()) {
+                        // Possible options are:
+                        // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE
+                        flags = SimpleQueryStringFlag.resolveFlags(parser.text());
+                    } else {
+                        flags = parser.intValue();
+                        if (flags < 0) {
+                            flags = SimpleQueryStringFlag.ALL.value();
+                        }
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
@@ -174,9 +187,9 @@ public class SimpleQueryStringParser implements QueryParser {
 
         XSimpleQueryParser sqp;
         if (fieldsAndWeights != null) {
-            sqp = new XSimpleQueryParser(analyzer, fieldsAndWeights);
+            sqp = new XSimpleQueryParser(analyzer, fieldsAndWeights, flags);
         } else {
-            sqp = new XSimpleQueryParser(analyzer, field);
+            sqp = new XSimpleQueryParser(analyzer, Collections.singletonMap(field, 1.0F), flags);
         }
 
         if (defaultOperator != null) {

@@ -36,6 +36,9 @@ with default operator of `AND`, the same query is translated to
 
 |`analyzer` |The analyzer used to analyze each term of the query when
 creating composite queries.
+
+|`flags` |Flags specifying which features of the `simple_query_string` to
+enable. Defaults to `ALL`.
 |=======================================================================
 
 [float]
@@ -76,3 +79,22 @@ introduced fields included). For example:
     }
 }
 --------------------------------------------------
+
+[float]
+==== Flags
+`simple_query_string` support multiple flags to specify which parsing features
+should be enabled. It is specified as a `|`-delimited string with the
+`flags` parameter:
+
+[source,js]
+--------------------------------------------------
+{
+    "simple_query_string" : {
+        "query" : "foo | bar  & baz*",
+        "flags" : "OR|AND|PREFIX"
+    }
+}
+--------------------------------------------------
+
+The available flags are: `ALL`, `NONE`, `AND`, `OR`, `PREFIX`, `PHRASE`,
+`PRECEDENCE`, `ESCAPE`, and `WHITESPACE`.

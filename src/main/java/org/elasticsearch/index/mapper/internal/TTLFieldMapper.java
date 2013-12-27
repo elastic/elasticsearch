@@ -126,7 +126,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                              PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
+                Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed,
                 postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;

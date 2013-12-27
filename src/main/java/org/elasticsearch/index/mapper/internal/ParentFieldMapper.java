@@ -126,17 +126,14 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final BytesRef typeAsBytes;
 
     protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, fieldDataSettings, indexSettings);
         this.type = type;
-        this.typeAsBytes = new BytesRef(type);
+        this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper() {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null);
-        type = null;
-        typeAsBytes = null;
+        this(Defaults.NAME, Defaults.NAME, null, null, null, null);
     }
 
     public String type() {

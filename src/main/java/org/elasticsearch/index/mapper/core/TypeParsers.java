@@ -42,6 +42,7 @@ import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
  */
 public class TypeParsers {
 
+    public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
@@ -76,6 +77,8 @@ public class TypeParsers {
                 parseIndex(name, propNode.toString(), builder);
             } else if (propName.equals("tokenized")) {
                 builder.tokenized(nodeBooleanValue(propNode));
+            } else if (propName.equals(DOC_VALUES)) {
+                builder.docValues(nodeBooleanValue(propNode));
             } else if (propName.equals("term_vector")) {
                 parseTermVector(name, propNode.toString(), builder);
             } else if (propName.equals("boost")) {

@@ -94,7 +94,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         public DoubleFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider,
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider,
                     similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -122,11 +122,11 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     private String nullValueAsString;
 
-    protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,
                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                 SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
                 NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;

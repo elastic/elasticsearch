@@ -91,7 +91,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         public ByteFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context),
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context),
                     postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -118,11 +118,11 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     private String nullValueAsString;
 
-    protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
                               DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
                               @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType,
+        super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
                 docValuesProvider, similarity, fieldDataSettings, indexSettings);

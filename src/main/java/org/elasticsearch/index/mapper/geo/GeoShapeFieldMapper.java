@@ -196,7 +196,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider) {
-        super(names, 1, fieldType, null, null, postingsProvider, docValuesProvider, null, null, null);
+        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());

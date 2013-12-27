@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
@@ -202,7 +203,7 @@ public final class TestCluster implements Iterable<Client> {
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
         }
-        builder.put("type", CacheRecycler.Type.values()[random.nextInt(CacheRecycler.Type.values().length)]);
+        builder.put("type", RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
         return builder.build();
     }
 

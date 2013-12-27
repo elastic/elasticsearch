@@ -69,10 +69,10 @@ import static org.junit.Assert.assertThat;
  * Supports the following options provided as system properties:
  * - tests.rest[true|false|host:port]: determines whether the REST tests need to be run and if so
  *                                     whether to rely on an external cluster (providing host and port) or fire a test cluster (default)
- * - tests.rest.suite: comma separated paths of the test suites to be run (by default loaded from /rest-spec/test)
+ * - tests.rest.suite: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test)
  *                     it is possible to run only a subset of the tests providing a directory or a single yaml file
- *                     (the default /rest-spec/test prefix is optional when files are loaded from classpath)
- * - tests.rest.spec: REST spec path (default /rest-spec/api)
+ *                     (the default /rest-api-spec/test prefix is optional when files are loaded from classpath)
+ * - tests.rest.spec: REST spec path (default /rest-api-spec/api)
  * - tests.iters: runs multiple iterations
  * - tests.seed: seed to base the random behaviours on
  * - tests.appendseed[true|false]: enables adding the seed to each test section's description (default false)
@@ -87,8 +87,8 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
-    private static final String DEFAULT_TESTS_PATH = "/rest-spec/test";
-    private static final String DEFAULT_SPEC_PATH = "/rest-spec/api";
+    private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
+    private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
     private static final int DEFAULT_ITERATIONS = 1;
 
     private static final String PATHS_SEPARATOR = ",";

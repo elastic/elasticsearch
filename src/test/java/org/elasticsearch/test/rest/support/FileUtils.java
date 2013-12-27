@@ -80,7 +80,7 @@ public final class FileUtils {
         //try within classpath with and without file suffix (as it could be a single test suite)
         URL resource = findResource(path, optionalFileSuffix);
         if (resource == null) {
-            //try within classpath with optional prefix: /rest-spec/test (or /rest-test/api) is optional
+            //try within classpath with optional prefix: /rest-api-spec/test (or /rest-api-spec/api) is optional
             String newPath = optionalPathPrefix + "/" + path;
             resource = findResource(newPath, optionalFileSuffix);
             if (resource == null) {

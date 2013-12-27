@@ -35,8 +35,6 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
-        <rest.pull.skip>false</rest.pull.skip>
-        <rest.init.skip>false</rest.init.skip>
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -322,8 +320,8 @@
                 </includes>
             </testResource>
             <testResource>
-                <directory>${basedir}/rest-spec</directory>
-                <targetPath>rest-spec</targetPath>
+                <directory>${basedir}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
                 <includes>
                     <include>api/*.json</include>
                     <include>test/**/*.yaml</include>
@@ -1026,41 +1024,6 @@
                             <executable>java</executable>
                             <arguments>
                                 <argument>-version</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>Init Rest Spec</id>
-                        <phase>generate-test-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${rest.init.skip}</skip>
-                            <executable>git</executable>
-                            <arguments>
-                                <argument>submodule</argument>
-                                <argument>update</argument>
-                                <argument>--init</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>Pull Rest Spec</id>
-                        <phase>generate-test-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${rest.pull.skip}</skip>
-                            <executable>git</executable>
-                            <arguments>
-                                <argument>submodule</argument>
-                                <argument>foreach</argument>
-                                <argument>git</argument>
-                                <argument>pull</argument>
-                                <argument>origin</argument>
-                                <argument>master</argument>
                             </arguments>
                         </configuration>
                     </execution>

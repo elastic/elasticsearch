@@ -134,7 +134,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 }
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
-                    boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
+                    boost, fieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
                     positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -188,12 +188,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     private int ignoreAbove;
 
-    protected StringFieldMapper(Names names, float boost, FieldType fieldType,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
                                 PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity, fieldDataSettings, indexSettings);
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity, fieldDataSettings, indexSettings);
         if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }

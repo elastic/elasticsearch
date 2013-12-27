@@ -86,7 +86,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new UidFieldMapper(name, indexName, docValues, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -104,11 +104,11 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name) {
-        this(name, name, null, null, null, ImmutableSettings.EMPTY);
+        this(name, name, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
-    protected UidFieldMapper(String name, String indexName, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+    protected UidFieldMapper(String name, String indexName, Boolean docValues, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValues,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, docValuesFormat, null, fieldDataSettings, indexSettings);
     }
 

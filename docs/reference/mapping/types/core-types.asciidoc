@@ -88,6 +88,9 @@ searchable at all (as an individual field; it may still be included in
 `_all`). Setting to `no` disables `include_in_all`. Defaults to
 `analyzed`.
 
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the fielddata format is `doc_values`.
+
 |`term_vector` |Possible values are `no`, `yes`, `with_offsets`,
 `with_positions`, `with_positions_offsets`. Defaults to `no`.
 
@@ -194,6 +197,9 @@ and it can be retrieved from it).
 `no` disables `include_in_all`. If set to `no` the field can be stored
 in `_source`, have `include_in_all` enabled, or `store` should be set to
 `true` for this to be useful.
+
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the fielddata format is `doc_values`.
 
 |`precision_step` |The precision step (number of terms generated for
 each number value). Defaults to `4`.
@@ -302,6 +308,9 @@ and it can be retrieved from it).
 `no` disables `include_in_all`. If set to `no` the field can be stored
 in `_source`, have `include_in_all` enabled, or `store` should be set to
 `true` for this to be useful.
+
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the fielddata format is `doc_values`.
 
 |`precision_step` |The precision step (number of terms generated for
 each number value). Defaults to `4`.

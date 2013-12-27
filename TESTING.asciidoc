@@ -167,12 +167,8 @@ The available integration tests make use of the java API to communicate with
 the elasticsearch nodes, using the internal binary transport (port 9300 by
 default).
 The REST layer is tested through specific tests that are shared between all
-the elasticsearch official clients and can be found on the
-https://github.com/elasticsearch/elasticsearch-rest-api-spec[elasticsearch-rest-api-spec project].
-They consist of
-https://github.com/elasticsearch/elasticsearch-rest-api-spec/tree/master/test[YAML files]
-that describe the operations to be executed and the obtained results that
-need to be tested.
+the elasticsearch official clients and consist of YAML files that describe the
+operations to be executed and the obtained results that need to be tested.
 
 The REST tests are run automatically when executing the maven test command. To run only the
 REST tests use the following command:
@@ -182,17 +178,7 @@ mvn test -Dtests.class=org.elasticsearch.test.rest.ElasticsearchRestTests
 ---------------------------------------------------------------------------
 
 `ElasticsearchRestTests` is the executable test class that runs all the
-yaml suites available through a git submodule within the `rest-spec` folder.
-The submodule gets automatically initialized through maven right before
-running tests (generate-test-resources phase).
-
-The REST tests cannot be run without the files pulled from the submodule,
-thus if the `rest-spec` folder is empty on your working copy, it means
-that it needs to be initialized with the following command:
-
-------------------------------
-git submodule update --init
-------------------------------
+yaml suites available within the `rest-spec` folder.
 
 The following are the options supported by the REST tests runner:
 

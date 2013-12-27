@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.test.rest.junit.RestTestSuiteRunner;
-import org.junit.runner.RunWith;
+import org.junit.Ignore;
 
 import static org.apache.lucene.util.LuceneTestCase.Slow;
 
@@ -30,7 +30,8 @@ import static org.apache.lucene.util.LuceneTestCase.Slow;
  * @see RestTestSuiteRunner for extensive documentation and all the supported options
  */
 @Slow
-@RunWith(RestTestSuiteRunner.class)
+//@RunWith(RestTestSuiteRunner.class)
+@Ignore
 public class ElasticsearchRestTests {
 
 

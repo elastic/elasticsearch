@@ -90,7 +90,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, nullValue,
+            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -117,11 +117,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValueAsString;
 
-    protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Long nullValue, Explicit<Boolean> ignoreMalformed,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                               SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
                 NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;

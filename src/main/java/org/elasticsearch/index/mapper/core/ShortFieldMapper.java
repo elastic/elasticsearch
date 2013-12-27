@@ -91,7 +91,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), precisionStep, boost, fieldType, nullValue,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -118,11 +118,11 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
     private String nullValueAsString;
 
-    protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                Short nullValue, Explicit<Boolean> ignoreMalformed,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep,
                 new NumericIntegerAnalyzer(precisionStep)), new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),
                 postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;

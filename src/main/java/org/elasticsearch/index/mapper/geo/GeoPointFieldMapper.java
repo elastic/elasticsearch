@@ -196,7 +196,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             // store them as a single token.
             fieldType.setTokenized(false);
 
-            return new GeoPointFieldMapper(buildNames(context), fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings(), origPathType, enableLatLon, enableGeoHash, enableGeohashPrefix, precisionStep, geoHashPrecision, latMapper, lonMapper, geohashMapper, validateLon, validateLat, normalizeLon, normalizeLat);
+            return new GeoPointFieldMapper(buildNames(context), fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings(), origPathType, enableLatLon, enableGeoHash, enableGeohashPrefix, precisionStep, geoHashPrecision, latMapper, lonMapper, geohashMapper, validateLon, validateLat, normalizeLon, normalizeLat);
         }
     }
 
@@ -392,7 +392,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     private final boolean normalizeLon;
     private final boolean normalizeLat;
 
-    public GeoPointFieldMapper(FieldMapper.Names names, FieldType fieldType,
+    public GeoPointFieldMapper(FieldMapper.Names names, FieldType fieldType, Boolean docValues,
             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
             PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
             SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings,
@@ -400,7 +400,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,
             boolean validateLon, boolean validateLat,
             boolean normalizeLon, boolean normalizeLat) {
-        super(names, 1f, fieldType, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, fieldDataSettings, indexSettings);
+        super(names, 1f, fieldType, docValues, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, fieldDataSettings, indexSettings);
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
         this.enableGeoHash = enableGeoHash || enableGeohashPrefix; // implicitly enable geohashes if geohash_prefix is set

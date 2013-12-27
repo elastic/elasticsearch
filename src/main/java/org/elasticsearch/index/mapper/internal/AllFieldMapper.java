@@ -145,7 +145,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
                              boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings,
                              Settings indexSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+        super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
                 similarity, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;

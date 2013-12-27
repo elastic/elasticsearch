@@ -121,7 +121,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity,
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity,
                     fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -146,11 +146,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
-    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                             String nullValue, Explicit<Boolean> ignoreMalformed,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType,
+        super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
                 similarity, fieldDataSettings, indexSettings);

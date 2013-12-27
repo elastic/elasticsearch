@@ -104,7 +104,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 Settings settings = context.indexSettings();
                 roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
-            return new TimestampFieldMapper(fieldType, enabledState, path, dateTimeFormatter, roundCeil,
+            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, roundCeil,
                     ignoreMalformed(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
@@ -136,17 +136,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private final String path;
 
     public TimestampFieldMapper() {
-        this(new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
+        this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
                 Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, null, null, null, ImmutableSettings.EMPTY);
     }
 
-    protected TimestampFieldMapper(FieldType fieldType, EnabledAttributeMapper enabledState, String path,
+    protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
                                    FormatDateTimeFormatter dateTimeFormatter, boolean roundCeil,
                                    Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
                                    DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings,
                                    Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
-                Defaults.PRECISION_STEP, Defaults.BOOST, fieldType,
+                Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
                 roundCeil, ignoreMalformed, postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;

@@ -64,6 +64,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
+        public static final boolean DOC_VALUES = false;
 
         static {
             FIELD_TYPE.setIndexed(true);
@@ -81,6 +82,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final FieldType fieldType;
+        protected Boolean docValues;
         protected float boost = Defaults.BOOST;
         protected boolean omitNormsSet = false;
         protected String indexName;
@@ -106,6 +108,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         public T store(boolean store) {
             this.fieldType.setStored(store);
+            return builder;
+        }
+
+        public T docValues(boolean docValues) {
+            this.docValues = docValues;
             return builder;
         }
 
@@ -227,7 +234,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected Settings customFieldDataSettings;
     protected FieldDataType fieldDataType;
 
-    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
+    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
                                   @Nullable Settings fieldDataSettings, Settings indexSettings) {
@@ -266,8 +273,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
             );
         }
-        if (fieldDataType == null) {
-            docValues = false;
+        if (docValues != null) {
+            this.docValues = docValues;
+        } else if (fieldDataType == null) {
+            this.docValues = false;
         } else {
             this.docValues = FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings));
         }
@@ -498,6 +507,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
+        if (!this.hasDocValues() && fieldMergeWith.hasDocValues()) {
+            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
+            // when the doc_values field data format is configured
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
+        }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
@@ -592,6 +606,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType.stored());
+        }
+        if (includeDefaults || hasDocValues() != Defaults.DOC_VALUES) {
+            builder.field(TypeParsers.DOC_VALUES, docValues);
         }
         if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType));

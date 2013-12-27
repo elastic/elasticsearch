@@ -1,0 +1,41 @@
+---
+"Doc upsert":
+
+  - do:
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          body:
+            doc:    { foo: bar, count: 1 }
+            upsert: { foo: baz }
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+
+  - match:  { _source.foo:        baz }
+  - is_false:   _source.count
+
+
+  - do:
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          body:
+            doc:    { foo: bar, count: 1 }
+            upsert: { foo: baz }
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+
+  - match:  { _source.foo:        bar }
+  - match:  { _source.count:      1   }
+
+

@@ -1,0 +1,28 @@
+---
+"Missing document with catch":
+
+  - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+
+  - do:
+      catch:   missing
+      get_source:
+        index: test_1
+        type:  test
+        id:    1
+
+---
+"Missing document with ignore":
+
+  - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+
+
+  - do:
+      get_source:
+        index:  test_1
+        type:   test
+        id:     1
+        ignore: 404

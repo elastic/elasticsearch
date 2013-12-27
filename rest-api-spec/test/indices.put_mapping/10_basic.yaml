@@ -1,0 +1,47 @@
+---
+"Test Create and update mapping":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        type: test_type
+        body:
+          test_type:
+            properties:
+              text:
+                type:     string
+                analyzer: whitespace
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+  
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        type: test_type
+        body:
+          test_type:
+            properties:
+              text:
+                type: multi_field
+                fields:
+                  text:
+                    type:     string
+                    analyzer: whitespace
+                  text_raw:
+                    type:     string
+                    index:    not_analyzed
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+  
+  - match: {test_index.test_type.properties.text.type:     multi_field}
+  - match: {test_index.test_type.properties.text.fields.text_raw.index: not_analyzed}

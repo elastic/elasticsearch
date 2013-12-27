@@ -1,0 +1,29 @@
+setup:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
+---
+"Get missing template - post 0.90.3":
+  - skip:
+      version: "0 - 0.90.2"
+      reason:  "Missing templates throw 404 from 0.90.3"
+  - do:
+      catch:  missing
+      indices.get_template:
+        name: test
+
+---
+"Get missing template - pre 0.90.3":
+  - skip:
+      version: "0.90.3 - 999"
+      reason:  "Missing templates didn't throw 404 before 0.90.3"
+  - do:
+      indices.delete_template:
+        name:   test
+        ignore: 404
+  - do:
+      indices.get_template:
+        name: test
+
+  - match: {'': {}}

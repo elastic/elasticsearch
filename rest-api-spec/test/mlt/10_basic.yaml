@@ -1,0 +1,21 @@
+---
+"Basic mlt":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar, title: howdy }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      mlt:
+          index:  test_1
+          type:   test
+          id:     1
+          mlt_fields: title
+        
+  - match: {hits.total: 0}
+

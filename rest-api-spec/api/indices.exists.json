@@ -1,0 +1,20 @@
+{
+  "indices.exists": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-indices-exists/",
+    "methods": ["HEAD"],
+    "url": {
+      "path": "/{index}",
+      "paths": ["/{index}"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of indices to check"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

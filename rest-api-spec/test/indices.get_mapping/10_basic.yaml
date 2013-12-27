@@ -1,0 +1,51 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     string
+                      analyzer: whitespace
+
+---
+"Get index mapping":
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}
+
+---
+"Get type mapping - pre 1.0":
+
+  - skip:
+      version:     "0.90.9 - 999"
+      reason:      "for newer versions the index name is always returned"
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+        type: test_type
+
+  - match: {test_type.properties.text.type:     string}
+  - match: {test_type.properties.text.analyzer: whitespace}
+
+---
+"Get type mapping - post 1.0":
+
+  - skip:
+      version:     "0 - 0.90.999"
+      reason:      "for older versions, just the type name is returned"
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+        type: test_type
+
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}

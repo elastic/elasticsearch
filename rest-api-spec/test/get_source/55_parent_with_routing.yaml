@@ -1,0 +1,51 @@
+---
+"Parent with routing":
+
+ - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          routing: 4
+          body:    { foo: bar }
+
+ - do:
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          routing: 4
+
+ - match:   { '': {foo: bar}}
+
+ - do:
+      catch: missing
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+
+ - do:
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 4
+

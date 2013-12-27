@@ -1,0 +1,25 @@
+{
+  "cluster.reroute": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-reroute/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_cluster/reroute",
+      "paths": ["/_cluster/reroute"],
+      "parts": {
+      },
+      "params": {
+        "dry_run": {
+          "type" : "boolean",
+          "description" : "Simulate the operation only and return the resulting state"
+        },
+        "filter_metadata": {
+          "type" : "boolean",
+          "description" : "Don't return cluster state metadata (default: false)"
+        }
+      }
+    },
+    "body": {
+      "description" : "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+---
+"Parent":
+
+ - skip:
+      version:  "0 - 0.90.2"
+      reason:   Parent not supported in mget. https://github.com/elasticsearch/elasticsearch/issues/3274
+
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  4
+          routing: 5
+          body:    { foo: bar }
+
+ - do:
+      mget:
+        index:  test_1
+        type:   test
+        fields:  [ _routing , _parent]
+        body:
+          docs:
+            - { _id: 1 }
+            - { _id: 1, parent: 4 }
+            - { _id: 1, parent: 4, routing: 5 }
+
+ - is_false:  docs.0.exists
+ - is_false:  docs.1.exists
+
+ - is_true:   docs.2.exists
+ - match:   { docs.2._index:          test_1 }
+ - match:   { docs.2._type:           test   }
+ - match:   { docs.2._id:             "1"    }
+ - match:   { docs.2.fields._parent:  "4"    }
+ - match:   { docs.2.fields._routing: "5"    }
+

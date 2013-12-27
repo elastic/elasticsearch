@@ -1,0 +1,29 @@
+---
+"Routing":
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+          body:    { foo: bar }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      catch:      missing
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 4
+
+ - do:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+

@@ -1,0 +1,33 @@
+{
+  "indices.delete_alias": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_alias/{name}",
+      "paths": ["/{index}/_alias/{name}"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index with an alias"
+        },
+        "name": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the alias to be deleted"
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit timestamp for the document"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -35,6 +35,7 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private String analyzer;
     private Operator operator;
     private final String queryText;
+    private int flags = -1;
 
     /**
      * Operators for the default_operator
@@ -84,6 +85,22 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * Specify the enabled features of the SimpleQueryString.
+     */
+    public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
+        int value = 0;
+        if (flags.length == 0) {
+            value = SimpleQueryStringFlag.ALL.value;
+        } else {
+            for (SimpleQueryStringFlag flag : flags) {
+                value |= flag.value;
+            }
+        }
+        this.flags = value;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SimpleQueryStringParser.NAME);
@@ -102,6 +119,10 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
                 }
             }
             builder.endArray();
+        }
+
+        if (flags != -1) {
+            builder.field("flags", flags);
         }
 
         if (analyzer != null) {

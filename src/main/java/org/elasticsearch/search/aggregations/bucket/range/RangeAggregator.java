@@ -94,7 +94,7 @@ public class RangeAggregator extends BucketsAggregator {
                            AggregationContext aggregationContext,
                            Aggregator parent) {
 
-        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, ranges.size() * parent.estimatedBucketCount(), aggregationContext, parent);
+        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, ranges.size() * (parent == null ? 1 : parent.estimatedBucketCount()), aggregationContext, parent);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.keyed = keyed;

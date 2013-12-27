@@ -224,6 +224,10 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         new StringFieldMapper.Builder("anything").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
         new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
 
+        assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
+
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("str1")

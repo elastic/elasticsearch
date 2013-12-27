@@ -97,7 +97,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -120,21 +120,21 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     private final String path;
 
     public IdFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME, new FieldType(Defaults.FIELD_TYPE));
+        this(new FieldType(Defaults.FIELD_TYPE));
     }
 
     public IdFieldMapper(FieldType fieldType) {
-        this(Defaults.NAME, Defaults.INDEX_NAME, fieldType);
+        this(Defaults.NAME, Defaults.INDEX_NAME, fieldType, null);
     }
 
-    protected IdFieldMapper(String name, String indexName, FieldType fieldType) {
-        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
+    protected IdFieldMapper(String name, String indexName, FieldType fieldType, Boolean docValues) {
+        this(name, indexName, Defaults.BOOST, fieldType, docValues, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
     }
 
-    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path,
+    protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, String path,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
+        super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.path = path;
     }

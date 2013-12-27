@@ -143,13 +143,13 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     };
 
-    protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
                                 NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
                                 DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
                                 @Nullable Settings fieldDataSettings, Settings indexSettings) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {

@@ -90,7 +90,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType,
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues,
                     nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -117,11 +117,11 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     private String nullValueAsString;
 
-    protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+    protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed,
                                  PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                  SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;

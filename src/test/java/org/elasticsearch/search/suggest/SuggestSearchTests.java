@@ -129,9 +129,12 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
             assertThat(ex.getCause(), instanceOf(ElasticSearchIllegalStateException.class));
-            assertThat(ex.getCause().getMessage(), endsWith("Suggest entries have different sizes actual [1] expected [2]"));
+            assertThat(ex.getCause().getMessage(),
+                    anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
+                            endsWith("Suggest entries have different sizes actual [2] expected [1]")));
         } catch (ElasticSearchIllegalStateException ex) {
-            assertThat(ex.getMessage(), endsWith("Suggest entries have different sizes actual [1] expected [2]"));
+            assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
+                    endsWith("Suggest entries have different sizes actual [2] expected [1]")));
         }
 
 
@@ -146,9 +149,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
             assertThat(ex.getCause(), instanceOf(ElasticSearchIllegalStateException.class));
-            assertThat(ex.getCause().getMessage(), endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"));
+            assertThat(ex.getCause().getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
+                    endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
         } catch (ElasticSearchIllegalStateException ex) {
-            assertThat(ex.getMessage(), endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"));
+            assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
+                    endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
         }
 
 

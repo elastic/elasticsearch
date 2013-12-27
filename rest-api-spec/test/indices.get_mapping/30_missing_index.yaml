@@ -1,0 +1,9 @@
+---
+"Raise 404 when index doesn't exist":
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test_index
+        type: not_test_type
+  
+

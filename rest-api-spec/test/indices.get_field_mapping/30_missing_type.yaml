@@ -1,0 +1,24 @@
+---
+"Raise 404 when type doesn't exist":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "get field mapping was added in 0.90.6"
+
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     string
+                      analyzer: whitespace
+
+  - do:
+      catch: missing
+      indices.get_field_mapping:
+        index: test_index
+        type: not_test_type
+        field: text
+  

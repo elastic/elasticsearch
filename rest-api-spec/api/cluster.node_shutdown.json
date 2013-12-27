@@ -1,0 +1,27 @@
+{
+  "cluster.node_shutdown": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-shutdown/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_shutdown",
+      "paths": ["/_shutdown", "/_cluster/nodes/_shutdown", "/_cluster/nodes/{node_id}/_shutdown"],
+      "parts": {
+        "node_id": {
+          "type" : "list",
+          "description" : "A comma-separated list of node IDs or names to perform the operation on; use `_local` to perform the operation on the node you're connected to, leave empty to perform the operation on all nodes"
+        }
+      },
+      "params": {
+        "delay": {
+          "type" : "time",
+          "description" : "Set the delay for the operation (default: 1s)"
+        },
+        "exit": {
+          "type" : "boolean",
+          "description" : "Exit the JVM as well (default: true)"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,32 @@
+---
+"Routing":
+
+ - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+          body:    { foo: bar }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+ - do:
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+
+ - match:   { '': {foo: bar}}
+
+ - do:
+      catch: missing
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+

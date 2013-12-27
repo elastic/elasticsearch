@@ -1,0 +1,44 @@
+---
+"Routing":
+
+ - do:
+      update:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+          body:
+            doc:        { foo: baz }
+            upsert:     { foo: bar }
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+          fields:  _routing
+
+ - match: { fields._routing:  "5"}
+
+ - do:
+      catch:      missing
+      update:
+          index:   test_1
+          type:    test
+          id:      1
+          body:
+            doc:        { foo: baz }
+
+ - do:
+      update:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 5
+          fields:  foo
+          body:
+            doc:        { foo: baz }
+
+ - match: { get.fields.foo: baz }
+

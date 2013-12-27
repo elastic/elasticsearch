@@ -1,0 +1,14 @@
+---
+"Test put settings":
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            discovery.zen.minimum_master_nodes: 1
+
+  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}
+
+  - do:
+      cluster.get_settings: {}
+
+  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}

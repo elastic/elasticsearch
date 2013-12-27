@@ -1,0 +1,81 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     string
+
+---
+"Get field mapping with no index and type":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
+
+  - do:
+      indices.get_field_mapping:
+        field: text
+
+  - match: {test_index.test_type.text.mapping.text.type:     string}
+
+---
+"Get field mapping by index only":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        field: text
+
+  - match: {test_index.test_type.text.mapping.text.type:     string}
+
+---
+"Get field mapping by type & field":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "The API was added in 0.90.6"
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        type: test_type
+        field: text
+
+  - match: {test_index.test_type.text.mapping.text.type:     string}
+
+---
+"Get field mapping by type & field, with another field that doesn't exist":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "The API was added in 0.90.6"
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        type: test_type
+        field: [ text , text1 ]
+
+  - match: {test_index.test_type.text.mapping.text.type:     string}
+  - is_false: test_index.test_type.text1
+
+---
+"Get field mapping with include_defaults":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        type: test_type
+        field: text
+        include_defaults: true
+
+  - match: {test_index.test_type.text.mapping.text.type:     string}
+  - match: {test_index.test_type.text.mapping.text.analyzer: default}

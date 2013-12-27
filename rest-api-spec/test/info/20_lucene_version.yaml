@@ -1,0 +1,12 @@
+---
+"Lucene Version":
+    - skip:
+        version:  "0 - 0.90.0"
+        reason:   "Lucene version not included in info before 0.90.1: https://github.com/elasticsearch/elasticsearch/issues/2988"
+        
+    - do:         {info: {}}
+    - match:      {status: 200}
+    - is_true:    version.lucene_version
+
+
+

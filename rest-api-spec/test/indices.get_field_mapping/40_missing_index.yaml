@@ -1,0 +1,14 @@
+---
+"Raise 404 when index doesn't exist":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "get field mapping was added in 0.90.6"
+
+  - do:
+      catch: missing
+      indices.get_field_mapping:
+        index: test_index
+        type: type
+        field: field
+
+

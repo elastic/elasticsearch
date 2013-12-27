@@ -20,7 +20,6 @@ package org.elasticsearch.test.rest.test;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.support.FileUtils;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -31,7 +30,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 
-@Ignore
 public class FileUtilsTests extends ElasticsearchTestCase {
 
     @Test

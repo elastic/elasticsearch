@@ -125,6 +125,8 @@ import static org.hamcrest.Matchers.equalTo;
  *   <ul>
  *   <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
  *   <li>-D{@value TestCluster#TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
+ *   <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
+ *   useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
  *   <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
  *   </ul>
  * </p>

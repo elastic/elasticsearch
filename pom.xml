@@ -427,6 +427,7 @@
                                 <tests.integration>${tests.integration}</tests.integration>
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                                <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                                 <tests.rest>${tests.rest}</tests.rest>
                                 <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>

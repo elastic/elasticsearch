@@ -191,6 +191,7 @@ public final class TestCluster implements Iterable<Client> {
         Builder builder = ImmutableSettings.settingsBuilder()
         /* use RAM directories in 10% of the runs */
         //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+                // TODO we should run without those mock modules once in a while to make sure we don't hide any bugs in the actual impl.
                 .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
                 .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
                 .put("cluster.name", clusterName)

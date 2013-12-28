@@ -130,7 +130,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             this.builder = this;
         }
 
-        public Builder pathType(ContentPath.Type pathType) {
+        public Builder multiFieldPathType(ContentPath.Type pathType) {
             this.pathType = pathType;
             return this;
         }
@@ -209,7 +209,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
-                    builder.pathType(parsePathType(name, fieldNode.toString()));
+                    builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("geohash")) {

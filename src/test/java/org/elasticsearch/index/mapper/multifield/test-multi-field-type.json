@@ -17,6 +17,20 @@
                         "type":"string",
                         "index":"no",
                         "store":"yes"
+                    },
+                    "test1" : {
+                        "type":"string",
+                        "index":"analyzed",
+                        "store" : "yes",
+                        "fielddata" : {
+                            "loading" : "eager"
+                        }
+                    },
+                    "test2" : {
+                        "type" : "token_count",
+                        "store" : "yes",
+                        "index" : "not_analyzed",
+                        "analyzer" : "simple"
                     }
                 }
             },

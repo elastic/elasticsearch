@@ -572,13 +572,9 @@ public class DocumentMapper implements ToXContent {
         return doc;
     }
 
-    public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-        addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
-    }
-
-    public void addFieldMappers(FieldMapper... fieldMappers) {
+    public void addFieldMappers(Iterable<FieldMapper> fieldMappers) {
         synchronized (mappersMutex) {
-            this.fieldMappers.addNewMappers(Arrays.asList(fieldMappers));
+            this.fieldMappers.addNewMappers(fieldMappers);
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
             listener.fieldMappers(fieldMappers);

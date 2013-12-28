@@ -148,7 +148,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                roundCeil, ignoreMalformed, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, indexSettings);
+                roundCeil, ignoreMalformed, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
+                indexSettings, MultiFields.empty());
         this.enabledState = enabledState;
         this.path = path;
     }

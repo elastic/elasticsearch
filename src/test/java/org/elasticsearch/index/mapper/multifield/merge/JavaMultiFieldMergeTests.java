@@ -102,6 +102,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         DocumentMapper docMapper4 = parser.parse(mapping);
 
+
         mergeResult = docMapper.merge(docMapper4, mergeFlags().simulate(true));
         assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
 
@@ -109,6 +110,86 @@ public class JavaMultiFieldMergeTests extends ElasticsearchTestCase {
 
         assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3").mapper(), notNullValue());
+    }
+
+    @Test
+    public void testUpgradeFromMultiFieldTypeToMultiFields() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
+        DocumentMapperParser parser = MapperTestUtils.newParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
+
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
+        Document doc = docMapper.parse(json).rootDoc();
+        IndexableField f = doc.getField("name");
+        assertThat(f, notNullValue());
+        f = doc.getField("name.indexed");
+        assertThat(f, nullValue());
+
+
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade1.json");
+        DocumentMapper docMapper2 = parser.parse(mapping);
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(docMapper2, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
+
+        docMapper.merge(docMapper2, mergeFlags().simulate(false));
+
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2"), nullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3"), nullValue());
+
+        json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-data.json"));
+        doc = docMapper.parse(json).rootDoc();
+        f = doc.getField("name");
+        assertThat(f, notNullValue());
+        f = doc.getField("name.indexed");
+        assertThat(f, notNullValue());
+
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade2.json");
+        DocumentMapper docMapper3 = parser.parse(mapping);
+
+        mergeResult = docMapper.merge(docMapper3, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
+
+        docMapper.merge(docMapper3, mergeFlags().simulate(false));
+
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3"), nullValue());
+
+
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade3.json");
+        DocumentMapper docMapper4 = parser.parse(mapping);
+        mergeResult = docMapper.merge(docMapper4, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(true));
+        assertThat(mergeResult.conflicts()[0], equalTo("mapper [name] has different index values"));
+        assertThat(mergeResult.conflicts()[1], equalTo("mapper [name] has different store values"));
+
+        mergeResult = docMapper.merge(docMapper4, mergeFlags().simulate(false));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(true));
+
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(mergeResult.conflicts()[0], equalTo("mapper [name] has different index values"));
+        assertThat(mergeResult.conflicts()[1], equalTo("mapper [name] has different store values"));
+
+        // There are conflicts, but the `name.not_indexed3` has been added, b/c that field has no conflicts
         assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());

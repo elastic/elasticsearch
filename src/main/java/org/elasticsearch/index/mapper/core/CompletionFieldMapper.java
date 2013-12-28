@@ -127,7 +127,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
             return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, postingsProvider, similarity, payloads,
-                    preserveSeparators, preservePositionIncrements, maxInputLength);
+                    preserveSeparators, preservePositionIncrements, maxInputLength, multiFieldsBuilder.build(this, context));
         }
     }
 
@@ -194,8 +194,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private int maxInputLength;
 
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null);
+                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null, multiFields);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
         this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
         this.preserveSeparators = preserveSeparators;

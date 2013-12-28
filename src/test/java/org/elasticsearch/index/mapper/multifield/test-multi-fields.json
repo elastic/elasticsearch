@@ -1,0 +1,50 @@
+{
+  "person": {
+    "properties": {
+      "name": {
+        "type": "string",
+        "index": "analyzed",
+        "store": "yes",
+        "fields": {
+          "indexed": {
+            "type": "string",
+            "index": "analyzed",
+            "store": "no"
+          },
+          "not_indexed": {
+            "type": "string",
+            "index": "no",
+            "store": "yes"
+          },
+          "test1": {
+            "type": "string",
+            "index": "analyzed",
+            "store": "yes",
+            "fielddata": {
+              "loading": "eager"
+            }
+          },
+          "test2": {
+            "type": "token_count",
+            "index": "not_analyzed",
+            "store": "yes",
+            "analyzer": "simple"
+          }
+        }
+      },
+      "object1": {
+        "properties": {
+          "multi1": {
+            "type": "date",
+            "fields": {
+              "string": {
+                "type": "string",
+                "index": "not_analyzed"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

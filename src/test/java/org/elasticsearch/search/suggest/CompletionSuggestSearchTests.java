@@ -415,7 +415,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testThatUpgradeToMultiFieldWorks() throws Exception {
+    public void testThatUpgradeToMultiFieldTypeWorks() throws Exception {
         Settings.Builder settingsBuilder = createDefaultSettings();
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
@@ -423,6 +423,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
+                .field("path", "just_name") // The path can't be changes / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
@@ -438,6 +439,51 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("path", "just_name")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
+                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject()
+                .endObject())
+                .get();
+        assertThat(putMappingResponse.isAcknowledged(), is(true));
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, "suggs");
+
+        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+        ).execute().actionGet();
+        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
+    }
+
+    @Test
+    public void testThatUpgradeToMultiFieldsWorks() throws Exception {
+        Settings.Builder settingsBuilder = createDefaultSettings();
+        final XContentBuilder mapping = jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "string")
+                .field("path", "just_name") // The path can't be changes / upgraded
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
+        ensureYellow();
+        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "string")
+                .startObject("fields")
                 .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
                 .endObject()
                 .endObject()

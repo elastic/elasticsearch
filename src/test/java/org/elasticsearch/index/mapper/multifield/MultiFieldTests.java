@@ -24,15 +24,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -40,8 +45,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class MultiFieldTests extends ElasticsearchTestCase {
 
     @Test
-    public void testMultiField() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-mapping.json");
+    public void testMultiField_multiFieldType() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type.json");
+        testMultiField(mapping);
+    }
+
+    @Test
+    public void testMultiField_multiFields() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-fields.json");
+        testMultiField(mapping);
+    }
+
+    private void testMultiField(String mapping) throws Exception {
         DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
@@ -70,6 +85,46 @@ public class MultiFieldTests extends ElasticsearchTestCase {
         f = doc.getField("object1.multi1.string");
         assertThat(f.name(), equalTo("object1.multi1.string"));
         assertThat(f.stringValue(), equalTo("2010-01-01"));
+
+        assertThat(docMapper.mappers().fullName("name").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexed(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name.test1").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.test1").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().tokenized(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
+
+        assertThat(docMapper.mappers().fullName("name.test2").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.test2").mapper(), instanceOf(TokenCountFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().tokenized(), equalTo(false));
+        assertThat(((TokenCountFieldMapper) docMapper.mappers().fullName("name.test2").mapper()).analyzer(), equalTo("simple"));
+        assertThat(((TokenCountFieldMapper) docMapper.mappers().fullName("name.test2").mapper()).analyzer(), equalTo("simple"));
+
+        assertThat(docMapper.mappers().fullName("object1.multi1").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("object1.multi1").mapper(), instanceOf(DateFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper().fieldType().tokenized(), equalTo(false));
     }
 
     @Test
@@ -77,10 +132,9 @@ public class MultiFieldTests extends ElasticsearchTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newParser();
 
         DocumentMapper builderDocMapper = doc("test", rootObject("person").add(
-                multiField("name")
-                        .add(stringField("name").store(true))
-                        .add(stringField("indexed").index(true).tokenized(true))
-                        .add(stringField("not_indexed").index(false).store(true))
+                stringField("name").store(true)
+                        .addMultiField(stringField("indexed").index(true).tokenized(true))
+                        .addMultiField(stringField("not_indexed").index(false).store(true))
         )).build(mapperParser);
         builderDocMapper.refreshSource();
 
@@ -102,6 +156,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
         f = doc.getField("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
+        assertThat(f.fieldType().tokenized(), equalTo(true));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
 
@@ -110,5 +165,75 @@ public class MultiFieldTests extends ElasticsearchTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
         assertThat(f.fieldType().indexed(), equalTo(false));
+    }
+
+    @Test
+    public void testConvertMultiFieldNoDefaultField() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
+        Document doc = docMapper.parse(json).rootDoc();
+
+        assertNull(doc.getField("name"));
+        IndexableField f = doc.getField("name.indexed");
+        assertThat(f.name(), equalTo("name.indexed"));
+        assertThat(f.stringValue(), equalTo("some name"));
+        assertThat(f.fieldType().stored(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+
+        f = doc.getField("name.not_indexed");
+        assertThat(f.name(), equalTo("name.not_indexed"));
+        assertThat(f.stringValue(), equalTo("some name"));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(false));
+
+        assertThat(docMapper.mappers().fullName("name").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexed(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().tokenized(), equalTo(true));
+
+        assertNull(doc.getField("age"));
+        f = doc.getField("age.not_stored");
+        assertThat(f.name(), equalTo("age.not_stored"));
+        assertThat(f.numericValue(), equalTo((Number) 28L));
+        assertThat(f.fieldType().stored(), equalTo(false));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+
+        f = doc.getField("age.stored");
+        assertThat(f.name(), equalTo("age.stored"));
+        assertThat(f.numericValue(), equalTo((Number) 28L));
+        assertThat(f.fieldType().stored(), equalTo(true));
+        assertThat(f.fieldType().indexed(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("age").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("age").mapper(), instanceOf(LongFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("age").mapper().fieldType().indexed(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("age").mapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("age").mapper().fieldType().tokenized(), equalTo(false));
+
+        assertThat(docMapper.mappers().fullName("age.not_stored").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("age.not_stored").mapper(), instanceOf(LongFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().tokenized(), equalTo(false));
+
+        assertThat(docMapper.mappers().fullName("age.stored").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("age.stored").mapper(), instanceOf(LongFieldMapper.class));
+        assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().tokenized(), equalTo(false));
     }
 }

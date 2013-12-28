@@ -127,7 +127,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty());
         this.nullValue = nullValue;
     }
 

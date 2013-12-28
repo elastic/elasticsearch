@@ -62,7 +62,10 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static com.google.common.collect.Maps.newTreeMap;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
@@ -90,6 +93,13 @@ public final class TestCluster implements Iterable<Client> {
      * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
      */
     public static final String TESTS_CLUSTER_SEED = "tests.cluster_seed";
+
+    /**
+     * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
+     */
+    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
+
+    private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     private static long clusterSeed() {
         String property = System.getProperty(TESTS_CLUSTER_SEED);
@@ -191,18 +201,19 @@ public final class TestCluster implements Iterable<Client> {
         Builder builder = ImmutableSettings.settingsBuilder()
         /* use RAM directories in 10% of the runs */
         //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
-                // TODO we should run without those mock modules once in a while to make sure we don't hide any bugs in the actual impl.
-                .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
-                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
                 .put("cluster.name", clusterName)
                         // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                         // default to non gateway
                 .put("gateway.type", "none");
+        if (ENABLE_MOCK_MODULES && usually(random)) {
+            builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
+            builder.put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName());
+        }
         if (isLocalTransportConfigured()) {
             builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
         } else {
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, random.nextInt(10) == 0);
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }
         builder.put("type", RandomPicks.randomFrom(random, CacheRecycler.Type.values()));
         return builder.build();

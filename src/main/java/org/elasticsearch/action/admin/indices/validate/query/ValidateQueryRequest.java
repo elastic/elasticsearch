@@ -153,7 +153,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] types() {
+    public String[] types() {
         return this.types;
     }
 

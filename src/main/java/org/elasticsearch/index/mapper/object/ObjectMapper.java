@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -242,8 +241,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     // lets see if we can derive this...
                     if (propNode.get("properties") != null) {
                         type = ObjectMapper.CONTENT_TYPE;
-                    } else if (propNode.get("fields") != null) {
-                        type = MultiFieldMapper.CONTENT_TYPE;
                     } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
                         // if there is a single property with the enabled flag on it, make it an object
                         // (usually, setting enabled to false to not index any type, including core values, which
@@ -337,6 +334,17 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
             if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
                 ((AllFieldMapper.IncludeInAll) cursor.value).includeInAllIfNotSet(includeInAll);
+            }
+        }
+    }
+
+    @Override
+    public void unsetIncludeInAll() {
+        includeInAll = null;
+        // when called from outside, apply this on all the inner mappers
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).unsetIncludeInAll();
             }
         }
     }
@@ -845,21 +853,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         mergeWithMapper.traverse(newObjectMappers);
                     }
                 } else {
-                    if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
-                        MultiFieldMapper mergeWithMultiField = (MultiFieldMapper) mergeWithMapper;
-                        mergeWithMultiField.merge(mergeIntoMapper, mergeContext);
-                        if (!mergeContext.mergeFlags().simulate()) {
-                            mappersToPut.add(mergeWithMultiField);
-                            // now, record mappers to traverse events for all mappers
-                            // we don't just traverse mergeWithMultiField as we already have the default handler
-                            for (Mapper mapper : mergeWithMultiField.mappers().values()) {
-                                mapper.traverse(newFieldMappers);
-                                mapper.traverse(newObjectMappers);
-                            }
-                        }
-                    } else {
-                        mergeIntoMapper.merge(mergeWithMapper, mergeContext);
-                    }
+                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
                 }
             }
             if (!newFieldMappers.mappers.isEmpty()) {

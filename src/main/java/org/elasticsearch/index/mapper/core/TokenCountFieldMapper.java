@@ -80,7 +80,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
-                    analyzer);
+                    analyzer, multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -116,9 +116,10 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
             Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-            SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer) {
+            SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
+            MultiFields multiFields) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, postingsProvider, docValuesProvider, similarity,
-                normsLoading, fieldDataSettings, indexSettings);
+                normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.analyzer = analyzer;
     }
 

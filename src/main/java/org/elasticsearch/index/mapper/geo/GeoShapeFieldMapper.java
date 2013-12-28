@@ -152,7 +152,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider, docValuesProvider);
+            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider,
+                    docValuesProvider, multiFieldsBuilder.build(this, context));
         }
     }
 
@@ -195,8 +196,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private final TermQueryPrefixTreeStrategy termStrategy;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider) {
-        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null);
+                               FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                               MultiFields multiFields) {
+        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());

@@ -96,7 +96,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider,
-                    similarity, normsLoading, fieldDataSettings, context.indexSettings());
+                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -126,10 +126,11 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,
                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                                Settings indexSettings, MultiFields multiFields) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
                 NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

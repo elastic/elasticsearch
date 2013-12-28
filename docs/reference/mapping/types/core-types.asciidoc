@@ -245,12 +245,9 @@ example:
 {
     "tweet" : {
         "properties" : {
-            "message" : {
-                "type" : "multi_field",
+            "name" : {
+                "type" : "string",
                 "fields" : {
-                    "name": {
-                        "type": "string"
-                    },
                     "word_count": {
                         "type" : "token_count",
                         "store" : "yes",

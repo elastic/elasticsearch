@@ -11,7 +11,10 @@
         body:
           test_type:
             properties:
-              text:
+              text1:
+                type:     string
+                analyzer: whitespace
+              text2:
                 type:     string
                 analyzer: whitespace
 
@@ -19,8 +22,10 @@
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.test_type.properties.text.type:     string}
-  - match: {test_index.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index.test_type.properties.text1.type:     string}
+  - match: {test_index.test_type.properties.text1.analyzer: whitespace}
+  - match: {test_index.test_type.properties.text2.type:     string}
+  - match: {test_index.test_type.properties.text2.analyzer: whitespace}
 
   - do:
       indices.put_mapping:
@@ -29,19 +34,29 @@
         body:
           test_type:
             properties:
-              text:
+              text1:
                 type: multi_field
                 fields:
-                  text:
+                  text1:
                     type:     string
                     analyzer: whitespace
                   text_raw:
                     type:     string
                     index:    not_analyzed
+              text2:
+                type:     string
+                analyzer: whitespace
+                fields:
+                  text_raw:
+                    type:     string
+                    index:    not_analyzed
+
 
   - do:
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.test_type.properties.text.type:     multi_field}
-  - match: {test_index.test_type.properties.text.fields.text_raw.index: not_analyzed }
+  - match: {test_index.test_type.properties.text1.type:     string}
+  - match: {test_index.test_type.properties.text1.fields.text_raw.index: not_analyzed}
+  - match: {test_index.test_type.properties.text2.type:     string}
+  - match: {test_index.test_type.properties.text2.fields.text_raw.index: not_analyzed}

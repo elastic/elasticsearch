@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
@@ -101,10 +100,6 @@ public final class MapperBuilders {
 
     public static AnalyzerMapper.Builder analyzer() {
         return new AnalyzerMapper.Builder();
-    }
-
-    public static MultiFieldMapper.Builder multiField(String name) {
-        return new MultiFieldMapper.Builder(name);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

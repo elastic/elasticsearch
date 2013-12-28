@@ -50,6 +50,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  *
@@ -135,7 +136,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
-                    positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+                    positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -172,6 +174,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     }
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
+                } else {
+                    parseMultiField(builder, name, node, parserContext, propName, propNode);
                 }
             }
             return builder;
@@ -193,8 +197,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
                                 PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
-                                Settings indexSettings) {
-        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity, normsLoading, fieldDataSettings, indexSettings);
+                                Settings indexSettings, MultiFields multiFields) {
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }
@@ -226,6 +231,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (includeInAll != null && this.includeInAll == null) {
             this.includeInAll = includeInAll;
         }
+    }
+
+    @Override
+    public void unsetIncludeInAll() {
+        includeInAll = null;
     }
 
     @Override

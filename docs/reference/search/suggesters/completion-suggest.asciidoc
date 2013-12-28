@@ -128,7 +128,7 @@ The following parameters are supported:
 
 NOTE: Even though you are losing most of the features of the
 completion suggest, you can opt in for the shortest form, which even
-allows you to use inside of multi_field. But keep in mind, that you will
+allows you to use inside of multi fields. But keep in mind, that you will
 not be able to use several inputs, an output, payloads or weights.
 
 [source,js]

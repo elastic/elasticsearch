@@ -1,0 +1,120 @@
+[[multi-fields]]
+== Multi Fields
+
+The `fields` options allows to map several core types fields into a single
+json source field. This can be useful if a single field need to be
+used in different ways. For example a single field is to be used for both
+free text search and sorting.
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "name" : {
+                "type" : "string",
+                "index" : "analyzed",
+                "fields" : {
+                    "raw" : {"type" : "string", "index" : "not_analyzed"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+In the above example the field name gets processed twice. The first time is gets
+processed as an analyzed string and this version is accessible under the field name
+`name`, this is the main field and is in fact just like any other field. The second time
+its get processed as a not analyzed string and is accessible under the name `name.raw`.
+
+[float]
+=== Accessing Fields
+
+The multi fields defined in the `fields` are prefixed with the
+name of the main field and can be accessed by their full path using the
+navigation notation: `name.raw`, or using the typed navigation notation
+`tweet.name.raw`. The `path` option allows to control how fields are accessed.
+If the `path` option is set to `full`, then the full path of the main field
+is prefixed, but if the `path` option is set to `just_name` the actual
+multi field name without any prefix is used. The default value for
+the `path` option is `full`.
+
+The `just_name` setting, among other things, allows indexing content of multiple
+fields under the same name. In the example below the content of both fields
+`first_name` and `last_name` can be accessed by using `any_name` or `tweet.any_name`.
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties": {
+            "first_name": {
+                "type": "string",
+                "index": "analyzed",
+                "path": "just_name",
+                "fields": {
+                    "any_name": {"type": "string","index": "analyzed"}
+                }
+            },
+            "last_name": {
+                "type": "string",
+                "index": "analyzed",
+                "path": "just_name",
+                "fields": {
+                    "any_name": {"type": "string","index": "analyzed"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+=== Include in All
+
+The `include_in_all` setting is ignored on any field that is defined in
+the `fields` options. Setting the `include_in_all` only makes sense on
+the main field, since the raw field value to copied to the `_all` field,
+the tokens aren't copied.
+
+[float]
+=== Updating a field
+
+In the essence a field can't be updated. However multi fields can be
+added to existing fields. This allows for example to have a different
+`index_analyzer` configuration in addition to the already configured
+`index_analyzer` configuration specified in the main and other multi fields.
+
+Also the new multi field will only be applied on document that have been
+added after the multi field has been added and in fact the new multi field
+doesn't exist in existing documents.
+
+Another important note is that new multi fields will be merged into the
+list of existing multi fields, so when adding new multi fields for a field
+previous added multi fields don't need to be specified.
+
+[float]
+=== Inherit settings from main field
+
+Any settings defined on the main field are automatically inherited by all
+multi fields and act as a default for a multi field.
+
+The first example could also be defined as in the example below:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "name" : {
+                "type" : "string",
+                "index" : "analyzed",
+                "fields" : {
+                    "raw" : {"index" : "not_analyzed"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

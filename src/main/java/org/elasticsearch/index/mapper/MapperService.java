@@ -291,7 +291,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             } else {
                 FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
                 mapper.traverse(fieldMappersAgg);
-                addFieldMappers(fieldMappersAgg.mappers.toArray(new FieldMapper[fieldMappersAgg.mappers.size()]));
+                addFieldMappers(fieldMappersAgg.mappers);
                 mapper.addFieldMapperListener(fieldMapperListener, false);
 
                 ObjectMapperListener.Aggregator objectMappersAgg = new ObjectMapperListener.Aggregator();
@@ -328,9 +328,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    private void addFieldMappers(FieldMapper[] fieldMappers) {
+    private void addFieldMappers(Iterable<FieldMapper>  fieldMappers) {
         synchronized (mappersMutex) {
-            this.fieldMappers.addNewMappers(Arrays.asList(fieldMappers));
+            this.fieldMappers.addNewMappers(fieldMappers);
         }
     }
 
@@ -1045,11 +1045,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     class InternalFieldMapperListener extends FieldMapperListener {
         @Override
         public void fieldMapper(FieldMapper fieldMapper) {
-            addFieldMappers(new FieldMapper[]{fieldMapper});
+            addFieldMappers(Arrays.asList(fieldMapper));
         }
 
         @Override
-        public void fieldMappers(FieldMapper... fieldMappers) {
+        public void fieldMappers(Iterable<FieldMapper>  fieldMappers) {
             addFieldMappers(fieldMappers);
         }
     }

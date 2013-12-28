@@ -92,7 +92,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context),
-                    postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+                    postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
+                    context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -121,11 +122,11 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
                               DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
-                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                              @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
-                docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings);
+                docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

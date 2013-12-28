@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine.robin;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
     @Test
+    @Slow
     public void testSettingLoadBloomFilterDefaultTrue() throws Exception {
         Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
         allowRamBytesUsed.setAccessible(true);
@@ -90,6 +92,7 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Slow
     public void testSettingLoadBloomFilterDefaultFalse() throws Exception {
         Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
         allowRamBytesUsed.setAccessible(true);

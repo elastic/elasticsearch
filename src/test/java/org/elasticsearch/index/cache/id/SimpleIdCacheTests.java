@@ -224,6 +224,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
 
     @Test(expected = AssertionError.class)
     public void testRefresh_tripAssert() throws Exception {
+        assumeTrue(ASSERTIONS_ENABLED);
         SimpleIdCache idCache = createSimpleIdCache(Tuple.tuple("child", "parent"));
         IndexWriter writer = createIndexWriter();
         // Begins with parent, ends with child docs

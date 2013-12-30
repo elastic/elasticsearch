@@ -65,6 +65,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
+    public static final boolean ASSERTIONS_ENABLED;
+    static {
+        boolean enabled = false;
+        assert enabled = true;
+        ASSERTIONS_ENABLED = enabled;
+    }
+
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }

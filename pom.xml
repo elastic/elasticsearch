@@ -378,7 +378,8 @@
                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
-                                <enable/>
+                                <enable />
+                                <disable package="${tests.assertion.disabled}"/>  <!-- pass org.elasticsearch to run without assertions -->
                             </assertions>
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
@@ -429,6 +430,7 @@
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                                 <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
+                                <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
                                 <tests.rest>${tests.rest}</tests.rest>
                                 <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>

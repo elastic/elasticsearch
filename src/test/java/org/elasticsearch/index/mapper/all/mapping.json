@@ -1,7 +1,8 @@
 {
     "person":{
         "_all":{
-            "enabled":true
+            "enabled":true,
+            "omit_norms":true
         },
         "properties":{
             "name":{

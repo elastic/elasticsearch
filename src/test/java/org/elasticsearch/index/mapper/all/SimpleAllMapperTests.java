@@ -36,7 +36,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -57,6 +56,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(field.fieldType().omitNorms(), equalTo(true));
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
     }
 
@@ -73,6 +73,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
     }
 
@@ -89,6 +90,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
 
     }
@@ -110,6 +112,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        assertThat(field.fieldType().omitNorms(), equalTo(true));
     }
 
     @Test
@@ -126,6 +129,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         String text = field.stringValue();
         assertThat(text, equalTo(allEntries.buildText()));
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
     }
 
     @Test
@@ -146,5 +150,6 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         String text = field.stringValue();
         assertThat(text, equalTo(allEntries.buildText()));
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
     }
 }

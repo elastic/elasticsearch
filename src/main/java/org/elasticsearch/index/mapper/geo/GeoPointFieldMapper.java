@@ -660,43 +660,50 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        builder.field("type", CONTENT_TYPE);
-        if (pathType != Defaults.PATH_TYPE) {
+        if (includeDefaults || pathType != Defaults.PATH_TYPE) {
             builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
-        if (enableLatLon != Defaults.ENABLE_LATLON) {
+        if (includeDefaults || enableLatLon != Defaults.ENABLE_LATLON) {
             builder.field("lat_lon", enableLatLon);
         }
-        if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
+        if (includeDefaults || enableGeoHash != Defaults.ENABLE_GEOHASH) {
             builder.field("geohash", enableGeoHash);
         }
-        if (enableGeohashPrefix != Defaults.ENABLE_GEOHASH_PREFIX) {
+        if (includeDefaults || enableGeohashPrefix != Defaults.ENABLE_GEOHASH_PREFIX) {
             builder.field("geohash_prefix", enableGeohashPrefix);
         }
-        if (geoHashPrecision != Defaults.GEO_HASH_PRECISION) {
+        if (includeDefaults || geoHashPrecision != Defaults.GEO_HASH_PRECISION) {
             builder.field("geohash_precision", geoHashPrecision);
         }
-        if (precisionStep != null) {
+        if (includeDefaults || precisionStep != null) {
             builder.field("precision_step", precisionStep);
         }
-        if (!validateLat && !validateLon) {
-            builder.field("validate", false);
-        } else {
-            if (validateLat != Defaults.VALIDATE_LAT) {
-                builder.field("validate_lat", validateLat);
-            }
-            if (validateLon != Defaults.VALIDATE_LON) {
-                builder.field("validate_lon", validateLon);
+        if (includeDefaults || validateLat != Defaults.VALIDATE_LAT || validateLon != Defaults.VALIDATE_LON) {
+            if (validateLat && validateLon) {
+                builder.field("validate", true);
+            } else if (!validateLat && !validateLon) {
+                builder.field("validate", false);
+            } else {
+                if (includeDefaults || validateLat != Defaults.VALIDATE_LAT) {
+                    builder.field("validate_lat", validateLat);
+                }
+                if (includeDefaults || validateLon != Defaults.VALIDATE_LON) {
+                    builder.field("validate_lon", validateLon);
+                }
             }
         }
-        if (!normalizeLat && !normalizeLon) {
-            builder.field("normalize", false);
-        } else {
-            if (normalizeLat != Defaults.NORMALIZE_LAT) {
-                builder.field("normalize_lat", normalizeLat);
-            }
-            if (normalizeLon != Defaults.NORMALIZE_LON) {
-                builder.field("normalize_lon", normalizeLon);
+        if (includeDefaults || normalizeLat != Defaults.NORMALIZE_LAT || normalizeLon != Defaults.NORMALIZE_LON) {
+            if (normalizeLat && normalizeLon) {
+                builder.field("normalize", true);
+            } else if (!normalizeLat && !normalizeLon) {
+                builder.field("normalize", false);
+            } else {
+                if (includeDefaults || normalizeLat != Defaults.NORMALIZE_LAT) {
+                    builder.field("normalize_lat", normalizeLat);
+                }
+                if (includeDefaults || normalizeLon != Defaults.NORMALIZE_LON) {
+                    builder.field("normalize_lon", normalizeLat);
+                }
             }
         }
     }

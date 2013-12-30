@@ -19,7 +19,12 @@
 package org.elasticsearch.test;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -27,14 +32,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -47,7 +53,7 @@ public class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
     }
 
     public static AllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, getRandom())    ;
+        return createAllocationService(settings, getRandom());
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
@@ -80,5 +86,26 @@ public class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
         Collections.shuffle(list, random);
         return new AllocationDeciders(settings, list.toArray(new AllocationDecider[0]));
 
+    }
+
+    public static DiscoveryNode newNode(String nodeId) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
+    }
+
+    public static DiscoveryNode newNode(String nodeId, TransportAddress address) {
+        return new DiscoveryNode(nodeId, address, Version.CURRENT);
+    }
+
+    public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    }
+
+    public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
+        List<MutableShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
+        if (initializingShards.isEmpty()) {
+            return clusterState;
+        }
+        RoutingTable routingTable = strategy.applyStartedShards(clusterState, newArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
+        return ClusterState.builder(clusterState).routingTable(routingTable).build();
     }
 }

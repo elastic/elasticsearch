@@ -26,15 +26,15 @@ public interface DocumentTypeListener {
     /**
      * Invoked just before a new document type has been created.
      *
-     * @param type The new document type
+     * @param mapper The new document mapper of the type being added
      */
-    void beforeCreate(String type);
+    void beforeCreate(DocumentMapper mapper);
 
     /**
      * Invoked just after an existing document type has been removed.
      *
-     * @param type The existing document type
+     * @param mapper The existing document mapper of the type being removed
      */
-    void afterRemove(String type);
+    void afterRemove(DocumentMapper mapper);
 
 }

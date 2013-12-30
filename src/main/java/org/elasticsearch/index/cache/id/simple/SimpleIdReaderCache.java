@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 public class SimpleIdReaderCache implements IdReaderCache {
 
     private final ImmutableMap<String, SimpleIdReaderTypeCache> types;
+    private volatile boolean reload;
 
     @Nullable
     public final ShardId shardId;
@@ -62,6 +63,14 @@ public class SimpleIdReaderCache implements IdReaderCache {
             return typeCache.docById(id);
         }
         return -1;
+    }
+
+    public boolean reload() {
+        return reload;
+    }
+
+    public void reload(boolean reload) {
+        this.reload = reload;
     }
 
     public long sizeInBytes() {

@@ -26,15 +26,15 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -45,7 +45,7 @@ import java.net.URL;
 
 import static org.hamcrest.CoreMatchers.*;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
             .put("discovery.zen.ping.multicast.enabled", false)
@@ -148,13 +148,24 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private void assertPluginAvailable(String nodeName, String pluginName) {
         HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
         HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
+        logger.info("--> tested http address [{}]", httpServerTransport.info().getAddress());
         //checking that the http connector is working properly
-        HttpClientResponse response = httpClient.request("");
-        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        HttpClientResponse response = checkHttpResponseOK(httpClient, nodeName, "");
         assertThat(response.response(), containsString(nodeName));
         //checking now that the plugin is available
-        response = httpClient.request("_plugin/" + pluginName + "/");
+        checkHttpResponseOK(httpClient, nodeName, "_plugin/" + pluginName + "/");
+    }
+
+    private HttpClientResponse checkHttpResponseOK(HttpClient httpClient, String nodeName, String url) {
+        logger.info("--> trying node [{}], url [/{}]", nodeName, url);
+        HttpClientResponse response = httpClient.request(url);
+        if (response.errorCode() != RestStatus.OK.getStatus()) {
+            // We want to trace what's going on here before failing the test
+            logger.info("--> error caught [{}], headers [{}]", response.errorCode(), response.getHeaders());
+            logger.info("--> cluster state [{}]", cluster().clusterService().state());
+        }
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        return response;
     }
 
     @Test

@@ -210,6 +210,14 @@ public class TransportClient extends AbstractClient {
     }
 
     /**
+     * The list of filtered nodes that were not connected to, for example, due to
+     * mismatch in cluster name.
+     */
+    public ImmutableList<DiscoveryNode> filteredNodes() {
+        return nodesService.filteredNodes();
+    }
+
+    /**
      * Returns the listed nodes in the transport client (ones added to it).
      */
     public ImmutableList<DiscoveryNode> listedNodes() {

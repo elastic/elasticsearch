@@ -261,7 +261,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
         if (!includeDefaults && enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
-                indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null) {
+                indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null
+                && fieldType.omitNorms() == Defaults.FIELD_TYPE.omitNorms()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -285,6 +286,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
         if (includeDefaults || fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
             builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+        }
+        if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", fieldType.omitNorms());
         }
 
 

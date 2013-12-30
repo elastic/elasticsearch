@@ -26,13 +26,17 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.table.TimestampedTable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 
@@ -92,16 +96,23 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     Table getTableWithHeader(final RestRequest request) {
-        Table table = new TimestampedTable();
+        Table table = new Table();
         table.startHeaders();
+        table.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
+        table.addCell("timestamp", "desc:time that the count was executed");
         table.addCell("count", "desc:the document count");
         table.endHeaders();
         return table;
     }
 
+    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+
     private Table buildTable(RestRequest request, CountResponse response) {
         Table table = getTableWithHeader(request);
+        long time = System.currentTimeMillis();
         table.startRow();
+        table.addCell(time);
+        table.addCell(dateFormat.print(time));
         table.addCell(response.getCount());
         table.endRow();
 

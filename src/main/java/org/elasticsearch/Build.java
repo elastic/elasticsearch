@@ -21,9 +21,12 @@ package org.elasticsearch;
 
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.IOException;
 import java.util.Properties;
 
 /**
@@ -76,5 +79,18 @@ public class Build {
 
     public String timestamp() {
         return timestamp;
+    }
+
+    public static Build readBuild(StreamInput in) throws IOException {
+        String hash = in.readString();
+        String hashShort = in.readString();
+        String timestamp = in.readString();
+        return new Build(hash, hashShort, timestamp);
+    }
+
+    public static void writeBuild(Build build, StreamOutput out) throws IOException {
+        out.writeString(build.hash());
+        out.writeString(build.hashShort());
+        out.writeString(build.timestamp());
     }
 }

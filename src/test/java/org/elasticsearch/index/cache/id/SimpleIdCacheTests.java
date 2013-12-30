@@ -263,6 +263,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
         Index index = new Index("test");
         SimpleIdCache idCache = new SimpleIdCache(index, settings);
         MapperService mapperService = MapperTestUtils.newMapperService();
+        idCache.setIndexService(new StubIndexService(mapperService));
 
         for (Tuple<String, String> documentType : documentTypes) {
             String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(documentType.v1())
@@ -271,7 +272,6 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
             mapperService.merge(documentType.v1(), new CompressedString(defaultMapping), true);
         }
 
-        idCache.setIndexService(new StubIndexService(mapperService));
         return idCache;
     }
 

@@ -34,6 +34,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -45,31 +47,36 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
-public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener, DocumentTypeListener {
 
-    private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
     private final boolean reuse;
+    private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
+    private final AtomicReference<NavigableSet<HashedBytesArray>> parentTypesHolder;
 
     IndexService indexService;
 
     @Inject
     public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+        reuse = componentSettings.getAsBoolean("reuse", false);
         idReaders = ConcurrentCollections.newConcurrentMap();
-        this.reuse = componentSettings.getAsBoolean("reuse", false);
+        parentTypesHolder = new AtomicReference<NavigableSet<HashedBytesArray>>(new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder));
     }
 
     @Override
     public void setIndexService(IndexService indexService) {
         this.indexService = indexService;
+        indexService.mapperService().addTypeListener(this);
     }
 
     @Override
     public void close() throws ElasticSearchException {
+        indexService.mapperService().removeTypeListener(this);
         clear();
     }
 
@@ -117,21 +124,12 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 // do the refresh
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
                 Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
-
-                // We don't want to load uid of child documents, this allows us to not load uids of child types.
-                NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
-                BytesRef spare = new BytesRef();
-                for (String type : indexService.mapperService().types()) {
-                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
-                    if (parentFieldMapper.active()) {
-                        parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
-                    }
-                }
+                NavigableSet<HashedBytesArray> parentTypes = this.parentTypesHolder.get();
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
                     AtomicReader reader = context.reader();
-                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
+                    if (!refreshNeeded(context)) {
                         // no need, continue
                         continue;
                     }
@@ -150,6 +148,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                         DocsEnum docsEnum = null;
                         uid: for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                             HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
+                            // We don't want to load uid of child documents, this allows us to not load uids of child types.
                             if (!parentTypes.contains(typeAndId[0])) {
                                 do {
                                     HashedBytesArray nextParent = parentTypes.ceiling(typeAndId[0]);
@@ -189,10 +188,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 }
 
                 // now, go and load the docId->parentId map
-
                 for (AtomicReaderContext context : atomicReaderContexts) {
                     AtomicReader reader = context.reader();
-                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
+                    if (!refreshNeeded(context)) {
                         // no need, continue
                         continue;
                     }
@@ -295,11 +293,39 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     private boolean refreshNeeded(List<AtomicReaderContext> atomicReaderContexts) {
         for (AtomicReaderContext atomicReaderContext : atomicReaderContexts) {
-            if (!idReaders.containsKey(atomicReaderContext.reader().getCoreCacheKey())) {
+            if (refreshNeeded(atomicReaderContext)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean refreshNeeded(AtomicReaderContext atomicReaderContext) {
+        return !idReaders.containsKey(atomicReaderContext.reader().getCoreCacheKey());
+    }
+
+    @Override
+    public void beforeCreate(DocumentMapper mapper) {
+        NavigableSet<HashedBytesArray> parentTypes = parentTypesHolder.get();
+        ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+        if (parentFieldMapper.active()) {
+            // A _parent field can never be added to an existing mapping, so a _parent field either exists on
+            // a new created or doesn't exists. This is why we can update the known parent types via DocumentTypeListener
+            if (parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), new BytesRef())))) {
+                parentTypesHolder.set(parentTypes);
+                clear();
+            }
+        }
+    }
+
+    @Override
+    public void afterRemove(DocumentMapper mapper) {
+        NavigableSet<HashedBytesArray> parentTypes = parentTypesHolder.get();
+        ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+        if (parentFieldMapper.active()) {
+            parentTypes.remove(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), new BytesRef())));
+            parentTypesHolder.set(parentTypes);
+        }
     }
 
     static class TypeBuilder {

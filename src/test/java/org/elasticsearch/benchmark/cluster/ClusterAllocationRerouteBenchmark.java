@@ -35,7 +35,6 @@ import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 
 public class ClusterAllocationRerouteBenchmark {
 
@@ -64,7 +63,7 @@ public class ClusterAllocationRerouteBenchmark {
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
         for (int i = 1; i <= numberOfNodes; i++) {
-            nb.put(newNode("node" + i, numberOfTags == 0 ? ImmutableMap.<String, String>of() : ImmutableMap.of("tag", "tag_" + (i % numberOfTags))));
+            nb.put(ElasticsearchAllocationTestCase.newNode("node" + i, numberOfTags == 0 ? ImmutableMap.<String, String>of() : ImmutableMap.of("tag", "tag_" + (i % numberOfTags))));
         }
         ClusterState initialClusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).nodes(nb).build();
 

@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.search.child.ScoreType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -54,8 +56,7 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -2050,6 +2051,124 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+    }
+
+    @Test
+    public void testParentChildQueriesNoParentType() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.refresh_interval", -1)
+                        .put("index.number_of_replicas", 0))
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        String parentId = "p1";
+        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(hasChildQuery("child", termQuery("c_field", "1")))
+                    .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                    .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        try {
+            client().prepareSearch("test")
+                    .setPostFilter(hasChildFilter("child", termQuery("c_field", "1")))
+                    .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(topChildrenQuery("child", termQuery("c_field", "1")).score("max"))
+                    .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        // can't fail, because there is no check, this b/c parent type can be refered by many child types.
+        client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                .execute().actionGet();
+        client().prepareSearch("test")
+                .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                .execute().actionGet();
+    }
+
+    @Test
+    public void testAdd_ParentFieldAfterIndexingParentDocButBeforeIndexingChildDoc() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.refresh_interval", -1)
+                        .put("index.number_of_replicas", 0))
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        String parentId = "p1";
+        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
+        assertAcked(client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("child")
+                .setSource("_parent", "type=parent"));
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, parentId);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, parentId);
+
+
+        searchResponse = client().prepareSearch("test")
+                .setPostFilter(hasChildFilter("child", termQuery("c_field", "1")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, parentId);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(topChildrenQuery("child", termQuery("c_field", "1")).score("max"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, parentId);
+
+        searchResponse = client().prepareSearch("test")
+                .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "c1");
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "c1");
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

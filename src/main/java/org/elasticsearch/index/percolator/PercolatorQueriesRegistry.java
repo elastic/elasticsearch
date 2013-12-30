@@ -20,6 +20,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -191,15 +192,15 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private class PercolateTypeListener implements DocumentTypeListener {
 
         @Override
-        public void beforeCreate(String type) {
-            if (PercolatorService.TYPE_NAME.equals(type)) {
+        public void beforeCreate(DocumentMapper mapper) {
+            if (PercolatorService.TYPE_NAME.equals(mapper.type())) {
                 enableRealTimePercolator();
             }
         }
 
         @Override
-        public void afterRemove(String type) {
-            if (PercolatorService.TYPE_NAME.equals(type)) {
+        public void afterRemove(DocumentMapper mapper) {
+            if (PercolatorService.TYPE_NAME.equals(mapper.type())) {
                 disableRealTimePercolator();
                 clear();
             }

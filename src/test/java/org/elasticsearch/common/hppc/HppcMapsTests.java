@@ -32,6 +32,7 @@ public class HppcMapsTests extends ElasticsearchTestCase {
 
     @Test
     public void testIntersection() throws Exception {
+        assumeTrue(ASSERTIONS_ENABLED);
         ObjectOpenHashSet<String> set1 = ObjectOpenHashSet.from("1", "2", "3");
         ObjectOpenHashSet<String> set2 = ObjectOpenHashSet.from("1", "2", "3");
         List<String> values = toList(HppcMaps.intersection(set1, set2));

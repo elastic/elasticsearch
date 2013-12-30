@@ -26,9 +26,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.table.TimestampedTable;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -75,14 +79,10 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     Table getTableWithHeader(final RestRequest request) {
-        final boolean timeStamp = request.paramAsBoolean("ts", true);
-        Table t;
-        if (timeStamp) {
-            t = new TimestampedTable();
-        } else {
-            t = new Table();
-        }
+        Table t = new Table();
         t.startHeaders();
+        t.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
+        t.addCell("timestamp", "desc:time that the count was executed");
         t.addCell("cluster", "desc:cluster name");
         t.addCell("status", "desc:health status");
         t.addCell("nodeTotal", "text-align:right;desc:total number of nodes");
@@ -97,22 +97,24 @@ public class RestHealthAction extends AbstractCatAction {
         return t;
     }
 
-    private Table buildTable (final ClusterHealthResponse health, final RestRequest request) {
-        if (null != health) {
-            Table t = getTableWithHeader(request);
-            t.startRow();
-            t.addCell(health.getClusterName());
-            t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
-            t.addCell(health.getNumberOfNodes());
-            t.addCell(health.getNumberOfDataNodes());
-            t.addCell(health.getActiveShards());
-            t.addCell(health.getActivePrimaryShards());
-            t.addCell(health.getRelocatingShards());
-            t.addCell(health.getInitializingShards());
-            t.addCell(health.getUnassignedShards());
-            t.endRow();
-            return t;
-        }
-        return null;
+    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+
+    private Table buildTable(final ClusterHealthResponse health, final RestRequest request) {
+        long time = System.currentTimeMillis();
+        Table t = getTableWithHeader(request);
+        t.startRow();
+        t.addCell(time);
+        t.addCell(dateFormat.print(time));
+        t.addCell(health.getClusterName());
+        t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
+        t.addCell(health.getNumberOfNodes());
+        t.addCell(health.getNumberOfDataNodes());
+        t.addCell(health.getActiveShards());
+        t.addCell(health.getActivePrimaryShards());
+        t.addCell(health.getRelocatingShards());
+        t.addCell(health.getInitializingShards());
+        t.addCell(health.getUnassignedShards());
+        t.endRow();
+        return t;
     }
 }

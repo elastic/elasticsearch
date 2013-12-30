@@ -112,8 +112,8 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TestCluster.TESTS_ENABLE_MOCK_MODULES);
-
+            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TestCluster.TESTS_ENABLE_MOCK_MODULES,
+                    "tests.assertion.disabled");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,6 +52,7 @@ public class NodeInfo extends NodeOperationResponse {
     private String hostname;
 
     private Version version;
+    private Build build;
 
     @Nullable
     private Settings settings;
@@ -82,12 +84,13 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(@Nullable String hostname, Version version, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(@Nullable String hostname, Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
         this.hostname = hostname;
         this.version = version;
+        this.build = build;
         this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
@@ -113,6 +116,13 @@ public class NodeInfo extends NodeOperationResponse {
      */
     public Version getVersion() {
         return version;
+    }
+
+    /**
+     * The build version of the node.
+     */
+    public Build getBuild() {
+        return this.build;
     }
 
     /**
@@ -196,6 +206,7 @@ public class NodeInfo extends NodeOperationResponse {
             hostname = in.readString();
         }
         version = Version.readVersion(in);
+        build = Build.readBuild(in);
         if (in.readBoolean()) {
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             int size = in.readVInt();
@@ -243,6 +254,7 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeString(hostname);
         }
         out.writeVInt(version.id);
+        Build.writeBuild(build, out);
         if (getServiceAttributes() == null) {
             out.writeBoolean(false);
         } else {

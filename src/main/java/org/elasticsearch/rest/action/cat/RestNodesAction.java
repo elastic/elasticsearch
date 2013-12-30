@@ -127,7 +127,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("ip", "desc:ip address");
         table.addCell("port", "desc:bound transport port");
 
-        table.addCell("es", "default:false;desc:es version");
+        table.addCell("version", "default:false;desc:es version");
+        table.addCell("build", "default:false;desc:es build hash");
         table.addCell("jdk", "default:false;desc:jdk version");
         table.addCell("diskAvail", "default:false;text-align:right;desc:available disk space");
         table.addCell("heapPercent", "text-align:right;desc:used heap ratio");
@@ -162,6 +163,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
 
             table.addCell(info == null ? null : info.getVersion().number());
+            table.addCell(info == null ? null : info.getBuild().hashShort());
             table.addCell(info == null ? null : info.getJvm().version());
             table.addCell(stats == null ? null : stats.getFs() == null ? null : stats.getFs().total().getAvailable());
             table.addCell(stats == null ? null : stats.getJvm().getMem().getHeapUsedPrecent());

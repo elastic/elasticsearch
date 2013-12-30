@@ -20,6 +20,7 @@
 package org.elasticsearch.node.service;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -115,7 +116,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(hostname, version, disovery.localNode(), serviceAttributes,
+        return new NodeInfo(hostname, version, Build.CURRENT, disovery.localNode(), serviceAttributes,
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
@@ -130,7 +131,7 @@ public class NodeService extends AbstractComponent {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                          boolean network, boolean transport, boolean http, boolean plugin) {
-        return new NodeInfo(hostname, version, disovery.localNode(), serviceAttributes,
+        return new NodeInfo(hostname, version, Build.CURRENT, disovery.localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,

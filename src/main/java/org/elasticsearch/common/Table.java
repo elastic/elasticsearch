@@ -23,20 +23,20 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  */
 public class Table {
 
-    protected List<Cell> headers = new ArrayList<Cell>();
-    protected List<List<Cell>> rows = new ArrayList<List<Cell>>();
-
-    protected Map<String,List<Cell>> map = Maps.newHashMap();
-
-    protected List<Cell> currentCells;
-
-    protected boolean inHeaders = false;
+    private List<Cell> headers = new ArrayList<Cell>();
+    private List<List<Cell>> rows = new ArrayList<List<Cell>>();
+    private Map<String, List<Cell>> map = Maps.newHashMap();
+    private List<Cell> currentCells;
+    private boolean inHeaders = false;
 
     public Table startHeaders() {
         inHeaders = true;
@@ -57,7 +57,7 @@ public class Table {
          *     header3 => [Cell, Cell, ...]
          */
         for (Cell header : headers) {
-            map.put((String) header.value, new ArrayList<Cell>());
+            map.put(header.value.toString(), new ArrayList<Cell>());
         }
 
         return this;
@@ -120,11 +120,12 @@ public class Table {
         }
 
         Cell cell = new Cell(value, mAttr);
+        int cellIndex = currentCells.size();
         currentCells.add(cell);
 
         // If we're in a value row, also populate the named column.
         if (!inHeaders) {
-            String hdr = (String) headers.get(currentCells.indexOf(cell)).value;
+            String hdr = (String) headers.get(cellIndex).value;
             map.get(hdr).add(cell);
         }
 
@@ -135,77 +136,21 @@ public class Table {
         return this.headers;
     }
 
-    public Iterable<List<Cell>> rowIterator() { return rows; }
-
     public List<List<Cell>> getRows() {
         return rows;
     }
 
-    public List<Cell>[] getRowsAsArray() {
-        return (List<Cell>[]) rows.toArray();
+    public Map<String, List<Cell>> getAsMap() {
+        return this.map;
     }
 
-    public Map<String, List<Cell>> getAsMap() { return this.map; }
-
-    public List<Cell> getHeadersFromNames(List<String> headerNames) {
-        List<Cell> hdrs = new ArrayList<Cell>();
-        for (String hdrToFind : headerNames) {
-            for (Cell header : headers) {
-                if (((String) header.value).equalsIgnoreCase(hdrToFind)) {
-                    hdrs.add(header);
-                }
+    public Cell findHeaderByName(String header) {
+        for (Cell cell : headers) {
+            if (cell.value.toString().equals(header)) {
+                return cell;
             }
         }
-        return hdrs;
-    }
-
-    public Table addTable(Table t2) {
-        Table t1 = this;
-        Table t = new Table();
-
-        t.startHeaders();
-
-        for (Cell c : t1.getHeaders()) {
-            t.addCell(c);
-        }
-
-        for (Cell c : t2.getHeaders()) {
-            t.addCell(c);
-        }
-
-        t.endHeaders();
-
-        if (t1.rows.size() != t2.rows.size()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("cannot add a table with ");
-            sb.append(t2.rows.size());
-            sb.append(" rows to table with ");
-            sb.append(t1.rows.size());
-            sb.append(" rows");
-            throw new ElasticSearchIllegalArgumentException(sb.toString());
-        }
-
-        for (int i = 0; i < t1.rows.size(); i++) {
-            t.startRow();
-            for (Cell c : t1.rows.get(i)) {
-                t.addCell(c);
-            }
-            for (Cell c : t2.rows.get(i)) {
-                t.addCell(c);
-            }
-            t.endRow(false);
-        }
-
-        return t;
-    }
-
-    public Table addColumn(String headerName, String attrs, List<Object> values) {
-        Table t = new Table();
-        t.startHeaders().addCell(headerName, attrs).endHeaders();
-        for (Object val : values) {
-            t.startRow().addCell(val).endRow();
-        }
-        return this.addTable(t);
+        return null;
     }
 
     public static class Cell {

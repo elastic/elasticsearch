@@ -29,7 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  */
@@ -76,24 +77,22 @@ public class RestTable {
             return new StringRestResponse(RestStatus.OK, out.toString());
         }
 
-        List<String> displayHeaders = buildDisplayHeaders(table, request);
-        int[] width = buildWidths(table, request, verbose, displayHeaders);
+        List<String> headers = buildDisplayHeaders(table, request);
+        int[] width = buildWidths(table, request, verbose, headers);
 
-        int col = 0;
         StringBuilder out = new StringBuilder();
         if (verbose) {
-            // print the headers
-            for (Table.Cell header : table.getHeadersFromNames(displayHeaders)) {
-                pad(header, width[col], request, out);
+            for (int col = 0; col < headers.size(); col++) {
+                pad(table.findHeaderByName(headers.get(col)), width[col], request, out);
                 out.append(" ");
-                col++;
             }
             out.append("\n");
         }
 
         for (int row = 0; row < table.getRows().size(); row++) {
-            for (String header : displayHeaders) {
-                pad(table.getAsMap().get(header).get(row), width[displayHeaders.indexOf(header)], request, out);
+            for (int col = 0; col < headers.size(); col++) {
+                String header = headers.get(col);
+                pad(table.getAsMap().get(header).get(row), width[col], request, out);
                 out.append(" ");
             }
             out.append("\n");
@@ -106,7 +105,7 @@ public class RestTable {
         String pHeaders = request.param("headers");
         List<String> display = new ArrayList<String>();
         if (pHeaders != null) {
-            for (String possibility : Arrays.asList(Strings.splitStringByCommaToArray(pHeaders))) {
+            for (String possibility : Strings.splitStringByCommaToArray(pHeaders)) {
                 if (table.getAsMap().containsKey(possibility)) {
                     display.add(possibility);
                 }

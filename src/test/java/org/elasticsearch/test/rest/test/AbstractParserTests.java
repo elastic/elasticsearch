@@ -27,7 +27,7 @@ import org.junit.Ignore;
 import static org.hamcrest.Matchers.nullValue;
 
 @Ignore
-public class AbstractParserTests extends ElasticsearchTestCase {
+public abstract class AbstractParserTests extends ElasticsearchTestCase {
 
     protected XContentParser parser;
 

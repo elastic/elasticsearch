@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +75,7 @@ public class TransportClientNodesService extends AbstractComponent {
     private final Object mutex = new Object();
 
     private volatile ImmutableList<DiscoveryNode> nodes = ImmutableList.of();
+    private volatile ImmutableList<DiscoveryNode> filteredNodes = ImmutableList.of();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -124,6 +126,10 @@ public class TransportClientNodesService extends AbstractComponent {
 
     public ImmutableList<DiscoveryNode> connectedNodes() {
         return this.nodes;
+    }
+
+    public ImmutableList<DiscoveryNode> filteredNodes() {
+        return this.filteredNodes;
     }
 
     public ImmutableList<DiscoveryNode> listedNodes() {
@@ -340,6 +346,7 @@ public class TransportClientNodesService extends AbstractComponent {
         @Override
         protected void doSample() {
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
+            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<DiscoveryNode>();
             for (DiscoveryNode listedNode : listedNodes) {
                 if (!transportService.nodeConnected(listedNode)) {
                     try {
@@ -363,25 +370,24 @@ public class TransportClientNodesService extends AbstractComponent {
                             }).txGet();
                     if (!ignoreClusterName && !clusterName.equals(nodeInfo.getClusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
+                        newFilteredNodes.add(listedNode);
                     } else if (nodeInfo.getNodes().length != 0) {
-                        // use discovered information but do keep the original transport address, so people can control which address
-                        // is exactly used.
-
+                        // use discovered information but do keep the original transport address, so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = nodeInfo.getNodes()[0].getNode();
                         newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
                     } else {
-                        // although we asked for one node, our target may not have completed initialization yet and doesn't have
-                        // cluster nodes
+                        // although we asked for one node, our target may not have completed initialization yet and doesn't have cluster nodes
                         logger.debug("node {} didn't return any discovery info, temporarily using transport discovery node", listedNode);
                         newNodes.add(listedNode);
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.info("failed to get node info for {}, disconnecting...", e, listedNode);
                     transportService.disconnectFromNode(listedNode);
                 }
             }
 
             nodes = validateNewNodes(newNodes);
+            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
         }
     }
 
@@ -400,7 +406,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
-            final Queue<ClusterStateResponse> clusterStateResponses = ConcurrentCollections.newQueue();
+            final ConcurrentMap<DiscoveryNode, ClusterStateResponse> clusterStateResponses = ConcurrentCollections.newConcurrentMap();
             for (final DiscoveryNode listedNode : nodesToPing) {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
                     @Override
@@ -442,7 +448,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
                                         @Override
                                         public void handleResponse(ClusterStateResponse response) {
-                                            clusterStateResponses.add(response);
+                                            clusterStateResponses.put(listedNode, response);
                                             latch.countDown();
                                         }
 
@@ -453,7 +459,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                             latch.countDown();
                                         }
                                     });
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             logger.info("failed to get local cluster state info for {}, disconnecting...", e, listedNode);
                             transportService.disconnectFromNode(listedNode);
                             latch.countDown();
@@ -469,16 +475,20 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>(listedNodes);
-            for (ClusterStateResponse clusterStateResponse : clusterStateResponses) {
-                if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.getClusterName())) {
-                    logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.getState().nodes().localNode(), clusterName);
+            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<DiscoveryNode>();
+            for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
+                if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
+                    logger.warn("node {} not part of the cluster {}, ignoring...", entry.getValue().getState().nodes().localNode(), clusterName);
+                    newFilteredNodes.add(entry.getKey());
+                    continue;
                 }
-                for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().dataNodes().values()) {
+                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().dataNodes().values()) {
                     newNodes.add(cursor.value);
                 }
             }
 
             nodes = validateNewNodes(newNodes);
+            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
         }
     }
 

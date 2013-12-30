@@ -19,17 +19,14 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
@@ -88,7 +85,4 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));
     }
 
-    private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
-    }
 }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.http.client;
 
+import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -33,9 +35,8 @@ public class HttpDownloadHelper {
 
     private boolean useTimestamp = false;
     private boolean skipExisting = false;
-    private long maxTime = 0;
 
-    public boolean download(URL source, File dest, @Nullable DownloadProgress progress) throws IOException {
+    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout) throws IOException {
         if (dest.exists() && skipExisting) {
             return true;
         }
@@ -58,16 +59,15 @@ public class HttpDownloadHelper {
         getThread.setDaemon(true);
         getThread.start();
         try {
-            getThread.join(maxTime * 1000);
+            getThread.join(timeout.millis());
         } catch (InterruptedException ie) {
             // ignore
         }
 
         if (getThread.isAlive()) {
-            String msg = "The GET operation took longer than " + maxTime
-                    + " seconds, stopping it.";
+            String msg = "The GET operation took longer than " + timeout + ", stopping it.";
             getThread.closeStreams();
-            throw new IOException(msg);
+            throw new ElasticSearchTimeoutException(msg);
         }
 
         return getThread.wasSuccessful();
@@ -377,16 +377,16 @@ public class HttpDownloadHelper {
         void closeStreams() {
             interrupt();
             try {
-                os.close();
+                if (os != null) os.close();
             } catch (IOException e) {
                 // ignore
             }
             try {
-                is.close();
+                if (is != null) is.close();
             } catch (IOException e) {
                 // ignore
             }
-            if (!success && dest.exists()) {
+            if (!success && dest != null && dest.exists()) {
                 dest.delete();
             }
         }

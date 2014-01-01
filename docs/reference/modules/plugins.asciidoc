@@ -123,6 +123,24 @@ bin/plugin --install mobz/elasticsearch-head --verbose
 plugin --remove head --silent
 -----------------------------------
 
+[float]
+==== Timeout settings
+
+By default, the `plugin` script will wait indefinitely when downloading before failing.
+The timeout parameter can be used to explicitly specify how long it waits. Here is some examples of setting it to
+different values:
+
+[source,shell]
+-----------------------------------
+# Wait for 30 seconds before failing
+bin/plugin --install mobz/elasticsearch-head --timeout 30s
+
+# Wait for 1 minute before failing
+bin/plugin --install mobz/elasticsearch-head --timeout 1m
+
+# Wait forever (default)
+bin/plugin --install mobz/elasticsearch-head --timeout 0
+-----------------------------------
 
 [float]
 [[known-plugins]]

@@ -19,11 +19,13 @@
 package org.elasticsearch.plugin;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -123,13 +125,17 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         downloadAndExtract(pluginName, "file://" + url.getFile());
     }
 
+    /**
+     * We build a plugin manager instance which wait only for 30 seconds before
+     * raising an ElasticSearchTimeoutException
+     */
     private static PluginManager pluginManager(String pluginUrl) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
-        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT);
+        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueSeconds(30));
     }
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
@@ -208,16 +214,20 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     private void singlePluginInstallAndRemove(String pluginShortName, String pluginCoordinates) throws IOException {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
-        pluginManager.downloadAndExtract(pluginShortName);
-        File[] plugins = pluginManager.getListInstalledPlugins();
-        assertThat(plugins, notNullValue());
-        assertThat(plugins.length, is(1));
+        try {
+            pluginManager.downloadAndExtract(pluginShortName);
+            File[] plugins = pluginManager.getListInstalledPlugins();
+            assertThat(plugins, notNullValue());
+            assertThat(plugins.length, is(1));
 
-        // We remove it
-        pluginManager.removePlugin(pluginShortName);
-        plugins = pluginManager.getListInstalledPlugins();
-        assertThat(plugins, notNullValue());
-        assertThat(plugins.length, is(0));
+            // We remove it
+            pluginManager.removePlugin(pluginShortName);
+            plugins = pluginManager.getListInstalledPlugins();
+            assertThat(plugins, notNullValue());
+            assertThat(plugins.length, is(0));
+        } catch (ElasticSearchTimeoutException e) {
+            logger.warn("--> timeout exception raised while downloading plugin [{}]. Skipping test.", pluginShortName);
+        }
     }
 
     /**

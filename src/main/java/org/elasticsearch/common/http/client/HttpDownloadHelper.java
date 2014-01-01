@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.http.client;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -33,9 +36,8 @@ public class HttpDownloadHelper {
 
     private boolean useTimestamp = false;
     private boolean skipExisting = false;
-    private long maxTime = 0;
 
-    public boolean download(URL source, File dest, @Nullable DownloadProgress progress) throws IOException {
+    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout) throws Exception {
         if (dest.exists() && skipExisting) {
             return true;
         }
@@ -55,19 +57,20 @@ public class HttpDownloadHelper {
         }
 
         GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress);
-        getThread.setDaemon(true);
-        getThread.start();
-        try {
-            getThread.join(maxTime * 1000);
-        } catch (InterruptedException ie) {
-            // ignore
-        }
 
-        if (getThread.isAlive()) {
-            String msg = "The GET operation took longer than " + maxTime
-                    + " seconds, stopping it.";
+        try {
+            getThread.setDaemon(true);
+            getThread.start();
+            getThread.join(timeout.millis());
+
+            if (getThread.isAlive()) {
+                throw new ElasticSearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it.");
+            }
+        }
+        catch (InterruptedException ie) {
+            return false;
+        } finally {
             getThread.closeStreams();
-            throw new IOException(msg);
         }
 
         return getThread.wasSuccessful();
@@ -329,16 +332,7 @@ public class HttpDownloadHelper {
                 }
                 finished = !isInterrupted();
             } finally {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    // ignore
-                }
+                IOUtils.close(os, is);
 
                 // we have started to (over)write dest, but failed.
                 // Try to delete the garbage we'd otherwise leave
@@ -374,20 +368,15 @@ public class HttpDownloadHelper {
          * Closes streams, interrupts the download, may delete the
          * output file.
          */
-        void closeStreams() {
+        void closeStreams() throws IOException {
             interrupt();
-            try {
-                os.close();
-            } catch (IOException e) {
-                // ignore
-            }
-            try {
-                is.close();
-            } catch (IOException e) {
-                // ignore
-            }
-            if (!success && dest.exists()) {
-                dest.delete();
+            if (success) {
+                IOUtils.close(is, os);
+            } else {
+                IOUtils.closeWhileHandlingException(is, os);
+                if (dest != null && dest.exists()) {
+                    dest.delete();
+                }
             }
         }
     }

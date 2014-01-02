@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Locale;
 
 /**
  *
@@ -143,19 +144,20 @@ public class ByteSizeValue implements Serializable, Streamable {
         }
         long bytes;
         try {
-            if (sValue.endsWith("k") || sValue.endsWith("K")) {
+            String lastTwoChars = sValue.substring(sValue.length() - Math.min(2, sValue.length())).toLowerCase(Locale.ROOT);
+            if (lastTwoChars.endsWith("k")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C1);
-            } else if (sValue.endsWith("kb")) {
+            } else if (lastTwoChars.endsWith("kb")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C1);
-            } else if (sValue.endsWith("m") || sValue.endsWith("M")) {
+            } else if (lastTwoChars.endsWith("m")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C2);
-            } else if (sValue.endsWith("mb")) {
+            } else if (lastTwoChars.endsWith("mb")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C2);
-            } else if (sValue.endsWith("g") || sValue.endsWith("G")) {
+            } else if (lastTwoChars.endsWith("g")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C3);
-            } else if (sValue.endsWith("gb")) {
+            } else if (lastTwoChars.endsWith("gb")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C3);
-            } else if (sValue.endsWith("b")) {
+            } else if (lastTwoChars.endsWith("b")) {
                 bytes = Long.parseLong(sValue.substring(0, sValue.length() - 1));
             } else {
                 bytes = Long.parseLong(sValue);

@@ -274,6 +274,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return ImmutableOpenMap.of();
         }
 
+        boolean matchAllAliases = aliases.length == 0;
         ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
@@ -281,7 +282,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             List<AliasMetaData> filteredValues = Lists.newArrayList();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if (Regex.simpleMatch(aliases, value.alias())) {
+                if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
                     filteredValues.add(value);
                 }
             }

@@ -20,13 +20,12 @@ package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
@@ -36,7 +35,7 @@ import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -55,16 +54,13 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     void doRequest(final RestRequest request, final RestChannel channel) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.filterAll().filterMetaData(false);
+        final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
+                new GetAliasesRequest(request.param("alias")) :
+                new GetAliasesRequest();
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
-
+        client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetAliasesResponse response) {
                 try {
                     Table tab = buildTable(request, response);
                     channel.sendResponse(RestTable.buildResponse(tab, request, channel));
@@ -86,8 +82,8 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     void documentation(StringBuilder sb) {
-        sb.append("/_cat_alias");
-        sb.append("/_cat_alias/{alias}");
+        sb.append("/_cat/aliases");
+        sb.append("/_cat/aliases/{alias}");
     }
 
     @Override
@@ -103,19 +99,14 @@ public class RestAliasAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, ClusterStateResponse response) {
+    private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
-        for (ObjectObjectCursor<String, ImmutableOpenMap<String, AliasMetaData>> cursor : response.getState().getMetaData().aliases()) {
-            String aliasName = cursor.key;
-            Iterator<ObjectObjectCursor<String,AliasMetaData>> iterator = cursor.value.iterator();
-            while (iterator.hasNext()) {
-                ObjectObjectCursor<String, AliasMetaData> iteratorCursor = iterator.next();
-                String indexName = iteratorCursor.key;
-                AliasMetaData aliasMetaData = iteratorCursor.value;
-
+        for (ObjectObjectCursor<String, List<AliasMetaData>> cursor : response.getAliases()) {
+            String indexName = cursor.key;
+            for (AliasMetaData aliasMetaData : cursor.value) {
                 table.startRow();
-                table.addCell(aliasName);
+                table.addCell(aliasMetaData.alias());
                 table.addCell(indexName);
                 table.addCell(aliasMetaData.filteringRequired() ? "*" : "-");
                 String indexRouting = Strings.hasLength(aliasMetaData.indexRouting()) ? aliasMetaData.indexRouting() : "-";

@@ -52,6 +52,7 @@ import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -826,6 +827,20 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
+    }
+
+    @Test
+    public void testGetAllAliasesWorks() {
+        createIndex("index1");
+        createIndex("index2");
+
+        ensureYellow();
+
+        admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2").get();
+
+        GetAliasesResponse response = admin().indices().prepareGetAliases().get();
+        assertThat(response.getAliases(), hasKey("index1"));
+        assertThat(response.getAliases(), hasKey("index1"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

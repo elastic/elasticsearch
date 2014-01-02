@@ -78,11 +78,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
 
     @Override
     public ActionRequestValidationException validate() {
-        if (aliases.length == 0) {
-            return addValidationError("No alias specified", null);
-        } else {
-            return null;
-        }
+        return null;
     }
 
     @Override

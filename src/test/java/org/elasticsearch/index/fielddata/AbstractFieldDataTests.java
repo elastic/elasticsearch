@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -76,7 +77,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        ifdService = new IndexFieldDataService(new Index("test"));
+        ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
     }

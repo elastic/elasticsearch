@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.Set;
@@ -77,7 +78,9 @@ public abstract class DocValuesIndexFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
+        public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                                       CircuitBreakerService breakerService) {
+            // Ignore Circuit Breaker
             final FieldMapper.Names fieldNames = mapper.names();
             final Settings fdSettings = mapper.fieldDataType().getSettings();
             final Map<String, Settings> filter = fdSettings.getGroups("filter");

@@ -41,6 +41,8 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -82,6 +84,7 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
                     @Override
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
                     }
                 }
         ).createInjector();

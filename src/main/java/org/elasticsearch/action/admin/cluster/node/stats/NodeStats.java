@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.indices.fielddata.breaker.FieldDataBreakerStats;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
@@ -76,12 +77,16 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     @Nullable
     private HttpStats http;
 
+    @Nullable
+    private FieldDataBreakerStats breaker;
+
     NodeStats() {
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable String hostname, @Nullable NodeIndicesStats indices,
-                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool, @Nullable NetworkStats network,
-                     @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http) {
+                     @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
+                     @Nullable NetworkStats network, @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http,
+                     @Nullable FieldDataBreakerStats breaker) {
         super(node);
         this.timestamp = timestamp;
         this.hostname = hostname;
@@ -94,6 +99,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         this.fs = fs;
         this.transport = transport;
         this.http = http;
+        this.breaker = breaker;
     }
 
     public long getTimestamp() {
@@ -171,6 +177,11 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         return this.http;
     }
 
+    @Nullable
+    public FieldDataBreakerStats getBreaker() {
+        return this.breaker;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -211,6 +222,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (in.readBoolean()) {
             http = HttpStats.readHttpStats(in);
         }
+        breaker = FieldDataBreakerStats.readOptionalCircuitBreakerStats(in);
     }
 
     @Override
@@ -277,6 +289,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
             out.writeBoolean(true);
             http.writeTo(out);
         }
+        out.writeOptionalStreamable(breaker);
     }
 
     @Override
@@ -325,6 +338,9 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         }
         if (getHttp() != null) {
             getHttp().toXContent(builder, params);
+        }
+        if (getBreaker() != null) {
+            getBreaker().toXContent(builder, params);
         }
 
         return builder;

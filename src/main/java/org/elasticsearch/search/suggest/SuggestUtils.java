@@ -18,30 +18,18 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-import java.util.Comparator;
-import java.util.Locale;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.search.spell.DirectSpellChecker;
-import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
-import org.apache.lucene.search.spell.NGramDistance;
-import org.apache.lucene.search.spell.StringDistance;
-import org.apache.lucene.search.spell.SuggestMode;
-import org.apache.lucene.search.spell.SuggestWord;
-import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
-import org.apache.lucene.search.spell.SuggestWordQueue;
+import org.apache.lucene.search.spell.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -50,6 +38,10 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.Locale;
 
 public final class SuggestUtils {
     public static Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
@@ -193,6 +185,7 @@ public final class SuggestUtils {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
             return new LevensteinDistance();
+          //TODO Jaro and Winkler are 2 people - so apply same naming logic as damerau_levenshtein  
         } else if ("jarowinkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {
@@ -202,30 +195,45 @@ public final class SuggestUtils {
         }
     }
     
+    public static class Fields {
+        public static final ParseField STRING_DISTANCE = new ParseField("string_distance");
+        public static final ParseField SUGGEST_MODE = new ParseField("suggest_mode");
+        public static final ParseField MAX_EDITS = new ParseField("max_edits");
+        public static final ParseField MAX_INSPECTIONS = new ParseField("max_inspections");
+        // TODO some of these constants are the same as MLT constants and
+        // could be moved to a shared class for maintaining consistency across
+        // the platform
+        public static final ParseField MAX_TERM_FREQ = new ParseField("max_term_freq");
+        public static final ParseField PREFIX_LENGTH = new ParseField("prefix_length", "prefix_len");
+        public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
+        public static final ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
+        public static final ParseField SHARD_SIZE = new ParseField("shard_size");
+   }      
+    
     public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
                 DirectSpellcheckerSettings suggestion) throws IOException {
             if ("accuracy".equals(fieldName)) {
                 suggestion.accuracy(parser.floatValue());
-            } else if ("suggest_mode".equals(fieldName) || "suggestMode".equals(fieldName)) {
+            } else if (Fields.SUGGEST_MODE.match(fieldName)) {
                 suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
             } else if ("sort".equals(fieldName)) {
                 suggestion.sort(SuggestUtils.resolveSort(parser.text()));
-            } else if ("string_distance".equals(fieldName) || "stringDistance".equals(fieldName)) {
+            } else if (Fields.STRING_DISTANCE.match(fieldName)) {
                 suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
-            } else if ("max_edits".equals(fieldName) || "maxEdits".equals(fieldName)) {
+            } else if (Fields.MAX_EDITS.match(fieldName)) {
                 suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
                     throw new ElasticsearchIllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
-            } else if ("max_inspections".equals(fieldName) || "maxInspections".equals(fieldName)) {
+            } else if (Fields.MAX_INSPECTIONS.match(fieldName)) {
                 suggestion.maxInspections(parser.intValue());
-            } else if ("max_term_freq".equals(fieldName) || "maxTermFreq".equals(fieldName)) {
+            } else if (Fields.MAX_TERM_FREQ.match(fieldName)) {
                 suggestion.maxTermFreq(parser.floatValue());
-            } else if ("prefix_len".equals(fieldName) || "prefixLen".equals(fieldName)) {
+            } else if (Fields.PREFIX_LENGTH.match(fieldName)) {
                 suggestion.prefixLength(parser.intValue());
-            } else if ("min_word_len".equals(fieldName) || "minWordLen".equals(fieldName)) {
+            } else if (Fields.MIN_WORD_LENGTH.match(fieldName)) {
                 suggestion.minQueryLength(parser.intValue());
-            } else if ("min_doc_freq".equals(fieldName) || "minDocFreq".equals(fieldName)) {
+            } else if (Fields.MIN_DOC_FREQ.match(fieldName)) {
                 suggestion.minDocFreq(parser.floatValue());
             } else {
                 return false;
@@ -247,7 +255,7 @@ public final class SuggestUtils {
             suggestion.setField(parser.text());
         } else if ("size".equals(fieldName)) {
             suggestion.setSize(parser.intValue());
-        } else if ("shard_size".equals(fieldName) || "shardSize".equals(fieldName)) {
+        } else if (Fields.SHARD_SIZE.match(fieldName)) {
             suggestion.setShardSize(parser.intValue());
         } else {
            return false;

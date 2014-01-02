@@ -62,15 +62,15 @@ doesn't take the query into account that is part of request.
     between 1 and 2. Any other value result in an bad request error being
     thrown. Defaults to 2. 
 
-`prefix_len`:: 
+`prefix_length`:: 
     The number of minimal prefix characters that must
     match in order be a candidate suggestions. Defaults to 1. Increasing
     this number improves spellcheck performance. Usually misspellings don't
-    occur in the beginning of terms. 
+    occur in the beginning of terms. (Old name "prefix_len" is deprecated) 
 
-`min_word_len`:: 
+`min_word_length`:: 
     The minimum length a suggest text term must have in
-    order to be included. Defaults to 4. 
+    order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
 
 `shard_size`:: 
     Sets the maximum number of suggestions to be retrieved

@@ -219,13 +219,20 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 if (field.getValues().isEmpty()) {
                     continue;
                 }
-                if (field.getValues().size() == 1) {
-                    builder.field(field.getName(), field.getValues().get(0));
+                String fieldName = field.getName();
+                if (field.isMetadataField()) {
+                    builder.field(fieldName, field.getValue());
                 } else {
-                    builder.field(field.getName());
-                    builder.startArray();
+                    builder.startArray(field.getName());
                     for (Object value : field.getValues()) {
-                        builder.value(value);
+                        if (value instanceof Iterable) {
+                            Iterable iterable = (Iterable) value;
+                            for (Object iterVal : iterable) {
+                                builder.value(iterVal);
+                            }
+                        } else {
+                            builder.value(value);
+                        }
                     }
                     builder.endArray();
                 }

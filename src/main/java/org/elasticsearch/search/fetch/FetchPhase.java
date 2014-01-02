@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -117,7 +118,12 @@ public class FetchPhase implements SearchPhase {
                     continue;
                 }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
-                if (x != null && x.mapper().fieldType().stored()) {
+                if (x == null) {
+                    // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                    if (context.smartNameObjectMapper(fieldName) != null) {
+                        throw new ElasticSearchIllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                    }
+                } else if (x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {
                         fieldNames = new HashSet<String>();
                     }
@@ -153,7 +159,8 @@ public class FetchPhase implements SearchPhase {
             if (!fieldsVisitor.fields().isEmpty()) {
                 searchFields = new HashMap<String, SearchHitField>(fieldsVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-                    searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                    boolean isMetadataField = context.mapperService().isMetadataField(entry.getKey());
+                    searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue(), isMetadataField));
                 }
             }
 
@@ -191,7 +198,14 @@ public class FetchPhase implements SearchPhase {
                             hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
                             searchHit.fields().put(extractFieldName, hitField);
                         }
-                        hitField.values().add(value);
+                        if (value instanceof Iterable) {
+                            Iterable iterable = (Iterable) value;
+                            for (Object iterVal : iterable) {
+                                hitField.values().add(iterVal);
+                            }
+                        } else {
+                            hitField.values().add(value);
+                        }
                     }
                 }
             }

@@ -34,16 +34,20 @@ import java.util.List;
 public class GetField implements Streamable, Iterable<Object> {
 
     private String name;
-
+    private boolean metadataField;
     private List<Object> values;
 
     private GetField() {
-
     }
 
     public GetField(String name, List<Object> values) {
+        this(name, values, false);
+    }
+
+    public GetField(String name, List<Object> values, boolean metadataField) {
         this.name = name;
         this.values = values;
+        this.metadataField = metadataField;
     }
 
     public String getName() {
@@ -61,6 +65,10 @@ public class GetField implements Streamable, Iterable<Object> {
         return values;
     }
 
+    public boolean isMetadataField() {
+        return metadataField;
+    }
+
     @Override
     public Iterator<Object> iterator() {
         return values.iterator();
@@ -75,6 +83,7 @@ public class GetField implements Streamable, Iterable<Object> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
+        metadataField = in.readBoolean();
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
@@ -85,6 +94,7 @@ public class GetField implements Streamable, Iterable<Object> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeBoolean(metadataField);
         out.writeVInt(values.size());
         for (Object obj : values) {
             out.writeGenericValue(obj);

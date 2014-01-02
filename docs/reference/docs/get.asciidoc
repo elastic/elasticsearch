@@ -115,6 +115,12 @@ For backward compatibility, if the requested fields are not stored, they will be
 from the `_source` (parsed and extracted). This functionality has been replaced by the
 <<get-source-filtering,source filtering>> parameter.
 
+Field values fetched from the document it self are always returned as an array. Metadata fields like `_routing` and
+`_parent` fields are never returned as an array.
+
+Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
+will fail.
+
 [float]
 [[_source]]
 === Getting the _source directly

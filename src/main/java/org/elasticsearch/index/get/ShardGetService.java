@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -268,8 +269,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                                // only if the field is stored or source is enabled we should add it..
-                                if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
+                                if (x == null) {
+                                    if (docMapper.objectMappers().get(field) != null) {
+                                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                                        throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                                    }
+                                } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
+                                    // only if the field is stored or source is enabled we should add it..
                                     value = searchLookup.source().extractValue(field);
                                     // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
                                     if (value != null && x != null) {
@@ -292,7 +298,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             if (value instanceof List) {
                                 fields.put(field, new GetField(field, (List) value));
                             } else {
-                                fields.put(field, new GetField(field, ImmutableList.of(value)));
+                                fields.put(field, new GetField(field, ImmutableList.of(value), mapperService.isMetadataField(field)));
                             }
                         }
                     }
@@ -358,7 +364,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 fieldVisitor.postProcess(docMapper);
                 fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
+                    boolean isMetadataField = mapperService.isMetadataField(entry.getKey());
+                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue(), isMetadataField));
                 }
             }
         }
@@ -388,7 +395,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else {
                     FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null || !x.mapper().fieldType().stored()) {
+                    if (x == null) {
+                        if (docMapper.objectMappers().get(field) != null) {
+                            // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                            throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                        }
+                    } else if (!x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
                             searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                             searchLookup.setNextReader(docIdAndVersion.context);
@@ -397,7 +409,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         }
                         value = searchLookup.source().extractValue(field);
                         // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                        if (value != null && x != null) {
+                        if (value != null) {
                             if (value instanceof List) {
                                 List list = (List) value;
                                 for (int i = 0; i < list.size(); i++) {

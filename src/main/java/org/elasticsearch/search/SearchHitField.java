@@ -59,4 +59,9 @@ public interface SearchHitField extends Streamable, Iterable<Object> {
      * The field values.
      */
     List<Object> getValues();
+
+    /**
+     * @return The field is a metadata field
+     */
+    boolean isMetadataField();
 }

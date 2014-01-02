@@ -19,6 +19,7 @@
 
 package org.elasticsearch.get;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -495,14 +496,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .endObject())
                 .execute().actionGet();
 
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").execute().actionGet();
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
         assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
 
         // now tests that extra source filtering works as expected
-        GetResponse responseBeforeFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included", "excluded")
+        GetResponse responseBeforeFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included.field", "excluded.field")
                 .setFetchSource(new String[]{"field", "*.field"}, new String[]{"*.field2"}).get();
         assertThat(responseBeforeFlushWithExtraFilters.isExists(), is(true));
         assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), not(hasKey("excluded")));
@@ -512,8 +513,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), not(hasKey("field2")));
 
         client().admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
-        GetResponse responseAfterFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included", "excluded")
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").execute().actionGet();
+        GetResponse responseAfterFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included.field", "excluded.field")
                 .setFetchSource("*.field", "*.field2").get();
 
         assertThat(responseAfterFlush.isExists(), is(true));
@@ -728,6 +729,63 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
+    }
+
+    @Test
+    public void testGetFields_metaData() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .get();
+
+        client().prepareIndex("my-index", "my-type1", "1")
+                .setRouting("1")
+                .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
+                .get();
+
+        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1")
+                .setRouting("1")
+                .setFields("field1", "_routing")
+                .get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
+        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+
+        client().admin().indices().prepareRefresh("my-index").get();
+
+        client().prepareGet("my-index", "my-type1", "1")
+                .setFields("field1", "_routing")
+                .setRouting("1")
+                .get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
+        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+    }
+
+    @Test
+    public void testGetFields_nonLeafField() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .get();
+
+        client().prepareIndex("my-index", "my-type1", "1")
+                .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
+                .get();
+
+        try {
+            client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
+            assert false;
+        } catch (ElasticSearchIllegalArgumentException e) {}
+
+        client().admin().indices().prepareRefresh("my-index").get();
+
+        try {
+            client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
+            assert false;
+        } catch (ElasticSearchIllegalArgumentException e) {}
     }
 
 }

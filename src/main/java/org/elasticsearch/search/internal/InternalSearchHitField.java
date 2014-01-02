@@ -34,15 +34,19 @@ import java.util.List;
 public class InternalSearchHitField implements SearchHitField {
 
     private String name;
-
+    private boolean metadataField;
     private List<Object> values;
 
     private InternalSearchHitField() {
-
     }
 
     public InternalSearchHitField(String name, List<Object> values) {
+        this(name, values, false);
+    }
+
+    public InternalSearchHitField(String name, List<Object> values, boolean metadataField) {
         this.name = name;
+        this.metadataField = metadataField;
         this.values = values;
     }
 
@@ -77,6 +81,10 @@ public class InternalSearchHitField implements SearchHitField {
         return values();
     }
 
+    @Override
+    public boolean isMetadataField() {
+        return metadataField;
+    }
 
     @Override
     public Iterator<Object> iterator() {
@@ -92,6 +100,7 @@ public class InternalSearchHitField implements SearchHitField {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readSharedString();
+        metadataField = in.readBoolean();
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
@@ -102,6 +111,7 @@ public class InternalSearchHitField implements SearchHitField {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeSharedString(name);
+        out.writeBoolean(metadataField);
         out.writeVInt(values.size());
         for (Object value : values) {
             out.writeGenericValue(value);

@@ -1,8 +1,9 @@
 ---
-"Parent":
+setup:
  - skip:
       version:  "0 - 0.90.0"
       reason:   "Get source not supported in pre 0.90.1 versions."
+
  - do:
       indices.create:
           index: test_1
@@ -22,6 +23,9 @@
           parent:  5
           body:    { foo: bar }
 
+
+---
+"Parent":
  - do:
       get_source:
           index:   test_1
@@ -31,8 +35,27 @@
 
  - match:   { '': {foo: bar}}
 
+---
+"Parent omitted pre 1.0":
+ - skip:
+      version:  "1 - 999"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+
  - do:
-      catch: param
+      catch: missing
+      get_source:
+          index:   test_1
+          type:    test
+          id:      1
+
+---
+"Parent omitted post 1.0":
+ - skip:
+      version:  "0 - 0.999"
+      reason: "Required parent has been introduced in 1.0"
+
+ - do:
+      catch: request
       get_source:
           index:   test_1
           type:    test

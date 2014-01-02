@@ -32,7 +32,7 @@ public class PositionIterator implements Iterator<TermPosition> {
     
     private boolean resetted = false;
 
-    protected ScriptTerm scriptTerm;
+    protected IndexFieldTerm indexFieldTerm;
 
     protected int freq = -1;
 
@@ -43,13 +43,13 @@ public class PositionIterator implements Iterator<TermPosition> {
 
     private DocsAndPositionsEnum docsAndPos;
 
-    public PositionIterator(ScriptTerm termInfo) {
-        this.scriptTerm = termInfo;
+    public PositionIterator(IndexFieldTerm indexFieldTerm) {
+        this.indexFieldTerm = indexFieldTerm;
     }
 
     @Override
     public void remove() {
-        throw new UnsupportedOperationException("Cannot remove anything from TermPositions iterator.");
+        throw new UnsupportedOperationException("Cannot remove anything from TermPosition iterator.");
     }
 
     @Override
@@ -75,9 +75,9 @@ public class PositionIterator implements Iterator<TermPosition> {
     public void nextDoc() throws IOException {
         resetted = false;
         currentPos = 0;
-        freq = scriptTerm.tf();
-        if (scriptTerm.docsEnum instanceof DocsAndPositionsEnum) {
-            docsAndPos = (DocsAndPositionsEnum) scriptTerm.docsEnum;
+        freq = indexFieldTerm.tf();
+        if (indexFieldTerm.docsEnum instanceof DocsAndPositionsEnum) {
+            docsAndPos = (DocsAndPositionsEnum) indexFieldTerm.docsEnum;
         } else {
             docsAndPos = EMPTY;
         }

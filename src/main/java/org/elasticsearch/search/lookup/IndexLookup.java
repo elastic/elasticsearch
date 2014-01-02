@@ -29,36 +29,36 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
+public class IndexLookup extends MinimalMap<String, IndexField> {
 
     /**
-     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
-     * offsets in the returned {@link ScriptTerm}.
+     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * offsets in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_OFFSETS = 2;
 
     /**
-     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
-     * payloads in the returned {@link ScriptTerm}.
+     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * payloads in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_PAYLOADS = 4;
 
     /**
-     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
-     * frequencies in the returned {@link ScriptTerm}. Frequencies might be
+     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * frequencies in the returned {@link IndexFieldTerm}. Frequencies might be
      * returned anyway for some lucene codecs even if this flag is no set.
      */
     public static final int FLAG_FREQUENCIES = 8;
 
     /**
-     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
-     * positions in the returned {@link ScriptTerm}.
+     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_POSITIONS = 16;
 
     /**
-     * Flag to pass to {@link ScriptTerms#get(String, flags)} if you require
-     * positions in the returned {@link ScriptTerm}.
+     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_CACHE = 32;
 
@@ -82,7 +82,7 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
     // stores the objects that are used in the script. we maintain this map
     // because we do not want to re-initialize the objects each time a field is
     // accessed
-    private final Map<String, ScriptTerms> scriptTermsPerField = new HashMap<String, ScriptTerms>();
+    private final Map<String, IndexField> indexFields = new HashMap<String, IndexField>();
 
     // number of documents per shard. cached here because the computation is
     // expensive
@@ -116,12 +116,12 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
         return numDeletedDocs;
     }
 
-    public ShardTermsLookup(Builder<String, Object> builder) {
-        builder.put("_FREQUENCIES", ShardTermsLookup.FLAG_FREQUENCIES);
-        builder.put("_POSITIONS", ShardTermsLookup.FLAG_POSITIONS);
-        builder.put("_OFFSETS", ShardTermsLookup.FLAG_OFFSETS);
-        builder.put("_PAYLOADS", ShardTermsLookup.FLAG_PAYLOADS);
-        builder.put("_CACHE", ShardTermsLookup.FLAG_CACHE);
+    public IndexLookup(Builder<String, Object> builder) {
+        builder.put("_FREQUENCIES", IndexLookup.FLAG_FREQUENCIES);
+        builder.put("_POSITIONS", IndexLookup.FLAG_POSITIONS);
+        builder.put("_OFFSETS", IndexLookup.FLAG_OFFSETS);
+        builder.put("_PAYLOADS", IndexLookup.FLAG_PAYLOADS);
+        builder.put("_CACHE", IndexLookup.FLAG_CACHE);
     }
 
     public void setNextReader(AtomicReaderContext context) {
@@ -138,7 +138,7 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
                 indexReaderContext = context.parent;
             } else {
                 // parent reader may only be set once. TODO we could also call
-                // scriptFields.clear() here instead of assertion just to be on
+                // indexFields.clear() here instead of assertion just to be on
                 // the save side
                 assert (parentReader == context.parent.reader());
             }
@@ -151,7 +151,7 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
     }
 
     protected void setReaderInFields() {
-        for (ScriptTerms stat : scriptTermsPerField.values()) {
+        for (IndexField stat : indexFields.values()) {
             stat.setReader(reader);
         }
     }
@@ -163,7 +163,7 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
         }
         // We assume that docs are processed in ascending order of id. If this
         // is not the case, we would have to re initialize all posting lists in
-        // ScriptTerm. TODO: Instead of assert we could also call
+        // IndexFieldTerm. TODO: Instead of assert we could also call
         // setReaderInFields(); here?
         if (this.docId > docId) {
             // This might happen if the same SearchLookup is used in different
@@ -171,15 +171,15 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
             // In this case we do not want to re initialize posting list etc.
             // because we do not even know if term and field statistics will be
             // needed in this new phase.
-            // Therefore we just remove all ScriptFields.
-            scriptTermsPerField.clear();
+            // Therefore we just remove all IndexFieldTerms.
+            indexFields.clear();
         }
         this.docId = docId;
         setNextDocIdInFields();
     }
 
     protected void setNextDocIdInFields() {
-        for (ScriptTerms stat : scriptTermsPerField.values()) {
+        for (IndexField stat : indexFields.values()) {
             stat.setDocIdInTerms(this.docId);
         }
     }
@@ -190,18 +190,18 @@ public class ShardTermsLookup extends MinimalMap<String, ScriptTerms> {
      * user could then iterate over.
      */
     @Override
-    public ScriptTerms get(Object key) {
+    public IndexField get(Object key) {
         String stringField = (String) key;
-        ScriptTerms scriptField = scriptTermsPerField.get(key);
-        if (scriptField == null) {
+        IndexField indexField = indexFields.get(key);
+        if (indexField == null) {
             try {
-                scriptField = new ScriptTerms(stringField, this);
-                scriptTermsPerField.put(stringField, scriptField);
+                indexField = new IndexField(stringField, this);
+                indexFields.put(stringField, indexField);
             } catch (IOException e) {
                 throw new ElasticSearchException(e.getMessage());
             }
         }
-        return scriptField;
+        return indexField;
     }
 
     /*

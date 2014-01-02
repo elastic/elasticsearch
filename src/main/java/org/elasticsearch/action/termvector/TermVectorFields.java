@@ -112,8 +112,8 @@ import static org.apache.lucene.util.ArrayUtil.grow;
 
 public final class TermVectorFields extends Fields {
 
-    final private ObjectLongOpenHashMap<String> fieldMap;
-    final private BytesReference termVectors;
+    private final ObjectLongOpenHashMap<String> fieldMap;
+    private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
 

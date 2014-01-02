@@ -42,7 +42,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
+public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _CACHE";
     String includeAllWithoutRecordFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS ";
@@ -149,9 +149,9 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         // check term frequencies for 'a'
-        String scriptFieldScript = "termInfo = _shard['int_payload_field']['c']; termInfo.tf()";
+        String scriptFieldScript = "term = _index['int_payload_field']['c']; term.tf()";
         scriptFieldScript = "1";
-        String scoreScript = "termInfo = _shard['int_payload_field']['b']; termInfo.tf()";
+        String scoreScript = "term = _index['int_payload_field']['b']; term.tf()";
         Map<String, Object> expectedResultsField = new HashMap<String, Object>();
         expectedResultsField.put("1", 1);
         expectedResultsField.put("2", 1);
@@ -172,19 +172,19 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
         // should throw an exception, we cannot call with different flags twice
         // if the flags of the second call were not included in the first call.
-        String script = "termInfo = _shard['int_payload_field']['b']; return _shard['int_payload_field'].get('b', _POSITIONS).tf();";
+        String script = "term = _index['int_payload_field']['b']; return _index['int_payload_field'].get('b', _POSITIONS).tf();";
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
             assertThat(
                     e.getDetailedMessage()
                             .indexOf(
-                                    "You must call get with all required flags! Instead of  _shard['int_payload_field'].get('b', _FREQUENCIES) and _shard['int_payload_field'].get('b', _POSITIONS) call  _shard['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]; "),
+                                    "You must call get with all required flags! Instead of  _index['int_payload_field'].get('b', _FREQUENCIES) and _index['int_payload_field'].get('b', _POSITIONS) call  _index['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]; "),
                     Matchers.greaterThan(-1));
         }
 
         // Should not throw an exception this way round
-        script = "termInfo = _shard['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _shard['int_payload_field']['b'].tf();";
+        script = "term = _index['int_payload_field'].get('b', _POSITIONS | _FREQUENCIES);return _index['int_payload_field']['b'].tf();";
         client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
     }
 
@@ -203,8 +203,8 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
 
         initTestData();
 
-        String script = "termInfo = _shard['float_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos : termInfo) {payloadSum = pos.payloadAsInt(0);} return payloadSum;";
+        String script = "term = _index['float_payload_field'].get('b'," + includeAllFlag
+                + "); payloadSum=0; for (pos : term) {payloadSum = pos.payloadAsInt(0);} return payloadSum;";
 
         // non existing field: sum should be 0
         HashMap<String, Object> zeroArray = new HashMap<String, Object>();
@@ -213,8 +213,8 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         zeroArray.put("3", 0);
         checkValueInEachDoc(script, zeroArray, 3);
 
-        script = "termInfo = _shard['int_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos : termInfo) {payloadSum = payloadSum + pos.payloadAsInt(0);} return payloadSum;";
+        script = "term = _index['int_payload_field'].get('b'," + includeAllFlag
+                + "); payloadSum=0; for (pos : term) {payloadSum = payloadSum + pos.payloadAsInt(0);} return payloadSum;";
 
         // existing field: sums should be as here:
         zeroArray.put("1", 5);
@@ -248,7 +248,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         script = createPositionsArrayScriptIterateTwice("b", includeAllWithoutRecordFlag, "payloadAsInt(-1)");
         checkExceptions(script);
 
-        // no record and get TermInfoObject twice and iterate: should fail
+        // no record and get termObject twice and iterate: should fail
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "position");
         checkExceptions(script);
         script = createPositionsArrayScriptGetInfoObjectTwice("b", includeAllWithoutRecordFlag, "startOffset");
@@ -261,27 +261,27 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
     }
 
     private String createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
-        String script = "termInfo = _shard['int_payload_field'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} ;_shard['int_payload_field'].get('" + term + "',"
-                + flags + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")}";
+        String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
+                + "); array=[]; for (pos : term) {array.add(pos." + what + ")} ;_index['int_payload_field'].get('" + term + "',"
+                + flags + "); array=[]; for (pos : term) {array.add(pos." + what + ")}";
         return script;
     }
 
     private String createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
-        String script = "termInfo = _shard['int_payload_field'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} array=[]; for (pos : termInfo) {array.add(pos." + what
+        String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
+                + "); array=[]; for (pos : term) {array.add(pos." + what + ")} array=[]; for (pos : term) {array.add(pos." + what
                 + ")} return array;";
         return script;
     }
 
     private String createPositionsArrayScript(String field, String term, String flags, String what) {
-        String script = "termInfo = _shard['" + field + "'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : termInfo) {array.add(pos." + what + ")} return array;";
+        String script = "term = _index['" + field + "'].get('" + term + "'," + flags
+                + "); array=[]; for (pos : term) {array.add(pos." + what + ")} return array;";
         return script;
     }
 
     private String createPositionsArrayScriptDefaultGet(String field, String term, String what) {
-        String script = "termInfo = _shard['" + field + "']['" + term + "']; array=[]; for (pos : termInfo) {array.add(pos." + what
+        String script = "term = _index['" + field + "']['" + term + "']; array=[]; for (pos : term) {array.add(pos." + what
                 + ")} return array;";
         return script;
     }
@@ -427,36 +427,36 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "6").setSource("int_payload_field", "c|1"));
 
         // get the number of all docs
-        String script = "_shard.numDocs()";
+        String script = "_index.numDocs()";
         checkValueInEachDoc(6, script, 6);
 
         // get the number of docs with field float_payload_field
-        script = "_shard['float_payload_field'].docCount()";
+        script = "_index['float_payload_field'].docCount()";
         checkValueInEachDoc(3, script, 6);
 
         // corner case: what if the field does not exist?
-        script = "_shard['non_existent_field'].docCount()";
+        script = "_index['non_existent_field'].docCount()";
         checkValueInEachDoc(0, script, 6);
 
         // get the number of all tokens in all docs
-        script = "_shard['float_payload_field'].sumttf()";
+        script = "_index['float_payload_field'].sumttf()";
         checkValueInEachDoc(9, script, 6);
 
         // corner case get the number of all tokens in all docs for non existent
         // field
-        script = "_shard['non_existent_field'].sumttf()";
+        script = "_index['non_existent_field'].sumttf()";
         checkValueInEachDoc(0, script, 6);
 
         // get the sum of doc freqs in all docs
-        script = "_shard['float_payload_field'].sumdf()";
+        script = "_index['float_payload_field'].sumdf()";
         checkValueInEachDoc(5, script, 6);
 
         // get the sum of doc freqs in all docs for non existent field
-        script = "_shard['non_existent_field'].sumdf()";
+        script = "_index['non_existent_field'].sumdf()";
         checkValueInEachDoc(0, script, 6);
 
         // check term frequencies for 'a'
-        script = "termInfo = _shard['float_payload_field']['a']; if (termInfo != null) {termInfo.tf()}";
+        script = "term = _index['float_payload_field']['a']; if (term != null) {term.tf()}";
         Map<String, Object> expectedResults = new HashMap<String, Object>();
         expectedResults.put("1", 2);
         expectedResults.put("2", 0);
@@ -468,7 +468,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for 'c'
-        script = "termInfo = _shard['float_payload_field']['c']; if (termInfo != null) {termInfo.df()}";
+        script = "term = _index['float_payload_field']['c']; if (term != null) {term.df()}";
         expectedResults.put("1", 1l);
         expectedResults.put("2", 1l);
         expectedResults.put("3", 1l);
@@ -479,7 +479,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
-        script = "termInfo = _shard['float_payload_field']['non_existent_term']; if (termInfo != null) {termInfo.df()}";
+        script = "term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}";
         expectedResults.put("1", 0l);
         expectedResults.put("2", 0l);
         expectedResults.put("3", 0l);
@@ -490,7 +490,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
-        script = "termInfo = _shard['non_existent_field']['non_existent_term']; if (termInfo != null) {termInfo.tf()}";
+        script = "term = _index['non_existent_field']['non_existent_term']; if (term != null) {term.tf()}";
         expectedResults.put("1", 0);
         expectedResults.put("2", 0);
         expectedResults.put("3", 0);
@@ -501,7 +501,7 @@ public class ShardLookupInScriptTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check total term frequencies for 'a'
-        script = "termInfo = _shard['float_payload_field']['a']; if (termInfo != null) {termInfo.ttf()}";
+        script = "term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}";
         expectedResults.put("1", 4l);
         expectedResults.put("2", 4l);
         expectedResults.put("3", 4l);

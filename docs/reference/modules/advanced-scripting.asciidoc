@@ -2,7 +2,7 @@
 == Text scoring in scripts
 
 
-Text features, such as term or document frequency for a specific term can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_shard` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
+Text features, such as term or document frequency for a specific term can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_index` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
 Statistics over the document collection are computed *per shard*, not per
 index.
 
@@ -35,15 +35,15 @@ depending on the shard the current document resides in.
 [float]
 === Shard statistics:
 
-`_shard.numDocs()`::
+`_index.numDocs()`::
 
     Number of documents in shard. 
     
-`_shard.maxDoc()`::
+`_index.maxDoc()`::
 
     Maximal document number in shard.
     
-`_shard.numDeletedDocs()`::
+`_index.numDeletedDocs()`::
 
     Number of deleted documents in shard.
 
@@ -52,18 +52,18 @@ depending on the shard the current document resides in.
 === Field statistics:
 
 Field statistics can be accessed with a subscript operator like this:
-`_shard['FIELD']`.
+`_index['FIELD']`.
 
 
-`_shard['FIELD'].docCount()`::
+`_index['FIELD'].docCount()`::
 
     Number of documents containing the field `FIELD`. Does not take deleted documents into account.
 
-`_shard['FIELD'].sumttf()`::
+`_index['FIELD'].sumttf()`::
 
     Sum of `ttf` over all terms that appear in field `FIELD` in all documents.
     
-`_shard['FIELD'].sumdf()`::
+`_index['FIELD'].sumdf()`::
 
     The sum of `df` s over all terms that appear in field `FIELD` in all
     documents.
@@ -71,30 +71,30 @@ Field statistics can be accessed with a subscript operator like this:
 
 Field statistics are computed per shard and therfore these numbers can vary
 depending on the shard the current document resides in.
-The number of terms in a field cannot be accessed using the `_shard` variable. See <<mapping-core-types, word count mapping type>> on how to do that.
+The number of terms in a field cannot be accessed using the `_index` variable. See <<mapping-core-types, word count mapping type>> on how to do that.
 
 [float]
 === Term statistics:
 
 Term statistics for a field can be accessed with a subscript operator like
-this: `_shard['FIELD']['TERM']`. This will never return null, even if term or field does not exist. 
-If you do not need the term frequency, call `_shard['FIELD'].get('TERM', 0)`
+this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist. 
+If you do not need the term frequency, call `_index['FIELD'].get('TERM', 0)`
 to avoid uneccesary initialization of the frequencies. The flag will have only
 affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapping documentation>>).
 
 
-`_shard['FIELD']['TERM'].df()`::
+`_index['FIELD']['TERM'].df()`::
 
     `df` of term `TERM` in field `FIELD`. Will be returned, even if the term
     is not present in the current document.
 
-`_shard['FIELD']['TERM'].ttf()`::
+`_index['FIELD']['TERM'].ttf()`::
 
     The sum of term frequencys of term `TERM` in field `FIELD` over all
     documents. Will be returned, even if the term is not present in the
     current document.
 
-`_shard['FIELD']['TERM'].tf()`::
+`_index['FIELD']['TERM'].tf()`::
 
     `tf` of term `TERM` in field `FIELD`. Will be 0 if the term is not present
     in the current document.
@@ -104,7 +104,7 @@ affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapp
 === Term positions, offsets and payloads:
 
 If you need information on the positions of terms in a field, call
-`_shard['FIELD'].get('TERM', flag)` where flag can be
+`_index['FIELD'].get('TERM', flag)` where flag can be
 
 [horizontal]
 `_POSITIONS`::      if you need the positions of the term
@@ -119,7 +119,7 @@ example, the following will return an object holding the positions and payloads,
 as well as all statistics:
 
 
-    `_shard['FIELD'].get('TERM', _POSITIONS | _PAYLOADS)`
+    `_index['FIELD'].get('TERM', _POSITIONS | _PAYLOADS)`
 
 
 Positions can be accessed with an iterator that returns an object
@@ -164,7 +164,7 @@ Example: sums up all payloads for the term `foo`.
 
 [source,mvel]
 ---------------------------------------------------------
-termInfo = _shard['my_field'].get('foo',_PAYLOADS);
+termInfo = _index['my_field'].get('foo',_PAYLOADS);
 score = 0;
 for (pos : termInfo) {
     score = score + pos.payloadAsInt(0);
@@ -176,8 +176,8 @@ return score;
 [float]
 === Term vectors:
 
-The `_shard` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (set `term_vector` in the mapping as described in the <<mapping-core-types,mapping documentation>>). To access them, call
-`_shard.getTermVectors()` to get a
+The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (set `term_vector` in the mapping as described in the <<mapping-core-types,mapping documentation>>). To access them, call
+`_index.getTermVectors()` to get a
 https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields]
 instance. This object can then be used as described in https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[lucene doc] to iterate over fields and then for each field iterate over each term in the field.
 The method will return null if the term vectors were not stored.

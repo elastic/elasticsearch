@@ -656,7 +656,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
-        private boolean notFound;
+        private boolean found;
 
         private long startTime;
         private long endTime;
@@ -715,12 +715,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.versionType;
         }
 
-        public boolean notFound() {
-            return this.notFound;
+        public boolean found() {
+            return this.found;
         }
 
-        public Delete notFound(boolean notFound) {
-            this.notFound = notFound;
+        public Delete found(boolean found) {
+            this.found = found;
             return this;
         }
 

@@ -80,14 +80,14 @@ public class RestDeleteAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field(Fields.FOUND, !result.isNotFound())
+                            .field(Fields.FOUND, result.isFound())
                             .field(Fields._INDEX, result.getIndex())
                             .field(Fields._TYPE, result.getType())
                             .field(Fields._ID, result.getId())
                             .field(Fields._VERSION, result.getVersion())
                             .endObject();
                     RestStatus status = OK;
-                    if (result.isNotFound()) {
+                    if (!result.isFound()) {
                         status = NOT_FOUND;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

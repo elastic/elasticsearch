@@ -39,20 +39,19 @@
             - { _id: 1, parent: 4, fields: [ _parent, _routing ] }
             - { _id: 2, parent: 5, fields: [ _parent, _routing ] }
 
- - is_false:  docs.0.exists
- - is_false:  docs.1.exists
+ - is_false:  docs.0.found
+ - is_false:  docs.1.found
 
- - is_true:   docs.2.exists
+ - is_true:   docs.2.found
  - match:   { docs.2._index:          test_1 }
  - match:   { docs.2._type:           test   }
  - match:   { docs.2._id:             "1"    }
  - match:   { docs.2.fields._parent:  "4"    }
  - match:   { docs.2.fields._routing: "4"    }
 
- - is_true:   docs.3.exists
+ - is_true:   docs.3.found
  - match:   { docs.3._index:          test_1 }
  - match:   { docs.3._type:           test   }
  - match:   { docs.3._id:             "2"    }
  - match:   { docs.3.fields._parent:  "5"    }
  - match:   { docs.3.fields._routing: "5"    }
-

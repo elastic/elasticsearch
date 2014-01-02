@@ -127,12 +127,12 @@ public class RestBulkAction extends BaseRestHandler {
                         } else {
                             if (itemResponse.getResponse() instanceof DeleteResponse) {
                                 DeleteResponse deleteResponse = itemResponse.getResponse();
-                                if (deleteResponse.isNotFound()) {
-                                    builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
-                                } else {
+                                if (deleteResponse.isFound()) {
                                     builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                                } else {
+                                    builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
                                 }
-                                builder.field(Fields.FOUND, !deleteResponse.isNotFound());
+                                builder.field(Fields.FOUND, deleteResponse.isFound());
                             } else if (itemResponse.getResponse() instanceof IndexResponse) {
                                 IndexResponse indexResponse = itemResponse.getResponse();
                                 if (indexResponse.isCreated()) {

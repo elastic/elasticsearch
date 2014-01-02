@@ -37,18 +37,18 @@ public class DeleteResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
-    private boolean notFound;
+    private boolean found;
 
     public DeleteResponse() {
 
     }
 
-    public DeleteResponse(String index, String type, String id, long version, boolean notFound) {
+    public DeleteResponse(String index, String type, String id, long version, boolean found) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
-        this.notFound = notFound;
+        this.found = found;
     }
 
     /**
@@ -82,8 +82,8 @@ public class DeleteResponse extends ActionResponse {
     /**
      * Returns <tt>true</tt> if there was no doc found to delete.
      */
-    public boolean isNotFound() {
-        return notFound;
+    public boolean isFound() {
+        return found;
     }
 
     @Override
@@ -93,7 +93,7 @@ public class DeleteResponse extends ActionResponse {
         type = in.readSharedString();
         id = in.readString();
         version = in.readLong();
-        notFound = in.readBoolean();
+        found = in.readBoolean();
     }
 
     @Override
@@ -103,6 +103,6 @@ public class DeleteResponse extends ActionResponse {
         out.writeSharedString(type);
         out.writeString(id);
         out.writeLong(version);
-        out.writeBoolean(notFound);
+        out.writeBoolean(found);
     }
 }

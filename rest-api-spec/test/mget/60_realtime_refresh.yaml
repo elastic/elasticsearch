@@ -29,7 +29,7 @@
           body:
             ids:    [1]
 
- - is_false: docs.0.exists
+ - is_false: docs.0.found
 
  - do:
       mget:
@@ -39,7 +39,7 @@
           body:
             ids:    [1]
 
- - is_true: docs.0.exists
+ - is_true: docs.0.found
 
  - do:
       mget:
@@ -50,4 +50,4 @@
           body:
             ids:    [1]
 
- - is_true: docs.0.exists
+ - is_true: docs.0.found

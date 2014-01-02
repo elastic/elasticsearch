@@ -147,7 +147,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.isFound(), equalTo(true));
 
         response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));

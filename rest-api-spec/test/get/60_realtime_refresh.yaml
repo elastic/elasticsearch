@@ -28,7 +28,7 @@
           id:       1
           realtime: 1
 
- - is_true: exists
+ - is_true: found
 
  - do:
       catch:        missing
@@ -46,5 +46,4 @@
           realtime: 0
           refresh:  1
 
- - is_true: exists
-
+ - is_true: found

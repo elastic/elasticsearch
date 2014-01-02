@@ -166,7 +166,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         // check delete, so all is gone...
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.isFound(), equalTo(true));
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();

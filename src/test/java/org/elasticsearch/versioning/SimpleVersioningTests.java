@@ -49,7 +49,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         // Note - external version doesn't throw version conflicts on deletes of non existent records. This is different from internal versioning
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.isFound(), equalTo(false));
 
         // this should conflict with the delete command transaction which told us that the object was deleted at version 17.
         assertThrows(
@@ -88,7 +88,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         // Delete with a higher version deletes all versions up to the given one.
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.isFound(), equalTo(true));
         assertThat(deleteResponse.getVersion(), equalTo(17l));
 
         // Deleting with a lower version keeps on failing after a delete.
@@ -99,7 +99,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         // But delete with a higher version is OK.
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.isFound(), equalTo(false));
         assertThat(deleteResponse.getVersion(), equalTo(18l));
 
 
@@ -109,7 +109,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
 
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(20).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.isFound(), equalTo(true));
         assertThat(deleteResponse.getVersion(), equalTo(20l));
 
         // Make sure that the next delete will be GC. Note we do it on the index settings so it will be cleaned up
@@ -193,16 +193,16 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         }
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.isFound(), equalTo(true));
         assertThat(deleteResponse.getVersion(), equalTo(3l));
 
         assertThrows(client().prepareDelete("test", "type", "1").setVersion(2).execute(), VersionConflictEngineException.class);
 
 
         // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
-        // and thus the transcation is increased.
+        // and thus the transaction is increased.
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
-        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.isFound(), equalTo(false));
         assertThat(deleteResponse.getVersion(), equalTo(4l));
     }
 

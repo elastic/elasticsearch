@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHitField;
 
 import java.io.IOException;
@@ -34,11 +35,9 @@ import java.util.List;
 public class InternalSearchHitField implements SearchHitField {
 
     private String name;
-
     private List<Object> values;
 
     private InternalSearchHitField() {
-
     }
 
     public InternalSearchHitField(String name, List<Object> values) {
@@ -77,6 +76,10 @@ public class InternalSearchHitField implements SearchHitField {
         return values();
     }
 
+    @Override
+    public boolean isMetadataField() {
+        return MapperService.isMetadataField(name);
+    }
 
     @Override
     public Iterator<Object> iterator() {

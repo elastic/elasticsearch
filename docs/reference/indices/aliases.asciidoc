@@ -227,7 +227,7 @@ Possible options:
 `alias`::   
     The name of alias to return in the response. Like the index
     option, this option supports wildcards and the option the specify
-    multiple alias names separated by a comma. This is a required option. 
+    multiple alias names separated by a comma.
 
 `ignore_unavailable`::
     What to do is an specified index name doesn't

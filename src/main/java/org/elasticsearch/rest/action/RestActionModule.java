@@ -43,7 +43,6 @@ import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestore
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.stats.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
-import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
@@ -147,7 +146,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestIndicesStatsAction.class).asEagerSingleton();
         bind(RestIndicesStatusAction.class).asEagerSingleton();
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
-        bind(RestGetIndicesAliasesAction.class).asEagerSingleton();
         bind(RestGetAliasesAction.class).asEagerSingleton();
         bind(RestAliasesExistAction.class).asEagerSingleton();
         bind(RestIndexDeleteAliasesAction.class).asEagerSingleton();

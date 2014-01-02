@@ -30,8 +30,8 @@ import java.util.Iterator;
  * */
 public class CachedPositionIterator extends PositionIterator {
 
-    public CachedPositionIterator(ScriptTerm termInfo) {
-        super(termInfo);
+    public CachedPositionIterator(IndexFieldTerm indexFieldTerm) {
+        super(indexFieldTerm);
     }
 
     // all payloads of the term in the current document in one bytes array.

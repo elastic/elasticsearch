@@ -4,8 +4,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.search.lookup.ScriptTerm;
-import org.elasticsearch.search.lookup.ScriptTerms;
+import org.elasticsearch.search.lookup.IndexFieldTerm;
+import org.elasticsearch.search.lookup.IndexField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,12 +38,12 @@ public class NativeNaiveTFIDFScoreScript extends AbstractSearchScript {
     @Override
     public Object run() {
         float score = 0;
-        ScriptTerms scriptTerms = shardTerms().get(field);
+        IndexField indexField = indexLookup().get(field);
         for (int i = 0; i < terms.length; i++) {
-            ScriptTerm scriptTerm = scriptTerms.get(terms[i]);
+            IndexFieldTerm indexFieldTerm = indexField.get(terms[i]);
             try {
-                if (scriptTerm.tf() != 0) {
-                    score += scriptTerm.tf() * scriptTerms.docCount() / scriptTerm.df();
+                if (indexFieldTerm.tf() != 0) {
+                    score += indexFieldTerm.tf() * indexField.docCount() / indexFieldTerm.df();
                 }
             } catch (IOException e) {
                 throw new RuntimeException();

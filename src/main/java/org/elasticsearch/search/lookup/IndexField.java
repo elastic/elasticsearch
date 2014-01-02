@@ -30,14 +30,14 @@ import java.util.Map;
 /**
  * Script interface to all information regarding a field.
  * */
-public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
+public class IndexField extends MinimalMap<String, IndexFieldTerm> {
 
     /*
      * TermsInfo Objects that represent the Terms are stored in this map when
      * requested. Information such as frequency, doc frequency and positions
      * information can be retrieved from the TermInfo objects in this map.
      */
-    private final Map<String, ScriptTerm> terms = new HashMap<String, ScriptTerm>();
+    private final Map<String, IndexFieldTerm> terms = new HashMap<String, IndexFieldTerm>();
 
     // the name of this field
     private final String fieldName;
@@ -46,7 +46,7 @@ public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
      * The holds the current reader. We need it to populate the field
      * statistics. We just delegate all requests there
      */
-    private ShardTermsLookup shardTermsLookup;
+    private IndexLookup indexLookup;
 
     /*
      * General field statistics such as number of documents containing the
@@ -58,7 +58,7 @@ public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
      * Uodate posting lists in all TermInfo objects
      */
     void setReader(AtomicReader reader) {
-        for (ScriptTerm ti : terms.values()) {
+        for (IndexFieldTerm ti : terms.values()) {
             ti.setNextReader(reader);
         }
     }
@@ -68,15 +68,15 @@ public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
      * statistics of this field. Information on specific terms in this field can
      * be accessed by calling get(String term).
      */
-    public ScriptTerms(String fieldName, ShardTermsLookup shardTermsLookup) throws IOException {
+    public IndexField(String fieldName, IndexLookup indexLookup) throws IOException {
 
         assert fieldName != null;
         this.fieldName = fieldName;
 
-        assert shardTermsLookup != null;
-        this.shardTermsLookup = shardTermsLookup;
+        assert indexLookup != null;
+        this.indexLookup = indexLookup;
 
-        fieldStats = shardTermsLookup.getIndexSearcher().collectionStatistics(fieldName);
+        fieldStats = this.indexLookup.getIndexSearcher().collectionStatistics(fieldName);
     }
 
     /* get number of documents containing the field */
@@ -107,29 +107,29 @@ public class ScriptTerms extends MinimalMap<String, ScriptTerm> {
      * advance which terms are requested, we could provide an array which the
      * user could then iterate over.
      */
-    public ScriptTerm get(Object key, int flags) {
+    public IndexFieldTerm get(Object key, int flags) {
         String termString = (String) key;
-        ScriptTerm termInfo = terms.get(termString);
+        IndexFieldTerm indexFieldTerm = terms.get(termString);
         // see if we initialized already...
-        if (termInfo == null) {
-            termInfo = new ScriptTerm(termString, fieldName, shardTermsLookup, flags);
-            terms.put(termString, termInfo);
+        if (indexFieldTerm == null) {
+            indexFieldTerm = new IndexFieldTerm(termString, fieldName, indexLookup, flags);
+            terms.put(termString, indexFieldTerm);
         }
-        termInfo.validateFlags(flags);
-        return termInfo;
+        indexFieldTerm.validateFlags(flags);
+        return indexFieldTerm;
     }
 
     /*
      * Returns a TermInfo object that can be used to access information on
      * specific terms. flags can be set as described in TermInfo.
      */
-    public ScriptTerm get(Object key) {
+    public IndexFieldTerm get(Object key) {
         // per default, do not initialize any positions info
-        return get(key, ShardTermsLookup.FLAG_FREQUENCIES);
+        return get(key, IndexLookup.FLAG_FREQUENCIES);
     }
 
     public void setDocIdInTerms(int docId) {
-        for (ScriptTerm ti : terms.values()) {
+        for (IndexFieldTerm ti : terms.values()) {
             ti.setNextDoc(docId);
         }
     }

@@ -1,8 +1,8 @@
 package org.elasticsearch.benchmark.scripts.score.script;
 
-import org.elasticsearch.search.lookup.ScriptTerm;
-import org.elasticsearch.search.lookup.ScriptTerms;
-import org.elasticsearch.search.lookup.ShardTermsLookup;
+import org.elasticsearch.search.lookup.IndexFieldTerm;
+import org.elasticsearch.search.lookup.IndexField;
+import org.elasticsearch.search.lookup.IndexLookup;
 import org.elasticsearch.search.lookup.TermPosition;
 
 import org.elasticsearch.common.Nullable;
@@ -40,10 +40,10 @@ public class NativePayloadSumScoreScript extends AbstractSearchScript {
     @Override
     public Object run() {
         float score = 0;
-        ScriptTerms scriptTerms = shardTerms().get(field);
+        IndexField indexField = indexLookup().get(field);
         for (int i = 0; i < terms.length; i++) {
-            ScriptTerm scriptTerm = scriptTerms.get(terms[i], ShardTermsLookup.FLAG_PAYLOADS | ShardTermsLookup.FLAG_CACHE);
-            for (TermPosition pos : scriptTerm) {
+            IndexFieldTerm indexFieldTerm = indexField.get(terms[i], IndexLookup.FLAG_PAYLOADS | IndexLookup.FLAG_CACHE);
+            for (TermPosition pos : indexFieldTerm) {
                 score += pos.payloadAsFloat(0);
             }
         }

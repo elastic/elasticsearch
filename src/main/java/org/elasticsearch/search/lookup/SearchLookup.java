@@ -37,7 +37,7 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
     
-    final ShardTermsLookup shardTermsLookup;
+    final IndexLookup indexLookup;
     
     final ImmutableMap<String, Object> asMap;
 
@@ -46,13 +46,13 @@ public class SearchLookup {
         docMap = new DocLookup(mapperService, fieldDataService, types);
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
-        shardTermsLookup = new ShardTermsLookup(builder);
+        indexLookup = new IndexLookup(builder);
         
         builder.put("doc", docMap);
         builder.put("_doc", docMap);
         builder.put("_source", sourceLookup);
         builder.put("_fields", fieldsLookup);
-        builder.put("_shard", shardTermsLookup);
+        builder.put("_index", indexLookup);
         asMap = builder.build();
     }
 
@@ -64,8 +64,8 @@ public class SearchLookup {
         return this.sourceLookup;
     }
     
-    public ShardTermsLookup shardTerms() {
-        return this.shardTermsLookup;
+    public IndexLookup indexLookup() {
+        return this.indexLookup;
     }
 
     public FieldsLookup fields() {
@@ -84,13 +84,13 @@ public class SearchLookup {
         docMap.setNextReader(context);
         sourceLookup.setNextReader(context);
         fieldsLookup.setNextReader(context);
-        shardTermsLookup.setNextReader(context);
+        indexLookup.setNextReader(context);
     }
 
     public void setNextDocId(int docId) {
         docMap.setNextDocId(docId);
         sourceLookup.setNextDocId(docId);
         fieldsLookup.setNextDocId(docId);
-        shardTermsLookup.setNextDocId(docId);
+        indexLookup.setNextDocId(docId);
     }
 }

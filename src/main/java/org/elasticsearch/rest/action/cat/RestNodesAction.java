@@ -74,7 +74,7 @@ public class RestNodesAction extends AbstractCatAction {
                     @Override
                     public void onResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true);
+                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -136,6 +136,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("ramPercent", "text-align:right;desc:used machine memory ratio");
         table.addCell("ramMax", "default:false;text-align:right;desc:total machine memory");
 
+        table.addCell("fielddata", "default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("filter", "default:false;text-align:right;desc:used filter cache");
+        table.addCell("idCache", "default:false;text-align:right;desc:used id cache");
+
         table.addCell("load", "text-align:right;desc:most recent load avg");
         table.addCell("uptime", "default:false;text-align:right;desc:node uptime");
         table.addCell("data/client", "desc:d:data node, c:client node");
@@ -170,6 +174,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getJvm().getMem().getHeapMax());
             table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().usedPercent());
             table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+
+            table.addCell(stats == null ? null : stats.getIndices().getFieldData().getMemorySize());
+            table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
+            table.addCell(stats == null ? null : stats.getIndices().getIdCache().getMemorySize());
 
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", stats.getOs().getLoadAverage()[0]));
             table.addCell(stats == null ? null : stats.getJvm().uptime());

@@ -117,24 +117,32 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public T storeTermVectors(boolean termVectors) {
-            this.fieldType.setStoreTermVectors(termVectors);
+            if (termVectors) {
+                this.fieldType.setStoreTermVectors(termVectors);
+            } // don't set it to false, it is default and might be flipped by a more specific option
             return builder;
         }
 
         public T storeTermVectorOffsets(boolean termVectorOffsets) {
-            this.fieldType.setStoreTermVectors(termVectorOffsets);
+            if (termVectorOffsets) {
+                this.fieldType.setStoreTermVectors(termVectorOffsets);
+            }
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
             return builder;
         }
 
         public T storeTermVectorPositions(boolean termVectorPositions) {
-            this.fieldType.setStoreTermVectors(termVectorPositions);
+            if (termVectorPositions) {
+                this.fieldType.setStoreTermVectors(termVectorPositions);
+            }
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
             return builder;
         }
 
         public T storeTermVectorPayloads(boolean termVectorPayloads) {
-            this.fieldType.setStoreTermVectors(termVectorPayloads);
+            if (termVectorPayloads) {
+                this.fieldType.setStoreTermVectors(termVectorPayloads);
+            }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
             return builder;
         }

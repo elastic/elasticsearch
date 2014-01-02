@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
@@ -99,8 +100,8 @@ public class MultiMatchQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     multiMatchQuery.setPhraseSlop(parser.intValue());
-                } else if ("fuzziness".equals(currentFieldName)) {
-                    multiMatchQuery.setFuzziness(parser.textOrNull());
+                } else if (Fuzziness.FIELD.match(currentFieldName, parseContext.parseFlags())) {
+                    multiMatchQuery.setFuzziness(Fuzziness.parse(parser));
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     multiMatchQuery.setFuzzyPrefixLength(parser.intValue());
                 } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {

@@ -46,8 +46,8 @@ increments in result queries. Defaults to `true`.
 |`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
 expand to. Defaults to `50`
 
-|`fuzzy_min_sim` |Set the minimum similarity for fuzzy queries. Defaults
-to `0.5`
+|`fuzziness` |Set the fuzziness for fuzzy queries. Defaults
+to `AUTO`. See  <<fuzziness>> for allowed settings.
 
 |`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
 is `0`.
@@ -70,7 +70,7 @@ in the resulting boolean query should match. It can be an absolute value
 both>>.
 
 |`lenient` |If set to `true` will cause format based failures (like
-providing text to a numeric field) to be ignored. 
+providing text to a numeric field) to be ignored.
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -128,7 +128,7 @@ search on all "city" fields:
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
-`city.\*:something`. 
+`city.\*:something`.
 
 When running the `query_string` query against multiple fields, the
 following additional parameters are allowed:

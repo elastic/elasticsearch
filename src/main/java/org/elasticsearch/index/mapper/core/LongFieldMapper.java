@@ -35,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
@@ -165,14 +166,9 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+    public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = Long.parseLong(value);
-        long iSim;
-        try {
-            iSim = Long.parseLong(minSim);
-        } catch (NumberFormatException e) {
-            iSim = (long) Double.parseDouble(minSim);
-        }
+        final long iSim = fuzziness.asLong();
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,

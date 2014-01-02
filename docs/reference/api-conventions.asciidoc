@@ -122,6 +122,21 @@ fields within a document indexed treated as boolean fields.
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
+[[time-units]]
+[float]
+=== Time units
+
+Whenever durations need to be specified, eg for a `timeout` parameter, the duration
+can be specified as a whole number representing time in milliseconds, or as a time value like `2d` for 2 days.  The supported units are:
+
+[horizontal]
+`y`::   Year
+`M`::   Month
+`w`::   Week
+`h`::   Hour
+`m`::   Minute
+`s`::   Second
+
 [[distance-units]]
 [float]
 === Distance Units
@@ -142,6 +157,63 @@ Kilometer::     `km` or `kilometers`
 Meter::         `m` or `meters`
 Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
+
+
+[[fuzziness]]
+[float]
+=== Fuzziness
+
+Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
+using the `fuzziness` parameter. The `fuzziness` parameter is context
+sensitive which means that it depends on the type of the field being queried:
+
+[float]
+==== Numeric, date and IPv4 fields
+
+When querying numeric, date and IPv4 fields, `fuzziness` is interpreted as a
+`+/- margin. It behaves like a <<query-dsl-range-query>> where:
+
+    -fuzziness <= field value <= +fuzziness
+
+The `fuzziness` parameter should be set to a numeric value, eg `2` or `2.0`. A
+`date` field interprets a long as milliseconds, but also accepts a string
+containing a time value -- `"1h"` -- as explained in <<time-units>>. An `ip`
+field accepts a long or another IPv4 address (which will be converted into a
+long).
+
+[float]
+==== String fields
+
+When querying `string` fields, `fuzziness` is interpreted as a
+http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
+-- the number of one character changes that need to be made to one string to
+make it the same as another string.
+
+The `fuzziness` parameter can be specified as:
+
+`0`, `1`, `2`::
+
+the maximum allowed Levenshtein Edit Distance (or number of edits)
+
+`AUTO`::
++
+--
+generates an edit distance based on the length of the term. For lengths:
+
+`0..1`:: must match exactly
+`1..4`:: one edit allowed
+`>4`:: two edits allowed
+
+`AUTO` should generally be the preferred value for `fuzziness`.
+--
+
+`0.0..1.0`::
+
+converted into an edit distance using the formula: `length(term) * (1.0 -
+fuzziness)`, eg a `fuzziness` of `0.6` with a term of length 10 would result
+in an edit distance of `4`. Note: in all APIs except for the
+<<query-dsl-flt-query>>, the maximum allowed edit distance is `2`.
+
 
 
 [float]

@@ -30,6 +30,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -435,7 +436,7 @@ public class MapperQueryParser extends QueryParser {
             if (currentMapper != null) {
                 try {
                     //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed
-                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, minSimilarity, fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
+                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, Fuzziness.build(minSimilarity), fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
                     return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {

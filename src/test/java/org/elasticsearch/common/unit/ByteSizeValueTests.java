@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
@@ -52,5 +53,27 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
         assertThat("1.5mb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
         assertThat("1.5gb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
         assertThat("1536gb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
+    }
+
+    @Test
+    public void testParsing() {
+        assertThat(ByteSizeValue.parseBytesSizeValue("12gb").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12G").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12GB").toString(), is("12gb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("12M").toString(), is("12mb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("1b").toString(), is("1b"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23kb").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23k").toString(), is("23kb"));
+        assertThat(ByteSizeValue.parseBytesSizeValue("23").toString(), is("23b"));
+    }
+
+    @Test(expected = ElasticSearchParseException.class)
+    public void testFailOnEmptyParsing() {
+        assertThat(ByteSizeValue.parseBytesSizeValue("").toString(), is("23kb"));
+    }
+
+    @Test(expected = ElasticSearchParseException.class)
+    public void testFailOnEmptyNumberParsing() {
+        assertThat(ByteSizeValue.parseBytesSizeValue("g").toString(), is("23b"));
     }
 }

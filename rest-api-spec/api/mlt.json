@@ -35,7 +35,7 @@
           "type" : "number",
           "description" : "The maximum query terms to be included in the generated query"
         },
-        "max_word_len": {
+        "max_word_length": {
           "type" : "number",
           "description" : "The minimum length of the word: longer words will be ignored"
         },
@@ -47,7 +47,7 @@
           "type" : "number",
           "description" : "The term frequency as percent: terms with lower occurence in the source document will be ignored"
         },
-        "min_word_len": {
+        "min_word_length": {
           "type" : "number",
           "description" : "The minimum length of the word: shorter words will be ignored"
         },

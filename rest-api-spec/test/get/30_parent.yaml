@@ -1,6 +1,5 @@
 ---
-"Parent":
-
+setup:
  - do:
       indices.create:
           index: test_1
@@ -20,6 +19,9 @@
           parent:  中文
           body:    { foo: bar }
 
+---
+"Parent":
+
  - do:
       get:
           index:   test_1
@@ -32,8 +34,27 @@
  - match:   { fields._parent: 中文 }
  - match:   { fields._routing: 中文}
 
+---
+"Parent omitted post 1.0":
+ - skip:
+      version: "0 - 0.999"
+      reason: "Required parent has been introduced in 1.0"
+    
  - do:
-      catch: param
+      catch: request
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+
+---
+"Parent omitted pre 1.0":
+ - skip:
+      version: "1 - 999"
+      reason: "Required parent has been introduced in 1.0"
+
+ - do:
+      catch: missing
       get:
           index:   test_1
           type:    test

@@ -40,10 +40,3 @@
  - match:   { fields._parent: "5"}
  - match:   { fields._routing: "5"}
 
- - do:
-      catch: param
-      get:
-          index:   test_1
-          type:    test
-          id:      1
-

@@ -8,6 +8,7 @@
             mappings:
               test:
                 _parent: { type: "foo" }
+
  - do:
       cluster.health:
           wait_for_status: yellow
@@ -39,11 +40,4 @@
  - match:   { _id:      "1"}
  - match:   { fields._parent: "5"}
  - match:   { fields._routing: "5"}
-
- - do:
-      catch: param
-      get:
-          index:   test_1
-          type:    test
-          id:      1
 

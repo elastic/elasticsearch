@@ -33,8 +33,8 @@ The `fuzzy_like_this_field` top level parameters include:
 |`max_query_terms` |The maximum number of query terms that will be
 included in any generated query. Defaults to `25`.
 
-|`min_similarity` |The minimum similarity of the term variants. Defaults
-to `0.5`.
+|`fuzziness` |The fuzziness of the term variants. Defaults
+to `0.5`. See  <<fuzziness>>.
 
 |`prefix_length` |Length of required common prefix on variant terms.
 Defaults to `0`.

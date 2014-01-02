@@ -19,6 +19,8 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
@@ -34,6 +36,7 @@ import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
 public class CompletionSuggestParser implements SuggestContextParser {
 
     private CompletionSuggester completionSuggester;
+    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("edit_distance");
 
     public CompletionSuggestParser(CompletionSuggester completionSuggester) {
         this.completionSuggester = completionSuggester;
@@ -60,8 +63,8 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fuzzyConfigName = parser.currentName();
                     } else if (token.isValue()) {
-                        if ("edit_distance".equals(fuzzyConfigName) || "editDistance".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyEditDistance(parser.intValue());
+                        if (FUZZINESS.match(fuzzyConfigName, ParseField.EMPTY_FLAGS)) {
+                            suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
                         } else if ("transpositions".equals(fuzzyConfigName)) {
                             suggestion.setFuzzyTranspositions(parser.booleanValue());
                         } else if ("min_length".equals(fuzzyConfigName) || "minLength".equals(fuzzyConfigName)) {

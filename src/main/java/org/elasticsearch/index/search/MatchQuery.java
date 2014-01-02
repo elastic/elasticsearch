@@ -35,6 +35,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -69,7 +70,7 @@ public class MatchQuery {
 
     protected int phraseSlop = 0;
 
-    protected String fuzziness = null;
+    protected Fuzziness fuzziness = null;
     
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
     
@@ -112,7 +113,7 @@ public class MatchQuery {
         this.phraseSlop = phraseSlop;
     }
 
-    public void setFuzziness(String fuzziness) {
+    public void setFuzziness(Fuzziness fuzziness) {
         this.fuzziness = fuzziness;
     }
 
@@ -365,10 +366,7 @@ public class MatchQuery {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
             }
-            String text = term.text();
-            //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
-            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness),
-                    text.codePointCount(0, text.length()));
+            int edits = fuzziness.asDistance(term.text());
             FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;

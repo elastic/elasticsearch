@@ -157,6 +157,11 @@ public class Table {
         public final Object value;
         public final Map<String, String> attr;
 
+        public Cell(Object value, Cell other) {
+            this.value = value;
+            this.attr = other.attr;
+        }
+
         public Cell(Object value) {
             this.value = value;
             this.attr = new HashMap<String, String>();

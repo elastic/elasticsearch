@@ -21,6 +21,8 @@ include::modules/plugins.asciidoc[]
 
 include::modules/scripting.asciidoc[]
 
+include::modules/advanced-scripting.asciidoc[]
+
 include::modules/threadpool.asciidoc[]
 
 include::modules/thrift.asciidoc[]

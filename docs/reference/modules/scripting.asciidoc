@@ -113,6 +113,11 @@ In all scripts that can be used in facets, allow to access the current
 doc score using `doc.score`.
 
 [float]
+=== Computing scores based on terms in scripts
+
+see <<modules-advanced-scripting, advanced scripting documentation>> 
+
+[float]
 === Document Fields
 
 Most scripting revolve around the use of specific document fields data.
@@ -189,6 +194,7 @@ but the data is not loaded into memory. For a single field access `_fields` may 
 faster than using `_source` due to the extra overhead of potentially parsing large documents.
 However, `_source` may be faster if you access multiple fields or if the source has already been
 loaded for other purposes.
+
 
 [float]
 === mvel Built In Functions

@@ -999,7 +999,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
-                    .field("max_input_len", maxInputLen)
+                    .field("max_input_length", maxInputLen)
                             // upgrade mapping each time
                     .field("analyzer", "keyword")
                     .endObject()
@@ -1038,7 +1038,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject()
                 .endObject()));
         ensureYellow();
-        // can cause stack overflow without the default max_input_len
+        // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(atLeast(5000)), (char) 0x01);
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -1061,7 +1061,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject()
                 .endObject()));
         ensureYellow();
-        // can cause stack overflow without the default max_input_len
+        // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)

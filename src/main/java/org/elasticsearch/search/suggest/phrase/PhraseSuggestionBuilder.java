@@ -590,10 +590,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 builder.field("max_term_freq", maxTermFreq);
             }
             if (prefixLength != null) {
-                builder.field("prefix_len", prefixLength);
+                builder.field("prefix_length", prefixLength);
             }
             if (minWordLength != null) {
-                builder.field("min_word_len", minWordLength);
+                builder.field("min_word_length", minWordLength);
             }
             if (minDocFreq != null) {
                 builder.field("min_doc_freq", minDocFreq);

@@ -73,8 +73,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     private String[] stopWords = null;
     private int minDocFreq = -1;
     private int maxDocFreq = -1;
-    private int minWordLen = -1;
-    private int maxWordLen = -1;
+    private int minWordLength = -1;
+    private int maxWordLength = -1;
     private float boostTerms = -1;
 
     private SearchType searchType = SearchType.DEFAULT;
@@ -275,31 +275,31 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
-    public MoreLikeThisRequest minWordLen(int minWordLen) {
-        this.minWordLen = minWordLen;
+    public MoreLikeThisRequest minWordLength(int minWordLength) {
+        this.minWordLength = minWordLength;
         return this;
     }
 
     /**
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
-    public int minWordLen() {
-        return this.minWordLen;
+    public int minWordLength() {
+        return this.minWordLength;
     }
 
     /**
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
-    public MoreLikeThisRequest maxWordLen(int maxWordLen) {
-        this.maxWordLen = maxWordLen;
+    public MoreLikeThisRequest maxWordLength(int maxWordLength) {
+        this.maxWordLength = maxWordLength;
         return this;
     }
 
     /**
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
-    public int maxWordLen() {
-        return this.maxWordLen;
+    public int maxWordLength() {
+        return this.maxWordLength;
     }
 
     /**
@@ -554,8 +554,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         }
         minDocFreq = in.readVInt();
         maxDocFreq = in.readVInt();
-        minWordLen = in.readVInt();
-        maxWordLen = in.readVInt();
+        minWordLength = in.readVInt();
+        maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
@@ -625,8 +625,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         }
         out.writeVInt(minDocFreq);
         out.writeVInt(maxDocFreq);
-        out.writeVInt(minWordLen);
-        out.writeVInt(maxWordLen);
+        out.writeVInt(minWordLength);
+        out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
 
         out.writeByte(searchType.id());

@@ -202,12 +202,12 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString EXISTS = new XContentBuilderString("exists");
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.EXISTS, exists);
+        builder.field(Fields.FOUND, exists);
 
         if (source != null) {
             RestXContentBuilder.restDocumentSource(source, builder, params);
@@ -242,7 +242,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
-            builder.field(Fields.EXISTS, false);
+            builder.field(Fields.FOUND, false);
             builder.endObject();
         } else {
             builder.startObject();

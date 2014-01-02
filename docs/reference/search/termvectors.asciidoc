@@ -170,7 +170,7 @@ Response:
     "_index": "twitter",
     "_type": "tweet",
     "_version": 1,
-    "exists": true,
+    "found": true,
     "term_vectors": {
         "text": {
             "field_statistics": {
@@ -222,5 +222,3 @@ Response:
     }
 }
 --------------------------------------------------
-
-

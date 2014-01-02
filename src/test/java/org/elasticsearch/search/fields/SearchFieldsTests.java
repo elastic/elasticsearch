@@ -29,6 +29,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -330,5 +331,96 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
         assertThat(((BytesReference) searchResponse.getHits().getAt(0).fields().get("binary_field").value()).toBytesArray(), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
 
+    }
+
+    @Test
+    public void testSearchFields_metaData() throws Exception {
+        client().prepareIndex("my-index", "my-type1", "1")
+                .setRouting("1")
+                .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("my-index")
+                .setTypes("my-type1")
+                .addField("field1").addField("_routing")
+                .get();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").isMetadataField(), equalTo(false));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value"));
+        assertThat(searchResponse.getHits().getAt(0).field("_routing").isMetadataField(), equalTo(true));
+        assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
+    }
+
+    @Test
+    public void testSearchFields_nonLeafField() throws Exception {
+        client().prepareIndex("my-index", "my-type1", "1")
+                .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type1").addField("field1").get();
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("field [field1] isn't a leaf field"));
+    }
+
+    @Test
+    public void testGetFields_complexField() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
+                        .startObject("field1").field("type", "object")
+                        .startObject("field2").field("type", "object")
+                        .startObject("field3").field("type", "object")
+                        .startObject("field4").field("type", "string").field("store", "yes")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .get();
+
+        BytesReference source = jsonBuilder().startObject()
+                .startArray("field1")
+                    .startObject()
+                        .startObject("field2")
+                            .startArray("field3")
+                                .startObject()
+                                    .field("field4", "value1")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                        .startObject("field2")
+                            .startArray("field3")
+                                .startObject()
+                                    .field("field4", "value2")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().bytes();
+
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
+        client().prepareIndex("my-index", "my-type2", "1").setRefresh(true).setSource(source).get();
+
+
+        String field = "field1.field2.field3.field4";
+        SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type1").addField(field).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
+
+        searchResponse = client().prepareSearch("my-index").setTypes("my-type2").addField(field).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
     }
 }

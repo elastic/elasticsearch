@@ -415,12 +415,12 @@ public class InternalSearchHit implements SearchHit {
                 if (field.values().isEmpty()) {
                     continue;
                 }
-                if (field.values().size() == 1) {
-                    builder.field(field.name(), field.values().get(0));
+                String fieldName = field.getName();
+                if (field.isMetadataField()) {
+                    builder.field(fieldName, field.value());
                 } else {
-                    builder.field(field.name());
-                    builder.startArray();
-                    for (Object value : field.values()) {
+                    builder.startArray(fieldName);
+                    for (Object value : field.getValues()) {
                         builder.value(value);
                     }
                     builder.endArray();

@@ -22,6 +22,7 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,11 +35,9 @@ import java.util.List;
 public class GetField implements Streamable, Iterable<Object> {
 
     private String name;
-
     private List<Object> values;
 
     private GetField() {
-
     }
 
     public GetField(String name, List<Object> values) {
@@ -59,6 +58,10 @@ public class GetField implements Streamable, Iterable<Object> {
 
     public List<Object> getValues() {
         return values;
+    }
+
+    public boolean isMetadataField() {
+        return MapperService.isMetadataField(name);
     }
 
     @Override

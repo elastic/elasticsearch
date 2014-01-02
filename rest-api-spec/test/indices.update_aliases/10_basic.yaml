@@ -31,7 +31,7 @@
   - is_true: ''
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'routing_value', 'search_routing': 'routing_value'}}

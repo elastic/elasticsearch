@@ -20,6 +20,7 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.*;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,6 +34,8 @@ import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -40,7 +43,6 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class SimilarityTests extends ElasticsearchTestCase {
 
@@ -163,6 +165,12 @@ public class SimilarityTests extends ElasticsearchTestCase {
                 .add(new MapperServiceModule())
                 .add(new AnalysisModule(settings))
                 .add(new SimilarityModule(settings))
+                .add(new AbstractModule() {
+                    @Override
+                    protected void configure() {
+                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
+                    }
+                })
                 .createInjector();
         return injector.getInstance(SimilarityService.class);
     }

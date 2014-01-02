@@ -116,6 +116,12 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/http", httpHandler);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/http/stats", httpHandler);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http/stats", httpHandler);
+
+        RestBreakerHandler breakerHandler = new RestBreakerHandler();
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/breaker", breakerHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/breaker", breakerHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/breaker/stats", breakerHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/breaker/stats", breakerHandler);
     }
 
     @Override
@@ -141,6 +147,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         nodesStatsRequest.fs(request.paramAsBoolean("fs", nodesStatsRequest.fs()));
         nodesStatsRequest.transport(request.paramAsBoolean("transport", nodesStatsRequest.transport()));
         nodesStatsRequest.http(request.paramAsBoolean("http", nodesStatsRequest.http()));
+        nodesStatsRequest.breaker(request.paramAsBoolean("breaker", nodesStatsRequest.breaker()));
         executeNodeStats(request, channel, nodesStatsRequest);
     }
 
@@ -261,6 +268,15 @@ public class RestNodesStatsAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
             nodesStatsRequest.clear().http(true);
+            executeNodeStats(request, channel, nodesStatsRequest);
+        }
+    }
+
+    class RestBreakerHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
+            nodesStatsRequest.clear().breaker(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }

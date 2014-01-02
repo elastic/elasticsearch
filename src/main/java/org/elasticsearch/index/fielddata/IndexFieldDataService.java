@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -54,6 +55,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
     private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
+    private final CircuitBreakerService circuitBreakerService;
 
     static {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
@@ -123,14 +125,16 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     IndexService indexService;
 
     // public for testing
-    public IndexFieldDataService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS));
+    public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS), circuitBreakerService);
     }
 
     @Inject
-    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache) {
+    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
+                                 CircuitBreakerService circuitBreakerService) {
         super(index, indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     // we need to "inject" the index service to not create cyclic dep
@@ -231,7 +235,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }
 
-                    fieldData = builder.build(index, indexSettings, mapper, cache);
+                    fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService);
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             }

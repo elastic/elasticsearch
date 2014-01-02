@@ -335,7 +335,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         } else if (includeDefaults) {
-            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {

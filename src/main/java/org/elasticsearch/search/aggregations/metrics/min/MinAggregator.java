@@ -23,12 +23,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 
@@ -45,11 +45,9 @@ public class MinAggregator extends Aggregator {
         super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            if (valuesSource != null) {
-                final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-                mins = BigArrays.newDoubleArray(initialSize);
-                mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            }
+            final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
+            mins = BigArrays.newDoubleArray(initialSize);
+            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
     }
 

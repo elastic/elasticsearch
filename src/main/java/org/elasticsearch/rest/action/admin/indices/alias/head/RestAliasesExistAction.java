@@ -43,6 +43,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+        controller.registerHandler(HEAD, "/{index}/_alias", this);
     }
 
     @Override

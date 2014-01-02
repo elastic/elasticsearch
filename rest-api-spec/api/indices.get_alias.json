@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_alias/{name}",
-      "paths": ["/_alias/{name}", "/{index}/_alias/{name}"],
+      "paths": ["/_alias/{name}", "/{index}/_alias/{name}", "/{index}/_alias"],
       "parts": {
         "index": {
           "type" : "list",
@@ -12,7 +12,6 @@
         },
         "name": {
           "type" : "list",
-          "required" : true,
           "description" : "A comma-separated list of alias names to return"
         }
       },

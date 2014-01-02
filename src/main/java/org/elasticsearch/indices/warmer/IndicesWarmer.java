@@ -25,6 +25,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
+import java.util.concurrent.Future;
+
 /**
  */
 public interface IndicesWarmer {
@@ -35,7 +38,8 @@ public interface IndicesWarmer {
             return ThreadPool.Names.WARMER;
         }
 
-        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
+        public abstract Collection<Future<?>> warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {

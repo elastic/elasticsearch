@@ -144,9 +144,9 @@ public interface FieldMapper<T> extends Mapper {
         public static Loading parse(String loading, Loading defaultValue) {
             if (Strings.isNullOrEmpty(loading)) {
                 return defaultValue;
-            } else if (EAGER_VALUE.equals(loading)) {
+            } else if (EAGER_VALUE.equalsIgnoreCase(loading)) {
                 return EAGER;
-            } else if (LAZY_VALUE.equals(loading)) {
+            } else if (LAZY_VALUE.equalsIgnoreCase(loading)) {
                 return LAZY;
             } else {
                 throw new MapperParsingException("Unknown [" + KEY + "] value: [" + loading + "]");

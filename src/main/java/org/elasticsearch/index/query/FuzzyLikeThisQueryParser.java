@@ -24,7 +24,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
 
@@ -47,6 +49,7 @@ import java.util.List;
 public class FuzzyLikeThisQueryParser implements QueryParser {
 
     public static final String NAME = "flt";
+    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
     @Inject
     public FuzzyLikeThisQueryParser() {
@@ -65,7 +68,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         float boost = 1.0f;
         List<String> fields = null;
         String likeText = null;
-        float minSimilarity = 0.5f;
+        Fuzziness fuzziness = Fuzziness.TWO;
         int prefixLength = 0;
         boolean ignoreTF = false;
         Analyzer analyzer = null;
@@ -86,8 +89,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = parser.booleanValue();
-                } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName)) {
-                    minSimilarity = parser.floatValue();
+                } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                    fuzziness = Fuzziness.parse(parser);
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
@@ -139,7 +142,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
             return null;
         }
         for (String field : fields) {
-            query.addTerms(likeText, field, minSimilarity, prefixLength);
+            query.addTerms(likeText, field, fuzziness.asSimilarity(), prefixLength);
         }
         query.setBoost(boost);
         query.setIgnoreTF(ignoreTF);

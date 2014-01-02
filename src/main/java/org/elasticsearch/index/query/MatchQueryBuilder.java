@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private Integer slop;
 
-    private String fuzziness;
+    private Fuzziness fuzziness;
 
     private Integer prefixLength;
 
@@ -82,11 +83,11 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private String fuzzyRewrite = null;
 
     private Boolean lenient;
-    
+
     private Boolean fuzzyTranspositions = null;
 
     private ZeroTermsQuery zeroTermsQuery;
-    
+
     private Float cutoff_Frequency = null;
 
     private String queryName;
@@ -141,10 +142,10 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     }
 
     /**
-     * Sets the minimum similarity used when evaluated to a fuzzy query type. Defaults to "0.5".
+     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
     public MatchQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = fuzziness.toString();
+        this.fuzziness = Fuzziness.build(fuzziness);
         return this;
     }
 
@@ -161,7 +162,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.maxExpansions = maxExpansions;
         return this;
     }
-    
+
     /**
      * Set a cutoff value in [0..1] (or absolute number >=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
@@ -186,7 +187,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
     }
-    
+
     public MatchQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
         //LUCENE 4 UPGRADE add documentation
         this.fuzzyTranspositions = fuzzyTranspositions;
@@ -236,7 +237,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             builder.field("slop", slop);
         }
         if (fuzziness != null) {
-            builder.field("fuzziness", fuzziness);
+            fuzziness.toXContent(builder, params);
         }
         if (prefixLength != null) {
             builder.field("prefix_length", prefixLength);
@@ -269,7 +270,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         if (queryName != null) {
             builder.field("_name", queryName);
         }
-        
+
 
         builder.endObject();
         builder.endObject();

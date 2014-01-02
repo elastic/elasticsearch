@@ -1,12 +1,15 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
-A fuzzy query that uses similarity based on Levenshtein (edit
-distance) algorithm. This maps to Lucene's `FuzzyQuery`.
+The fuzzy query uses similarity based on Levenshtein edit distance for
+`string` fields, and a `+/-` margin on numeric and date fields.
 
-Warning: this query is not very scalable with its default prefix length
-of 0 - in this case, *every* term will be enumerated and cause an edit
-score calculation or `max_expansions` is not set.
+==== String fields
+
+The `fuzzy` query generates all possible matching terms that are within  the
+maximum edit distance specified in `fuzziness` and then checks the term
+dictionary to find out which of those generated terms actually exist in the
+index.
 
 Here is a simple example:
 
@@ -17,31 +20,57 @@ Here is a simple example:
 }
 --------------------------------------------------
 
-More complex settings can be set (the values here are the default
-values):
+Or with more advanced settings:
 
 [source,js]
 --------------------------------------------------
-    {
-        "fuzzy" : { 
-            "user" : {
-                "value" : "ki",
-                "boost" : 1.0,
-                "min_similarity" : 0.5,
-                "prefix_length" : 0
-            }
+{
+    "fuzzy" : {
+        "user" : {
+            "value" :         "ki",
+            "boost" :         1.0,
+            "fuzziness" :     2,
+            "prefix_length" : 0,
+            "max_expansions": 100
         }
     }
+}
 --------------------------------------------------
 
-The `max_expansions` parameter (unbounded by default) controls the
-number of terms the fuzzy query will expand to.
+[float]
+===== Parameters
+
+[horizontal]
+`fuzziness`::
+
+    The maximum edit distance. Defaults to `AUTO`. See <<fuzziness>>.
+
+`prefix_length`::
+
+    The number of initial characters which will not be ``fuzzified''. This
+    helps to reduce the number of terms which must be examined. Defaults
+    to `0`.
+
+`max_expansions`::
+
+    The maximum number of terms that the `fuzzy` query will expand to.
+    Defaults to `0`.
+
+
+WARNING: this query can be very heavy if `prefix_length` and `max_expansions`
+are both set to their defaults of `0`. This could cause every term in the
+index to be examined!
+
 
 [float]
-==== Numeric / Date Fuzzy
+==== Numeric and date fields
 
-`fuzzy` query on a numeric field will result in a range query "around"
-the value using the `min_similarity` value. For example:
+Performs a <<query-dsl-range-query>> ``around'' the value using the
+`fuzziness` value as a `+/-` range, where:
+
+    -fuzziness <= field value <= +fuzziness
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -49,14 +78,14 @@ the value using the `min_similarity` value. For example:
     "fuzzy" : {
         "price" : {
             "value" : 12,
-            "min_similarity" : 2
+            "fuzziness" : 2
         }
     }
 }
 --------------------------------------------------
 
-Will result in a range query between 10 and 14. Same applies to dates,
-with support for time format for the `min_similarity` field:
+Will result in a range query between 10 and 14. Date fields support
+<<time-units,time values>>, eg:
 
 [source,js]
 --------------------------------------------------
@@ -64,16 +93,10 @@ with support for time format for the `min_similarity` field:
     "fuzzy" : {
         "created" : {
             "value" : "2010-02-05T12:05:07",
-            "min_similarity" : "1d"
+            "fuzziness" : "1d"
         }
     }
 }
 --------------------------------------------------
 
-In the mapping, numeric and date types now allow to configure a
-`fuzzy_factor` mapping value (defaults to 1), which will be used to
-multiply the fuzzy value by it when used in a `query_string` type query.
-For example, for dates, a fuzzy factor of "1d" will result in
-multiplying whatever fuzzy value provided in the min_similarity by it.
-Note, this is explicitly supported since query_string query only allowed
-for similarity valued between 0.0 and 1.0.
+See <<fuzziness>> for more details about accepted values.

@@ -23,8 +23,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,6 +50,8 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
 public class FuzzyLikeThisFieldQueryParser implements QueryParser {
 
     public static final String NAME = "flt_field";
+    private static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.fromSimilarity(0.5f);
+    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
     @Inject
     public FuzzyLikeThisFieldQueryParser() {
@@ -65,7 +69,7 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         int maxNumTerms = 25;
         float boost = 1.0f;
         String likeText = null;
-        float minSimilarity = 0.5f;
+        Fuzziness fuzziness = DEFAULT_FUZZINESS;
         int prefixLength = 0;
         boolean ignoreTF = false;
         Analyzer analyzer = null;
@@ -98,8 +102,8 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = parser.booleanValue();
-                } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName)) {
-                    minSimilarity = parser.floatValue();
+                } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                    fuzziness = Fuzziness.parse(parser);
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
@@ -139,7 +143,7 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         }
 
         FuzzyLikeThisQuery fuzzyLikeThisQuery = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
-        fuzzyLikeThisQuery.addTerms(likeText, fieldName, minSimilarity, prefixLength);
+        fuzzyLikeThisQuery.addTerms(likeText, fieldName, fuzziness.asSimilarity(), prefixLength);
         fuzzyLikeThisQuery.setBoost(boost);
         fuzzyLikeThisQuery.setIgnoreTF(ignoreTF);
 

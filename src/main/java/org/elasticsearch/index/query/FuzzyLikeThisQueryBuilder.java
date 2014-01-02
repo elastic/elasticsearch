@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
     private Float boost;
 
     private String likeText = null;
-    private Float minSimilarity;
+    private Fuzziness fuzziness;
     private Integer prefixLength;
     private Integer maxQueryTerms;
     private Boolean ignoreTF;
@@ -66,8 +67,8 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
         return this;
     }
 
-    public FuzzyLikeThisQueryBuilder minSimilarity(float minSimilarity) {
-        this.minSimilarity = minSimilarity;
+    public FuzzyLikeThisQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -132,8 +133,8 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
         if (maxQueryTerms != null) {
             builder.field("max_query_terms", maxQueryTerms);
         }
-        if (minSimilarity != null) {
-            builder.field("min_similarity", minSimilarity);
+        if (fuzziness != null) {
+            fuzziness.toXContent(builder, params);
         }
         if (prefixLength != null) {
             builder.field("prefix_length", prefixLength);

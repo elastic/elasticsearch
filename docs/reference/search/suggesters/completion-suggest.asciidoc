@@ -199,7 +199,7 @@ curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
         "completion" : {
             "field" : "suggest",
             "fuzzy" : {
-                "edit_distance" : 2
+                "fuzziness" : 2
             }
         }
     }
@@ -210,8 +210,9 @@ The fuzzy query can take specific fuzzy parameters.
 The following parameters are supported:
 
 [horizontal]
-`edit_distance`::
-    Maximum edit distance, defaults to `1`
+`fuzziness`::
+    The fuzziness factor, defaults to `AUTO`.
+    See  <<fuzziness>> for allowed settings.
 
 `transpositions`::
     Sets if transpositions should be counted

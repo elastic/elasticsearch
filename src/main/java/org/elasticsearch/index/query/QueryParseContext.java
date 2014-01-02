@@ -29,6 +29,7 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -45,10 +46,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -85,12 +83,24 @@ public class QueryParseContext {
 
     private XContentParser parser;
 
+    private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
+
+
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this.index = index;
         this.indexQueryParser = indexQueryParser;
     }
 
+    public  void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
+        this.parseFlags = parseFlags == null ? ParseField.EMPTY_FLAGS : parseFlags;
+    }
+
+    public EnumSet<ParseField.Flag> parseFlags() {
+        return parseFlags;
+    }
+
     public void reset(XContentParser jp) {
+        this.parseFlags = ParseField.EMPTY_FLAGS;
         this.lookup = null;
         this.parser = jp;
         this.namedFilters.clear();

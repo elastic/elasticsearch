@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
 
     private float boost = -1;
 
-    private String minSimilarity;
+    private Fuzziness fuzziness;
 
     private Integer prefixLength;
 
@@ -67,13 +68,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         return this;
     }
 
-    public FuzzyQueryBuilder minSimilarity(float defaultMinSimilarity) {
-        this.minSimilarity = Float.toString(defaultMinSimilarity);
-        return this;
-    }
-
-    public FuzzyQueryBuilder minSimilarity(String defaultMinSimilarity) {
-        this.minSimilarity = defaultMinSimilarity;
+    public FuzzyQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -103,7 +99,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyQueryParser.NAME);
-        if (boost == -1 && minSimilarity == null && prefixLength == null && queryName != null) {
+        if (boost == -1 && fuzziness == null && prefixLength == null && queryName != null) {
             builder.field(name, value);
         } else {
             builder.startObject(name);
@@ -114,8 +110,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             if (transpositions != null) {
                 builder.field("transpositions", transpositions);
             }
-            if (minSimilarity != null) {
-                builder.field("min_similarity", minSimilarity);
+            if (fuzziness != null) {
+                fuzziness.toXContent(builder, params);
             }
             if (prefixLength != null) {
                 builder.field("prefix_length", prefixLength);

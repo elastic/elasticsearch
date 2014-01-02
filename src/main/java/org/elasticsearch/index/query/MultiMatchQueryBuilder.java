@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Integer slop;
 
-    private String fuzziness;
+    private Fuzziness fuzziness;
 
     private Integer prefixLength;
 
@@ -143,10 +144,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     }
 
     /**
-     * Sets the minimum similarity used when evaluated to a fuzzy query type. Defaults to "0.5".
+     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
     public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = fuzziness.toString();
+        this.fuzziness = Fuzziness.build(fuzziness);
         return this;
     }
 
@@ -252,7 +253,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
             builder.field("slop", slop);
         }
         if (fuzziness != null) {
-            builder.field("fuzziness", fuzziness);
+            fuzziness.toXContent(builder, params);
         }
         if (prefixLength != null) {
             builder.field("prefix_length", prefixLength);

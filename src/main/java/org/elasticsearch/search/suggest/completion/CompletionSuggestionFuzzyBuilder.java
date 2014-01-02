@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -34,18 +35,18 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         super(name, "completion");
     }
 
-    private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
+    private Fuzziness fuzziness = Fuzziness.ONE;
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
     private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
     private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
     private boolean unicodeAware = XFuzzySuggester.DEFAULT_UNICODE_AWARE;
 
-    public int getFuzzyEditDistance() {
-        return fuzzyEditDistance;
+    public Fuzziness getFuzziness() {
+        return fuzziness;
     }
 
-    public CompletionSuggestionFuzzyBuilder setFuzzyEditDistance(int fuzzyEditDistance) {
-        this.fuzzyEditDistance = fuzzyEditDistance;
+    public CompletionSuggestionFuzzyBuilder setFuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -89,8 +90,8 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
     protected XContentBuilder innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject("fuzzy");
 
-        if (fuzzyEditDistance != XFuzzySuggester.DEFAULT_MAX_EDITS) {
-            builder.field("edit_distance", fuzzyEditDistance);
+        if (fuzziness != Fuzziness.ONE) {
+            fuzziness.toXContent(builder, params);
         }
         if (fuzzyTranspositions != XFuzzySuggester.DEFAULT_TRANSPOSITIONS) {
             builder.field("transpositions", fuzzyTranspositions);

@@ -70,3 +70,6 @@ include::tokenfilters/common-grams-tokenfilter.asciidoc[]
 include::tokenfilters/normalization-tokenfilter.asciidoc[]
 
 include::tokenfilters/keep-words-tokenfilter.asciidoc[]
+
+include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
+

@@ -43,6 +43,7 @@ import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -58,17 +59,28 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         final int numShards = between(1, 5);
-        String mapping = XContentFactory.jsonBuilder().
-                startObject().
-                startObject("type").
-                startObject("properties").
-                startObject("test")
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("test-str")
                 .field("type", "string")
                 .field("index", "not_analyzed")
-                .endObject().
-                        endObject().
-                        endObject()
-                .endObject().string();
+                .startObject("fielddata")
+                .field("format", randomBytesFieldDataFormat())
+                .endObject() // fielddata
+                .endObject() // test-str
+                .startObject("test-num")
+                // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
+                .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
+                .startObject("fielddata")
+                .field("format", randomNumericFieldDataFormat())
+                .endObject() // fielddata
+                .endObject() // test-num
+                .endObject() // properties
+                .endObject() // type
+                .endObject() // {}
+                .string();
         final double exceptionRate;
         final double exceptionOnOpenRate;
         if (frequently()) {
@@ -116,7 +128,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         for (int i = 0; i < numDocs ; i++) {
             try {
                 client().prepareIndex("test", "type", "" + i)
-                        .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
+                        .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i).get();
             } catch (ElasticSearchException ex) {
             }
         }
@@ -130,19 +142,24 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
 
         for (int i = 0; i < numSearches; i++) {
             try {
-                // Sort by the string field, to load it into field data
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).addSort("test", SortOrder.ASC).get();
+                // Sort by the string and numeric fields, to load them into field data
+                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
+                        .addSort("test-str", SortOrder.ASC)
+                        .addSort("test-num", SortOrder.ASC).get();
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
             }
-            // Now, clear the cache and check that the circuit breaker has been
-            // successfully set back to zero. If there is a bug in the circuit
-            // breaker adjustment code, it should show up here by the breaker
-            // estimate being either positive or negative.
-            client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet();
-            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().all().execute().actionGet();
-            for (NodeStats stats : resp.getNodes()) {
-                assertThat("Breaker reset to 0", stats.getBreaker().getEstimated(), equalTo(0L));
+
+            if (frequently()) {
+                // Now, clear the cache and check that the circuit breaker has been
+                // successfully set back to zero. If there is a bug in the circuit
+                // breaker adjustment code, it should show up here by the breaker
+                // estimate being either positive or negative.
+                client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet();
+                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().all().execute().actionGet();
+                for (NodeStats stats : resp.getNodes()) {
+                    assertThat("Breaker reset to 0", stats.getBreaker().getEstimated(), equalTo(0L));
+                }
             }
         }
     }
@@ -150,6 +167,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     public static final String EXCEPTION_TOP_LEVEL_RATIO_KEY = "index.engine.exception.ratio.top";
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
 
+    // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockRobinEngine.DirectoryReaderWrapper {
         private final Settings settings;
         static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingAtomicReaderWrapper.Thrower {

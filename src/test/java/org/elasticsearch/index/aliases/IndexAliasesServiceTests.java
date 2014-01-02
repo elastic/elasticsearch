@@ -46,6 +46,8 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -83,6 +85,7 @@ public class IndexAliasesServiceTests extends ElasticsearchTestCase {
                     @Override
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
                     }
                 }
         ).createInjector();

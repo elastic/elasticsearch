@@ -34,6 +34,7 @@ import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -52,6 +53,8 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -414,6 +417,12 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
                 .add(new CodecModule(settings))
                 .add(new MapperServiceModule())
                 .add(new AnalysisModule(settings))
+                .add(new AbstractModule() {
+                    @Override
+                    protected void configure() {
+                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
+                    }
+                })
                 .createInjector();
         return injector.getInstance(CodecService.class);
     }

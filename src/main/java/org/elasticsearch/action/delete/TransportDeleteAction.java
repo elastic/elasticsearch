@@ -114,13 +114,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                             long version = Versions.MATCH_ANY;
                             boolean found = false;
                             for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
-                                if (!deleteResponse.isNotFound()) {
+                                if (deleteResponse.isFound()) {
                                     version = deleteResponse.getVersion();
                                     found = true;
                                     break;
                                 }
                             }
-                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, !found));
+                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, found));
                         }
 
                         @Override
@@ -193,7 +193,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
             }
         }
 
-        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
+        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.found());
         return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
     }
 

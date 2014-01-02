@@ -32,13 +32,12 @@
             - { _id: 1, parent: 4 }
             - { _id: 1, parent: 4, routing: 5 }
 
- - is_false:  docs.0.exists
- - is_false:  docs.1.exists
+ - is_false:  docs.0.found
+ - is_false:  docs.1.found
 
- - is_true:   docs.2.exists
+ - is_true:   docs.2.found
  - match:   { docs.2._index:          test_1 }
  - match:   { docs.2._type:           test   }
  - match:   { docs.2._id:             "1"    }
  - match:   { docs.2.fields._parent:  "4"    }
  - match:   { docs.2.fields._routing: "5"    }
-

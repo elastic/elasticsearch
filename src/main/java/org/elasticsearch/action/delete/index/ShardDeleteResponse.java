@@ -31,35 +31,35 @@ import java.io.IOException;
 public class ShardDeleteResponse extends ActionResponse {
 
     private long version;
-    private boolean notFound;
+    private boolean found;
 
     public ShardDeleteResponse() {
     }
 
-    public ShardDeleteResponse(long version, boolean notFound) {
+    public ShardDeleteResponse(long version, boolean found) {
         this.version = version;
-        this.notFound = notFound;
+        this.found = found;
     }
 
     public long getVersion() {
         return version;
     }
 
-    public boolean isNotFound() {
-        return notFound;
+    public boolean isFound() {
+        return found;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         version = in.readLong();
-        notFound = in.readBoolean();
+        found = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(version);
-        out.writeBoolean(notFound);
+        out.writeBoolean(found);
     }
 }

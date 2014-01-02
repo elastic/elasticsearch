@@ -422,7 +422,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
         deleteRequest.version(delete.version());
-        DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound());
+        DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
         return new WriteResult(deleteResponse, deleteRequest.version(), null, null);
     }
 

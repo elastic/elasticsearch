@@ -336,7 +336,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                                     DeleteResponse response = client().prepareDelete("index", PercolatorService.TYPE_NAME, id)
                                             .execute().actionGet();
                                     assertThat(response.getId(), equalTo(id));
-                                    assertThat("doc[" + id + "] should have been deleted, but isn't", response.isNotFound(), equalTo(false));
+                                    assertThat("doc[" + id + "] should have been deleted, but isn't", response.isFound(), equalTo(true));
                                 } else {
                                     String id = Integer.toString(idGen.getAndIncrement());
                                     IndexResponse response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)

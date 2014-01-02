@@ -68,7 +68,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         public static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         public static final XContentBuilderString _ID = new XContentBuilderString("_id");
         public static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        public static final XContentBuilderString EXISTS = new XContentBuilderString("exists");
+        public static final XContentBuilderString FOUND = new XContentBuilderString("found");
         public static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         public static final XContentBuilderString TERM_VECTORS = new XContentBuilderString("term_vectors");
 
@@ -169,7 +169,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         builder.field(FieldStrings._TYPE, type);
         builder.field(FieldStrings._ID, id);
         builder.field(FieldStrings._VERSION, docVersion);
-        builder.field(FieldStrings.EXISTS, isExists());
+        builder.field(FieldStrings.FOUND, isExists());
         if (!isExists()) {
             builder.endObject();
             return builder;

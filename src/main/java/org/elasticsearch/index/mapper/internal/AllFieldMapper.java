@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -256,16 +257,26 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // if all are defaults, no need to write it at all
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        if (!includeDefaults && enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
-                fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
-                indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null
-                && fieldType.omitNorms() == Defaults.FIELD_TYPE.omitNorms()) {
-            return builder;
+        if (!includeDefaults) {
+            // simulate the generation to make sure we don't add unnecessary content if all is default
+            // if all are defaults, no need to write it at all - generating is twice is ok though
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
+            XContentBuilder b =  new XContentBuilder(builder.contentType().xContent(), bytesStreamOutput);
+            long pos = bytesStreamOutput.position();
+            innerToXContent(b, false);
+            b.flush();
+            if (pos == bytesStreamOutput.position()) {
+                return builder;
+            }
         }
         builder.startObject(CONTENT_TYPE);
+        innerToXContent(builder, includeDefaults);
+        builder.endObject();
+        return builder;
+    }
+
+    private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
         if (includeDefaults || enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
@@ -276,7 +287,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", fieldType.storeTermVectors());
+            builder.field("store_term_vectors", fieldType.storeTermVectors());
         }
         if (includeDefaults || fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
             builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
@@ -332,10 +343,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
-
-        builder.endObject();
-        return builder;
     }
+
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

@@ -127,8 +127,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("ip", "desc:ip address");
         table.addCell("port", "desc:bound transport port");
 
-        table.addCell("version", "default:false;desc:es version");
-        table.addCell("build", "default:false;desc:es build hash");
+        table.addCell("version", "default:false;alias:v;desc:es version");
+        table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;desc:jdk version");
         table.addCell("diskAvail", "default:false;text-align:right;desc:available disk space");
         table.addCell("heapPercent", "text-align:right;desc:used heap ratio");

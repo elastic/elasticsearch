@@ -50,7 +50,9 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 // need to do left-align always, so create new cells
                 pad(new Table.Cell(cell.value), width[0], request, out);
                 out.append(" | ");
-                pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[1], request, out);
+                pad(new Table.Cell(cell.attr.containsKey("alias") ? cell.attr.get("alias") : ""), width[1], request, out);
+                out.append(" | ");
+                pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[2], request, out);
                 out.append("\n");
             }
             channel.sendResponse(new StringRestResponse(RestStatus.OK, out.toString()));

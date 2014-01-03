@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.http.client;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +37,7 @@ public class HttpDownloadHelper {
     private boolean useTimestamp = false;
     private boolean skipExisting = false;
 
-    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout) throws IOException {
+    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout) throws Exception {
         if (dest.exists() && skipExisting) {
             return true;
         }
@@ -65,9 +66,8 @@ public class HttpDownloadHelper {
         }
 
         if (getThread.isAlive()) {
-            String msg = "The GET operation took longer than " + timeout + ", stopping it.";
-            getThread.closeStreams();
-            throw new ElasticSearchTimeoutException(msg);
+            getThread.closeStreams(
+                    new ElasticSearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it."));
         }
 
         return getThread.wasSuccessful();
@@ -329,16 +329,7 @@ public class HttpDownloadHelper {
                 }
                 finished = !isInterrupted();
             } finally {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    // ignore
-                }
+                IOUtils.close(os, is);
 
                 // we have started to (over)write dest, but failed.
                 // Try to delete the garbage we'd otherwise leave
@@ -374,21 +365,12 @@ public class HttpDownloadHelper {
          * Closes streams, interrupts the download, may delete the
          * output file.
          */
-        void closeStreams() {
+        void closeStreams(Exception e) throws Exception {
             interrupt();
-            try {
-                if (os != null) os.close();
-            } catch (IOException e) {
-                // ignore
-            }
-            try {
-                if (is != null) is.close();
-            } catch (IOException e) {
-                // ignore
-            }
             if (!success && dest != null && dest.exists()) {
                 dest.delete();
             }
+            IOUtils.closeWhileHandlingException(e, is, os);
         }
     }
 }

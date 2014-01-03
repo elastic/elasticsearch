@@ -135,7 +135,7 @@ public class PluginManager {
                 downloaded = true;
             } catch (ElasticSearchTimeoutException e) {
                 throw e;
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // ignore
                 log("Failed: " + ExceptionsHelper.detailedMessage(e));
             }

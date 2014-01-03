@@ -194,12 +194,12 @@ public class ThreadPool extends AbstractComponent {
         return new ThreadPoolStats(stats);
     }
 
-    public ExecutorService generic() {
+    public Executor generic() {
         return executor(Names.GENERIC);
     }
 
-    public ExecutorService executor(String name) {
-        ExecutorService executor = executors.get(name).executor;
+    public Executor executor(String name) {
+        Executor executor = executors.get(name).executor;
         if (executor == null) {
             throw new ElasticSearchIllegalArgumentException("No executor found for [" + name + "]");
         }
@@ -303,7 +303,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}], keep_alive [{}]", name, type, keepAlive);
             }
-            ExecutorService executor = EsExecutors.newCached(keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
+            Executor executor = EsExecutors.newCached(keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
@@ -332,7 +332,7 @@ public class ThreadPool extends AbstractComponent {
             int size = settings.getAsInt("size", defaultSize);
             SizeValue queueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultQueueSize)));
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
-            ExecutorService executor = EsExecutors.newFixed(size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
+            Executor executor = EsExecutors.newFixed(size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, size, size, null, queueSize));
         } else if ("scaling".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
@@ -376,7 +376,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}], min [{}], size [{}], keep_alive [{}]", name, type, min, size, keepAlive);
             }
-            ExecutorService executor = EsExecutors.newScaling(min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
+            Executor executor = EsExecutors.newScaling(min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, min, size, keepAlive, null));
         }
         throw new ElasticSearchIllegalArgumentException("No type found [" + type + "], for [" + name + "]");
@@ -523,10 +523,10 @@ public class ThreadPool extends AbstractComponent {
     }
 
     static class ExecutorHolder {
-        public final ExecutorService executor;
+        public final Executor executor;
         public final Info info;
 
-        ExecutorHolder(ExecutorService executor, Info info) {
+        ExecutorHolder(Executor executor, Info info) {
             this.executor = executor;
             this.info = info;
         }

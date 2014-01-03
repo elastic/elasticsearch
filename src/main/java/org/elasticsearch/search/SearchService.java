@@ -22,9 +22,7 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
@@ -73,9 +71,11 @@ import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -641,7 +641,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     static class NormsWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public Collection<Future<?>> warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectOpenHashSet<String>();
@@ -654,8 +654,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
 
+            final CountDownLatch latch = new CountDownLatch(1);
             // Norms loading may be I/O intensive but is not CPU intensive, so we execute it in a single task
-            return Collections.<Future<?>>singleton(threadPool.executor(executor()).submit(new Runnable() {
+            threadPool.executor(executor()).execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -674,16 +675,25 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         }
                     } catch (Throwable t) {
                         indexShard.warmerService().logger().warn("failed to warm-up norms", t);
+                    } finally {
+                        latch.countDown();
                     }
                 }
-            }));
+            });
+
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
         }
     }
 
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public Collection<Future<?>> warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
             boolean parentChild = false;
@@ -707,11 +717,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final List<Future<?>> futures = new ArrayList<Future<?>>();
-            final ExecutorService executor = threadPool.executor(executor());
+            final Executor executor = threadPool.executor(executor());
+            final CountDownLatch latch = new CountDownLatch(context.newSearcher().reader().leaves().size() * warmUp.size() + (parentChild ? 1 : 0));
             for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
-                    futures.add(executor.submit(new Runnable() {
+                    executor.execute(new Runnable() {
 
                         @Override
                         public void run() {
@@ -723,15 +733,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 }
                             } catch (Throwable t) {
                                 indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldMapper.names().name());
+                            } finally {
+                                latch.countDown();
                             }
                         }
 
-                    }));
+                    });
                 }
             }
 
             if (parentChild) {
-                futures.add(executor.submit(new Runnable() {
+                executor.execute(new Runnable() {
 
                     @Override
                     public void run() {
@@ -743,13 +755,20 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             }
                         } catch (Throwable t) {
                             indexShard.warmerService().logger().warn("failed to warm-up id cache", t);
+                        } finally {
+                            latch.countDown();
                         }
                     }
 
-                }));
+                });
             }
 
-            return Collections.unmodifiableCollection(futures);
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
         }
 
     }
@@ -757,15 +776,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public Collection<Future<?>> warm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool) {
+        public TerminationHandle warm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
-                return ImmutableList.of();
+                return TerminationHandle.NO_WAIT;
             }
-            final ExecutorService executor = threadPool.executor(executor());
-            final List<Future<?>> futures = Lists.newArrayListWithCapacity(custom.entries().size());
+            final Executor executor = threadPool.executor(executor());
+            final CountDownLatch latch = new CountDownLatch(custom.entries().size());
             for (final IndexWarmersMetaData.Entry entry : custom.entries()) {
-                futures.add(executor.submit(new Runnable() {
+                executor.execute(new Runnable() {
 
                     @Override
                     public void run() {
@@ -785,17 +804,25 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         } catch (Throwable t) {
                             indexShard.warmerService().logger().warn("warmer [{}] failed", t, entry.name());
                         } finally {
-                            if (context != null) {
-                                freeContext(context);
-                                cleanContext(context);
+                            try {
+                                if (context != null) {
+                                    freeContext(context);
+                                    cleanContext(context);
+                                }
+                            } finally {
+                                latch.countDown();
                             }
                         }
                     }
 
-                }));
+                });
             }
-
-            return Collections.unmodifiableCollection(futures);
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.wait();
+                }
+            };
         }
     }
 

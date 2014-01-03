@@ -33,8 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -90,22 +88,19 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        final List<Future<?>> futures = Lists.newArrayList();
+        final List<IndicesWarmer.Listener.TerminationHandle> terminationHandles = Lists.newArrayList();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            futures.addAll(listener.warm(indexShard, indexMetaData, context, threadPool));
+            terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
         }
         // wait for termination
-        for (Future<?> future : futures) {
+        for (IndicesWarmer.Listener.TerminationHandle terminationHandle : terminationHandles) {
             try {
-                future.get();
+                terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.warn("Warming has been interrupted", e);
                 break;
-            } catch (ExecutionException e) {
-                // warmers are supposed not to throw exceptions
-                logger.warn("Warmer threw an exception", e);
             }
         }
         long took = System.nanoTime() - time;

@@ -73,7 +73,12 @@ public class Table {
 
     public Table endRow(boolean check) {
         if (check && (currentCells.size() != headers.size())) {
-            throw new ElasticSearchIllegalArgumentException("mismatch on number of cells in a row compared to header");
+            StringBuilder s = new StringBuilder();
+            s.append("mismatch on number of cells ");
+            s.append(currentCells.size());
+            s.append(" in a row compared to header ");
+            s.append(headers.size());
+            throw new ElasticSearchIllegalArgumentException(s.toString());
         }
         rows.add(currentCells);
         currentCells = null;

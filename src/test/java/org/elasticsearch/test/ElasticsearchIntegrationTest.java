@@ -225,7 +225,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
                         .persistentSettings().getAsMap().size(), equalTo(0));
                 assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                        .persistentSettings().getAsMap().size(), equalTo(0));
+                        .transientSettings().getAsMap().size(), equalTo(0));
             
             }
             wipeIndices(); // wipe after to make sure we fail in the test that

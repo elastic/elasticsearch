@@ -1,0 +1,75 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.cluster.routing.allocation.decider;
+
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+
+/**
+ * An allocation decider that prevents relocation or allocation from nodes
+ * that might note be version compatible. If we relocate from a node that runs
+ * a newer version than the node we relocate to this might cause {@link org.apache.lucene.index.IndexFormatTooNewException}
+ * on the lowest level since it might have already written segments that use a new postings format or codec that is not
+ * available on the target node.
+ */
+public class NodeVersionAllocationDecider extends AllocationDecider {
+
+    @Inject
+    public NodeVersionAllocationDecider(Settings settings) {
+        super(settings);
+    }
+
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        String sourceNodeId = shardRouting.currentNodeId();
+        /* if sourceNodeId is not null we do a relocation and just check the version of the node
+         * that we are currently allocate on. If not we are initializing and recover from primary.*/
+        if (sourceNodeId == null) { // we allocate - check primary
+            if (shardRouting.primary()) {
+                // we are the primary we can allocate wherever
+                return Decision.YES;
+            }
+            final MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+            if (primary == null) { // we have a primary - it's a start ;)
+                return Decision.YES;
+            }
+            sourceNodeId = primary.currentNodeId();
+        }
+        return isVersionCompatible(allocation.routingNodes(), sourceNodeId, node);
+
+    }
+
+    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target) {
+        final RoutingNode source = routingNodes.node(sourceNodeId);
+        if (target.node().version().onOrAfter(source.node().version())) {
+            /* we can allocate if we can recover from a node that is younger or on the same version
+             * if the primary is already running on a newer version that won't work due to possible
+             * differences in the lucene index format etc.*/
+            return Decision.YES;
+        } else {
+            return Decision.NO;
+        }
+    }
+}

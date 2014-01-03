@@ -100,6 +100,10 @@ public class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
         return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
     }
 
+    public static DiscoveryNode newNode(String nodeId, Version version) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, version);
+    }
+
     public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<MutableShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
         if (initializingShards.isEmpty()) {

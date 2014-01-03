@@ -75,7 +75,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     @Override
                     public void onResponse(final ClusterHealthResponse clusterHealthResponse) {
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                        indicesStatsRequest.clear().store(true).docs(true);
+                        indicesStatsRequest.all();
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
@@ -129,10 +129,71 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("index", "desc:index name");
         table.addCell("pri", "text-align:right;desc:number of primary shards");
         table.addCell("rep", "text-align:right;desc:number of replica shards");
-        table.addCell("docs", "text-align:right;desc:available docs");
-        table.addCell("docs/del", "text-align:right;desc:deleted docs");
-        table.addCell("size/pri", "text-align:right;desc:store size of primaries");
-        table.addCell("size/total", "text-align:right;desc:store size of primaries & replicas");
+        table.addCell("docs.count", "text-align:right;desc:available docs");
+        table.addCell("docs.deleted", "text-align:right;desc:deleted docs");
+        table.addCell("primaries.store.size", "text-align:right;desc:store size of primaries");
+        table.addCell("total.store.size", "text-align:right;desc:store size of primaries & replicas");
+
+        table.addCell("primaries.completion.size", "default:false;text-align:right;desc:size of completion");
+
+        table.addCell("primaries.fielddata.memory_size", "default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("primaries.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");
+
+        table.addCell("primaries.filter_cache.memory_size", "default:false;text-align:right;desc:used filter cache");
+        table.addCell("primaries.filter_cache.evictions", "default:false;text-align:right;desc:filter cache evictions");
+
+        table.addCell("primaries.flush.total", "default:false;text-align:right;desc:number of flushes");
+        table.addCell("primaries.flush.total_time", "default:false;text-align:right;desc:time spent in flush");
+
+        table.addCell("primaries.get.current", "default:false;text-align:right;desc:number of current get ops");
+        table.addCell("primaries.get.time", "default:false;text-align:right;desc:time spent in get");
+        table.addCell("primaries.get.total", "default:false;text-align:right;desc:number of get ops");
+        table.addCell("primaries.get.exists_time", "default:false;text-align:right;desc:time spent in successful gets");
+        table.addCell("primaries.get.exists_total", "default:false;text-align:right;desc:number of successful gets");
+        table.addCell("primaries.get.missing_time", "default:false;text-align:right;desc:time spent in failed gets");
+        table.addCell("primaries.get.missing_total", "default:false;text-align:right;desc:number of failed gets");
+
+        table.addCell("primaries.id_cache.memory_size", "default:false;text-align:right;desc:used id cache");
+
+        table.addCell("primaries.indexing.delete_current", "default:false;text-align:right;desc:number of current deletions");
+        table.addCell("primaries.indexing.delete_time", "default:false;text-align:right;desc:time spent in deletions");
+        table.addCell("primaries.indexing.delete_total", "default:false;text-align:right;desc:number of delete ops");
+        table.addCell("primaries.indexing.index_current", "default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("primaries.indexing.index_time", "default:false;text-align:right;desc:time spent in indexing");
+        table.addCell("primaries.indexing.index_total", "default:false;text-align:right;desc:number of indexing ops");
+
+        table.addCell("primaries.merges.current", "default:false;text-align:right;desc:number of current merges");
+        table.addCell("primaries.merges.current_docs", "default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("primaries.merges.current_size", "default:false;text-align:right;desc:size of current merges");
+        table.addCell("primaries.merges.total", "default:false;text-align:right;desc:number of completed merge ops");
+        table.addCell("primaries.merges.total_docs", "default:false;text-align:right;desc:docs merged");
+        table.addCell("primaries.merges.total_size", "default:false;text-align:right;desc:size merged");
+        table.addCell("primaries.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
+
+        table.addCell("primaries.percolate.current", "default:false;text-align:right;desc:number of current percolations");
+        table.addCell("primaries.percolate.memory_size", "default:false;text-align:right;desc:memory used by percolations");
+        table.addCell("primaries.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
+        table.addCell("primaries.percolate.time", "default:false;text-align:right;desc:time spent percolating");
+        table.addCell("primaries.percolate.total", "default:false;text-align:right;desc:total percolations");
+
+        table.addCell("primaries.refresh.total", "default:false;text-align:right;desc:total refreshes");
+        table.addCell("primaries.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
+
+        table.addCell("primaries.search.fetch_current", "default:false;text-align:right;desc:current fetch phase ops");
+        table.addCell("primaries.search.fetch_time", "default:false;text-align:right;desc:time spent in fetch phase");
+        table.addCell("primaries.search.fetch_total", "default:false;text-align:right;desc:total fetch ops");
+        table.addCell("primaries.search.open_contexts", "default:false;text-align:right;desc:open search contexts");
+        table.addCell("primaries.search.query_current", "default:false;text-align:right;desc:current query phase ops");
+        table.addCell("primaries.search.query_time", "default:false;text-align:right;desc:time spent in query phase");
+        table.addCell("primaries.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell("primaries.segments.count", "default:false;text-align:right;desc:number of segments");
+        table.addCell("primaries.segments.memory", "default:false;text-align:right;desc:memory used by segments");
+
+        table.addCell("primaries.warmer.current", "default:false;text-align:right;desc:current warmer ops");
+        table.addCell("primaries.warmer.total", "default:false;text-align:right;desc:total warmer ops");
+        table.addCell("primaries.warmer.total_time", "default:false;text-align:right;desc:time spent in warmers");
+
         table.endHeaders();
         return table;
     }
@@ -153,6 +214,67 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getStore().size());
             table.addCell(indexStats == null ? null : indexStats.getTotal().getStore().size());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getCompletion().getSize());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFieldData().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFieldData().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().current());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getExistsTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getExistsCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getMissingTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getGet().getMissingCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIdCache().getMemorySize());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getDeleteCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getDeleteTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getDeleteCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentNumDocs());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentSize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalNumDocs());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalSize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getNumQueries());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getFetchCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getFetchTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getFetchCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getOpenContexts());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getQueryCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getQueryTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getQueryCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().total());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().totalTime());
+
             table.endRow();
         }
 

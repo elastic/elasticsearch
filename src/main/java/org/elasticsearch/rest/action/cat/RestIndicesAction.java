@@ -136,63 +136,63 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("primaries.completion.size", "alias:pcs,primariesCompletionSize;default:false;text-align:right;desc:size of completion");
 
-        table.addCell("primaries.fielddata.memory_size", "default:false;text-align:right;desc:used fielddata cache");
-        table.addCell("primaries.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");
+        table.addCell("primaries.fielddata.memory_size", "alias:pfm,primariesFielddataMemory;default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("primaries.fielddata.evictions", "alias:pfe,primariesFielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("primaries.filter_cache.memory_size", "default:false;text-align:right;desc:used filter cache");
-        table.addCell("primaries.filter_cache.evictions", "default:false;text-align:right;desc:filter cache evictions");
+        table.addCell("primaries.filter_cache.memory_size", "alias:pfcm,primariesFilterCacheMemory;default:false;text-align:right;desc:used filter cache");
+        table.addCell("primaries.filter_cache.evictions", "alias:pfce,primariesFilterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
 
-        table.addCell("primaries.flush.total", "default:false;text-align:right;desc:number of flushes");
-        table.addCell("primaries.flush.total_time", "default:false;text-align:right;desc:time spent in flush");
+        table.addCell("primaries.flush.total", "alias:pft,primariesFlushTotal;default:false;text-align:right;desc:number of flushes");
+        table.addCell("primaries.flush.total_time", "alias:pftt,primariesFlushTotalTime;default:false;text-align:right;desc:time spent in flush");
 
-        table.addCell("primaries.get.current", "default:false;text-align:right;desc:number of current get ops");
-        table.addCell("primaries.get.time", "default:false;text-align:right;desc:time spent in get");
-        table.addCell("primaries.get.total", "default:false;text-align:right;desc:number of get ops");
-        table.addCell("primaries.get.exists_time", "default:false;text-align:right;desc:time spent in successful gets");
-        table.addCell("primaries.get.exists_total", "default:false;text-align:right;desc:number of successful gets");
-        table.addCell("primaries.get.missing_time", "default:false;text-align:right;desc:time spent in failed gets");
-        table.addCell("primaries.get.missing_total", "default:false;text-align:right;desc:number of failed gets");
+        table.addCell("primaries.get.current", "alias:pgc,primariesGetCurrent;default:false;text-align:right;desc:number of current get ops");
+        table.addCell("primaries.get.time", "alias:pgti,primariesGetTime;default:false;text-align:right;desc:time spent in get");
+        table.addCell("primaries.get.total", "alias:pgto,primariesGetTotal;default:false;text-align:right;desc:number of get ops");
+        table.addCell("primaries.get.exists_time", "alias:pgeti,primariesGetExistsTime;default:false;text-align:right;desc:time spent in successful gets");
+        table.addCell("primaries.get.exists_total", "alias:pgeto,primariesGetExistsTotal;default:false;text-align:right;desc:number of successful gets");
+        table.addCell("primaries.get.missing_time", "alias:pgmti,primariesGetMissingTime;default:false;text-align:right;desc:time spent in failed gets");
+        table.addCell("primaries.get.missing_total", "alias:pgmto,primariesGetMissingTotal;default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("primaries.id_cache.memory_size", "default:false;text-align:right;desc:used id cache");
+        table.addCell("primaries.id_cache.memory_size", "alias:pim,primariesIdCacheMemory;default:false;text-align:right;desc:used id cache");
 
-        table.addCell("primaries.indexing.delete_current", "default:false;text-align:right;desc:number of current deletions");
-        table.addCell("primaries.indexing.delete_time", "default:false;text-align:right;desc:time spent in deletions");
-        table.addCell("primaries.indexing.delete_total", "default:false;text-align:right;desc:number of delete ops");
-        table.addCell("primaries.indexing.index_current", "default:false;text-align:right;desc:number of current indexing ops");
-        table.addCell("primaries.indexing.index_time", "default:false;text-align:right;desc:time spent in indexing");
-        table.addCell("primaries.indexing.index_total", "default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("primaries.indexing.delete_current", "alias:pidc,primariesIndexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("primaries.indexing.delete_time", "alias:pidti,primariesIndexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
+        table.addCell("primaries.indexing.delete_total", "alias:pidto,primariesIndexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
+        table.addCell("primaries.indexing.index_current", "alias:piic,primariesIndexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("primaries.indexing.index_time", "alias:piiti,primariesIndexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
+        table.addCell("primaries.indexing.index_total", "alias:piito,primariesIndexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
 
-        table.addCell("primaries.merges.current", "default:false;text-align:right;desc:number of current merges");
-        table.addCell("primaries.merges.current_docs", "default:false;text-align:right;desc:number of current merging docs");
-        table.addCell("primaries.merges.current_size", "default:false;text-align:right;desc:size of current merges");
-        table.addCell("primaries.merges.total", "default:false;text-align:right;desc:number of completed merge ops");
-        table.addCell("primaries.merges.total_docs", "default:false;text-align:right;desc:docs merged");
-        table.addCell("primaries.merges.total_size", "default:false;text-align:right;desc:size merged");
-        table.addCell("primaries.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
+        table.addCell("primaries.merges.current", "alias:pmc,primariesMergesCurrent;default:false;text-align:right;desc:number of current merges");
+        table.addCell("primaries.merges.current_docs", "alias:pmcd,primariesMergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("primaries.merges.current_size", "alias:pmcs,primariesMergesCurrentSize;default:false;text-align:right;desc:size of current merges");
+        table.addCell("primaries.merges.total", "alias:pmt,primariesMergesTotal;default:false;text-align:right;desc:number of completed merge ops");
+        table.addCell("primaries.merges.total_docs", "alias:pmtd,primariesMergesTotalDocs;default:false;text-align:right;desc:docs merged");
+        table.addCell("primaries.merges.total_size", "alias:pmts,primariesMergesTotalSize;default:false;text-align:right;desc:size merged");
+        table.addCell("primaries.merges.total_time", "alias:pmtt,primariesMergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("primaries.percolate.current", "default:false;text-align:right;desc:number of current percolations");
-        table.addCell("primaries.percolate.memory_size", "default:false;text-align:right;desc:memory used by percolations");
-        table.addCell("primaries.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("primaries.percolate.time", "default:false;text-align:right;desc:time spent percolating");
-        table.addCell("primaries.percolate.total", "default:false;text-align:right;desc:total percolations");
+        table.addCell("primaries.percolate.current", "alias:ppc,primariesPercolateCurrent;default:false;text-align:right;desc:number of current percolations");
+        table.addCell("primaries.percolate.memory_size", "alias:ppm,primariesPercolateMemory;default:false;text-align:right;desc:memory used by percolations");
+        table.addCell("primaries.percolate.queries", "alias:ppq,primariesPercolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
+        table.addCell("primaries.percolate.time", "alias:ppti,primariesPercolateTime;default:false;text-align:right;desc:time spent percolating");
+        table.addCell("primaries.percolate.total", "alias:ppto,primariesPercolateTotal;default:false;text-align:right;desc:total percolations");
 
-        table.addCell("primaries.refresh.total", "default:false;text-align:right;desc:total refreshes");
-        table.addCell("primaries.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("primaries.refresh.total", "alias:prto,primariesRefreshTotal;default:false;text-align:right;desc:total refreshes");
+        table.addCell("primaries.refresh.time", "alias:prti,primariesRefreshTime;default:false;text-align:right;desc:time spent in refreshes");
 
-        table.addCell("primaries.search.fetch_current", "default:false;text-align:right;desc:current fetch phase ops");
-        table.addCell("primaries.search.fetch_time", "default:false;text-align:right;desc:time spent in fetch phase");
-        table.addCell("primaries.search.fetch_total", "default:false;text-align:right;desc:total fetch ops");
-        table.addCell("primaries.search.open_contexts", "default:false;text-align:right;desc:open search contexts");
-        table.addCell("primaries.search.query_current", "default:false;text-align:right;desc:current query phase ops");
-        table.addCell("primaries.search.query_time", "default:false;text-align:right;desc:time spent in query phase");
-        table.addCell("primaries.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+        table.addCell("primaries.search.fetch_current", "alias:psfc,primariesSearchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
+        table.addCell("primaries.search.fetch_time", "alias:psfti,primariesSearchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
+        table.addCell("primaries.search.fetch_total", "alias:psfto,primariesSearchFetchTotal;default:false;text-align:right;desc:total fetch ops");
+        table.addCell("primaries.search.open_contexts", "alias:pso,primariesSearchOpenContexts;default:false;text-align:right;desc:open search contexts");
+        table.addCell("primaries.search.query_current", "alias:psqc,primariesSearchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
+        table.addCell("primaries.search.query_time", "alias:psqti,primariesSearchQueryTime;default:false;text-align:right;desc:time spent in query phase");
+        table.addCell("primaries.search.query_total", "alias:psqto,primariesSearchQueryTotal;default:false;text-align:right;desc:total query phase ops");
 
-        table.addCell("primaries.segments.count", "default:false;text-align:right;desc:number of segments");
-        table.addCell("primaries.segments.memory", "default:false;text-align:right;desc:memory used by segments");
+        table.addCell("primaries.segments.count", "alias:psc,primariesSegmentsCount;default:false;text-align:right;desc:number of segments");
+        table.addCell("primaries.segments.memory", "alias:psm,primariesSegmentsMemory;default:false;text-align:right;desc:memory used by segments");
 
-        table.addCell("primaries.warmer.current", "default:false;text-align:right;desc:current warmer ops");
-        table.addCell("primaries.warmer.total", "default:false;text-align:right;desc:total warmer ops");
-        table.addCell("primaries.warmer.total_time", "default:false;text-align:right;desc:time spent in warmers");
+        table.addCell("primaries.warmer.current", "alias:pwc,primariesWarmerCurrent;default:false;text-align:right;desc:current warmer ops");
+        table.addCell("primaries.warmer.total", "alias:pwto,primariesWarmerTotal;default:false;text-align:right;desc:total warmer ops");
+        table.addCell("primaries.warmer.total_time", "alias:pwtt,primariesWarmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
         table.endHeaders();
         return table;

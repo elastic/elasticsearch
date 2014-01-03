@@ -99,6 +99,12 @@ public final class TestCluster implements Iterable<Client> {
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
+    /**
+     *  A node level setting that holds a per node random seed that is consistent across node restarts
+     */
+    public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
+
+
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     private static long clusterSeed() {
@@ -205,7 +211,8 @@ public final class TestCluster implements Iterable<Client> {
                         // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                         // default to non gateway
-                .put("gateway.type", "none");
+                .put("gateway.type", "none")
+                .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
             builder.put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName());

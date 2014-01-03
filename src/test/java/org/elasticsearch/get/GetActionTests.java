@@ -752,7 +752,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
 
-        client().admin().indices().prepareRefresh("my-index").get();
+        client().admin().indices().prepareFlush("my-index").get();
 
         client().prepareGet("my-index", "my-type1", "1")
                 .setFields("field1", "_routing")
@@ -780,12 +780,86 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {}
 
-        client().admin().indices().prepareRefresh("my-index").get();
+        client().admin().indices().prepareFlush("my-index").get();
 
         try {
             client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {}
+    }
+
+    @Test
+    public void testGetFields_complexField() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
+                        .startObject("field1").field("type", "object")
+                            .startObject("field2").field("type", "object")
+                                .startObject("field3").field("type", "object")
+                                    .startObject("field4").field("type", "string").field("store", "yes")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .get();
+
+        BytesReference source = jsonBuilder().startObject()
+                    .startArray("field1")
+                        .startObject()
+                            .startObject("field2")
+                                .startArray("field3")
+                                    .startObject()
+                                        .field("field4", "value1")
+                                    .endObject()
+                                .endArray()
+                            .endObject()
+                        .endObject()
+                        .startObject()
+                            .startObject("field2")
+                                .startArray("field3")
+                                    .startObject()
+                                        .field("field4", "value2")
+                                    .endObject()
+                                .endArray()
+                            .endObject()
+                        .endObject()
+                    .endArray()
+                .endObject().bytes();
+
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
+        client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
+
+
+        String field = "field1.field2.field3.field4";
+        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
+        assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
+
+        getResponse = client().prepareGet("my-index", "my-type2", "1").setFields(field).get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
+        assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
+
+        client().admin().indices().prepareFlush("my-index").get();
+
+        getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
+        assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
+
+        getResponse = client().prepareGet("my-index", "my-type2", "1").setFields(field).get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
+        assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
+        assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
 }

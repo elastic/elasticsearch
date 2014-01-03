@@ -225,14 +225,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 } else {
                     builder.startArray(field.getName());
                     for (Object value : field.getValues()) {
-                        if (value instanceof Iterable) {
-                            Iterable iterable = (Iterable) value;
-                            for (Object iterVal : iterable) {
-                                builder.value(iterVal);
-                            }
-                        } else {
-                            builder.value(value);
-                        }
+                        builder.value(value);
                     }
                     builder.endArray();
                 }

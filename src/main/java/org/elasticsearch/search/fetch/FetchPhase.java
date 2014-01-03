@@ -187,8 +187,8 @@ public class FetchPhase implements SearchPhase {
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
-                    Object value = context.lookup().source().extractValue(extractFieldName);
-                    if (value != null) {
+                    List<Object> values = context.lookup().source().extractRawValues(extractFieldName);
+                    if (!values.isEmpty()) {
                         if (searchHit.fieldsOrNull() == null) {
                             searchHit.fields(new HashMap<String, SearchHitField>(2));
                         }
@@ -198,12 +198,7 @@ public class FetchPhase implements SearchPhase {
                             hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
                             searchHit.fields().put(extractFieldName, hitField);
                         }
-                        if (value instanceof Iterable) {
-                            Iterable iterable = (Iterable) value;
-                            for (Object iterVal : iterable) {
-                                hitField.values().add(iterVal);
-                            }
-                        } else {
+                        for (Object value : values) {
                             hitField.values().add(value);
                         }
                     }

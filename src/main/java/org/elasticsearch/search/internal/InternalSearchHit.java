@@ -421,14 +421,7 @@ public class InternalSearchHit implements SearchHit {
                 } else {
                     builder.startArray(fieldName);
                     for (Object value : field.getValues()) {
-                        if (value instanceof Iterable) {
-                            Iterable iterable = (Iterable) value;
-                            for (Object iterVal : iterable) {
-                                builder.value(iterVal);
-                            }
-                        } else {
-                            builder.value(value);
-                        }
+                        builder.value(value);
                     }
                     builder.endArray();
                 }

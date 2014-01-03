@@ -275,18 +275,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                         throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                                     }
                                 } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
-                                    // only if the field is stored or source is enabled we should add it..
-                                    value = searchLookup.source().extractValue(field);
-                                    // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                                    if (value != null && x != null) {
-                                        if (value instanceof List) {
-                                            List list = (List) value;
-                                            for (int i = 0; i < list.size(); i++) {
-                                                list.set(i, x.valueForSearch(list.get(i)));
-                                            }
-                                        } else {
-                                            value = x.valueForSearch(value);
+                                    List<Object> values = searchLookup.source().extractRawValues(field);
+                                    if (!values.isEmpty()) {
+                                        for (int i = 0; i < values.size(); i++) {
+                                            values.set(i, x.valueForSearch(values.get(i)));
                                         }
+                                        value = values;
                                     }
                                 }
                             }
@@ -407,17 +401,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             searchLookup.source().setNextSource(source);
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }
-                        value = searchLookup.source().extractValue(field);
-                        // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                        if (value != null) {
-                            if (value instanceof List) {
-                                List list = (List) value;
-                                for (int i = 0; i < list.size(); i++) {
-                                    list.set(i, x.mapper().valueForSearch(list.get(i)));
-                                }
-                            } else {
-                                value = x.mapper().valueForSearch(value);
+
+                        List<Object> values = searchLookup.source().extractRawValues(field);
+                        if (!values.isEmpty()) {
+                            for (int i = 0; i < values.size(); i++) {
+                                values.set(i, x.mapper().valueForSearch(values.get(i)));
                             }
+                            value = values;
                         }
                     }
                 }

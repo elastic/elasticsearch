@@ -370,7 +370,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         logger.info("--> refreshing the index");
         refreshAndAssert();
         logger.info("--> verifying indexed content");
-        iterateAssertCount(5, indexCounter.get(), 10);
+        iterateAssertCount(numShards, indexCounter.get(), 10);
     }
 
     private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, final int iterations) throws Exception {

@@ -32,7 +32,7 @@ import java.util.List;
  * This id cache contains only the ids of parent documents, loaded via the uid or parent field.
  * This name IdCache is misleading, parentIdCache would be a better name.
  */
-public interface IdCache extends IndexComponent, CloseableComponent, Iterable<IdReaderCache> {
+public interface IdCache extends IndexComponent, CloseableComponent {
 
     // we need to "inject" the index service to not create cyclic dep
     void setIndexService(IndexService indexService);

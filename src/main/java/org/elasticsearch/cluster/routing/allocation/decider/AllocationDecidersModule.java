@@ -72,5 +72,6 @@ public class AllocationDecidersModule extends AbstractModule {
             add(DisableAllocationDecider.class).
             add(AwarenessAllocationDecider.class).
             add(ShardsLimitAllocationDecider.class).
+            add(NodeVersionAllocationDecider.class).
             add(DiskThresholdDecider.class).build();
 }

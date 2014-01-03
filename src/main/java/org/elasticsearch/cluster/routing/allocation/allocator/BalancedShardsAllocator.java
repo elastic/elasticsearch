@@ -787,10 +787,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if (shard.started()) {
                         // skip initializing, unassigned and relocating shards we can't relocate them anyway
                         Decision allocationDecision = deciders.canAllocate(shard, node, allocation);
-                        Decision rebalanceDecission = deciders.canRebalance(shard, allocation);
-
+                        Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
                         if (((allocationDecision.type() == Type.YES) || (allocationDecision.type() == Type.THROTTLE))
-                                && ((rebalanceDecission.type() == Type.YES) || (rebalanceDecission.type() == Type.THROTTLE))) {
+                                && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             Decision srcDecision;
                             if ((srcDecision = maxNode.removeShard(shard)) != null) {
                                 minNode.addShard(shard, srcDecision);
@@ -798,7 +797,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 if (delta < minCost) {
                                     minCost = delta;
                                     candidate = shard;
-                                    decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecission);
+                                    decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                                 }
                                 minNode.removeShard(shard);
                                 maxNode.addShard(shard, srcDecision);

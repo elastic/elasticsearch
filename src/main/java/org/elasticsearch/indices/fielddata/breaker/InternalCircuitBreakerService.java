@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
@@ -41,15 +42,17 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
 
     public static final double DEFAULT_OVERHEAD_CONSTANT = 1.03;
 
+    private static final long JVM_HEAP_MAX_BYTES = JvmInfo.jvmInfo().getMem().getHeapMax().bytes();
+    private static final long DEFAULT_BREAKER_LIMIT = (long) (0.8 * JVM_HEAP_MAX_BYTES); // 80% of the max heap
+
     private volatile MemoryCircuitBreaker breaker;
     private volatile long maxBytes;
     private volatile double overhead;
 
     @Inject
-    public InternalCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService, IndicesFieldDataCache fieldDataCache) {
+    public InternalCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        long fieldDataMax = fieldDataCache.computeSizeInBytes();
-        this.maxBytes = settings.getAsBytesSize(CIRCUIT_BREAKER_MAX_BYTES_SETTING, new ByteSizeValue(fieldDataMax)).bytes();
+        this.maxBytes = settings.getAsBytesSize(CIRCUIT_BREAKER_MAX_BYTES_SETTING, new ByteSizeValue(DEFAULT_BREAKER_LIMIT)).bytes();
         this.overhead = settings.getAsDouble(CIRCUIT_BREAKER_OVERHEAD_SETTING, DEFAULT_OVERHEAD_CONSTANT);
 
         this.breaker = new MemoryCircuitBreaker(new ByteSizeValue(maxBytes), overhead, null, logger);

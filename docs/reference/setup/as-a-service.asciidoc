@@ -30,6 +30,14 @@ Each package features a configuration file, which allows you to set the followin
 
 The debian package ships with everything you need as it uses standard debian tools like update `update-rc.d` to define the runlevels it runs on. The init script is placed at `/etc/init.d/elasticsearch` is you would expect it. The configuration file is placed at `/etc/default/elasticsearch`.
 
+The debian package does not start up the service by default. The reason for this is to prevent the instance to accidentally join a cluster, without being configured appropriately. After installing using `dpkg -i` you can use the following commands to ensure, that elasticsearch starts when the system is booted and then start up elasticsearch:
+
+[source,sh]
+--------------------------------------------------
+sudo update-rc.d elasticsearch defaults 95 10
+sudo /etc/init.d/elasticsearch start
+--------------------------------------------------
+
 ===== Installing the oracle JDK
 
 The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed
@@ -45,12 +53,28 @@ java -version
 The last command should verify a successful installation of the Oracle JDK.
 
 
-==== RedHat/Centos/Fedora
+==== RPM based distributions 
 
-RedHat based distributions are using `chkconfig` to enable and disable services. The init script is at `/etc/init.d/elasticsearch`, where as the configuration file is placed at `/etc/sysconfig/elasticsearch`.
+===== Using chkconfig
 
-==== SuSe
+Some RPM based distributions are using `chkconfig` to enable and disable services. The init script is located at `/etc/init.d/elasticsearch`, where as the configuration file is placed at `/etc/sysconfig/elasticsearch`. Like the debian package the RPM package is not started by default after installation, you have to do this manually by entering the following commands
 
-SuSe does not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services. The configuration file is also placed at `/etc/sysconfig/elasticsearch`.
+[source,sh]
+--------------------------------------------------
+sudo /sbin/chkconfig --add elasticsearch
+sudo service elasticsearch start
+--------------------------------------------------
+
+
+===== Using systemd
+
+Distributions like SuSe do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch`. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
+
+[source,sh]
+--------------------------------------------------
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable elasticsearch.service
+sudo /bin/systemctl start elasticsearch.service
+--------------------------------------------------
 
 Also note that changing the `MAX_MAP_COUNT` setting in `/etc/sysconfig/elasticsearch` does not have any effect, you will have to change it in `/usr/lib/sysctl.d/elasticsearch.conf` in order to have it applied at startup.

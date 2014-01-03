@@ -36,13 +36,15 @@ case "$1" in
 	chmod 755 /etc/elasticsearch
 	chmod 644 /etc/elasticsearch/*
 	
-	update-rc.d elasticsearch defaults 95 10 >/dev/null
 	# if $2 is set, this is an upgrade
 	if ( [ -n $2 ] && [ "$RESTART_ON_UPGRADE" = "true" ] ) ; then
 		startElasticsearch
-	# this is a fresh installation, start anyway
+	# this is a fresh installation
 	elif [ -z $2 ] ; then
-		startElasticsearch
+        echo "### NOT starting elasticsearch by default on bootup, please execute"
+        echo " sudo update-rc.d elasticsearch defaults 95 10"
+        echo "### In order to start elasticsearch, execute"
+        echo " sudo /etc/init.d/elasticsearch start"
 	fi
 	;;
 esac

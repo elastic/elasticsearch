@@ -25,25 +25,26 @@ import java.util.Random;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+
 public class RegexTests extends ElasticsearchTestCase {
 
     @Test
     public void testFlags() {
-        String[] supportedFlags = new String[] { "CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
-                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS" };
-        int[] flags = new int[] { Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
-                Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS };
+        String[] supportedFlags = new String[]{"CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
+                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS"};
+        int[] flags = new int[]{Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
+                Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS};
         Random random = getRandom();
         int num = 10 + random.nextInt(100);
         for (int i = 0; i < num; i++) {
-            int numFlags = random.nextInt(flags.length+1);
+            int numFlags = random.nextInt(flags.length + 1);
             int current = 0;
             StringBuilder builder = new StringBuilder();
             for (int j = 0; j < numFlags; j++) {
                 int index = random.nextInt(flags.length);
                 current |= flags[index];
                 builder.append(supportedFlags[index]);
-                if (j < numFlags-1) {
+                if (j < numFlags - 1) {
                     builder.append("|");
                 }
             }
@@ -53,4 +54,18 @@ public class RegexTests extends ElasticsearchTestCase {
             Pattern.compile("\\w\\d{1,2}", current); // accepts the flags?
         }
     }
+
+    @Test(timeout = 1000)
+    public void testDoubleWildcardMatch() {
+        assertTrue(Regex.simpleMatch("ddd", "ddd"));
+        assertTrue(Regex.simpleMatch("d*d*d", "dadd"));
+        assertTrue(Regex.simpleMatch("**ddd", "dddd"));
+        assertFalse(Regex.simpleMatch("**ddd", "fff"));
+        assertTrue(Regex.simpleMatch("fff*ddd", "fffabcddd"));
+        assertTrue(Regex.simpleMatch("fff**ddd", "fffabcddd"));
+        assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
+        assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
+        assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+    }
+
 }

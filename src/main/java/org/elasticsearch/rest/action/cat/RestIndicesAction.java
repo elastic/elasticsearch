@@ -134,7 +134,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("primaries.store.size", "text-align:right;desc:store size of primaries");
         table.addCell("total.store.size", "text-align:right;desc:store size of primaries & replicas");
 
-        table.addCell("primaries.completion.size", "default:false;text-align:right;desc:size of completion");
+        table.addCell("primaries.completion.size", "alias:pcs,primariesCompletionSize;default:false;text-align:right;desc:size of completion");
 
         table.addCell("primaries.fielddata.memory_size", "default:false;text-align:right;desc:used fielddata cache");
         table.addCell("primaries.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");

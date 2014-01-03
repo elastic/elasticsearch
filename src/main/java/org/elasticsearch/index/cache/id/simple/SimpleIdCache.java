@@ -105,12 +105,6 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return idReaders.get(reader.getCoreCacheKey());
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Override
-    public Iterator<IdReaderCache> iterator() {
-        return (Iterator<IdReaderCache>) idReaders.values();
-    }
-
     @SuppressWarnings({"StringEquality"})
     @Override
     public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws IOException {

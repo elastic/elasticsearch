@@ -126,7 +126,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     /**
-     * We build a plugin manager instance which wait only for 2 minutes before
+     * We build a plugin manager instance which wait only for 30 seconds before
      * raising an ElasticSearchTimeoutException
      */
     private static PluginManager pluginManager(String pluginUrl) {
@@ -135,7 +135,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
-        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueMinutes(2));
+        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueSeconds(30));
     }
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
@@ -226,7 +226,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertThat(plugins, notNullValue());
             assertThat(plugins.length, is(0));
         } catch (ElasticSearchTimeoutException e) {
-            logger.warn("--> timeout exception raised while downloading the plugin. Skipping the test for [{}].", pluginShortName);
+            logger.warn("--> timeout exception raised while downloading plugin [{}]. Skipping test.", pluginShortName);
         }
     }
 

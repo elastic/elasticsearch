@@ -57,17 +57,20 @@ public class HttpDownloadHelper {
         }
 
         GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress);
-        getThread.setDaemon(true);
-        getThread.start();
-        try {
-            getThread.join(timeout.millis());
-        } catch (InterruptedException ie) {
-            // ignore
-        }
 
-        if (getThread.isAlive()) {
-            getThread.closeStreams(
-                    new ElasticSearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it."));
+        try {
+            getThread.setDaemon(true);
+            getThread.start();
+            getThread.join(timeout.millis());
+
+            if (getThread.isAlive()) {
+                throw new ElasticSearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it.");
+            }
+        }
+        catch (InterruptedException ie) {
+            return false;
+        } finally {
+            getThread.closeStreams();
         }
 
         return getThread.wasSuccessful();
@@ -365,12 +368,16 @@ public class HttpDownloadHelper {
          * Closes streams, interrupts the download, may delete the
          * output file.
          */
-        void closeStreams(Exception e) throws Exception {
+        void closeStreams() throws IOException {
             interrupt();
-            if (!success && dest != null && dest.exists()) {
-                dest.delete();
+            if (success) {
+                IOUtils.close(is, os);
+            } else {
+                IOUtils.closeWhileHandlingException(is, os);
+                if (dest != null && dest.exists()) {
+                    dest.delete();
+                }
             }
-            IOUtils.closeWhileHandlingException(e, is, os);
         }
     }
 }

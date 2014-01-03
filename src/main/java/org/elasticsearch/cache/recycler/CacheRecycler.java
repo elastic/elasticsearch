@@ -70,7 +70,6 @@ public class CacheRecycler extends AbstractComponent {
     @Inject
     public CacheRecycler(Settings settings) {
         super(settings);
-        Settings componentSettings = settings.getComponentSettings(CacheRecycler.class);
         String type = componentSettings.get(TYPE, Type.SOFT_THREAD_LOCAL.name());
         int limit = componentSettings.getAsInt(LIMIT, 10);
         int smartSize = componentSettings.getAsInt(SMART_SIZE, 1024);

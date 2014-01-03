@@ -77,7 +77,7 @@ field data format.
 ==== Numeric field data types
 
 `array` (default)::
-    Stores field values in memory using arrays. 
+    Stores field values in memory using arrays.
 
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
@@ -250,8 +250,7 @@ if set. It can be configured with the following parameters:
 |=======================================================================
 |Setting |Description
 |`indices.fielddata.breaker.limit` |Maximum size of estimated field data
-to allow loading. Defaults to `indices.fielddata.cache.size` if set, unbounded
-if not.
+to allow loading. Defaults to 80% of the maximum JVM heap.
 |`indices.fielddata.breaker.overhead` |A constant that all field data
 estimations are multiplied with to determine a final estimation. Defaults to
 1.03

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -66,6 +67,10 @@ public class SegmentsStats implements Streamable, ToXContent {
      */
     public long getMemoryInBytes() {
         return this.memoryInBytes;
+    }
+
+    public ByteSizeValue getMemory() {
+        return new ByteSizeValue(memoryInBytes);
     }
 
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {

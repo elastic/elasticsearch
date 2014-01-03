@@ -82,10 +82,15 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @Override
     public void clear() {
-        for (Iterator<SimpleIdReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
-            SimpleIdReaderCache idReaderCache = it.next();
-            it.remove();
-            onRemoval(idReaderCache);
+        // Make a copy of the live id readers...
+        Map<Object, SimpleIdReaderCache> copy = new HashMap<Object, SimpleIdReaderCache>(idReaders);
+        for (Map.Entry<Object, SimpleIdReaderCache> entry : copy.entrySet()) {
+            SimpleIdReaderCache removed = idReaders.remove(entry.getKey());
+            // ... and only if the id reader still exists in live readers we decrement stats,
+            // this will prevent double onRemoval calls
+            if (removed != null) {
+                onRemoval(removed);
+            }
         }
     }
 

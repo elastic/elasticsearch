@@ -41,7 +41,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        boolean helpWanted = request.paramAsBoolean("h", false);
+        boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);
             int[] width = buildHelpWidths(table, request, false);

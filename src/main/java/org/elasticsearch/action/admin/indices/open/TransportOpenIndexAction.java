@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,12 +42,14 @@ import org.elasticsearch.transport.TransportService;
 public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService) {
+                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.indexStateService = indexStateService;
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
@@ -71,7 +75,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -82,7 +86,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticsearchException {
-
+        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());

@@ -282,7 +282,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     }
 
     private ClusterState stabelize(ClusterState clusterState, AllocationService service) {
-        logger.debug("RoutingNodes: {}", clusterState.routingNodes().prettyPrint());
+        logger.trace("RoutingNodes: {}", clusterState.routingNodes().prettyPrint());
 
         RoutingTable routingTable = service.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -304,7 +304,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
-            logger.debug("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
+            logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
@@ -317,7 +317,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     }
 
     private final void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
-        logger.debug("RoutingNodes: {}", routingNodes.prettyPrint());
+        logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
 
         List<MutableShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
         for (MutableShardRouting r : mutableShardRoutings) {
@@ -325,7 +325,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
             String fromId = r.currentNodeId();
             assertThat(fromId, notNullValue());
             assertThat(toId, notNullValue());
-            logger.debug("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
+            logger.trace("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
             assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
         }
 
@@ -336,7 +336,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();
-                logger.debug("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
+                logger.trace("From: " + fromId + " with Version: " + routingNodes.node(fromId).node().version() + " to: " + toId + " with Version: " + routingNodes.node(toId).node().version());
                 assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
             }
         }

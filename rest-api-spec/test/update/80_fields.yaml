@@ -12,7 +12,7 @@
             upsert: { foo: bar }
 
   - match:   { get._source.foo: bar }
-  - match:   { get.fields.foo:  bar }
+  - match:   { get.fields.foo:  [bar] }
   - is_false:  get.fields.bar
 
 # TODO:

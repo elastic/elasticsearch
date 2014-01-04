@@ -17,7 +17,7 @@
   - match:   { _index:   test_1  }
   - match:   { _type:    test    }
   - match:   { _id:      '1'     }
-  - match:   { fields.foo:  bar  }
+  - match:   { fields.foo:  [bar] }
   - is_false:  _source
 
   - do:
@@ -27,8 +27,8 @@
         id:     1
         fields: [foo, count]
 
-  - match:   { fields.foo:  bar  }
-  - match:   { fields.count:  1  }
+  - match:   { fields.foo:  [bar] }
+  - match:   { fields.count:  [1] }
   - is_false:  _source
 
   - do:
@@ -38,8 +38,8 @@
         id:     1
         fields: [foo, count, _source]
 
-  - match: { fields.foo:  bar  }
-  - match: { fields.count:  1  }
+  - match: { fields.foo:  [bar] }
+  - match: { fields.count:  [1] }
   - match: { _source.foo: bar }
 
 

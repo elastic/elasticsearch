@@ -55,7 +55,7 @@ setup:
           body:
             doc:        { foo: baz }
 
- - match: { get.fields.foo: baz }
+ - match: { get.fields.foo: [baz] }
 
 ---
 "Parent omitted post 1.0":

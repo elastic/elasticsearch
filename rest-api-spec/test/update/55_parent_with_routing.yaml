@@ -56,5 +56,5 @@
           body:
             doc:        { foo: baz }
 
- - match: { get.fields.foo: baz }
+ - match: { get.fields.foo: [baz] }
 

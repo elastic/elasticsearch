@@ -44,4 +44,4 @@
         index: test_index
   
   - match: {test_index.test_type.properties.text.type:     multi_field}
-  - match: {test_index.test_type.properties.text.fields.text_raw.index: not_analyzed}
+  - match: {test_index.test_type.properties.text.fields.text_raw.index: not_analyzed }

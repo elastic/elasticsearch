@@ -30,13 +30,13 @@
   - is_false: docs.0.fields
   - match:  { docs.0._source: { foo: bar }}
 
-  # - match:  { docs.1.fields.foo: bar }
+  # - match:  { docs.1.fields.foo: [bar] }
   # - is_false: docs.1._source
 
-  - match:  { docs.2.fields.foo: bar }
+  - match:  { docs.2.fields.foo: [bar] }
   - is_false: docs.2._source
 
-  - match:  { docs.3.fields.foo: bar }
+  - match:  { docs.3.fields.foo: [bar] }
   - match:  { docs.3._source: { foo: bar }}
 
   - do:
@@ -51,16 +51,16 @@
             - { _id: 1, fields: [foo]          }
             - { _id: 1, fields: [foo, _source] }
 
-  - match:  { docs.0.fields.foo: bar }
+  - match:  { docs.0.fields.foo: [bar] }
   - is_false: docs.0._source
 
-  - match:  { docs.1.fields.foo: bar }
+  - match:  { docs.1.fields.foo: [bar] }
   - is_false: docs.1._source
 
-  - match:  { docs.2.fields.foo: bar }
+  - match:  { docs.2.fields.foo: [bar] }
   - is_false: docs.2._source
 
-  - match:  { docs.3.fields.foo: bar }
+  - match:  { docs.3.fields.foo: [bar] }
   - match:  { docs.3._source: { foo: bar }}
 
   - do:
@@ -75,16 +75,16 @@
             - { _id: 1, fields: [foo]          }
             - { _id: 1, fields: [foo, _source] }
 
-  - match:  { docs.0.fields.foo: bar }
+  - match:  { docs.0.fields.foo: [bar] }
   - is_false: docs.0._source
 
-  - match:  { docs.1.fields.foo: bar }
+  - match:  { docs.1.fields.foo: [bar] }
   - is_false: docs.1._source
 
-  - match:  { docs.2.fields.foo: bar }
+  - match:  { docs.2.fields.foo: [bar] }
   - is_false: docs.2._source
 
-  - match:  { docs.3.fields.foo: bar }
+  - match:  { docs.3.fields.foo: [bar] }
   - match:  { docs.3._source: { foo: bar }}
 
   - do:
@@ -99,15 +99,15 @@
             - { _id: 1, fields: [foo]          }
             - { _id: 1, fields: [foo, _source] }
 
-  - match:  { docs.0.fields.foo: bar }
+  - match:  { docs.0.fields.foo: [bar] }
   - match:  { docs.0._source: { foo: bar }}
 
-  # - match:  { docs.1.fields.foo: bar }
+  # - match:  { docs.1.fields.foo: [bar] }
   # - is_false: docs.1._source
 
-  - match:  { docs.2.fields.foo: bar }
+  - match:  { docs.2.fields.foo: [bar] }
   - is_false: docs.2._source
 
-  - match:  { docs.3.fields.foo: bar }
+  - match:  { docs.3.fields.foo: [bar] }
   - match:  { docs.3._source: { foo: bar }}
 

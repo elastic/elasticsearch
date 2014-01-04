@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.client.Requests;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -53,16 +55,19 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     private final TransportFlushAction flushAction;
     private final TransportDeleteByQueryAction deleteByQueryAction;
     private final TransportRefreshAction refreshAction;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
-                                        TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction, TransportFlushAction flushAction) {
+                                        TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction,
+                                        TransportFlushAction flushAction, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
@@ -88,7 +93,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -99,6 +104,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticsearchException {
+        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {

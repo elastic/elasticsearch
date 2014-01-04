@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.ObjectArrayList;
 import com.google.common.base.Joiner;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -42,6 +45,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -182,7 +186,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                assert false : "Unknown Scope: [" + currentClusterScope + "]";
             }
             currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
-            wipeIndices();
+            wipeIndices("_all");
             wipeTemplates();
             randomIndexTemplate();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
@@ -230,7 +234,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .transientSettings().getAsMap().size(), equalTo(0));
             
             }
-            wipeIndices(); // wipe after to make sure we fail in the test that
+            wipeIndices("_all"); // wipe after to make sure we fail in the test that
                            // didn't ack the delete
             wipeTemplates();
             ensureAllSearchersClosed();
@@ -319,12 +323,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Deletes the given indices from the tests cluster. If no index name is passed to this method
      * all indices are removed.
      */
-    public static void wipeIndices(String... names) {
+    public static void wipeIndices(String... indices) {
+        assert indices != null && indices.length > 0;
         if (cluster().size() > 0) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(names));
+                assertAcked(client().admin().indices().prepareDelete(indices));
             } catch (IndexMissingException e) {
                 // ignore
+            } catch (ElasticsearchIllegalArgumentException e) {
+                // Happens if `action.destructive_requires_name` is set to true
+                // which is the case in the CloseIndexDisableCloseAllTests
+                if ("_all".equals(indices[0])) {
+                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<String>();
+                    for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
+                        concreteIndices.add(indexMetaData.getIndex());
+                    }
+                    if (!concreteIndices.isEmpty()) {
+                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                    }
+                }
             }
         }
     }
@@ -363,7 +381,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 created.add(name);
                 success = true;
             } finally {
-                if (!success) {
+                if (!success && !created.isEmpty()) {
                     wipeIndices(created.toArray(new String[created.size()]));
                 }
             }

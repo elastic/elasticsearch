@@ -196,7 +196,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settings);
         cluster().startNode(settings);
 
-        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
 
         client().admin().indices().prepareCreate("test")
@@ -265,7 +265,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Adding 3th node");
         cluster().startNode(settingsBuilder().put("node.stay", true));
 
-        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
 
         client().admin().indices().prepareCreate("test")

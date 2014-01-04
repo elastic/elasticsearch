@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,24 +32,25 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> implements NodeSettingsService.Listener {
 
     private final MetaDataIndexStateService indexStateService;
-    private final boolean disableCloseAllIndices;
-
+    private volatile boolean destructiveRequiresName;
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService) {
+                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.indexStateService = indexStateService;
-        this.disableCloseAllIndices = settings.getAsBoolean("action.disable_close_all_indices", false);
+        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
+        nodeSettingsService.addListener(this);
     }
 
     @Override
@@ -75,17 +76,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
-        ClusterState state = clusterService.state();
-        String[] indicesOrAliases = request.indices();
-        request.indices(state.metaData().concreteIndices(indicesOrAliases, request.indicesOptions()));
-
-        if (disableCloseAllIndices) {
-            if (state.metaData().isExplicitAllIndices(indicesOrAliases) ||
-                    state.metaData().isPatternMatchingAllIndices(indicesOrAliases, request.indices())) {
-                throw new ElasticsearchIllegalArgumentException("closing all indices is disabled");
-            }
-        }
-
+        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
         super.doExecute(request, listener);
     }
 
@@ -96,7 +87,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticsearchException {
-
+        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());
@@ -114,5 +105,14 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
+        if (destructiveRequiresName != newValue) {
+            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
+            this.destructiveRequiresName = newValue;
+        }
     }
 }

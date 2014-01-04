@@ -20,6 +20,8 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,12 +39,23 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  */
-public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
+public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> implements NodeSettingsService.Listener {
+
+    private volatile boolean destructiveRequiresName;
 
     @Inject
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction) {
+                                        ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction,
+                                        NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
+        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
+        nodeSettingsService.addListener(this);
+    }
+
+    @Override
+    protected void doExecute(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
+        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
+        super.doExecute(request, listener);
     }
 
     @Override
@@ -82,7 +96,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, DeleteByQueryRequest replicationPingRequest, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, DeleteByQueryRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, concreteIndices);
     }
 
@@ -90,5 +104,14 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
         return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
+    }
+
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
+        if (destructiveRequiresName != newValue) {
+            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
+            this.destructiveRequiresName = newValue;
+        }
     }
 }

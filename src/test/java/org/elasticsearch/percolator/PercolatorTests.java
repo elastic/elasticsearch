@@ -1504,7 +1504,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeletePercolatorType() throws Exception {
-        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete().execute().actionGet();
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("_all").execute().actionGet();
         assertThat("Delete Index failed - not acked", deleteIndexResponse.isAcknowledged(), equalTo(true));
         ensureGreen();
 

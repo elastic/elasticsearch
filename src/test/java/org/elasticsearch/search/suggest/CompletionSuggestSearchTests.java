@@ -610,7 +610,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
 
-        client().admin().indices().prepareDelete().get();
+        client().admin().indices().prepareDelete("_all").get();
         client().admin().indices().prepareCreate(INDEX)
                 .setSettings(createDefaultSettings())
                 .get();

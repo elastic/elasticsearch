@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,28 +31,26 @@ import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> {
+public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> implements NodeSettingsService.Listener {
 
     private final MetaDataDeleteIndexService deleteIndexService;
-
-    private final TransportDeleteMappingAction deleteMappingAction;
-
-    private final boolean disableDeleteAllIndices;
+    private volatile boolean destructiveRequiresName;
 
     @Inject
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService, TransportDeleteMappingAction deleteMappingAction) {
+                                      ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService,
+                                      NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.deleteIndexService = deleteIndexService;
-        this.deleteMappingAction = deleteMappingAction;
-
-        this.disableDeleteAllIndices = settings.getAsBoolean("action.disable_delete_all_indices", false);
+        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
+        nodeSettingsService.addListener(this);
     }
 
     @Override
@@ -78,17 +75,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        ClusterState state = clusterService.state();
-        String[] indicesOrAliases = request.indices();
-
-        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
-
-        if (disableDeleteAllIndices) {
-            if (state.metaData().isAllIndices(indicesOrAliases) ||
-                    state.metaData().isPatternMatchingAllIndices(indicesOrAliases, request.indices())) {
-                throw new ElasticsearchIllegalArgumentException("deleting all indices is disabled");
-            }
-        }
+        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
         super.doExecute(request, listener);
     }
 
@@ -99,6 +86,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticsearchException {
+        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
         if (request.indices().length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));
             return;
@@ -134,6 +122,15 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                     }
                 }
             });
+        }
+    }
+
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
+        if (destructiveRequiresName != newValue) {
+            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
+            this.destructiveRequiresName = newValue;
         }
     }
 }

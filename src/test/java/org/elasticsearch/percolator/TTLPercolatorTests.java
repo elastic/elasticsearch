@@ -55,7 +55,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPercolatingWithTimeToLive() throws Exception {
         Client client = client();
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
 
         String precolatorMapping = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)

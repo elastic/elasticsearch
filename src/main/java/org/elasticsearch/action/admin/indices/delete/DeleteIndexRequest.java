@@ -68,7 +68,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("index / indices is missing", validationException);
         }
         return validationException;
@@ -114,10 +114,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
+        indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         timeout = readTimeValue(in);
     }
@@ -125,14 +122,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-        }
+        out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         timeout.writeTo(out);
     }

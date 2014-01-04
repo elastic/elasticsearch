@@ -45,12 +45,12 @@ public class MatchAssertion extends Assertion {
         logger.trace("assert that [{}] matches [{}]", actualValue, expectedValue);
         if (!actualValue.getClass().equals(expectedValue.getClass())) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
-                //Double 1.0 is equals to Integer 1
+                //Double 1.0 is equal to Integer 1
                 assertThat(errorMessage(), ((Number) actualValue).doubleValue(), equalTo(((Number) expectedValue).doubleValue()));
+                return;
             }
-        } else {
-            assertThat(errorMessage(), actualValue, equalTo(expectedValue));
         }
+        assertThat(errorMessage(), actualValue, equalTo(expectedValue));
     }
 
     private String errorMessage() {

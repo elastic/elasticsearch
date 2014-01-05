@@ -17,36 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings;
+package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.action.admin.indices.IndicesAction;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
- * A response for an update index settings action
  */
-public class UpdateSettingsResponse extends AcknowledgedResponse {
+public class GetSettingsAction extends IndicesAction<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
-    UpdateSettingsResponse() {
-    }
+    public static final GetSettingsAction INSTANCE = new GetSettingsAction();
+    public static final String NAME = "indices/settings/get";
 
-    UpdateSettingsResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in, Version.V_0_90_6);
+    public GetSettingsAction() {
+        super(NAME);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out, Version.V_0_90_6);
+    public GetSettingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+        return new GetSettingsRequestBuilder((InternalGenericClient) client);
+    }
+
+    @Override
+    public GetSettingsResponse newResponse() {
+        return new GetSettingsResponse();
     }
 }

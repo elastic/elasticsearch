@@ -50,7 +50,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;

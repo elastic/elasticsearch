@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
@@ -61,6 +62,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean local = request.paramAsBooleanOptional("local", false);
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types).local(local);
+        getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         client.admin().indices().getMappings(getMappingsRequest, new ActionListener<GetMappingsResponse>() {
 
             @Override

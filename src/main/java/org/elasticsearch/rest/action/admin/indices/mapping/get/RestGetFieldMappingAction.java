@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -61,6 +62,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).types(types).local(local).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         client.admin().indices().getFieldMappings(getMappingsRequest, new ActionListener<GetFieldMappingsResponse>() {
 
             @SuppressWarnings("unchecked")

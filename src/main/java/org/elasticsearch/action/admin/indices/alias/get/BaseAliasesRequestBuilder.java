@@ -58,8 +58,13 @@ public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
         return (Builder) this;
     }
 
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
     @SuppressWarnings("unchecked")
-    public Builder setIgnoreIndices(IndicesOptions options) {
+    public Builder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
         return (Builder) this;
     }

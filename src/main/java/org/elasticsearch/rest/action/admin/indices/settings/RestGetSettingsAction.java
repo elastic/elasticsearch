@@ -19,20 +19,17 @@
 
 package org.elasticsearch.rest.action.admin.indices.settings;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -45,59 +42,41 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetSettingsAction extends BaseRestHandler {
 
-    private final SettingsFilter settingsFilter;
-
     @Inject
-    public RestGetSettingsAction(Settings settings, Client client, RestController controller, SettingsFilter settingsFilter) {
+    public RestGetSettingsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
-
-        this.settingsFilter = settingsFilter;
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+                .indices(Strings.splitStringByCommaToArray(request.param("index")))
+                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
+                .prefix(request.param("prefix"));
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .routingTable(false)
-                .nodes(false)
-                .indices(indices);
-        clusterStateRequest.listenerThreaded(false);
+        client.admin().indices().getSettings(getSettingsRequest, new ActionListener<GetSettingsResponse>() {
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetSettingsResponse getSettingsResponse) {
                 try {
-                    MetaData metaData = response.getState().metaData();
-
-                    if (metaData.indices().isEmpty() && indices.length > 0) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
-                        return;
-                    }
-
                     boolean foundAny = false;
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-
-                    for (IndexMetaData indexMetaData : metaData) {
-                        builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-                        foundAny = true;
-                        builder.startObject("settings");
-                        Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                    for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
+                        builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                        builder.startObject(Fields.SETTINGS);
+                        for (Map.Entry<String, String> entry : cursor.value.getAsMap().entrySet()) {
+                            foundAny = true;
                             builder.field(entry.getKey(), entry.getValue());
                         }
                         builder.endObject();
-
                         builder.endObject();
                     }
-
                     builder.endObject();
-
                     channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
-                } catch (Throwable e) {
+                } catch (IOException e) {
                     onFailure(e);
                 }
             }
@@ -111,5 +90,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static class Fields {
+
+        static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
+
     }
 }

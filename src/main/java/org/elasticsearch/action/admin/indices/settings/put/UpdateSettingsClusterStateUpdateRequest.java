@@ -17,29 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings;
+package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.common.settings.Settings;
 
 /**
+ * Cluster state update request that allows to update settings for some indices
  */
-public class UpdateSettingsAction extends IndicesAction<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
+public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
 
-    public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();
-    public static final String NAME = "indices/settings/update";
+    private Settings settings;
 
-    private UpdateSettingsAction() {
-        super(NAME);
+    public UpdateSettingsClusterStateUpdateRequest() {
+
     }
 
-    @Override
-    public UpdateSettingsResponse newResponse() {
-        return new UpdateSettingsResponse();
+    /**
+     * Returns the {@link Settings} to update
+     */
+    public Settings settings() {
+        return settings;
     }
 
-    @Override
-    public UpdateSettingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new UpdateSettingsRequestBuilder(client);
+    /**
+     * Sets the {@link Settings} to update
+     */
+    public UpdateSettingsClusterStateUpdateRequest settings(Settings settings) {
+        this.settings = settings;
+        return this;
     }
 }

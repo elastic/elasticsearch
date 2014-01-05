@@ -35,6 +35,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuil
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
@@ -96,6 +98,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping("test1", "test2"), true);
         verify(getMapping("test1", "test2"), true);
         verify(getWarmer("test1", "test2"), true);
+        verify(getSettings("test1", "test2"), true);
 
         IndicesOptions options = IndicesOptions.strict();
         verify(search("test1", "test2").setIndicesOptions(options), true);
@@ -120,6 +123,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getWarmer("test1", "test2").setIndicesOptions(options), true);
+        verify(getSettings("test1", "test2").setIndicesOptions(options), true);
 
         options = IndicesOptions.lenient();
         verify(search("test1", "test2").setIndicesOptions(options), false);
@@ -144,6 +148,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
+        verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strict();
         assertAcked(prepareCreate("test2"));
@@ -170,6 +175,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
+        verify(getSettings("test1", "test2").setIndicesOptions(options), false);
     }
 
     @Test
@@ -226,6 +232,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getWarmer(indices), false);
+        verify(getSettings(indices), false);
 
         // Now force allow_no_indices=true
         IndicesOptions options = IndicesOptions.fromOptions(false, true, true, false);
@@ -251,6 +258,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getWarmer(indices).setIndicesOptions(options), false);
+        verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
         client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
@@ -279,6 +287,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getWarmer(indices), false);
+        verify(getSettings(indices).setIndicesOptions(options), false);
 
         // Verify defaults for wildcards, with two wildcard expression and one existing index
         indices = new String[]{"foo*", "bar*"};
@@ -304,6 +313,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
         verify(getWarmer(indices), false);
+        verify(getSettings(indices).setIndicesOptions(options), false);
 
         // Now force allow_no_indices=true
         options = IndicesOptions.fromOptions(false, true, true, false);
@@ -329,6 +339,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getWarmer(indices).setIndicesOptions(options), false);
+        verify(getSettings(indices).setIndicesOptions(options), false);
     }
 
     @Test
@@ -636,6 +647,17 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(client().admin().indices().prepareUpdateSettings("bar*").setSettings(ImmutableSettings.builder().put("a", "b")), false);
         verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(ImmutableSettings.builder().put("c", "d")), false);
 
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("foo").get();
+        assertThat(settingsResponse.getSetting("foo", "index.a"), equalTo("b"));
+        settingsResponse = client().admin().indices().prepareGetSettings("bar*").get();
+        assertThat(settingsResponse.getSetting("bar", "index.a"), equalTo("b"));
+        assertThat(settingsResponse.getSetting("barbaz", "index.a"), equalTo("b"));
+        settingsResponse = client().admin().indices().prepareGetSettings("_all").get();
+        assertThat(settingsResponse.getSetting("foo", "index.c"), equalTo("d"));
+        assertThat(settingsResponse.getSetting("foobar", "index.c"), equalTo("d"));
+        assertThat(settingsResponse.getSetting("bar", "index.c"), equalTo("d"));
+        assertThat(settingsResponse.getSetting("barbaz", "index.c"), equalTo("d"));
+
         assertAcked(client().admin().indices().prepareOpen("_all").get());
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(ImmutableSettings.builder().put("e", "f")), false);
@@ -741,6 +763,10 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     private static GetWarmersRequestBuilder getWarmer(String... indices) {
         return client().admin().indices().prepareGetWarmers(indices);
+    }
+
+    private static GetSettingsRequestBuilder getSettings(String... indices) {
+        return client().admin().indices().prepareGetSettings(indices);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {

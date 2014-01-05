@@ -81,6 +81,9 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     }
 
+    protected void processBeforeProcess(Request request, ClusterState clusterState) {
+    }
+
     @Override
     public void execute(Request request, ActionListener<Response> listener) {
         // since the callback is async, we typically can get called from within an event in the cluster service
@@ -97,6 +100,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
     private void innerExecute(final Request request, final ActionListener<Response> listener, final boolean retrying) {
         final ClusterState clusterState = clusterService.state();
         final DiscoveryNodes nodes = clusterState.nodes();
+        processBeforeProcess(request, clusterState);
         if (nodes.localNodeMaster() || localExecute(request)) {
             // check for block, if blocked, retry, else, execute locally
             final ClusterBlockException blockException = checkBlock(request, clusterState);

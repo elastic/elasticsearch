@@ -93,10 +93,14 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -599,5 +603,20 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener) {
         execute(GetWarmersAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
+        return new GetSettingsRequestBuilder(this, indices);
+    }
+
+    @Override
+    public ActionFuture<GetSettingsResponse> getSettings(GetSettingsRequest request) {
+        return execute(GetSettingsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
+        execute(GetSettingsAction.INSTANCE, request, listener);
     }
 }

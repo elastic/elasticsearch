@@ -98,8 +98,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
-import org.elasticsearch.action.admin.indices.settings.TransportUpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.TransportGetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusAction;
@@ -246,6 +248,7 @@ public class ActionModule extends AbstractModule {
         registerAction(GetWarmersAction.INSTANCE, TransportGetWarmersAction.class);
         registerAction(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         registerAction(AliasesExistAction.INSTANCE, TransportAliasesExistAction.class);
+        registerAction(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);

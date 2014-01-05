@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings;
+package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;

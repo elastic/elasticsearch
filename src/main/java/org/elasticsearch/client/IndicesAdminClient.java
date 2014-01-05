@@ -75,9 +75,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -742,4 +745,9 @@ public interface IndicesAdminClient {
 
     GetWarmersRequestBuilder prepareGetWarmers(String... indices);
 
+    void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener);
+
+    ActionFuture<GetSettingsResponse> getSettings(GetSettingsRequest request);
+
+    GetSettingsRequestBuilder prepareGetSettings(String... indices);
 }

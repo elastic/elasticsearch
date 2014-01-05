@@ -17,29 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings;
+package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
+ * A response for an update index settings action
  */
-public class UpdateSettingsAction extends IndicesAction<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
+public class UpdateSettingsResponse extends AcknowledgedResponse {
 
-    public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();
-    public static final String NAME = "indices/settings/update";
+    UpdateSettingsResponse() {
+    }
 
-    private UpdateSettingsAction() {
-        super(NAME);
+    UpdateSettingsResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 
     @Override
-    public UpdateSettingsResponse newResponse() {
-        return new UpdateSettingsResponse();
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        readAcknowledged(in, Version.V_0_90_6);
     }
 
     @Override
-    public UpdateSettingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new UpdateSettingsRequestBuilder(client);
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeAcknowledged(out, Version.V_0_90_6);
     }
 }

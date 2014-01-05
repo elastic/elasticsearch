@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;

@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -63,6 +64,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
 
         GetWarmersRequest getWarmersRequest = new GetWarmersRequest();
         getWarmersRequest.indices(indices).types(types).warmers(names).local(local);
+        getWarmersRequest.indicesOptions(IndicesOptions.fromRequest(request, getWarmersRequest.indicesOptions()));
         client.admin().indices().getWarmers(getWarmersRequest, new ActionListener<GetWarmersResponse>() {
 
             @Override

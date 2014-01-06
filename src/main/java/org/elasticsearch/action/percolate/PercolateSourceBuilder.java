@@ -47,7 +47,7 @@ public class PercolateSourceBuilder implements ToXContent {
     private FilterBuilder filterBuilder;
     private Integer size;
     private Boolean sort;
-    private Boolean score;
+    private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
     private List<FacetBuilder> facets;
     private List<AggregationBuilder> aggregations;
@@ -105,7 +105,7 @@ public class PercolateSourceBuilder implements ToXContent {
     }
 
     /**
-     * Similar as {@link #setScore(boolean)}, but also sort by the score.
+     * Similar as {@link #setTrackScores(boolean)}, but also sort by the score.
      */
     public PercolateSourceBuilder setSort(boolean sort) {
         this.sort = sort;
@@ -116,8 +116,8 @@ public class PercolateSourceBuilder implements ToXContent {
      * Whether to compute a score for each match and include it in the response. The score is based on
      * {@link #setQueryBuilder(QueryBuilder)}.
      */
-    public PercolateSourceBuilder setScore(boolean score) {
-        this.score = score;
+    public PercolateSourceBuilder setTrackScores(boolean trackScores) {
+        this.trackScores = trackScores;
         return this;
     }
 
@@ -181,8 +181,8 @@ public class PercolateSourceBuilder implements ToXContent {
         if (sort != null) {
             builder.field("sort", sort);
         }
-        if (score != null) {
-            builder.field("score", score);
+        if (trackScores != null) {
+            builder.field("track_scores", trackScores);
         }
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);

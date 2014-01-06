@@ -63,6 +63,12 @@
             <version>4.3.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.mahout</groupId>
+            <artifactId>mahout-core</artifactId>
+            <version>0.9</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
@@ -1195,6 +1201,9 @@
                   <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
                   <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
                   <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                  <!-- t-digest -->
+                  <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
+                  <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
                 </excludes>
               </configuration>
                 <executions>

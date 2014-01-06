@@ -1,0 +1,12 @@
+description = 'Elasticsearch Hadoop HDFS Repository'
+
+dependencies {
+	provided(hadoopCore)
+	provided("org.elasticsearch:elasticsearch:$esVersion")
+	testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
+	testCompile "org.apache.lucene:lucene-test-framework:4.6.0"
+}
+
+jar {
+	manifest.attributes['Implementation-Title'] = 'elasticsearch-hadoop-hdfs-repository'
+}

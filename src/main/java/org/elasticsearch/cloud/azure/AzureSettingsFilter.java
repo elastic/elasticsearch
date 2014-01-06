@@ -23,16 +23,22 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
 /**
- * Filtering cloud.azure.* settings
+ * Filtering cloud.azure.* and repositories.azure.* settings
  */
 public class AzureSettingsFilter implements SettingsFilter.Filter {
 
     @Override
     public void filter(ImmutableSettings.Builder settings) {
         // Cloud settings
-        settings.remove("cloud.certificate");
+        settings.remove("cloud.azure.keystore");
         settings.remove("cloud.azure.password");
         settings.remove("cloud.azure.subscription_id");
         settings.remove("cloud.azure.service_name");
+
+        // Repositories settings
+        settings.remove("repositories.azure.account");
+        settings.remove("repositories.azure.key");
+        settings.remove("repositories.azure.container");
+        settings.remove("repositories.azure.base_path");
     }
 }

@@ -69,6 +69,11 @@ governing permissions and limitations under the License. -->
             <version>${elasticsearch.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.microsoft.windowsazure</groupId>
+            <artifactId>microsoft-windowsazure-api</artifactId>
+            <version>0.4.5</version>
+        </dependency>
+        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>1.2.17</version>

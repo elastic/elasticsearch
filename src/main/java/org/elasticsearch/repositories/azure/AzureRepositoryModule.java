@@ -17,36 +17,45 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure;
+package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.cloud.azure.AzureModule;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.repositories.Repository;
 
 /**
- *
+ * Azure repository module
  */
-public class AzureDiscoveryModule extends ZenDiscoveryModule {
+public class AzureRepositoryModule extends AbstractModule {
 
     protected final ESLogger logger;
     private Settings settings;
 
     @Inject
-    public AzureDiscoveryModule(Settings settings) {
+    public AzureRepositoryModule(Settings settings) {
         super();
         this.logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
     }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    protected void bindDiscovery() {
-        if (AzureModule.isDiscoveryReady(settings, logger)) {
-            bind(Discovery.class).to(AzureDiscovery.class).asEagerSingleton();
+    protected void configure() {
+        if (AzureModule.isSnapshotReady(settings, logger)) {
+            bind(Repository.class).to(AzureRepository.class).asEagerSingleton();
+            bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
         } else {
-            logger.debug("disabling azure discovery features");
+            logger.debug("disabling azure snapshot and restore features");
         }
     }
+
 }
+

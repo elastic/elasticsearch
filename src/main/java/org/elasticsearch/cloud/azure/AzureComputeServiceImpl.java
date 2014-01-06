@@ -20,11 +20,9 @@
 package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -84,12 +82,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
 
         // Check that we have all needed properties
         try {
-            checkProperty(Fields.SUBSCRIPTION_ID, subscription_id);
-            checkProperty(Fields.SERVICE_NAME, service_name);
-            checkProperty(Fields.KEYSTORE, keystore);
-            checkProperty(Fields.PASSWORD, password);
             socketFactory = getSocketFactory(keystore, password);
-
             if (logger.isTraceEnabled()) logger.trace("creating new Azure client for [{}], [{}], [{}], [{}]",
                     subscription_id, service_name, port_name);
         } catch (Exception e) {
@@ -210,11 +203,4 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     @Override
     protected void doClose() throws ElasticsearchException {
     }
-
-    private void checkProperty(String name, String value) throws ElasticsearchException {
-        if (!Strings.hasText(value)) {
-            throw new SettingsException("cloud.azure." + name +" is not set or is incorrect.");
-        }
-    }
-
 }

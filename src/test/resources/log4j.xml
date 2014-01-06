@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Licensed to ElasticSearch under one or more contributor
+<!-- Licensed to Elasticsearch under one or more contributor
 license agreements. See the NOTICE file distributed with this work for additional
 information regarding copyright ownership. ElasticSearch licenses this file to you
 under the Apache License, Version 2.0 (the "License"); you may not use this
@@ -30,9 +30,12 @@ governing permissions and limitations under the License. -->
     <logger name="org.elasticsearch.discovery.azure">
         <level value="trace" />
     </logger>
+    <logger name="org.elasticsearch.repositories.azure">
+        <level value="trace" />
+    </logger>
 
 	<root>
-		<priority value="trace" />
+		<priority value="info" />
 		<appender-ref ref="console" />
 	</root>
 

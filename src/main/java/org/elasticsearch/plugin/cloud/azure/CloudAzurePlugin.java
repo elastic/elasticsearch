@@ -22,8 +22,13 @@ package org.elasticsearch.plugin.cloud.azure;
 import org.elasticsearch.cloud.azure.AzureModule;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.azure.AzureRepository;
+import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.Collection;
 
@@ -33,6 +38,7 @@ import java.util.Collection;
 public class CloudAzurePlugin extends AbstractPlugin {
 
     private final Settings settings;
+    private final ESLogger logger = ESLoggerFactory.getLogger(CloudAzurePlugin.class.getName());
 
     public CloudAzurePlugin(Settings settings) {
         this.settings = settings;
@@ -51,9 +57,17 @@ public class CloudAzurePlugin extends AbstractPlugin {
     @Override
     public Collection<Class<? extends Module>> modules() {
         Collection<Class<? extends Module>> modules = Lists.newArrayList();
-        if (settings.getAsBoolean("cloud.enabled", true)) {
+        if (AzureModule.isCloudReady(settings)) {
             modules.add(AzureModule.class);
         }
         return modules;
+    }
+
+    @Override
+    public void processModule(Module module) {
+        if (AzureModule.isSnapshotReady(settings, logger)
+                && module instanceof RepositoriesModule) {
+            ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
+        }
     }
 }

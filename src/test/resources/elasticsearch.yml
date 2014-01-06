@@ -1,4 +1,4 @@
-# Licensed to ElasticSearch under one or more contributor
+# Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with this work for additional
 # information regarding copyright ownership. ElasticSearch licenses this file to you
 # under the Apache License, Version 2.0 (the "License"); you may not use this
@@ -25,6 +25,16 @@
 #          password: YOUR-PASSWORD
 #          subscription_id: YOUR-AZURE-SUBSCRIPTION-ID
 #          service_name: YOUR-AZURE-SERVICE-NAME
+#          storage_account: "YOUR-AZURE-STORAGE-NAME"
+#          storage_key: "YOUR-AZURE-STORAGE-KEY"
 #
 #  discovery:
 #          type: azure
+#
+#  repositories:
+#      azure:
+#          container: "NAME-OF-CONTAINER-USED-FOR-SNAPSHOTS"  #optional default to "elasticsearch-snapshots"
+#          base_path: "path/to/snapshots"                     #optional default to empty
+#          concurrent_streams: 5                              #optional default to 5
+#          chunk_size: 64mb                                   #optional default to "64mb"
+#          compress: false                                    #optional default to false

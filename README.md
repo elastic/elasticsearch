@@ -335,6 +335,82 @@ If you want to remove your running instances:
 azure vm delete myesnode1
 ```
 
+Azure Repository
+================
+
+To enable Azure repositories, you have first to set your azure storage settings:
+
+```
+    cloud:
+        azure:
+            storage_account: your_azure_storage_account
+            storage_key: your_azure_storage_key
+```
+
+The Azure repository supports following settings:
+
+* `container`: Container name. Defaults to `elasticsearch-snapshots`
+* `base_path`: Specifies the path within container to repository data. Defaults to empty (root directory).
+* `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
+* `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified
+in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `64m` (64m max)
+* `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index
+files that are already compressed by default. Defaults to `false`.
+
+Some examples, using scripts:
+
+```sh
+# The simpliest one
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup1' -d '{
+    "type": "azure"
+}'
+
+# With some settings
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup2' -d '{
+    "type": "azure",
+    "settings": {
+        "container": "backup_container",
+        "base_path": "backups",
+        "concurrent_streams": 2,
+        "chunk_size": "32m",
+        "compress": true
+    }
+}'
+```
+
+Example using Java:
+
+```java
+client.admin().cluster().preparePutRepository("my_backup3")
+        .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+                .put(AzureStorageService.Fields.CONTAINER, "backup_container")
+                .put(AzureStorageService.Fields.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
+        ).get();
+```
+
+
+Testing
+-------
+
+Integrations tests in this plugin require working Azure configuration and therefore disabled by default.
+To enable tests prepare a config file elasticsearch.yml with the following content:
+
+```
+  repositories:
+      azure:
+          account: "YOUR-AZURE-STORAGE-NAME"
+          key: "YOUR-AZURE-STORAGE-KEY"
+```
+
+Replaces `account`, `key` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified bucket.
+
+To run test:
+
+```sh
+mvn -Dtests.azure=true -Des.config=/path/to/config/file/elasticsearch.yml clean test
+```
+
+
 License
 -------
 

@@ -48,6 +48,12 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
 
       discovery:
               type: azure
+
+      repositories:
+          azure:
+              account: "yourstorageaccount"
+              key: "storage key"
+              container: "container name"
      * </pre>
      */
     @Documented

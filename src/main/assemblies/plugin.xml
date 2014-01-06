@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- Licensed to ElasticSearch under one or more contributor
+<!-- Licensed to Elasticsearch under one or more contributor
 license agreements. See the NOTICE file distributed with this work for additional
 information regarding copyright ownership. ElasticSearch licenses this file to you
 under the Apache License, Version 2.0 (the "License"); you may not use this
@@ -24,6 +24,14 @@ governing permissions and limitations under the License. -->
             <excludes>
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
+        </dependencySet>
+        <dependencySet>
+            <outputDirectory>/</outputDirectory>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <includes>
+                <include>com.microsoft.windowsazure:microsoft-windowsazure-api</include>
+            </includes>
         </dependencySet>
     </dependencySets>
 </assembly>

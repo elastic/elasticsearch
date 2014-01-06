@@ -194,6 +194,66 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("primaries.warmer.total", "alias:pwto,primariesWarmerTotal;default:false;text-align:right;desc:total warmer ops");
         table.addCell("primaries.warmer.total_time", "alias:pwtt,primariesWarmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
+        table.addCell("total.completion.size", "alias:tcs,totalCompletionSize;default:false;text-align:right;desc:size of completion");
+
+        table.addCell("total.fielddata.memory_size", "alias:tfm,totalFielddataMemory;default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("total.fielddata.evictions", "alias:tfe,totalFielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
+
+        table.addCell("total.filter_cache.memory_size", "alias:tfcm,totalFilterCacheMemory;default:false;text-align:right;desc:used filter cache");
+        table.addCell("total.filter_cache.evictions", "alias:tfce,totalFilterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
+
+        table.addCell("total.flush.total", "alias:tft,totalFlushTotal;default:false;text-align:right;desc:number of flushes");
+        table.addCell("total.flush.total_time", "alias:tftt,totalFlushTotalTime;default:false;text-align:right;desc:time spent in flush");
+
+        table.addCell("total.get.current", "alias:tgc,totalGetCurrent;default:false;text-align:right;desc:number of current get ops");
+        table.addCell("total.get.time", "alias:tgti,totalGetTime;default:false;text-align:right;desc:time spent in get");
+        table.addCell("total.get.total", "alias:tgto,totalGetTotal;default:false;text-align:right;desc:number of get ops");
+        table.addCell("total.get.exists_time", "alias:tgeti,totalGetExistsTime;default:false;text-align:right;desc:time spent in successful gets");
+        table.addCell("total.get.exists_total", "alias:tgeto,totalGetExistsTotal;default:false;text-align:right;desc:number of successful gets");
+        table.addCell("total.get.missing_time", "alias:tgmti,totalGetMissingTime;default:false;text-align:right;desc:time spent in failed gets");
+        table.addCell("total.get.missing_total", "alias:tgmto,totalGetMissingTotal;default:false;text-align:right;desc:number of failed gets");
+
+        table.addCell("total.id_cache.memory_size", "alias:tim,totalIdCacheMemory;default:false;text-align:right;desc:used id cache");
+
+        table.addCell("total.indexing.delete_current", "alias:tidc,totalIndexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("total.indexing.delete_time", "alias:tidti,totalIndexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
+        table.addCell("total.indexing.delete_total", "alias:tidto,totalIndexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
+        table.addCell("total.indexing.index_current", "alias:tiic,totalIndexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("total.indexing.index_time", "alias:tiiti,totalIndexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
+        table.addCell("total.indexing.index_total", "alias:tiito,totalIndexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+
+        table.addCell("total.merges.current", "alias:tmc,totalMergesCurrent;default:false;text-align:right;desc:number of current merges");
+        table.addCell("total.merges.current_docs", "alias:tmcd,totalMergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("total.merges.current_size", "alias:tmcs,totalMergesCurrentSize;default:false;text-align:right;desc:size of current merges");
+        table.addCell("total.merges.total", "alias:tmt,totalMergesTotal;default:false;text-align:right;desc:number of completed merge ops");
+        table.addCell("total.merges.total_docs", "alias:tmtd,totalMergesTotalDocs;default:false;text-align:right;desc:docs merged");
+        table.addCell("total.merges.total_size", "alias:tmts,totalMergesTotalSize;default:false;text-align:right;desc:size merged");
+        table.addCell("total.merges.total_time", "alias:tmtt,totalMergesTotalTime;default:false;text-align:right;desc:time spent in merges");
+
+        table.addCell("total.percolate.current", "alias:tpc,totalPercolateCurrent;default:false;text-align:right;desc:number of current percolations");
+        table.addCell("total.percolate.memory_size", "alias:tpm,totalPercolateMemory;default:false;text-align:right;desc:memory used by percolations");
+        table.addCell("total.percolate.queries", "alias:tpq,totalPercolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
+        table.addCell("total.percolate.time", "alias:tpti,totalPercolateTime;default:false;text-align:right;desc:time spent percolating");
+        table.addCell("total.percolate.total", "alias:tpto,totalPercolateTotal;default:false;text-align:right;desc:total percolations");
+
+        table.addCell("total.refresh.total", "alias:trto,totalRefreshTotal;default:false;text-align:right;desc:total refreshes");
+        table.addCell("total.refresh.time", "alias:trti,totalRefreshTime;default:false;text-align:right;desc:time spent in refreshes");
+
+        table.addCell("total.search.fetch_current", "alias:tsfc,totalSearchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
+        table.addCell("total.search.fetch_time", "alias:tsfti,totalSearchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
+        table.addCell("total.search.fetch_total", "alias:tsfto,totalSearchFetchTotal;default:false;text-align:right;desc:total fetch ops");
+        table.addCell("total.search.open_contexts", "alias:tso,totalSearchOpenContexts;default:false;text-align:right;desc:open search contexts");
+        table.addCell("total.search.query_current", "alias:tsqc,totalSearchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
+        table.addCell("total.search.query_time", "alias:tsqti,totalSearchQueryTime;default:false;text-align:right;desc:time spent in query phase");
+        table.addCell("total.search.query_total", "alias:tsqto,totalSearchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell("total.segments.count", "alias:tsc,totalSegmentsCount;default:false;text-align:right;desc:number of segments");
+        table.addCell("total.segments.memory", "alias:tsm,totalSegmentsMemory;default:false;text-align:right;desc:memory used by segments");
+
+        table.addCell("total.warmer.current", "alias:twc,totalWarmerCurrent;default:false;text-align:right;desc:current warmer ops");
+        table.addCell("total.warmer.total", "alias:twto,totalWarmerTotal;default:false;text-align:right;desc:total warmer ops");
+        table.addCell("total.warmer.total_time", "alias:twtt,totalWarmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
+
         table.endHeaders();
         return table;
     }
@@ -274,6 +334,66 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().total());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().totalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getCompletion().getSize());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFieldData().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFieldData().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().current());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getExistsTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getExistsCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getMissingTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getGet().getMissingCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIdCache().getMemorySize());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getDeleteCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getDeleteTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getDeleteCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getIndexCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getIndexTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getIndexCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrentNumDocs());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrentSize());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalNumDocs());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalSize());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getNumQueries());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotal());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getFetchCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getFetchTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getFetchCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getOpenContexts());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getQueryCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getQueryTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getQueryCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().total());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().totalTime());
 
             table.endRow();
         }

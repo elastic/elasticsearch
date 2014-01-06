@@ -125,6 +125,9 @@ public class ThreadPool extends AbstractComponent {
             executors.put(executor.getKey(), build(executor.getKey(), groupSettings.get(executor.getKey()), executor.getValue()));
         }
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
+        if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
+            throw new ElasticSearchIllegalArgumentException("generic thread pool must be of type cached");
+        }
         this.executors = ImmutableMap.copyOf(executors);
         this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);

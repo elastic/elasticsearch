@@ -84,4 +84,6 @@ public interface RestRequest extends ToXContent.Params {
     ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue);
 
     Map<String, String> params();
+
+    Iterable<Map.Entry<String, String>> headers();
 }

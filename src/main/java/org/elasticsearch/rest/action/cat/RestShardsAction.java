@@ -107,7 +107,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.startHeaders()
                 .addCell("index", "default:true;desc:index name")
                 .addCell("shard", "default:true;desc:shard name")
-                .addCell("p/r", "default:true;desc:primary or replica")
+                .addCell("prirep", "alias:pr,primaryOrReplica;default:true;desc:primary or replica")
                 .addCell("state", "default:true;desc:shard state")
                 .addCell("docs", "text-align:right;desc:number of docs in shard")
                 .addCell("store", "text-align:right;desc:store size of shard (how much disk it uses)")

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -67,6 +68,22 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         return pages[pageIndex][indexInPage] += inc;
+    }
+
+    @Override
+    public void fill(long fromIndex, long toIndex, int value) {
+        Preconditions.checkArgument(fromIndex <= toIndex);
+        final int fromPage = pageIndex(fromIndex);
+        final int toPage = pageIndex(toIndex - 1);
+        if (fromPage == toPage) {
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+        } else {
+            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            for (int i = fromPage + 1; i < toPage; ++i) {
+                Arrays.fill(pages[i], value);
+            }
+            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
     }
 
     @Override

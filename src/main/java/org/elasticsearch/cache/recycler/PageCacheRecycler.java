@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cache.recycler;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler.Type;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
 
 import java.util.Arrays;
 
@@ -57,19 +55,15 @@ public class PageCacheRecycler extends AbstractComponent {
     }
 
     private static int maximumSearchThreadPoolSize(ThreadPool threadPool, Settings settings) {
-        final ThreadPoolInfo infos = threadPool.info();
-        for (ThreadPool.Info info : infos) {
-            if (info.getName().equals(ThreadPool.Names.SEARCH)) {
-                final int maxSize = info.getMax();
-                if (maxSize <= 0) {
-                    // happens with cached thread pools, let's assume there are at most 3x ${number of processors} threads
-                    return 3 * EsExecutors.boundedNumberOfProcessors(settings);
-                } else {
-                    return maxSize;
-                }
-            }
+        ThreadPool.Info searchThreadPool = threadPool.info(ThreadPool.Names.SEARCH);
+        assert searchThreadPool != null;
+        final int maxSize = searchThreadPool.getMax();
+        if (maxSize <= 0) {
+            // happens with cached thread pools, let's assume there are at most 3x ${number of processors} threads
+            return 3 * EsExecutors.boundedNumberOfProcessors(settings);
+        } else {
+            return maxSize;
         }
-        throw new ElasticSearchIllegalStateException("Couldn't find the [" + ThreadPool.Names.SEARCH + "] thread pool");
     }
 
     // return the maximum number of pages that may be cached depending on

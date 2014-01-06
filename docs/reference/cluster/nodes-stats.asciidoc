@@ -9,10 +9,6 @@ the cluster nodes statistics.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_cluster/nodes/stats'
-curl -XGET 'http://localhost:9200/_cluster/nodes/nodeId1,nodeId2/stats'
-
-# simplified
 curl -XGET 'http://localhost:9200/_nodes/stats'
 curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/stats'
 --------------------------------------------------
@@ -22,9 +18,9 @@ second command selectively retrieves nodes stats of only `nodeId1` and
 `nodeId2`. All the nodes selective options are explained
 <<cluster-nodes,here>>.
 
-By default, `indices` stats are returned. With options for `indices`,
-`os`, `process`, `jvm`, `network`, `transport`, `http`, `fs`, `breaker`, and
-`thread_pool`. For example:
+By default, all stats are returned. You can limit this by combining any
+of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
+`fs`, `breaker` and `thread_pool`. For example:
 
 [horizontal]
 `indices`:: 
@@ -70,13 +66,10 @@ By default, `indices` stats are returned. With options for `indices`,
 [source,js]
 --------------------------------------------------
 # return indices and os
-curl -XGET 'http://localhost:9200/_nodes/stats?os=true'
+curl -XGET 'http://localhost:9200/_nodes/stats/os'
 # return just os and process
-curl -XGET 'http://localhost:9200/_nodes/stats?clear=true&os=true&process=true'
+curl -XGET 'http://localhost:9200/_nodes/stats/os,process'
 # specific type endpoint
-curl -XGET 'http://localhost:9200/_nodes/process/stats'
-curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/process/stats'
-# or, if you like the other way
 curl -XGET 'http://localhost:9200/_nodes/stats/process'
 curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 --------------------------------------------------
@@ -93,12 +86,12 @@ level or on index level.
 [source,js]
 --------------------------------------------------
 # Node Stats
-curl localhost:9200/_nodes/stats/indices/fielddata/field1,field2?pretty
+curl localhost:9200/_nodes/stats/indices/field1,field2?pretty
 
 # Indices Stat
 curl localhost:9200/_stats/fielddata/field1,field2?pretty
 
 # You can use wildcards for field names
 curl localhost:9200/_stats/fielddata/field*?pretty
-curl localhost:9200/_nodes/stats/indices/fielddata/field*?pretty
+curl localhost:9200/_nodes/stats/indices/field*?pretty
 --------------------------------------------------

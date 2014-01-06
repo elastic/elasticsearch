@@ -19,14 +19,14 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.collect.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
@@ -72,6 +72,7 @@ import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -175,44 +176,50 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override
     public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
-        CommonStats stats = new CommonStats(flags);
+        CommonStats oldStats = new CommonStats(flags);
 
         if (includePrevious) {
             Flag[] setFlags = flags.getFlags();
             for (Flag flag : setFlags) {
                 switch (flag) {
                     case Get:
-                        stats.get.add(oldShardsStats.getStats);
+                        oldStats.get.add(oldShardsStats.getStats);
                         break;
                     case Indexing:
-                        stats.indexing.add(oldShardsStats.indexingStats);
+                        oldStats.indexing.add(oldShardsStats.indexingStats);
                         break;
                     case Search:
-                        stats.search.add(oldShardsStats.searchStats);
+                        oldStats.search.add(oldShardsStats.searchStats);
                         break;
                     case Merge:
-                        stats.merge.add(oldShardsStats.mergeStats);
+                        oldStats.merge.add(oldShardsStats.mergeStats);
                         break;
                     case Refresh:
-                        stats.refresh.add(oldShardsStats.refreshStats);
+                        oldStats.refresh.add(oldShardsStats.refreshStats);
                         break;
                     case Flush:
-                        stats.flush.add(oldShardsStats.flushStats);
+                        oldStats.flush.add(oldShardsStats.flushStats);
                         break;
                 }
             }
         }
 
+        Map<Index, List<IndexShardStats>> statsByShard = Maps.newHashMap();
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
-                    stats.add(new CommonStats(indexShard, flags));
+                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard, flags) });
+                    if (!statsByShard.containsKey(indexService.index())) {
+                        statsByShard.put(indexService.index(), Lists.<IndexShardStats>newArrayList(indexShardStats));
+                    } else {
+                        statsByShard.get(indexService.index()).add(indexShardStats);
+                    }
                 } catch (IllegalIndexShardStateException e) {
                     // we can safely ignore illegal state on ones that are closing for example
                 }
             }
         }
-        return new NodeIndicesStats(stats);
+        return new NodeIndicesStats(oldStats, statsByShard);
     }
 
     /**

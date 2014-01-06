@@ -33,6 +33,9 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 /**
@@ -43,116 +46,71 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Inject
     public RestNodesStatsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/stats", this);
+        controller.registerHandler(GET, "/_nodes/stats", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats", this);
+        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
 
-        RestIndicesHandler indicesHandler = new RestIndicesHandler(new CommonStatsFlags().all());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices", indicesHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices", indicesHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/stats", indicesHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/stats", indicesHandler);
-        for (Flag flag : CommonStatsFlags.Flag.values()) {
-            indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().set(flag, true));
-            controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/" + flag.getRestName(), indicesHandler);
-            controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName(), indicesHandler);
-            controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/stats", indicesHandler);
-            controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/stats", indicesHandler);
-            if (flag == Flag.FieldData || flag == Flag.Completion) {
-                // add field specific endpoints
-                controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
-                controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
-                controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/{fields}/stats", indicesHandler);
-                controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/{fields}/stats", indicesHandler);
-            }
-        }
+        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}/{fields}", this);
 
-        RestOsHandler osHandler = new RestOsHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/os", osHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/os", osHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/os/stats", osHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/os/stats", osHandler);
-
-        RestProcessHandler processHandler = new RestProcessHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/process", processHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/process", processHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/process/stats", processHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/process/stats", processHandler);
-
-        RestJvmHandler jvmHandler = new RestJvmHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/jvm", jvmHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/jvm", jvmHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/jvm/stats", jvmHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/jvm/stats", jvmHandler);
-
-        RestThreadPoolHandler threadPoolHandler = new RestThreadPoolHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/thread_pool", threadPoolHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/thread_pool", threadPoolHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/thread_pool/stats", threadPoolHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/thread_pool/stats", threadPoolHandler);
-
-        RestNetworkHandler networkHandler = new RestNetworkHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/network", networkHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/network", networkHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/network/stats", networkHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/network/stats", networkHandler);
-
-        RestFsHandler fsHandler = new RestFsHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/fs", fsHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/fs", fsHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/fs/stats", fsHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/fs/stats", fsHandler);
-
-        RestTransportHandler transportHandler = new RestTransportHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/transport", transportHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/transport", transportHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/transport/stats", transportHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/transport/stats", transportHandler);
-
-        RestHttpHandler httpHandler = new RestHttpHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/http", httpHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/http", httpHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/http/stats", httpHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http/stats", httpHandler);
-
-        RestBreakerHandler breakerHandler = new RestBreakerHandler();
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/breaker", breakerHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/breaker", breakerHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/breaker/stats", breakerHandler);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/breaker/stats", breakerHandler);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}/{fields}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
-        boolean clear = request.paramAsBoolean("clear", false);
-        if (clear) {
-            nodesStatsRequest.clear();
-        }
-        boolean all = request.paramAsBoolean("all", false);
-        if (all) {
-            nodesStatsRequest.all();
-        }
-        if (request.hasParam("indices")) {
-            nodesStatsRequest.indices(request.paramAsBoolean("indices", false));
-        }
-        nodesStatsRequest.os(request.paramAsBoolean("os", nodesStatsRequest.os()));
-        nodesStatsRequest.process(request.paramAsBoolean("process", nodesStatsRequest.process()));
-        nodesStatsRequest.jvm(request.paramAsBoolean("jvm", nodesStatsRequest.jvm()));
-        nodesStatsRequest.threadPool(request.paramAsBoolean("thread_pool", nodesStatsRequest.threadPool()));
-        nodesStatsRequest.network(request.paramAsBoolean("network", nodesStatsRequest.network()));
-        nodesStatsRequest.fs(request.paramAsBoolean("fs", nodesStatsRequest.fs()));
-        nodesStatsRequest.transport(request.paramAsBoolean("transport", nodesStatsRequest.transport()));
-        nodesStatsRequest.http(request.paramAsBoolean("http", nodesStatsRequest.http()));
-        nodesStatsRequest.breaker(request.paramAsBoolean("breaker", nodesStatsRequest.breaker()));
-        executeNodeStats(request, channel, nodesStatsRequest);
-    }
+        Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
-    void executeNodeStats(final RestRequest request, final RestChannel channel, final NodesStatsRequest nodesStatsRequest) {
+        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.listenerThreaded(false);
+
+        if (metrics.size() == 1 && metrics.contains("_all")) {
+            nodesStatsRequest.all();
+            nodesStatsRequest.indices(CommonStatsFlags.ALL);
+        } else {
+            nodesStatsRequest.clear();
+            nodesStatsRequest.os(metrics.contains("os"));
+            nodesStatsRequest.jvm(metrics.contains("jvm"));
+            nodesStatsRequest.threadPool(metrics.contains("thread_pool"));
+            nodesStatsRequest.network(metrics.contains("network"));
+            nodesStatsRequest.fs(metrics.contains("fs"));
+            nodesStatsRequest.transport(metrics.contains("transport"));
+            nodesStatsRequest.http(metrics.contains("http"));
+            nodesStatsRequest.indices(metrics.contains("indices"));
+            nodesStatsRequest.process(metrics.contains("process"));
+            nodesStatsRequest.breaker(metrics.contains("breaker"));
+
+            // check for index specific metrics
+            if (metrics.contains("indices")) {
+                Set<String> indexMetrics = Strings.splitStringByCommaToSet(request.param("indexMetric", "_all"));
+                if (indexMetrics.size() == 1 && indexMetrics.contains("_all")) {
+                    nodesStatsRequest.indices(CommonStatsFlags.ALL);
+                } else {
+                    CommonStatsFlags flags = new CommonStatsFlags();
+                    for (Flag flag : CommonStatsFlags.Flag.values()) {
+                        flags.set(flag, indexMetrics.contains(flag.getRestName()));
+                    }
+                    nodesStatsRequest.indices(flags);
+                }
+            }
+        }
+
+        if (nodesStatsRequest.indices().isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
+            nodesStatsRequest.indices().fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null)));
+        }
+        if (nodesStatsRequest.indices().isSet(Flag.Completion) && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
+            nodesStatsRequest.indices().completionDataFields(request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null)));
+        }
+        if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
+            nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
+        }
+        if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
+            nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
+        }
+
         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse response) {
@@ -176,108 +134,5 @@ public class RestNodesStatsAction extends BaseRestHandler {
                 }
             }
         });
-    }
-
-    class RestIndicesHandler implements RestHandler {
-
-        private final CommonStatsFlags flags;
-
-        RestIndicesHandler(CommonStatsFlags flags) {
-            this.flags = flags;
-        }
-
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            CommonStatsFlags flags = this.flags;
-            if (flags.isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
-                flags = flags.clone().fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null)));
-            } else if (flags.isSet(Flag.Completion) && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
-                flags = flags.clone().completionDataFields(request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null)));
-            }
-            nodesStatsRequest.clear().indices(flags);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestOsHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().os(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestProcessHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().process(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestJvmHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().jvm(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestThreadPoolHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().threadPool(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestNetworkHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().network(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestFsHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().fs(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestTransportHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().transport(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestHttpHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().http(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
-    }
-
-    class RestBreakerHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesStatsRequest.clear().breaker(true);
-            executeNodeStats(request, channel, nodesStatsRequest);
-        }
     }
 }

@@ -88,6 +88,7 @@ import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortParseElement;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,6 +115,7 @@ public class PercolatorService extends AbstractComponent {
     private final FacetPhase facetPhase;
     private final HighlightPhase highlightPhase;
     private final AggregationPhase aggregationPhase;
+    private final SortParseElement sortParseElement;
 
     @Inject
     public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
@@ -127,6 +129,7 @@ public class PercolatorService extends AbstractComponent {
         this.highlightPhase = highlightPhase;
         this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
+        this.sortParseElement = new SortParseElement();
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
         cache = new CloseableThreadLocal<MemoryIndex>() {
@@ -176,11 +179,11 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.trackScores() || context.sort || context.facets() != null || context.aggregations() != null)) {
+            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.facets() != null || context.aggregations() != null)) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
-            if (context.sort && !context.limit) {
+            if (context.doSort && !context.limit) {
                 throw new ElasticsearchIllegalArgumentException("Can't sort if size isn't specified");
             }
 
@@ -214,7 +217,7 @@ public class PercolatorService extends AbstractComponent {
             if (request.onlyCount()) {
                 action = context.percolateQuery() != null ? queryCountPercolator : countPercolator;
             } else {
-                if (context.sort) {
+                if (context.doSort) {
                     action = topMatchingPercolator;
                 } else if (context.percolateQuery() != null) {
                     action = context.trackScores() ? scoringPercolator : queryPercolator;
@@ -293,8 +296,14 @@ public class PercolatorService extends AbstractComponent {
                         }
                         Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
                         context.percolateQuery(new XConstantScoreQuery(filter));
+                    } else if ("sort".equals(currentFieldName)) {
+                        parseSort(parser, context);
                     } else if (element != null) {
                         element.parse(parser, context);
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("sort".equals(currentFieldName)) {
+                        parseSort(parser, context);
                     }
                 } else if (token == null) {
                     break;
@@ -306,7 +315,7 @@ public class PercolatorService extends AbstractComponent {
                             throw new ElasticsearchParseException("size is set to [" + context.size + "] and is expected to be higher or equal to 0");
                         }
                     } else if ("sort".equals(currentFieldName)) {
-                        context.sort = parser.booleanValue();
+                        parseSort(parser, context);
                     } else if ("track_scores".equals(currentFieldName) || "trackScores".equals(currentFieldName)) {
                         context.trackScores(parser.booleanValue());
                     }
@@ -357,6 +366,16 @@ public class PercolatorService extends AbstractComponent {
         }
 
         return doc;
+    }
+
+    private void parseSort(XContentParser parser, PercolateContext context) throws Exception {
+        sortParseElement.parse(parser, context);
+        // null, means default sorting by relevancy
+        if (context.sort() == null) {
+            context.doSort = true;
+        } else {
+            throw new ElasticsearchParseException("Only _score desc is supported");
+        }
     }
 
     private ParsedDocument parseFetchedDoc(BytesReference fetchedDoc, IndexService documentIndexService, String type) {

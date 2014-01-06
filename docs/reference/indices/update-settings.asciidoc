@@ -105,13 +105,22 @@ settings API:
     Only nodes matching all rules will be allowed to host shards from the index.
 
 `index.routing.allocation.disable_allocation`::
-    Disable allocation. Defaults to `false`.
+    Disable allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
 
 `index.routing.allocation.disable_new_allocation`::
-    Disable new allocation. Defaults to `false`.
+    Disable new allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
 
 `index.routing.allocation.disable_replica_allocation`::
-    Disable replica allocation. Defaults to `false`.
+    Disable replica allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
+
+added[1.0.0.RC1]
+
+`index.routing.allocation.enable`::
+    Enables shard allocation for a specific index. It can be set to:
+    * `all` (default) - Allows shard allocation for all shards.
+    * `primaries` - Allows shard allocation only for primary shards.
+    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
+    * `none` - No shard allocation is allowed.
 
 `index.routing.allocation.total_shards_per_node`::
     Controls the total number of shards allowed to be allocated on a single node. Defaults to unbounded (`-1`).

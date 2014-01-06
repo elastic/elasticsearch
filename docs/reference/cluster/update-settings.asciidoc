@@ -93,6 +93,11 @@ There is a specific list of settings that can be updated, those include:
 [float]
 ===== Disable allocation
 
+added[1.0.0.RC1]
+
+All the disable allocation settings have been deprecated in favour for
+`cluster.routing.allocation.enable` setting.
+
 `cluster.routing.allocation.disable_allocation`::
      See <<modules-cluster>>.
 
@@ -100,6 +105,12 @@ There is a specific list of settings that can be updated, those include:
      See <<modules-cluster>>.
 
 `cluster.routing.allocation.disable_new_allocation`::
+     See <<modules-cluster>>.
+
+[float]
+===== Enable allocation
+
+`cluster.routing.allocation.enable`::
      See <<modules-cluster>>.
 
 [float]

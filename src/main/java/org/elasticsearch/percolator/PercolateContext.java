@@ -83,9 +83,9 @@ public class PercolateContext extends SearchContext {
 
     public boolean limit;
     public int size;
-    public boolean score;
     public boolean sort;
     public byte percolatorTypeId;
+    private boolean trackScores;
 
     private final PercolateShardRequest request;
     private final SearchShardTarget searchShardTarget;
@@ -520,12 +520,13 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContext trackScores(boolean trackScores) {
-        throw new UnsupportedOperationException();
+        this.trackScores = trackScores;
+        return this;
     }
 
     @Override
     public boolean trackScores() {
-        throw new UnsupportedOperationException();
+        return trackScores;
     }
 
     @Override

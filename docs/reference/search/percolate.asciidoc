@@ -188,9 +188,9 @@ the find out which percolator query belongs to what index. Any other value to `p
 filter will be included in the percolate execution. The filter option works in near realtime, so a refresh needs to have
 occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
-`score` and `sort` option.
+`track_scores` and `sort` option.
 * `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
-* `score` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
+* `track_scores` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
 to the percolate query's metadata and *not* how the document being percolated matched to the query. The `query` option
 is required for this option. Defaults to `false`.
 * `sort` - Whether the matches should be sorted by the `_score`. Similar to the `score` option, but also sorts the

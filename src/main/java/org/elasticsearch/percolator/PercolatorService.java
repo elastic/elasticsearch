@@ -170,7 +170,7 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticSearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.score || context.sort || context.facets() != null || context.aggregations() != null)) {
+            if (context.percolateQuery() == null && (context.trackScores() || context.sort || context.facets() != null || context.aggregations() != null)) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
@@ -211,7 +211,7 @@ public class PercolatorService extends AbstractComponent {
                 if (context.sort) {
                     action = topMatchingPercolator;
                 } else if (context.percolateQuery() != null) {
-                    action = context.score ? scoringPercolator : queryPercolator;
+                    action = context.trackScores() ? scoringPercolator : queryPercolator;
                 } else {
                     action = matchPercolator;
                 }
@@ -301,8 +301,8 @@ public class PercolatorService extends AbstractComponent {
                         }
                     } else if ("sort".equals(currentFieldName)) {
                         context.sort = parser.booleanValue();
-                    } else if ("score".equals(currentFieldName)) {
-                        context.score = parser.booleanValue();
+                    } else if ("track_scores".equals(currentFieldName) || "trackScores".equals(currentFieldName)) {
+                        context.trackScores(parser.booleanValue());
                     }
                 }
             }

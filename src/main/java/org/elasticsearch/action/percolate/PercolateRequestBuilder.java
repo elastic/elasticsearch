@@ -119,7 +119,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      * {@link #setPercolateQuery(QueryBuilder)}}.
      */
     public PercolateRequestBuilder setScore(boolean score) {
-        sourceBuilder().setScore(score);
+        sourceBuilder().setTrackScores(score);
         return this;
     }
 

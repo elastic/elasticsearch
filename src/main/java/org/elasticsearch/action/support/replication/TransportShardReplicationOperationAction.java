@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
@@ -122,7 +122,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticsearchException;
 
     protected abstract boolean checkWriteConsistency();
 
@@ -333,7 +333,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         /**
          * Returns <tt>true</tt> if the action starting to be performed on the primary (or is done).
          */
-        public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
+        public boolean start(final boolean fromClusterEvent) throws ElasticsearchException {
             this.clusterState = clusterService.state();
             try {
                 ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
@@ -563,7 +563,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     retry(false, e);
                     return;
                 }
-                if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
                     if (logger.isTraceEnabled()) {
                         logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                     }
@@ -603,7 +603,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
                 if (originalPrimaryShard == null || !originalPrimaryShard.active()) {
-                    throw new ElasticSearchIllegalStateException("unexpected state, failed to find primary shard on an index operation that succeeded");
+                    throw new ElasticsearchIllegalStateException("unexpected state, failed to find primary shard on an index operation that succeeded");
                 }
 
                 clusterState = newState;

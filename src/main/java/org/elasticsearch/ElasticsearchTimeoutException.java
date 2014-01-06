@@ -19,23 +19,18 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.rest.RestStatus;
-
 /**
+ * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
+ *
  *
  */
-public class ElasticSearchParseException extends ElasticSearchException {
+public class ElasticsearchTimeoutException extends ElasticsearchException {
 
-    public ElasticSearchParseException(String msg) {
-        super(msg);
+    public ElasticsearchTimeoutException(String message) {
+        super(message);
     }
 
-    public ElasticSearchParseException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
+    public ElasticsearchTimeoutException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

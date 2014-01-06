@@ -22,32 +22,26 @@ package org.elasticsearch.search.basic;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockRobinEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -125,7 +119,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticSearchException ex) {
+            } catch (ElasticsearchException ex) {
             }
         }
         logger.info("Start Refresh");
@@ -211,7 +205,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticSearchException ex) {
+            } catch (ElasticsearchException ex) {
             }
         }
         logger.info("Start Refresh");

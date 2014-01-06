@@ -30,8 +30,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
@@ -886,7 +886,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     rwl.readLock().unlock();
                 }
             } else {
-                throw new ElasticSearchIllegalStateException("flush type [" + flush.type() + "] not supported");
+                throw new ElasticsearchIllegalStateException("flush type [" + flush.type() + "] not supported");
             }
 
             // reread the last committed segment infos
@@ -1235,7 +1235,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         rwl.writeLock().lock();
         try {
             innerClose();
@@ -1497,7 +1497,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             try {
                 manager.release(searcher);
                 return true;

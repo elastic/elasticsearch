@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch.source;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +54,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
     }
 
     @Override
@@ -63,7 +63,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
@@ -77,7 +77,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
             builder.value(value);
             hitContext.hit().sourceRef(builder.bytes());
         } catch (IOException e) {
-            throw new ElasticSearchException("Error filtering source", e);
+            throw new ElasticsearchException("Error filtering source", e);
         }
 
     }

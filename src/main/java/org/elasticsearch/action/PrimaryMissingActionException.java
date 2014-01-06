@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class PrimaryMissingActionException extends ElasticSearchException {
+public class PrimaryMissingActionException extends ElasticsearchException {
 
     public PrimaryMissingActionException(String message) {
         super(message);

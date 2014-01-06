@@ -24,7 +24,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -109,7 +109,7 @@ abstract class SortedSetDVAtomicFieldData {
             }
             return values;
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("Couldn't load doc values", e);
+            throw new ElasticsearchIllegalStateException("Couldn't load doc values", e);
         }
     }
 

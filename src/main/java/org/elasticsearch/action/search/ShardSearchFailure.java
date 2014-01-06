@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
@@ -66,8 +66,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
-        if (actual != null && actual instanceof ElasticSearchException) {
-            status = ((ElasticSearchException) actual).status();
+        if (actual != null && actual instanceof ElasticsearchException) {
+            status = ((ElasticsearchException) actual).status();
         } else {
             status = RestStatus.INTERNAL_SERVER_ERROR;
         }

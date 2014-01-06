@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.shared;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -85,15 +85,15 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         clusterService.remove(this);
         writeStateExecutor.shutdown();
         try {
@@ -189,9 +189,9 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         });
     }
 
-    protected abstract MetaData read() throws ElasticSearchException;
+    protected abstract MetaData read() throws ElasticsearchException;
 
-    protected abstract void write(MetaData metaData) throws ElasticSearchException;
+    protected abstract void write(MetaData metaData) throws ElasticsearchException;
 
-    protected abstract void delete(IndexMetaData indexMetaData) throws ElasticSearchException;
+    protected abstract void delete(IndexMetaData indexMetaData) throws ElasticsearchException;
 }

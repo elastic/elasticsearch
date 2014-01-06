@@ -29,7 +29,7 @@ behavior can be a very expensive operation. For large result set
 scrolling without sorting, the `scan` search type (explained below) is
 also available.
 
-ElasticSearch is very flexible and allows to control the type of search
+Elasticsearch is very flexible and allows to control the type of search
 to execute on a *per search request* basis. The type can be configured
 by setting the *search_type* parameter in the query string. The types
 are:

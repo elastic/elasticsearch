@@ -19,7 +19,7 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -778,14 +778,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {}
+        } catch (ElasticsearchIllegalArgumentException e) {}
 
         client().admin().indices().prepareFlush("my-index").get();
 
         try {
             client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {}
+        } catch (ElasticsearchIllegalArgumentException e) {}
     }
 
     @Test

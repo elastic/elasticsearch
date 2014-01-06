@@ -20,8 +20,8 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,7 +93,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     @Override
     public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
         if (lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("Can't set nodes provider when started");
+            throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
         }
         for (ZenPing zenPing : zenPings) {
             zenPing.setNodesProvider(nodesProvider);
@@ -101,21 +101,21 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.start();
         }
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.stop();
         }
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         for (ZenPing zenPing : zenPings) {
             zenPing.close();
         }
@@ -141,7 +141,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(PingListener listener, TimeValue timeout) throws ElasticSearchException {
+    public void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException {
         ImmutableList<? extends ZenPing> zenPings = this.zenPings;
         CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
         for (ZenPing zenPing : zenPings) {

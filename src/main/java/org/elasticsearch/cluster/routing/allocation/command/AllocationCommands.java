@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,10 +59,10 @@ public class AllocationCommands {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) throws ElasticSearchIllegalArgumentException {
+    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) throws ElasticsearchIllegalArgumentException {
         AllocationCommand.Factory<T> factory = factories.get(name);
         if (factory == null) {
-            throw new ElasticSearchIllegalArgumentException("No allocation command factory registered for name [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("No allocation command factory registered for name [" + name + "]");
         }
         return factory;
     }
@@ -109,9 +109,9 @@ public class AllocationCommands {
     /**
      * Executes all wrapped commands on a given {@link RoutingAllocation}
      * @param allocation {@link RoutingAllocation} to apply this command to
-     * @throws ElasticSearchException if something happens during execution
+     * @throws org.elasticsearch.ElasticsearchException if something happens during execution
      */
-    public void execute(RoutingAllocation allocation) throws ElasticSearchException {
+    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
         for (AllocationCommand command : commands) {
             command.execute(allocation);
         }
@@ -167,23 +167,23 @@ public class AllocationCommands {
 
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
-            throw new ElasticSearchParseException("No commands");
+            throw new ElasticsearchParseException("No commands");
         }
         if (token == XContentParser.Token.FIELD_NAME) {
             if (!parser.currentName().equals("commands")) {
-                throw new ElasticSearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+                throw new ElasticsearchParseException("expected field name to be named `commands`, got " + parser.currentName());
             }
             if (!parser.currentName().equals("commands")) {
-                throw new ElasticSearchParseException("expected field name to be named `commands`, got " + parser.currentName());
+                throw new ElasticsearchParseException("expected field name to be named `commands`, got " + parser.currentName());
             }
             token = parser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
-                throw new ElasticSearchParseException("commands should follow with an array element");
+                throw new ElasticsearchParseException("commands should follow with an array element");
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
             // ok...
         } else {
-            throw new ElasticSearchParseException("expected either field name commands, or start array, got " + token);
+            throw new ElasticsearchParseException("expected either field name commands, or start array, got " + token);
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
@@ -194,10 +194,10 @@ public class AllocationCommands {
                 commands.add(AllocationCommands.lookupFactorySafe(commandName).fromXContent(parser));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    throw new ElasticSearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got " + token);
+                    throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got " + token);
                 }
             } else {
-                throw new ElasticSearchParseException("allocation command is malformed, got token " + token);
+                throw new ElasticsearchParseException("allocation command is malformed, got token " + token);
             }
         }
         return commands;

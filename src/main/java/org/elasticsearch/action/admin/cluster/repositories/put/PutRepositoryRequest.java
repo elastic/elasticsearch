@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -164,7 +164,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
             builder.map(source);
             settings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }
@@ -201,7 +201,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
                 type(entry.getValue().toString());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticSearchIllegalArgumentException("Malformed settings section, should include an inner object");
+                    throw new ElasticsearchIllegalArgumentException("Malformed settings section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             }
@@ -219,7 +219,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("failed to parse repository source [" + repositoryDefinition + "]", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse repository source [" + repositoryDefinition + "]", e);
         }
     }
 
@@ -243,7 +243,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             return source(XContentFactory.xContent(repositoryDefinition, offset, length).createParser(repositoryDefinition, offset, length).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("failed to parse repository source", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse repository source", e);
         }
     }
 
@@ -257,7 +257,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             return source(XContentFactory.xContent(repositoryDefinition).createParser(repositoryDefinition).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("failed to parse template source", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse template source", e);
         }
     }
 

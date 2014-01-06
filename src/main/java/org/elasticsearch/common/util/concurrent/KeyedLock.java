@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -46,7 +46,7 @@ public class KeyedLock<T> {
         while (true) {
             if (threadLocal.get() != null) {
                 // if we are here, the thread already has the lock
-                throw new ElasticSearchIllegalStateException("Lock already accquired in Thread" + Thread.currentThread().getId()
+                throw new ElasticsearchIllegalStateException("Lock already accquired in Thread" + Thread.currentThread().getId()
                         + " for key " + key);
             }
             KeyLock perNodeLock = map.get(key);
@@ -72,7 +72,7 @@ public class KeyedLock<T> {
     public void release(T key) {
         KeyLock lock = threadLocal.get();
         if (lock == null) {
-            throw new ElasticSearchIllegalStateException("Lock not accquired");
+            throw new ElasticsearchIllegalStateException("Lock not accquired");
         }
         assert lock.isHeldByCurrentThread();
         assert lock == map.get(key);

@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.path.ReversePathHierarchyTokenizer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +48,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         if (delimiter == null) {
             this.delimiter = PathHierarchyTokenizer.DEFAULT_DELIMITER;
         } else if (delimiter.length() > 1) {
-            throw new ElasticSearchIllegalArgumentException("delimiter can only be a one char value");
+            throw new ElasticsearchIllegalArgumentException("delimiter can only be a one char value");
         } else {
             this.delimiter = delimiter.charAt(0);
         }
@@ -57,7 +57,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         if (replacement == null) {
             this.replacement = this.delimiter;
         } else if (replacement.length() > 1) {
-            throw new ElasticSearchIllegalArgumentException("replacement can only be a one char value");
+            throw new ElasticsearchIllegalArgumentException("replacement can only be a one char value");
         } else {
             this.replacement = replacement.charAt(0);
         }

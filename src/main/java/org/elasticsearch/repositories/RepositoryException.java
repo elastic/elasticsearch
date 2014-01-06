@@ -19,12 +19,12 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * Generic repository exception
  */
-public class RepositoryException extends ElasticSearchException {
+public class RepositoryException extends ElasticsearchException {
     private final String repository;
 
     public RepositoryException(String repository, String msg) {

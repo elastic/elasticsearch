@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.util.Locale;
@@ -193,7 +193,7 @@ public enum GeoDistance {
         } else if ("factor".equals(name)) {
             return FACTOR;
         }
-        throw new ElasticSearchIllegalArgumentException("No geo distance for [" + name + "]");
+        throw new ElasticsearchIllegalArgumentException("No geo distance for [" + name + "]");
     }
 
     public static interface FixedSourceDistance {

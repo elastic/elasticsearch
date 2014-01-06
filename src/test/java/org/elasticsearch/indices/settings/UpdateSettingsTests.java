@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
@@ -47,7 +47,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
             // all is well
         }
 

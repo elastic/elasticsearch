@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.term;
 import java.io.IOException;
 import java.util.Comparator;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -102,7 +102,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         case FREQUENCY:
             return FREQUENCY;
         default:
-            throw new ElasticSearchException("Could not resolve comparator for sort key: [" + sort + "]");
+            throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
         }
     }
 

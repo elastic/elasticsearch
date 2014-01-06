@@ -24,7 +24,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import org.apache.lucene.analysis.hunspell.HunspellDictionary;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -154,7 +154,7 @@ public class HunspellService extends AbstractComponent {
         }
         File dicDir = new File(hunspellDir, locale);
         if (!dicDir.exists() || !dicDir.isDirectory()) {
-            throw new ElasticSearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
+            throw new ElasticsearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 
         // merging node settings with hunspell dictionary specific settings
@@ -165,7 +165,7 @@ public class HunspellService extends AbstractComponent {
 
         File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
         if (affixFiles.length != 1) {
-            throw new ElasticSearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
+            throw new ElasticsearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
         }
         InputStream affixStream = null;
 
@@ -218,7 +218,7 @@ public class HunspellService extends AbstractComponent {
             try {
                 return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
             } catch (MalformedURLException e) {
-                throw new ElasticSearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
+                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
             }
         }
 
@@ -227,7 +227,7 @@ public class HunspellService extends AbstractComponent {
             try {
                 return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
             } catch (MalformedURLException e) {
-                throw new ElasticSearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
+                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
             }
         }
 

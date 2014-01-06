@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -73,13 +73,13 @@ public class BoostingQueryBuilder extends BaseQueryBuilder implements BoostableQ
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (positiveQuery == null) {
-            throw new ElasticSearchIllegalArgumentException("boosting query requires positive query to be set");
+            throw new ElasticsearchIllegalArgumentException("boosting query requires positive query to be set");
         }
         if (negativeQuery == null) {
-            throw new ElasticSearchIllegalArgumentException("boosting query requires negative query to be set");
+            throw new ElasticsearchIllegalArgumentException("boosting query requires negative query to be set");
         }
         if (negativeBoost == -1) {
-            throw new ElasticSearchIllegalArgumentException("boosting query requires negativeBoost to be set");
+            throw new ElasticsearchIllegalArgumentException("boosting query requires negativeBoost to be set");
         }
         builder.startObject(BoostingQueryParser.NAME);
         builder.field("positive");

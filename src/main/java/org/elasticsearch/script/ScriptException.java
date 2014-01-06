@@ -19,12 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class ScriptException extends ElasticSearchException {
+public class ScriptException extends ElasticsearchException {
 
     public ScriptException(String msg) {
         super(msg);

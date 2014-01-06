@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Queue;
@@ -85,7 +85,7 @@ public class QueueRecycler<T> extends Recycler<T> {
         @Override
         public boolean release() {
             if (value == null) {
-                throw new ElasticSearchIllegalStateException("recycler entry already released...");
+                throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
             if (size.incrementAndGet() <= maxSize) {
                 c.clear(value);

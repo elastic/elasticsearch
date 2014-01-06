@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -72,7 +72,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) throws ElasticsearchException {
 
         repositoriesService.registerRepository(new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]", request.name(), request.type())
                 .settings(request.settings())

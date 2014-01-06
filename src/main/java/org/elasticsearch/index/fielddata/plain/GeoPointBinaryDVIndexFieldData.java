@@ -20,8 +20,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -46,7 +46,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
 
     @Override
     public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        throw new ElasticSearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
+        throw new ElasticsearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
     @Override
@@ -54,7 +54,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
         try {
             return new GeoPointBinaryDVAtomicFieldData(context.reader(), context.reader().getBinaryDocValues(fieldNames.indexName()));
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("Cannot load doc values", e);
+            throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
     }
 

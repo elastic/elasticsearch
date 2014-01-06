@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -51,7 +51,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         this.words = Analysis.parseCommonWords(env, settings, null, version, ignoreCase);
 
         if (this.words == null) {
-            throw new ElasticSearchIllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+            throw new ElasticsearchIllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
         }
     }
 

@@ -30,7 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat;
+import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -44,7 +44,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Simple smoke test for {@link ElasticSearch090PostingsFormat}
+ * Simple smoke test for {@link org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat}
  */
 public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
@@ -52,7 +52,7 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return new ElasticSearch090PostingsFormat();
+            return new Elasticsearch090PostingsFormat();
         }
     }
 

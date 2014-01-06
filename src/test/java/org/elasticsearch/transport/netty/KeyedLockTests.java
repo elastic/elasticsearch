@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
@@ -69,7 +69,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticSearchIllegalStateException.class)
+    @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<String, Integer>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<String, AtomicInteger>();
@@ -81,7 +81,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         connectionLock.acquire(name);
     }
 
-    @Test(expected = ElasticSearchIllegalStateException.class)
+    @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<String, Integer>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<String, AtomicInteger>();

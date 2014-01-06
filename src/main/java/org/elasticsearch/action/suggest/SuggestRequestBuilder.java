@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
@@ -90,7 +90,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
             suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
             request.suggest(builder.bytes());
         } catch (IOException e) {
-            throw new ElasticSearchException("Unable to build suggestion request", e);
+            throw new ElasticsearchException("Unable to build suggestion request", e);
         }
 
         ((InternalClient) client).suggest(request, listener);

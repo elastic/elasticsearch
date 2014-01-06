@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -89,7 +89,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         } else if (request instanceof UpdateRequest) {
             add((UpdateRequest) request, payload);
         } else {
-            throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
+            throw new ElasticsearchIllegalArgumentException("No support for request [" + request + "]");
         }
         return this;
     }
@@ -104,7 +104,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             } else if (request instanceof DeleteRequest) {
                 add((DeleteRequest) request);
             } else {
-                throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
+                throw new ElasticsearchIllegalArgumentException("No support for request [" + request + "]");
             }
         }
         return this;
@@ -297,7 +297,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     } else if (token.isValue()) {
                         if ("_index".equals(currentFieldName)) {
                             if (!allowExplicitIndex) {
-                                throw new ElasticSearchIllegalArgumentException("explicit index in bulk is not allowed");
+                                throw new ElasticsearchIllegalArgumentException("explicit index in bulk is not allowed");
                             }
                             index = parser.text();
                         } else if ("_type".equals(currentFieldName)) {
@@ -340,7 +340,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // of index request. All index requests are still unsafe if applicable.
                     if ("index".equals(action)) {
                         if (!allowExplicitIndex) {
-                            throw new ElasticSearchIllegalArgumentException("explicit index in bulk is not allowed");
+                            throw new ElasticsearchIllegalArgumentException("explicit index in bulk is not allowed");
                         }
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)

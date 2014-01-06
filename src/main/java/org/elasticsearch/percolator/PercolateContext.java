@@ -27,7 +27,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -149,12 +149,12 @@ public class PercolateContext extends SearchContext {
             }
 
             @Override
-            public boolean release() throws ElasticSearchException {
+            public boolean release() throws ElasticsearchException {
                 try {
                     docSearcher.getIndexReader().close();
                     memoryIndex.reset();
                 } catch (IOException e) {
-                    throw new ElasticSearchException("failed to close percolator in-memory index", e);
+                    throw new ElasticsearchException("failed to close percolator in-memory index", e);
                 }
                 return true;
             }
@@ -223,7 +223,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticSearchException {
+    public boolean release() throws ElasticsearchException {
         try {
             if (docEngineSearcher != null) {
                 IndexReader indexReader = docEngineSearcher.reader();

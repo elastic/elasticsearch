@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,7 +83,7 @@ public interface AllocationCommand {
     /**
      * Executes the command on a {@link RoutingAllocation} setup
      * @param allocation {@link RoutingAllocation} to modify
-     * @throws ElasticSearchException if something happens during reconfiguration
+     * @throws org.elasticsearch.ElasticsearchException if something happens during reconfiguration
      */
-    void execute(RoutingAllocation allocation) throws ElasticSearchException;
+    void execute(RoutingAllocation allocation) throws ElasticsearchException;
 }

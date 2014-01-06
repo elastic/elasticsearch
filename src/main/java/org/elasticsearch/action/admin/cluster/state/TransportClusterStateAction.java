@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -74,7 +74,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticsearchException {
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder();

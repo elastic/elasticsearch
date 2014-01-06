@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway.none;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -74,15 +74,15 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override

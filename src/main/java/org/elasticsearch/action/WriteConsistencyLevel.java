@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Write Consistency Level control how many replicas should be active for a write operation to occur (a write operation
@@ -53,7 +53,7 @@ public enum WriteConsistencyLevel {
         } else if (value == 3) {
             return ALL;
         }
-        throw new ElasticSearchIllegalArgumentException("No write consistency match [" + value + "]");
+        throw new ElasticsearchIllegalArgumentException("No write consistency match [" + value + "]");
     }
 
     public static WriteConsistencyLevel fromString(String value) {
@@ -66,6 +66,6 @@ public enum WriteConsistencyLevel {
         } else if (value.equals("all")) {
             return ALL;
         }
-        throw new ElasticSearchIllegalArgumentException("No write consistency match [" + value + "]");
+        throw new ElasticsearchIllegalArgumentException("No write consistency match [" + value + "]");
     }
 }

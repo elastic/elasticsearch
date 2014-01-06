@@ -19,13 +19,13 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class MasterNotDiscoveredException extends ElasticSearchException {
+public class MasterNotDiscoveredException extends ElasticsearchException {
 
     public MasterNotDiscoveredException() {
         super("");

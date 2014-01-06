@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -46,7 +46,7 @@ public interface Validator {
                 if (TimeValue.parseTimeValue(value, null) == null) {
                     return "cannot parse value [" + value + "] as time";
                 }
-            } catch (ElasticSearchParseException ex) {
+            } catch (ElasticsearchParseException ex) {
                 return "cannot parse value [" + value + "] as time";
             }
             return null;
@@ -178,7 +178,7 @@ public interface Validator {
         public String validate(String setting, String value) {
             try {
                 parseBytesSizeValue(value);
-            } catch (ElasticSearchParseException ex) {
+            } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }
             return null;

@@ -29,7 +29,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -314,7 +314,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else {
-                        throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                        throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                     }
                 }
             }

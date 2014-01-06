@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class IndexTemplateAlreadyExistsException extends ElasticSearchException {
+public class IndexTemplateAlreadyExistsException extends ElasticsearchException {
 
     private final String name;
 

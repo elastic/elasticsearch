@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -108,15 +108,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return this.nodeSettingsService;
     }
 
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticSearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("can't set initial block when started");
+            throw new ElasticsearchIllegalStateException("can't set initial block when started");
         }
         initialBlocks.addGlobalBlock(block);
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder().blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
@@ -124,7 +124,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         this.reconnectToNodes.cancel(true);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
@@ -140,7 +140,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override

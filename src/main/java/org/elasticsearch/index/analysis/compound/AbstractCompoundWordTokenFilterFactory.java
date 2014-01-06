@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis.compound;
 
 import org.apache.lucene.analysis.compound.CompoundWordTokenFilterBase;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         onlyLongestMatch = settings.getAsBoolean("only_longest_match", false);
         wordList = Analysis.getWordSet(env, settings, "word_list", version);
         if (wordList == null) {
-            throw new ElasticSearchIllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
+            throw new ElasticsearchIllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }
     }
 }

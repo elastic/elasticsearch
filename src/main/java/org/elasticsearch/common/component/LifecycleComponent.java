@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
@@ -32,7 +32,7 @@ public interface LifecycleComponent<T> extends CloseableComponent {
 
     void removeLifecycleListener(LifecycleListener listener);
 
-    T start() throws ElasticSearchException;
+    T start() throws ElasticsearchException;
 
-    T stop() throws ElasticSearchException;
+    T stop() throws ElasticsearchException;
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
@@ -98,7 +98,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticsearchException {
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {

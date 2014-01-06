@@ -26,7 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -774,7 +774,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         mapper = builder.build(builderContext);
                     } else {
                         // TODO how do we identify dynamically that its a binary value?
-                        throw new ElasticSearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
+                        throw new ElasticsearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
                     }
                 }
 

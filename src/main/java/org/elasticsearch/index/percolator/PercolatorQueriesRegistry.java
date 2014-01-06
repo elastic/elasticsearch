@@ -4,7 +4,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -132,7 +132,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchException("failed to parse query [" + id + "], not starting with OBJECT");
+                throw new ElasticsearchException("failed to parse query [" + id + "], not starting with OBJECT");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {

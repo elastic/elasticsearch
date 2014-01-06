@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
@@ -90,7 +90,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         // TODO use Set with ShardIds for faster lookup.
         for (MutableShardRouting shardRouting : shards) {
             if (shardRouting.shardId().equals(shard.shardId())) {
-                throw new ElasticSearchIllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
+                throw new ElasticsearchIllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
             }
         }
         shards.add(shard);

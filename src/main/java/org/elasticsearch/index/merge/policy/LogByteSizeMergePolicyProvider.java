@@ -22,7 +22,7 @@ package org.elasticsearch.index.merge.policy;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +90,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         indexSettingsService.removeListener(applySettings);
     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -63,7 +63,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) throws ElasticsearchException {
         listener.onResponse(new PendingClusterTasksResponse(clusterService.pendingTasks()));
     }
 }

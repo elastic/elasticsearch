@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
@@ -107,7 +107,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

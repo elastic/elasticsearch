@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -158,7 +158,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override
-    protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
+    protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 

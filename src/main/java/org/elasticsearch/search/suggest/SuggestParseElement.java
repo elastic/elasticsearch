@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -63,7 +63,7 @@ public final class SuggestParseElement implements SearchParseElement {
                 if ("text".equals(fieldName)) {
                     globalText = parser.bytes();
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String suggestionName = fieldName;
@@ -77,14 +77,14 @@ public final class SuggestParseElement implements SearchParseElement {
                         if ("text".equals(fieldName)) {
                             suggestText = parser.bytes();
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
+                            throw new ElasticsearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (suggestionName == null) {
-                            throw new ElasticSearchIllegalArgumentException("Suggestion must have name");
+                            throw new ElasticsearchIllegalArgumentException("Suggestion must have name");
                         }
                         if (suggesters.get(fieldName) == null) {
-                            throw new ElasticSearchIllegalArgumentException("Suggester[" + fieldName + "] not supported");
+                            throw new ElasticsearchIllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
                         suggestionContext = contextParser.parse(parser, mapperService);

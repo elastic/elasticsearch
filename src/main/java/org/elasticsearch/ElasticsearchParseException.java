@@ -17,18 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch;
+
+import org.elasticsearch.rest.RestStatus;
 
 /**
- * A wrapper around {@link Bootstrap} just so the process will look nicely on things like jps.
+ *
  */
-public class ElasticSearch extends Bootstrap {
+public class ElasticsearchParseException extends ElasticsearchException {
 
-    public static void close(String[] args) {
-        Bootstrap.close(args);
+    public ElasticsearchParseException(String msg) {
+        super(msg);
     }
 
-    public static void main(String[] args) {
-        Bootstrap.main(args);
+    public ElasticsearchParseException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

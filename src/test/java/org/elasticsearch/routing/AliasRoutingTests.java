@@ -19,7 +19,7 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -343,7 +343,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
             assert false;
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 

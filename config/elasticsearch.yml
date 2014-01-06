@@ -1,4 +1,4 @@
-##################### ElasticSearch Configuration Example #####################
+##################### Elasticsearch Configuration Example #####################
 
 # This file contains an overview of various configuration settings,
 # targeted at operations staff. Application developers should
@@ -7,7 +7,7 @@
 # The installation procedure is covered at
 # <http://elasticsearch.org/guide/en/elasticsearch/reference/current/setup.html>.
 #
-# ElasticSearch comes with reasonable defaults for most settings,
+# Elasticsearch comes with reasonable defaults for most settings,
 # so you can try it out without bothering with configuration.
 #
 # Most of the time, these defaults are just fine for running a production
@@ -128,7 +128,7 @@
 # The "number_of_replicas" can be increased or decreased anytime,
 # by using the Index Update Settings API.
 #
-# ElasticSearch takes care about load balancing, relocating, gathering the
+# Elasticsearch takes care about load balancing, relocating, gathering the
 # results from nodes, etc. Experiment with different settings to fine-tune
 # your setup.
 
@@ -174,7 +174,7 @@
 
 ################################### Memory ####################################
 
-# ElasticSearch performs poorly when JVM starts swapping: you should ensure that
+# Elasticsearch performs poorly when JVM starts swapping: you should ensure that
 # it _never_ swaps.
 #
 # Set this property to true to lock the memory:
@@ -183,15 +183,15 @@
 
 # Make sure that the ES_MIN_MEM and ES_MAX_MEM environment variables are set
 # to the same value, and that the machine has enough memory to allocate
-# for ElasticSearch, leaving enough memory for the operating system itself.
+# for Elasticsearch, leaving enough memory for the operating system itself.
 #
-# You should also make sure that the ElasticSearch process is allowed to lock
+# You should also make sure that the Elasticsearch process is allowed to lock
 # the memory, eg. by using `ulimit -l unlimited`.
 
 
 ############################## Network And HTTP ###############################
 
-# ElasticSearch, by default, binds itself to the 0.0.0.0 address, and listens
+# Elasticsearch, by default, binds itself to the 0.0.0.0 address, and listens
 # on port [9200-9300] for HTTP traffic and on port [9300-9400] for node-to-node
 # communication. (the range means that if the port is busy, it will automatically
 # try the next port).

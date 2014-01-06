@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -97,9 +97,9 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final NodesShutdownRequest request, final ClusterState state, final ActionListener<NodesShutdownResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final NodesShutdownRequest request, final ClusterState state, final ActionListener<NodesShutdownResponse> listener) throws ElasticsearchException {
         if (disabled) {
-            throw new ElasticSearchIllegalStateException("Shutdown is disabled");
+            throw new ElasticsearchIllegalStateException("Shutdown is disabled");
         }
         final ObjectOpenHashSet<DiscoveryNode> nodes = new ObjectOpenHashSet<DiscoveryNode>();
         if (state.nodes().isAllNodes(request.nodesIds)) {
@@ -240,7 +240,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         @Override
         public void messageReceived(final NodeShutdownRequest request, TransportChannel channel) throws Exception {
             if (disabled) {
-                throw new ElasticSearchIllegalStateException("Shutdown is disabled");
+                throw new ElasticsearchIllegalStateException("Shutdown is disabled");
             }
             logger.info("shutting down in [{}]", delay);
             Thread t = new Thread(new Runnable() {

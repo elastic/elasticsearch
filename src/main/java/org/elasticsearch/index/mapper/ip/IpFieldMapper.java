@@ -28,7 +28,7 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -77,19 +77,19 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private static final Pattern pattern = Pattern.compile("\\.");
 
-    public static long ipToLong(String ip) throws ElasticSearchIllegalArgumentException {
+    public static long ipToLong(String ip) throws ElasticsearchIllegalArgumentException {
         try {
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticSearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
         } catch (Exception e) {
-            if (e instanceof ElasticSearchIllegalArgumentException) {
-                throw (ElasticSearchIllegalArgumentException) e;
+            if (e instanceof ElasticsearchIllegalArgumentException) {
+                throw (ElasticsearchIllegalArgumentException) e;
             }
-            throw new ElasticSearchIllegalArgumentException("failed to parse ip [" + ip + "]", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "]", e);
         }
     }
 
@@ -221,7 +221,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         long iSim;
         try {
             iSim = ipToLong(minSim);
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
             try {
                 iSim = Long.parseLong(minSim);
             } catch (NumberFormatException e1) {

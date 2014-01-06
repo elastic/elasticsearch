@@ -22,8 +22,8 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -124,10 +124,10 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 // parse per field the origin and scale value
                 scoreFunction = parseVariable(currentFieldName, parser, parseContext);
             } else {
-                throw new ElasticSearchParseException("Malformed score function score parameters.");
+                throw new ElasticsearchParseException("Malformed score function score parameters.");
             }
         } else {
-            throw new ElasticSearchParseException("Malformed score function score parameters.");
+            throw new ElasticsearchParseException("Malformed score function score parameters.");
         }
         parser.nextToken();
         return scoreFunction;
@@ -181,11 +181,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offset = parser.doubleValue();
             } else {
-                throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticSearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
+            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
@@ -212,11 +212,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
         if (origin == null || scaleString == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.ORIGIN + " and " + DecayFunctionBuilder.SCALE + " must be set for geo fields.");
+            throw new ElasticsearchParseException(DecayFunctionBuilder.ORIGIN + " and " + DecayFunctionBuilder.SCALE + " must be set for geo fields.");
         }
         double scale = DistanceUnit.parse(scaleString, DistanceUnit.METERS, DistanceUnit.METERS);
         double offset = DistanceUnit.parse(offsetString, DistanceUnit.METERS, DistanceUnit.METERS);
@@ -245,7 +245,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
+                throw new ElasticsearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
         long origin = SearchContext.current().nowInMillis();
@@ -254,7 +254,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         if (scaleString == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.SCALE + " must be set for date fields.");
+            throw new ElasticsearchParseException(DecayFunctionBuilder.SCALE + " must be set for date fields.");
         }
         TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24));
         double scale = val.getMillis();
@@ -371,16 +371,16 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func) {
             super(CombineFunction.MULT);
             if (userSuppiedScale <= 0.0) {
-                throw new ElasticSearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
+                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
-                throw new ElasticSearchIllegalArgumentException(FunctionScoreQueryParser.NAME
+                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME
                         + " : decay must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, decay);
             this.func = func;
             if (offset < 0.0d) {
-                throw new ElasticSearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
+                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
         }

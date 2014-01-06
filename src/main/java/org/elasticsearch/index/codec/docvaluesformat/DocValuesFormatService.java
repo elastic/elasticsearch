@@ -20,7 +20,7 @@
 package org.elasticsearch.index.codec.docvaluesformat;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -81,10 +81,10 @@ public class DocValuesFormatService extends AbstractIndexComponent {
         this.providers = providers.immutableMap();
     }
 
-    public DocValuesFormatProvider get(String name) throws ElasticSearchIllegalArgumentException {
+    public DocValuesFormatProvider get(String name) throws ElasticsearchIllegalArgumentException {
         DocValuesFormatProvider provider = providers.get(name);
         if (provider == null) {
-            throw new ElasticSearchIllegalArgumentException("failed to find doc_values_format [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("failed to find doc_values_format [" + name + "]");
         }
         return provider;
     }

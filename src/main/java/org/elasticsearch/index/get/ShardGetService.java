@@ -22,8 +22,8 @@ package org.elasticsearch.index.get;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,7 +99,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
-            throws ElasticSearchException {
+            throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -167,7 +167,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticSearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticsearchException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
@@ -272,7 +272,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 if (x == null) {
                                     if (docMapper.objectMappers().get(field) != null) {
                                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                                        throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                                        throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                                     }
                                 } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
                                     List<Object> values = searchLookup.source().extractRawValues(field);
@@ -329,7 +329,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         try {
                             sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
                         } catch (IOException e) {
-                            throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
+                            throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
                         }
                     }
                 }
@@ -350,7 +350,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             try {
                 docIdAndVersion.context.reader().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
-                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
+                throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
             source = fieldVisitor.source();
 
@@ -391,7 +391,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     if (x == null) {
                         if (docMapper.objectMappers().get(field) != null) {
                             // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                            throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                            throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                         }
                     } else if (!x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
@@ -436,7 +436,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             try {
                 source = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
             } catch (IOException e) {
-                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
+                throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
             }
         }
 

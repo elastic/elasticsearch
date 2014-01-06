@@ -27,7 +27,7 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
@@ -51,7 +51,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
             CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
         if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
-            throw new ElasticSearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
+            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
 
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());

@@ -20,8 +20,8 @@
 package org.elasticsearch.action.search;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -128,7 +128,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                             } else if (token.isValue()) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
                                     if (!allowExplicitIndex) {
-                                        throw new ElasticSearchIllegalArgumentException("explicit index in multi search is not allowed");
+                                        throw new ElasticsearchIllegalArgumentException("explicit index in multi search is not allowed");
                                     }
                                     searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
@@ -151,14 +151,14 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                         } else if ("closed".equals(wildcard)) {
                                             expandWildcardsClosed = true;
                                         } else {
-                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                                         }
                                     }
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
                                     if (!allowExplicitIndex) {
-                                        throw new ElasticSearchIllegalArgumentException("explicit index in multi search is not allowed");
+                                        throw new ElasticsearchIllegalArgumentException("explicit index in multi search is not allowed");
                                     }
                                     searchRequest.indices(parseArray(parser));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
@@ -171,11 +171,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                         } else if ("closed".equals(wildcard)) {
                                             expandWildcardsClosed = true;
                                         } else {
-                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                                         }
                                     }
                                 } else {
-                                    throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
+                                    throw new ElasticsearchParseException(currentFieldName + " doesn't support arrays");
                                 }
                             }
                         }

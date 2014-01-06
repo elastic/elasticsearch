@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -110,7 +110,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
+    protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         indexShard.optimize(new Engine.Optimize()
                 .waitForMerge(request.waitForMerge())

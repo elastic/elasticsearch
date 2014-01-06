@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +42,7 @@ public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         this.length = settings.getAsInt("length", -1);
         if (length <= 0) {
-            throw new ElasticSearchIllegalArgumentException("length parameter must be provided");
+            throw new ElasticsearchIllegalArgumentException("length parameter must be provided");
         }
     }
 

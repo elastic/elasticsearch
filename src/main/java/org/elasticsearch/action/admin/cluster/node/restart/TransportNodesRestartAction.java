@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.restart;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
@@ -65,7 +65,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     @Override
     protected void doExecute(NodesRestartRequest nodesRestartRequest, ActionListener<NodesRestartResponse> listener) {
-        listener.onFailure(new ElasticSearchIllegalStateException("restart is disabled (for now) ...."));
+        listener.onFailure(new ElasticsearchIllegalStateException("restart is disabled (for now) ...."));
     }
 
     @Override
@@ -111,9 +111,9 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     }
 
     @Override
-    protected NodesRestartResponse.NodeRestartResponse nodeOperation(NodeRestartRequest request) throws ElasticSearchException {
+    protected NodesRestartResponse.NodeRestartResponse nodeOperation(NodeRestartRequest request) throws ElasticsearchException {
         if (disabled) {
-            throw new ElasticSearchIllegalStateException("Restart is disabled");
+            throw new ElasticsearchIllegalStateException("Restart is disabled");
         }
         if (!restartRequested.compareAndSet(false, true)) {
             return new NodesRestartResponse.NodeRestartResponse(clusterService.localNode());

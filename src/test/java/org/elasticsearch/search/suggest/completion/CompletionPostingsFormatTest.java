@@ -35,7 +35,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat;
+import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
@@ -68,7 +68,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
@@ -87,7 +87,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE));
         assertThat(analyzingSuggestHolder.sepLabel, is(AnalyzingCompletionLookupProviderV1.SEP_LABEL));
@@ -105,7 +105,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE));
         assertThat(analyzingSuggestHolder.sepLabel, is(XAnalyzingSuggester.SEP_LABEL));
@@ -202,7 +202,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             iter = primaryIter;
         }
         reference.build(iter);
-        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
 
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
@@ -293,7 +293,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = provider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE), new CompletionSuggestionContext(null)));
         dir.close();

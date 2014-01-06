@@ -8,7 +8,7 @@
     <artifactId>elasticsearch</artifactId>
     <version>1.0.0.RC1-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
+    <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>

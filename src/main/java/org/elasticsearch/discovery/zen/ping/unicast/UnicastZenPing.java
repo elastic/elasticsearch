@@ -20,9 +20,9 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -112,7 +112,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version));
                 }
             } catch (Exception e) {
-                throw new ElasticSearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
+                throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }
         }
         this.nodes = nodes.toArray(new DiscoveryNode[nodes.size()]);
@@ -121,15 +121,15 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         transportService.removeHandler(UnicastPingRequestHandler.ACTION);
     }
 
@@ -165,7 +165,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(final PingListener listener, final TimeValue timeout) throws ElasticSearchException {
+    public void ping(final PingListener listener, final TimeValue timeout) throws ElasticsearchException {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingIdGenerator.incrementAndGet());
         receivedResponses.put(sendPingsHandler.id(), ConcurrentCollections.<DiscoveryNode, PingResponse>newConcurrentMap());
         sendPings(timeout, null, sendPingsHandler);
@@ -365,7 +365,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
         if (lifecycle.stoppedOrClosed()) {
-            throw new ElasticSearchIllegalStateException("received ping request while stopped/closed");
+            throw new ElasticsearchIllegalStateException("received ping request while stopped/closed");
         }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {

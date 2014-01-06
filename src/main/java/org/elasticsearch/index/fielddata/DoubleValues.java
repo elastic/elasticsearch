@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
@@ -150,7 +150,7 @@ public abstract class DoubleValues {
 
         @Override
         public double nextValue() {
-            throw new ElasticSearchIllegalStateException("Empty DoubleValues has no next value");
+            throw new ElasticsearchIllegalStateException("Empty DoubleValues has no next value");
         }
     }
 

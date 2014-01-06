@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -84,7 +84,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
             if (newLowWatermark != null) {
                 if (!validWatermarkSetting(newLowWatermark)) {
-                    throw new ElasticSearchParseException("Unable to parse low watermark: [" + newLowWatermark + "]");
+                    throw new ElasticsearchParseException("Unable to parse low watermark: [" + newLowWatermark + "]");
                 }
                 logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, newLowWatermark);
                 DiskThresholdDecider.this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(newLowWatermark);
@@ -92,7 +92,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
             if (newHighWatermark != null) {
                 if (!validWatermarkSetting(newHighWatermark)) {
-                    throw new ElasticSearchParseException("Unable to parse high watermark: [" + newHighWatermark + "]");
+                    throw new ElasticsearchParseException("Unable to parse high watermark: [" + newHighWatermark + "]");
                 }
                 logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, newHighWatermark);
                 DiskThresholdDecider.this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(newHighWatermark);
@@ -116,10 +116,10 @@ public class DiskThresholdDecider extends AllocationDecider {
         String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "0.85");
 
         if (!validWatermarkSetting(lowWatermark)) {
-            throw new ElasticSearchParseException("Unable to parse low watermark: [" + lowWatermark + "]");
+            throw new ElasticsearchParseException("Unable to parse low watermark: [" + lowWatermark + "]");
         }
         if (!validWatermarkSetting(highWatermark)) {
-            throw new ElasticSearchParseException("Unable to parse high watermark: [" + highWatermark + "]");
+            throw new ElasticsearchParseException("Unable to parse high watermark: [" + highWatermark + "]");
         }
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(lowWatermark);
@@ -317,7 +317,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     public ByteSizeValue thresholdBytesFromWatermark(String watermark) {
         try {
             return ByteSizeValue.parseBytesSizeValue(watermark);
-        } catch (ElasticSearchParseException ex) {
+        } catch (ElasticsearchParseException ex) {
             return ByteSizeValue.parseBytesSizeValue("0b");
         }
     }
@@ -337,7 +337,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             try {
                 ByteSizeValue.parseBytesSizeValue(watermark);
                 return true;
-            } catch (ElasticSearchParseException ex) {
+            } catch (ElasticsearchParseException ex) {
                 return false;
             }
         }

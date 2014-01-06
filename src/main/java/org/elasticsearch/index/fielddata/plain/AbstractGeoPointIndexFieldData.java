@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -139,7 +139,7 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
 
     @Override
     public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        throw new ElasticSearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
+        throw new ElasticsearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
 }

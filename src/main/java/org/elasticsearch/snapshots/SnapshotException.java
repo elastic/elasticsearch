@@ -19,13 +19,13 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 
 /**
  * Generic snapshot exception
  */
-public class SnapshotException extends ElasticSearchException {
+public class SnapshotException extends ElasticsearchException {
     private final SnapshotId snapshot;
 
     public SnapshotException(SnapshotId snapshot, String msg) {

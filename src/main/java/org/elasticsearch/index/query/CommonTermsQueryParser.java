@@ -29,7 +29,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -203,7 +203,7 @@ public class CommonTermsQueryParser implements QueryParser {
         } else {
             analyzer = parseContext.mapperService().analysisService().analyzer(queryAnalyzer);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("No analyzer found for [" + queryAnalyzer + "]");
+                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + queryAnalyzer + "]");
             }
         }
 

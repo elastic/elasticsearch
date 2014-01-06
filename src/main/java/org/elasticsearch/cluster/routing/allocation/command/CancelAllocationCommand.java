@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -86,20 +86,20 @@ public class CancelAllocationCommand implements AllocationCommand {
                     } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
                         allowPrimary = parser.booleanValue();
                     } else {
-                        throw new ElasticSearchParseException("[cancel] command does not support field [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("[cancel] command does not support field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticSearchParseException("[cancel] command does not support complex json tokens [" + token + "]");
+                    throw new ElasticsearchParseException("[cancel] command does not support complex json tokens [" + token + "]");
                 }
             }
             if (index == null) {
-                throw new ElasticSearchParseException("[cancel] command missing the index parameter");
+                throw new ElasticsearchParseException("[cancel] command missing the index parameter");
             }
             if (shardId == -1) {
-                throw new ElasticSearchParseException("[cancel] command missing the shard parameter");
+                throw new ElasticsearchParseException("[cancel] command missing the shard parameter");
             }
             if (nodeId == null) {
-                throw new ElasticSearchParseException("[cancel] command missing the node parameter");
+                throw new ElasticsearchParseException("[cancel] command missing the node parameter");
             }
             return new CancelAllocationCommand(new ShardId(index, shardId), nodeId, allowPrimary);
         }
@@ -159,7 +159,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticSearchException {
+    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
@@ -187,7 +187,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
                     if (!allowPrimary && shardRouting.primary()) {
                         // can't cancel a primary shard being initialized
-                        throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
+                        throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
                     }
                     it.moveToUnassigned();
                     // now, go and find the shard that is initializing on the target node, and cancel it as well...
@@ -205,7 +205,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                 // the shard is not relocating, its either started, or initializing, just cancel it and move on...
                 if (!allowPrimary && shardRouting.primary()) {
                     // can't cancel a primary shard being initialized
-                    throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started");
+                    throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started");
                 }
                 it.remove();
                 allocation.routingNodes().unassigned().add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
@@ -213,7 +213,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             }
         }
         if (!found) {
-            throw new ElasticSearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
+            throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
         }
     }
 }

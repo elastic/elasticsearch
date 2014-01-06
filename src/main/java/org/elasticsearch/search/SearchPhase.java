@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Map;
@@ -36,5 +36,5 @@ public interface SearchPhase {
      */
     void preProcess(SearchContext context);
 
-    void execute(SearchContext context) throws ElasticSearchException;
+    void execute(SearchContext context) throws ElasticsearchException;
 }

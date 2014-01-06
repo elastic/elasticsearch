@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -150,7 +150,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
             fail("expected execution to fail - an attempt to nested facet on non-nested field/path");
 
-        } catch (ElasticSearchException ese) {
+        } catch (ElasticsearchException ese) {
         }
     }
 

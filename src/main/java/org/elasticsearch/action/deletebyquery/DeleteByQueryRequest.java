@@ -20,7 +20,7 @@
 package org.elasticsearch.action.deletebyquery;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
@@ -122,7 +122,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

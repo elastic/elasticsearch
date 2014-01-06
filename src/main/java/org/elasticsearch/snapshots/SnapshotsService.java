@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -206,9 +206,9 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
      *
      * @param request snapshot request
      * @param state   current cluster state
-     * @throws ElasticSearchException
+     * @throws org.elasticsearch.ElasticsearchException
      */
-    private void validate(SnapshotRequest request, ClusterState state) throws ElasticSearchException {
+    private void validate(SnapshotRequest request, ClusterState state) throws ElasticsearchException {
         RepositoriesMetaData repositoriesMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
         if (repositoriesMetaData == null || repositoriesMetaData.repository(request.repository()) == null) {
             throw new RepositoryMissingException(request.repository());

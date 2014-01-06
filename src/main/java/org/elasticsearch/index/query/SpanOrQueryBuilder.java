@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBui
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
-            throw new ElasticSearchIllegalArgumentException("Must have at least one clause when building a spanOr query");
+            throw new ElasticsearchIllegalArgumentException("Must have at least one clause when building a spanOr query");
         }
         builder.startObject(SpanOrQueryParser.NAME);
         builder.startArray("clauses");

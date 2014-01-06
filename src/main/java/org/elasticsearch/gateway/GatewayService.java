@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -95,7 +95,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         gateway.start();
         // if we received initial state, see if we can recover within the start phase, so we hold the
         // node from starting until we recovered properly
@@ -139,13 +139,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         clusterService.remove(this);
         gateway.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         gateway.close();
     }
 

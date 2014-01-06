@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -88,7 +88,7 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         unblock();
         super.doStop();
     }
@@ -187,9 +187,9 @@ public class MockRepository extends FsRepository {
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                             | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
                 } catch (NoSuchAlgorithmException ex) {
-                    throw new ElasticSearchException("cannot calculate hashcode", ex);
+                    throw new ElasticsearchException("cannot calculate hashcode", ex);
                 } catch (UnsupportedEncodingException ex) {
-                    throw new ElasticSearchException("cannot calculate hashcode", ex);
+                    throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }
 

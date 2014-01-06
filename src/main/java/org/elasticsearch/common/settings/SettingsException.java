@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * A generic failure to handle settings.
  *
  *
  */
-public class SettingsException extends ElasticSearchException {
+public class SettingsException extends ElasticsearchException {
 
     public SettingsException(String message) {
         super(message);

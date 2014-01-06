@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -89,7 +89,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticsearchException {
         clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
 
             @Override

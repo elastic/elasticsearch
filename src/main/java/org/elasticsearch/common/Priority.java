@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -39,7 +39,7 @@ public final class Priority implements Comparable<Priority> {
             case 4:
                 return LANGUID;
             default:
-                throw new ElasticSearchIllegalArgumentException("can't find priority for [" + b + "]");
+                throw new ElasticsearchIllegalArgumentException("can't find priority for [" + b + "]");
         }
     }
 

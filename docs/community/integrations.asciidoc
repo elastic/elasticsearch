@@ -3,19 +3,19 @@
 
 
 * http://grails.org/plugin/elasticsearch[Grails]:
-  ElasticSearch Grails plugin.
+  Elasticsearch Grails plugin.
 
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2]:
   Results clustering with carrot2
 
 * https://github.com/angelf/escargot[escargot]:
-  ElasticSearch connector for Rails (WIP).
+  Elasticsearch connector for Rails (WIP).
 
-* https://metacpan.org/module/Catalyst::Model::Search::ElasticSearch[Catalyst]:
-  ElasticSearch and Catalyst integration.
+* https://metacpan.org/module/Catalyst::Model::Search::Elasticsearch[Catalyst]:
+  Elasticsearch and Catalyst integration.
 
 * http://github.com/aparo/django-elasticsearch[django-elasticsearch]:
-  Django ElasticSearch Backend.
+  Django Elasticsearch Backend.
 
 * http://github.com/Aconex/elasticflume[elasticflume]:
   http://github.com/cloudera/flume[Flume] sink implementation.
@@ -33,7 +33,7 @@
   Symfony2 Bundle wrapping Elastica.
 
 * http://drupal.org/project/elasticsearch[Drupal]:
-  Drupal ElasticSearch integration.
+  Drupal Elasticsearch integration.
 
 * https://github.com/refuge/couch_es[couch_es]:
   elasticsearch helper for couchdb based products (apache couchdb, bigcouch & refuge)
@@ -51,11 +51,11 @@
   Elasticsearch Java annotations for unit testing with
   http://www.junit.org/[JUnit]
 
-* http://searchbox-io.github.com/wp-elasticsearch/[Wp-ElasticSearch]:
-  ElasticSearch WordPress Plugin
+* http://searchbox-io.github.com/wp-elasticsearch/[Wp-Elasticsearch]:
+  Elasticsearch WordPress Plugin
 
 * https://github.com/OlegKunitsyn/eslogd[eslogd]:
-  Linux daemon that replicates events to a central ElasticSearch server in real-time
+  Linux daemon that replicates events to a central Elasticsearch server in real-time
 
 * https://github.com/drewr/elasticsearch-clojure-repl[elasticsearch-clojure-repl]:
   Plugin that embeds nREPL for run-time introspective adventure! Also
@@ -65,11 +65,11 @@
   Modular search for Django
 
 * https://github.com/cleverage/play2-elasticsearch[play2-elasticsearch]:
-  ElasticSearch module for Play Framework 2.x
+  Elasticsearch module for Play Framework 2.x
 
 * https://github.com/fullscale/dangle[dangle]:
   A set of AngularJS directives that provide common visualizations for elasticsearch based on
   D3.
 
 * https://github.com/roundscope/ember-data-elasticsearch-kit[ember-data-elasticsearch-kit]:
-  An ember-data kit for both pushing and querying objects to ElasticSearch cluster
+  An ember-data kit for both pushing and querying objects to Elasticsearch cluster

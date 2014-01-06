@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -42,7 +42,7 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
     }
 
 
-    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testCloseAllExplicitly() {
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -50,7 +50,7 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
         client().admin().indices().prepareClose("_all").execute().actionGet();
     }
 
-    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testCloseAllWildcard() {
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -58,7 +58,7 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
         client().admin().indices().prepareClose("*").execute().actionGet();
     }
 
-    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testCloseAllWildcard2() {
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -76,7 +76,7 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
         assertIndexIsClosed("test2", "test3");
     }
 
-    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testCloseWildcardMatchingAll() {
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

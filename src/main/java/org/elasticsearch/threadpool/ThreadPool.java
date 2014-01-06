@@ -23,7 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -126,7 +126,7 @@ public class ThreadPool extends AbstractComponent {
         }
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
         if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
-            throw new ElasticSearchIllegalArgumentException("generic thread pool must be of type cached");
+            throw new ElasticsearchIllegalArgumentException("generic thread pool must be of type cached");
         }
         this.executors = ImmutableMap.copyOf(executors);
         this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
@@ -204,7 +204,7 @@ public class ThreadPool extends AbstractComponent {
     public Executor executor(String name) {
         Executor executor = executors.get(name).executor;
         if (executor == null) {
-            throw new ElasticSearchIllegalArgumentException("No executor found for [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("No executor found for [" + name + "]");
         }
         return executor;
     }
@@ -382,7 +382,7 @@ public class ThreadPool extends AbstractComponent {
             Executor executor = EsExecutors.newScaling(min, size, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, min, size, keepAlive, null));
         }
-        throw new ElasticSearchIllegalArgumentException("No type found [" + type + "], for [" + name + "]");
+        throw new ElasticsearchIllegalArgumentException("No type found [" + type + "], for [" + name + "]");
     }
 
     public void updateSettings(Settings settings) {

@@ -22,7 +22,7 @@ package org.elasticsearch.river.routing;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
@@ -82,15 +82,15 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override

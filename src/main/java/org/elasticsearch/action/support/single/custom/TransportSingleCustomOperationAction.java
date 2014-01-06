@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.single.custom;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -79,7 +79,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
      */
     protected abstract ShardsIterator shards(ClusterState state, Request request);
 
-    protected abstract Response shardOperation(Request request, int shardId) throws ElasticSearchException;
+    protected abstract Response shardOperation(Request request, int shardId) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 

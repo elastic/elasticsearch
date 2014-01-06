@@ -23,7 +23,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -120,7 +120,7 @@ public class NodeEnvironment extends AbstractComponent {
             }
         }
         if (locks[0] == null) {
-            throw new ElasticSearchIllegalStateException("Failed to obtain node lock, is the following location writable?: " + Arrays.toString(environment.dataWithClusterFiles()), lastException);
+            throw new ElasticsearchIllegalStateException("Failed to obtain node lock, is the following location writable?: " + Arrays.toString(environment.dataWithClusterFiles()), lastException);
         }
 
         this.localNodeId = localNodeId;
@@ -153,7 +153,7 @@ public class NodeEnvironment extends AbstractComponent {
 
     public File[] nodeDataLocations() {
         if (nodeFiles == null || locks == null) {
-            throw new ElasticSearchIllegalStateException("node is not configured to store local location");
+            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
         return nodeFiles;
     }
@@ -180,7 +180,7 @@ public class NodeEnvironment extends AbstractComponent {
 
     public Set<String> findAllIndices() throws Exception {
         if (nodeFiles == null || locks == null) {
-            throw new ElasticSearchIllegalStateException("node is not configured to store local location");
+            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
         Set<String> indices = Sets.newHashSet();
         for (File indicesLocation : nodeIndicesLocations) {
@@ -199,7 +199,7 @@ public class NodeEnvironment extends AbstractComponent {
 
     public Set<ShardId> findAllShardIds() throws Exception {
         if (nodeFiles == null || locks == null) {
-            throw new ElasticSearchIllegalStateException("node is not configured to store local location");
+            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
         Set<ShardId> shardIds = Sets.newHashSet();
         for (File indicesLocation : nodeIndicesLocations) {

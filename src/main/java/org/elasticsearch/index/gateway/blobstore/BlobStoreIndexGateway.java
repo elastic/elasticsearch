@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.gateway.blobstore;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +82,6 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
     }
 }

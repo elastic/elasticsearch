@@ -19,7 +19,7 @@
 
 package org.elasticsearch.river.cluster;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -59,12 +59,12 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "riverClusterService#updateTask"));
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         updateTasksExecutor.shutdown();
         try {
             updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
@@ -74,7 +74,7 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     public void add(RiverClusterStateListener listener) {

@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -83,7 +83,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, weightFunction.primaryBalance);
             float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
-                throw new ElasticSearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
+                throw new ElasticsearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
             }
             BalancedShardsAllocator.this.threshold = threshold;
             BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance, primaryBalance);
@@ -196,7 +196,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public WeightFunction(float indexBalance, float shardBalance, float primaryBalance) {
             float sum = indexBalance + shardBalance + primaryBalance;
             if (sum <= 0.0f) {
-                throw new ElasticSearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
+                throw new ElasticsearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum};
             for (Operation operation : Operation.values()) {

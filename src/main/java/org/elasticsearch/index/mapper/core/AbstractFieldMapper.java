@@ -30,7 +30,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -720,7 +720,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             case DOCS_ONLY:
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
-                throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
         }
     }
 

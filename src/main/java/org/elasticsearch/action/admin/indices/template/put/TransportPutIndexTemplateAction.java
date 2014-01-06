@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -73,7 +73,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) throws ElasticsearchException {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

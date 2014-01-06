@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -89,7 +89,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     }
 
     @Override
-    protected TermVectorResponse shardOperation(TermVectorRequest request, int shardId) throws ElasticSearchException {
+    protected TermVectorResponse shardOperation(TermVectorRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
         return indexShard.termVectorService().getTermVector(request);

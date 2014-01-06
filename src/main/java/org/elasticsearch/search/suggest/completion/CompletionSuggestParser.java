@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
@@ -74,7 +74,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     }
                 }
             } else {
-                throw new ElasticSearchIllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
             }
         }
         suggestion.mapper(mapperService.smartNameFieldMapper(suggestion.getField()));

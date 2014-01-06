@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -81,7 +81,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticsearchException {
 
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

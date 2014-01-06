@@ -21,10 +21,8 @@ package org.elasticsearch.search.rescore;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class RescoreBuilder implements ToXContent {

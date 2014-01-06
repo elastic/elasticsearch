@@ -21,8 +21,8 @@ package org.elasticsearch.discovery.zen;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -165,7 +165,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         final String nodeId = getNodeUUID(settings);
@@ -179,7 +179,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
@@ -216,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         masterFD.close();
         nodesFD.close();
         publishClusterState.close();
@@ -262,7 +262,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public void publish(ClusterState clusterState, AckListener ackListener) {
         if (!master) {
-            throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
+            throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         latestDiscoNodes = clusterState.nodes();
         nodesFD.updateNodes(clusterState.nodes());
@@ -342,8 +342,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 try {
                     membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
                 } catch (Exception e) {
-                    if (e instanceof ElasticSearchException) {
-                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
+                    if (e instanceof ElasticsearchException) {
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
                     } else {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
                     }
@@ -562,7 +562,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         } else {
             if (newState.nodes().localNode() == null) {
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newState.nodes().masterNode());
-                newStateProcessed.onNewClusterStateFailed(new ElasticSearchIllegalStateException("received state from a node that is not part of the cluster"));
+                newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
                 if (currentJoinThread != null) {
                     logger.debug("got a new state from master node, though we are already trying to rejoin the cluster");
@@ -628,7 +628,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private ClusterState handleJoinRequest(final DiscoveryNode node) {
         if (!master) {
-            throw new ElasticSearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
+            throw new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
         }
 
         ClusterState state = clusterService.state();

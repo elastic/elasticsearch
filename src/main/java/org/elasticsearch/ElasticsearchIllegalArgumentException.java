@@ -19,20 +19,27 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.rest.RestStatus;
+
 /**
  *
  */
-public class ElasticSearchNullPointerException extends ElasticSearchException {
+public class ElasticsearchIllegalArgumentException extends ElasticsearchException {
 
-    public ElasticSearchNullPointerException() {
+    public ElasticsearchIllegalArgumentException() {
         super(null);
     }
 
-    public ElasticSearchNullPointerException(String msg) {
+    public ElasticsearchIllegalArgumentException(String msg) {
         super(msg);
     }
 
-    public ElasticSearchNullPointerException(String msg, Throwable cause) {
+    public ElasticsearchIllegalArgumentException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

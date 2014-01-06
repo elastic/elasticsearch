@@ -24,7 +24,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
@@ -77,7 +77,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
     }
 
     @Override
-    protected void doMasterOperation(final GetFieldMappingsRequest request, final ClusterState state, final ActionListener<GetFieldMappingsResponse> listener) throws ElasticSearchException {
+    protected void doMasterOperation(final GetFieldMappingsRequest request, final ClusterState state, final ActionListener<GetFieldMappingsResponse> listener) throws ElasticsearchException {
 
         listener.onResponse(new GetFieldMappingsResponse(findMappings(request.indices(), request.types(), request.fields(), request.includeDefaults())));
     }
@@ -167,7 +167,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
     };
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, String[] fields,
-                                                                               boolean includeDefaults) throws ElasticSearchException {
+                                                                               boolean includeDefaults) throws ElasticsearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<String, FieldMappingMetaData>();
         ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : fields) {
@@ -229,7 +229,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
             builder.endObject();
             fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.names().fullName(), builder.bytes()));
         } catch (IOException e) {
-            throw new ElasticSearchException("failed to serialize XContent of field [" + field + "]", e);
+            throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
         }
     }
 

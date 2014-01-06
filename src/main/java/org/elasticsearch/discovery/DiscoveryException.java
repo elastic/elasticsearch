@@ -19,12 +19,12 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class DiscoveryException extends ElasticSearchException {
+public class DiscoveryException extends ElasticsearchException {
 
     public DiscoveryException(String message) {
         super(message);

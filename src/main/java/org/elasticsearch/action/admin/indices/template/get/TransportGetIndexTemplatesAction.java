@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -65,7 +65,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeOperati
     }
 
     @Override
-    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticsearchException {
         List<IndexTemplateMetaData> results;
 
         // If we did not ask for a specific name, then we return all templates

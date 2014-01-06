@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -146,7 +146,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     }
 
     @Override
-    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticSearchException {
+    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
         final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");
@@ -156,7 +156,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             if (suggest != null && suggest.length() > 0) {
                 parser = XContentFactory.xContent(suggest).createParser(suggest);
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticSearchIllegalArgumentException("suggest content missing");
+                    throw new ElasticsearchIllegalArgumentException("suggest content missing");
                 }
                 final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.index(), request.shardId());
                 final Suggest result = suggestPhase.execute(context, searcher.reader());
@@ -164,7 +164,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             }
             return new ShardSuggestResponse(request.index(), request.shardId(), new Suggest());
         } catch (Throwable ex) {
-            throw new ElasticSearchException("failed to execute suggest", ex);
+            throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {
             searcher.release();
             if (parser != null) {

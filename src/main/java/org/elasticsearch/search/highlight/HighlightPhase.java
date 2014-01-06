@@ -22,8 +22,8 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -66,7 +66,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
     }
 
     @Override
@@ -75,7 +75,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         Map<String, HighlightField> highlightFields = newHashMap();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Set<String> fieldNamesToHighlight;
@@ -89,7 +89,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (field.forceSource()) {
                 SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
                 if (!sourceFieldMapper.enabled()) {
-                    throw new ElasticSearchIllegalArgumentException("source is forced for field [" +  field.field() + "] but type [" + hitContext.hit().type() + "] has disabled _source");
+                    throw new ElasticsearchIllegalArgumentException("source is forced for field [" +  field.field() + "] but type [" + hitContext.hit().type() + "] has disabled _source");
                 }
             }
 
@@ -112,7 +112,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 Highlighter highlighter = highlighters.get(field.highlighterType());
                 if (highlighter == null) {
-                    throw new ElasticSearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + fieldName + "]");
                 }
 
                 HighlighterContext.HighlightQuery highlightQuery;

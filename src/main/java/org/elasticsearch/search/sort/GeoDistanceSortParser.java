@@ -21,7 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -112,12 +112,12 @@ public class GeoDistanceSortParser implements SortParser {
         }
 
         if (sortMode == SortMode.SUM) {
-            throw new ElasticSearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
+            throw new ElasticsearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
         FieldMapper mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new ElasticSearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
+            throw new ElasticsearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         IndexGeoPointFieldData indexFieldData = context.fieldData().getForField(mapper);
 
@@ -128,11 +128,11 @@ public class GeoDistanceSortParser implements SortParser {
         if (nestedPath != null) {
             ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
             if (objectMappers == null) {
-                throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
             }
             objectMapper = objectMappers.mapper();
             if (!objectMapper.nested().isNested()) {
-                throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
             }
         } else {
             objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);

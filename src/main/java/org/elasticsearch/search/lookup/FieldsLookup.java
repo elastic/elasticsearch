@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -148,7 +148,7 @@ public class FieldsLookup implements Map {
         if (data == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(name, types);
             if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new ElasticsearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);
@@ -161,7 +161,7 @@ public class FieldsLookup implements Map {
                 fieldVisitor.postProcess(data.mapper());
                 data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().names().indexName())));
             } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
+                throw new ElasticsearchParseException("failed to load field [" + name + "]", e);
             }
         }
         return data;

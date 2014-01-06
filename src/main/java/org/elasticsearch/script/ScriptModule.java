@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -68,7 +68,7 @@ public class ScriptModule extends AbstractModule {
             String name = entry.getKey();
             Class<? extends NativeScriptFactory> type = entry.getValue().getAsClass("type", NativeScriptFactory.class);
             if (type == NativeScriptFactory.class) {
-                throw new ElasticSearchIllegalArgumentException("type is missing for native script [" + name + "]");
+                throw new ElasticsearchIllegalArgumentException("type is missing for native script [" + name + "]");
             }
             scriptsBinder.addBinding(name).to(type);
         }

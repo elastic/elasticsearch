@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -88,7 +88,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
         try {
             DateFieldMapper.parseLocale("de_DE_DE_DE");
             assert false;
-        } catch(ElasticSearchIllegalArgumentException ex) {
+        } catch(ElasticsearchIllegalArgumentException ex) {
             // expected
         }
         assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocale("")));

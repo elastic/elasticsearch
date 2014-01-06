@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -95,7 +95,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) throws ElasticSearchException {
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) throws ElasticsearchException {
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(),
                 request.fs(), request.transport(), request.http(), request.breaker());

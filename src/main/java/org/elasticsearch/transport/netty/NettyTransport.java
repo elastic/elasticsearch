@@ -21,9 +21,9 @@ package org.elasticsearch.transport.netty;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -194,13 +194,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         // we want to have at least 1 for reg/state/ping
         if (this.connectionsPerNodeReg == 0) {
-            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.reg] to 0");
+            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.reg] to 0");
         }
         if (this.connectionsPerNodePing == 0) {
-            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.ping] to 0");
+            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.ping] to 0");
         }
         if (this.connectionsPerNodeState == 0) {
-            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.state] to 0");
+            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.state] to 0");
         }
 
         this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
@@ -244,7 +244,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         if (blockingClient) {
             clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker"))));
         } else {
@@ -390,7 +390,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
         threadPool.generic().execute(new Runnable() {
@@ -447,7 +447,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override
@@ -610,7 +610,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public void connectToNode(DiscoveryNode node, boolean light) {
         if (!lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("can't add nodes to a stopped transport");
+            throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
         }
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
@@ -618,7 +618,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         globalLock.readLock().lock();
         try {
             if (!lifecycle.started()) {
-                throw new ElasticSearchIllegalStateException("can't add nodes to a stopped transport");
+                throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
             }
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null) {
@@ -627,7 +627,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             connectionLock.acquire(node.id());
             try {
                 if (!lifecycle.started()) {
-                    throw new ElasticSearchIllegalStateException("can't add nodes to a stopped transport");
+                    throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
                 }
                 try {
 
@@ -914,7 +914,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
                 return recovery[Math.abs(recoveryCounter.incrementAndGet()) % recovery.length];
             } else {
-                throw new ElasticSearchIllegalArgumentException("no type channel for [" + type + "]");
+                throw new ElasticsearchIllegalArgumentException("no type channel for [" + type + "]");
             }
         }
 

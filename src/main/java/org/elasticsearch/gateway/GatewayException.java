@@ -19,12 +19,12 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class GatewayException extends ElasticSearchException {
+public class GatewayException extends ElasticsearchException {
 
     public GatewayException(String msg) {
         super(msg);

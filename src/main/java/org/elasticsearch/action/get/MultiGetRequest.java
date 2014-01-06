@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -288,7 +288,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                     if ("docs".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token != XContentParser.Token.START_OBJECT) {
-                                throw new ElasticSearchIllegalArgumentException("docs array element should include an object");
+                                throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
                             }
                             String index = defaultIndex;
                             String type = defaultType;
@@ -307,7 +307,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                 } else if (token.isValue()) {
                                     if ("_index".equals(currentFieldName)) {
                                         if (!allowExplicitIndex) {
-                                            throw new ElasticSearchIllegalArgumentException("explicit index in multi get is not allowed");
+                                            throw new ElasticsearchIllegalArgumentException("explicit index in multi get is not allowed");
                                         }
                                         index = parser.text();
                                     } else if ("_type".equals(currentFieldName)) {
@@ -331,7 +331,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                         } else if (token == XContentParser.Token.VALUE_STRING) {
                                             fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
                                         } else {
-                                            throw new ElasticSearchParseException("illegal type for _source: [" + token + "]");
+                                            throw new ElasticsearchParseException("illegal type for _source: [" + token + "]");
                                         }
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -360,7 +360,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                                 } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                                                     currentList = excludes != null ? excludes : (excludes = new ArrayList<String>(2));
                                                 } else {
-                                                    throw new ElasticSearchParseException("Source definition may not contain " + parser.text());
+                                                    throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
                                                 }
                                             } else if (token == XContentParser.Token.START_ARRAY) {
                                                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -369,7 +369,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                             } else if (token.isValue()) {
                                                 currentList.add(parser.text());
                                             } else {
-                                                throw new ElasticSearchParseException("unexpected token while parsing source settings");
+                                                throw new ElasticsearchParseException("unexpected token while parsing source settings");
                                             }
                                         }
 
@@ -391,7 +391,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (!token.isValue()) {
-                                throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
+                                throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
                             }
                             add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
                         }

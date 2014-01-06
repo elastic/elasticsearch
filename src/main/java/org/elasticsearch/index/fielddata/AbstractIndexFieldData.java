@@ -5,7 +5,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -50,10 +50,10 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
             FD fd = cache.load(context, this);
             return fd;
         } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
+            if (e instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e;
             } else {
-                throw new ElasticSearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e.getMessage(), e);
             }
         }
     }

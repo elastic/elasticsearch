@@ -41,7 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -72,7 +72,7 @@ public final class SuggestUtils {
                 comparator = LUCENE_FREQUENCY;
                 break;
             default:
-                throw new ElasticSearchIllegalArgumentException("Illegal suggest sort: " + suggestion.sort());
+                throw new ElasticsearchIllegalArgumentException("Illegal suggest sort: " + suggestion.sort());
         }
         directSpellChecker.setComparator(comparator);
         directSpellChecker.setDistance(suggestion.stringDistance());
@@ -172,7 +172,7 @@ public final class SuggestUtils {
         } else if ("always".equals(suggestMode)) {
             return SuggestMode.SUGGEST_ALWAYS;
         } else {
-            throw new ElasticSearchIllegalArgumentException("Illegal suggest mode " + suggestMode);
+            throw new ElasticsearchIllegalArgumentException("Illegal suggest mode " + suggestMode);
         }
     }
 
@@ -182,7 +182,7 @@ public final class SuggestUtils {
         } else if ("frequency".equals(sortVal)) {
             return Suggest.Suggestion.Sort.FREQUENCY;
         } else {
-            throw new ElasticSearchIllegalArgumentException("Illegal suggest sort " + sortVal);
+            throw new ElasticsearchIllegalArgumentException("Illegal suggest sort " + sortVal);
         }
     }
 
@@ -198,7 +198,7 @@ public final class SuggestUtils {
         } else if ("ngram".equals(distanceVal)) {
             return new NGramDistance();
         } else {
-            throw new ElasticSearchIllegalArgumentException("Illegal distance option " + distanceVal);
+            throw new ElasticsearchIllegalArgumentException("Illegal distance option " + distanceVal);
         }
     }
     
@@ -215,7 +215,7 @@ public final class SuggestUtils {
             } else if ("max_edits".equals(fieldName) || "maxEdits".equals(fieldName)) {
                 suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
-                    throw new ElasticSearchIllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
+                    throw new ElasticsearchIllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
             } else if ("max_inspections".equals(fieldName) || "maxInspections".equals(fieldName)) {
                 suggestion.maxInspections(parser.intValue());
@@ -240,7 +240,7 @@ public final class SuggestUtils {
             String analyzerName = parser.text();
             Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
+                throw new ElasticsearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
             }
             suggestion.setAnalyzer(analyzer);
         } else if ("field".equals(fieldName)) {
@@ -260,11 +260,11 @@ public final class SuggestUtils {
     public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults
         if (suggestion.getField() == null) {
-            throw new ElasticSearchIllegalArgumentException("The required field option is missing");
+            throw new ElasticsearchIllegalArgumentException("The required field option is missing");
         }
         if (suggestion.getText() == null) {
             if (globalText == null) {
-                throw new ElasticSearchIllegalArgumentException("The required text option is missing");
+                throw new ElasticsearchIllegalArgumentException("The required text option is missing");
             }
             suggestion.setText(globalText);
         }

@@ -4,7 +4,7 @@
 The discovery module is responsible for discovering nodes within a
 cluster, as well as electing a master node.
 
-Note, ElasticSearch is a peer to peer based system, nodes communicate
+Note, Elasticsearch is a peer to peer based system, nodes communicate
 with one another directly if operations are delegated / broadcast. All
 the main APIs (index, delete, search) do not communicate with the master
 node. The responsibility of the master node is to maintain the global

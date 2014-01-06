@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.local;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -104,7 +104,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -197,7 +197,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -255,7 +255,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override
@@ -280,7 +280,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
-            throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
+            throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         LocalDiscovery[] members = members();
         if (members.length > 0) {
@@ -357,7 +357,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
         } catch (Exception e) {
             // failure to marshal or un-marshal
-            throw new ElasticSearchIllegalStateException("Cluster state failed to serialize", e);
+            throw new ElasticsearchIllegalStateException("Cluster state failed to serialize", e);
         }
     }
 

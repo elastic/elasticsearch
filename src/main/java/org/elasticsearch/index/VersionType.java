@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 /**
@@ -91,7 +91,7 @@ public enum VersionType {
         } else if ("external".equals(versionType)) {
             return EXTERNAL;
         }
-        throw new ElasticSearchIllegalArgumentException("No version type match [" + versionType + "]");
+        throw new ElasticsearchIllegalArgumentException("No version type match [" + versionType + "]");
     }
 
     public static VersionType fromString(String versionType, VersionType defaultVersionType) {
@@ -103,7 +103,7 @@ public enum VersionType {
         } else if ("external".equals(versionType)) {
             return EXTERNAL;
         }
-        throw new ElasticSearchIllegalArgumentException("No version type match [" + versionType + "]");
+        throw new ElasticsearchIllegalArgumentException("No version type match [" + versionType + "]");
     }
 
     public static VersionType fromValue(byte value) {
@@ -112,6 +112,6 @@ public enum VersionType {
         } else if (value == 1) {
             return EXTERNAL;
         }
-        throw new ElasticSearchIllegalArgumentException("No version type match [" + value + "]");
+        throw new ElasticsearchIllegalArgumentException("No version type match [" + value + "]");
     }
 }

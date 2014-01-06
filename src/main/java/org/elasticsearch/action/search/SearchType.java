@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Search type represent the manner at which the search operation is executed.
@@ -95,7 +95,7 @@ public enum SearchType {
         } else if (id == 5) {
             return COUNT;
         } else {
-            throw new ElasticSearchIllegalArgumentException("No search type for [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No search type for [" + id + "]");
         }
     }
 
@@ -104,7 +104,7 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
      */
-    public static SearchType fromString(String searchType) throws ElasticSearchIllegalArgumentException {
+    public static SearchType fromString(String searchType) throws ElasticsearchIllegalArgumentException {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }
@@ -121,7 +121,7 @@ public enum SearchType {
         } else if ("count".equals(searchType)) {
             return SearchType.COUNT;
         } else {
-            throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
+            throw new ElasticsearchIllegalArgumentException("No search type for [" + searchType + "]");
         }
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class UncategorizedExecutionException extends ElasticSearchException {
+public class UncategorizedExecutionException extends ElasticsearchException {
 
     public UncategorizedExecutionException(String msg) {
         super(msg);

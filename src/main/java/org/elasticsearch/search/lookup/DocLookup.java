@@ -22,7 +22,7 @@ package org.elasticsearch.search.lookup;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -97,7 +97,7 @@ public class DocLookup implements Map {
         if (scriptValues == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new ElasticsearchIllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
             scriptValues = fieldDataService.getForField(mapper).load(reader).getScriptValues();
             localCacheFieldData.put(fieldName, scriptValues);

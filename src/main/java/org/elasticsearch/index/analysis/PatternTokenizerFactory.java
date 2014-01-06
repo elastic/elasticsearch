@@ -21,8 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.IOException;
 import java.io.Reader;
 import java.util.regex.Pattern;
 
@@ -45,7 +43,7 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {
-            throw new ElasticSearchIllegalArgumentException("pattern is missing for [" + name + "] tokenizer of type 'pattern'");
+            throw new ElasticsearchIllegalArgumentException("pattern is missing for [" + name + "] tokenizer of type 'pattern'");
         }
 
         this.pattern = Regex.compile(sPattern, settings.get("flags"));

@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +45,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
 
         List<String> rules = Analysis.getWordList(env, settings, "mappings");
         if (rules == null) {
-            throw new ElasticSearchIllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
+            throw new ElasticsearchIllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }
 
         NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();

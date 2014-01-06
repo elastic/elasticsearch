@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -63,7 +63,7 @@ public enum SearchOperationThreading {
         if (id == 2) {
             return THREAD_PER_SHARD;
         }
-        throw new ElasticSearchIllegalArgumentException("No type matching id [" + id + "]");
+        throw new ElasticsearchIllegalArgumentException("No type matching id [" + id + "]");
     }
 
     public static SearchOperationThreading fromString(String value, @Nullable SearchOperationThreading defaultValue) {
@@ -77,6 +77,6 @@ public enum SearchOperationThreading {
         } else if ("thread_per_shard".equals(value) || "threadPerShard".equals(value)) {
             return THREAD_PER_SHARD;
         }
-        throw new ElasticSearchIllegalArgumentException("No value for search operation threading matching [" + value + "]");
+        throw new ElasticsearchIllegalArgumentException("No value for search operation threading matching [" + value + "]");
     }
 }

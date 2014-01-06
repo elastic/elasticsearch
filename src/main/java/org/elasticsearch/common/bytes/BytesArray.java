@@ -25,7 +25,7 @@ import java.util.Arrays;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -91,7 +91,7 @@ public class BytesArray implements BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > this.length) {
-            throw new ElasticSearchIllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new ElasticsearchIllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
         return new BytesArray(bytes, offset + from, length);
     }

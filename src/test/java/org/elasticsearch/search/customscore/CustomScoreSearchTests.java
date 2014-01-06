@@ -20,7 +20,7 @@
 package org.elasticsearch.search.customscore;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -197,7 +197,7 @@ public class CustomScoreSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testMultiValueCustomScriptBoost() throws ElasticSearchException, IOException {
+    public void testMultiValueCustomScriptBoost() throws ElasticsearchException, IOException {
 
         client().admin()
                 .indices()
@@ -301,7 +301,7 @@ public class CustomScoreSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testMultiValueCustomScriptBoost_withFunctionScore() throws ElasticSearchException, IOException {
+    public void testMultiValueCustomScriptBoost_withFunctionScore() throws ElasticsearchException, IOException {
 
         client().admin()
                 .indices()

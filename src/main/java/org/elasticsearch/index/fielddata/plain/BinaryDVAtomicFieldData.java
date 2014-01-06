@@ -23,7 +23,7 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -87,7 +87,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
                 docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
             }
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("Cannot load doc values", e);
+            throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
 
         return new BytesValues(false) {

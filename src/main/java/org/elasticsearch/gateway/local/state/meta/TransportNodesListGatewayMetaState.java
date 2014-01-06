@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
@@ -114,11 +114,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
             return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
         } catch (Exception e) {
-            throw new ElasticSearchException("failed to load metadata", e);
+            throw new ElasticsearchException("failed to load metadata", e);
         }
     }
 

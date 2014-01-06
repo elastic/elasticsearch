@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -87,7 +87,7 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
         if (valuesSource instanceof BytesValuesSource) {
             if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
-                throw new ElasticSearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
+                throw new ElasticsearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
             }
             String execution = executionHint;
             if (!(valuesSource instanceof BytesValuesSource.WithOrdinals)) {

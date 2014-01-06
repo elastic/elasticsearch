@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -74,15 +74,15 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         if (scheduledRoutingTableFuture != null) {
             scheduledRoutingTableFuture.cancel(true);
             scheduledRoutingTableFuture = null;

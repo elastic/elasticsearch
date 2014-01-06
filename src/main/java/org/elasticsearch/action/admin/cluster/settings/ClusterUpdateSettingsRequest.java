@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -101,7 +101,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
             builder.map(source);
             transientSettings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }
@@ -140,7 +140,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
             builder.map(source);
             persistentSettings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }

@@ -17,20 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.bootstrap;
 
 /**
- * A generic exception indicating failure to generate.
- *
- *
+ * A wrapper around {@link Bootstrap} just so the process will look nicely on things like jps.
  */
-public class ElasticSearchGenerationException extends ElasticSearchException {
+public class Elasticsearch extends Bootstrap {
 
-    public ElasticSearchGenerationException(String msg) {
-        super(msg);
+    public static void close(String[] args) {
+        Bootstrap.close(args);
     }
 
-    public ElasticSearchGenerationException(String msg, Throwable cause) {
-        super(msg, cause);
+    public static void main(String[] args) {
+        Bootstrap.main(args);
     }
 }

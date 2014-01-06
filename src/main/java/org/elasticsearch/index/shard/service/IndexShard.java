@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -125,29 +125,29 @@ public interface IndexShard extends IndexShardComponent {
 
     IndexShardState state();
 
-    Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException;
+    Engine.Create prepareCreate(SourceToParse source) throws ElasticsearchException;
 
-    ParsedDocument create(Engine.Create create) throws ElasticSearchException;
+    ParsedDocument create(Engine.Create create) throws ElasticsearchException;
 
-    Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException;
+    Engine.Index prepareIndex(SourceToParse source) throws ElasticsearchException;
 
-    ParsedDocument index(Engine.Index index) throws ElasticSearchException;
+    ParsedDocument index(Engine.Index index) throws ElasticsearchException;
 
-    Engine.Delete prepareDelete(String type, String id, long version) throws ElasticSearchException;
+    Engine.Delete prepareDelete(String type, String id, long version) throws ElasticsearchException;
 
-    void delete(Engine.Delete delete) throws ElasticSearchException;
+    void delete(Engine.Delete delete) throws ElasticsearchException;
 
-    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticsearchException;
 
-    void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException;
+    void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticsearchException;
 
-    Engine.GetResult get(Engine.Get get) throws ElasticSearchException;
+    Engine.GetResult get(Engine.Get get) throws ElasticsearchException;
 
-    void refresh(Engine.Refresh refresh) throws ElasticSearchException;
+    void refresh(Engine.Refresh refresh) throws ElasticsearchException;
 
-    void flush(Engine.Flush flush) throws ElasticSearchException;
+    void flush(Engine.Flush flush) throws ElasticsearchException;
 
-    void optimize(Engine.Optimize optimize) throws ElasticSearchException;
+    void optimize(Engine.Optimize optimize) throws ElasticsearchException;
 
     <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException;
 

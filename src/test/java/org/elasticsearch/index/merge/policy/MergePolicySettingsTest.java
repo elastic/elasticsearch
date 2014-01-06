@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -89,19 +89,19 @@ public class MergePolicySettingsTest {
         try {
             new LogDocMergePolicyProvider(createStore(build(-0.1)), service).newMergePolicy().getNoCFSRatio();
             assertThat("exception expected", false);
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build(1.1)), service).newMergePolicy().getNoCFSRatio();
             assertThat("exception expected", false);
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build("Falsch")), service).newMergePolicy().getNoCFSRatio();
             assertThat("exception expected", false);
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
 

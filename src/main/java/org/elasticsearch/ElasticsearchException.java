@@ -24,25 +24,25 @@ import org.elasticsearch.rest.RestStatus;
 /**
  * A base class for all elasticsearch exceptions.
  */
-public class ElasticSearchException extends RuntimeException {
+public class ElasticsearchException extends RuntimeException {
 
     /**
-     * Construct a <code>ElasticSearchException</code> with the specified detail message.
+     * Construct a <code>ElasticsearchException</code> with the specified detail message.
      *
      * @param msg the detail message
      */
-    public ElasticSearchException(String msg) {
+    public ElasticsearchException(String msg) {
         super(msg);
     }
 
     /**
-     * Construct a <code>ElasticSearchException</code> with the specified detail message
+     * Construct a <code>ElasticsearchException</code> with the specified detail message
      * and nested exception.
      *
      * @param msg   the detail message
      * @param cause the nested exception
      */
-    public ElasticSearchException(String msg, Throwable cause) {
+    public ElasticsearchException(String msg, Throwable cause) {
         super(msg, cause);
     }
 
@@ -53,8 +53,8 @@ public class ElasticSearchException extends RuntimeException {
         Throwable cause = unwrapCause();
         if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
-        } else if (cause instanceof ElasticSearchException) {
-            return ((ElasticSearchException) cause).status();
+        } else if (cause instanceof ElasticsearchException) {
+            return ((ElasticsearchException) cause).status();
         } else if (cause instanceof IllegalArgumentException) {
             return RestStatus.BAD_REQUEST;
         } else {
@@ -64,7 +64,7 @@ public class ElasticSearchException extends RuntimeException {
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticSearchWrapperException}.
+     * {@link ElasticsearchWrapperException}.
      *
      * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
      */
@@ -80,8 +80,8 @@ public class ElasticSearchException extends RuntimeException {
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
             sb.append(toString()).append("; ");
-            if (getCause() instanceof ElasticSearchException) {
-                sb.append(((ElasticSearchException) getCause()).getDetailedMessage());
+            if (getCause() instanceof ElasticsearchException) {
+                sb.append(((ElasticsearchException) getCause()).getDetailedMessage());
             } else {
                 sb.append(getCause());
             }
@@ -137,8 +137,8 @@ public class ElasticSearchException extends RuntimeException {
         if (cause == this) {
             return false;
         }
-        if (cause instanceof ElasticSearchException) {
-            return ((ElasticSearchException) cause).contains(exType);
+        if (cause instanceof ElasticsearchException) {
+            return ((ElasticsearchException) cause).contains(exType);
         } else {
             while (cause != null) {
                 if (exType.isInstance(cause)) {

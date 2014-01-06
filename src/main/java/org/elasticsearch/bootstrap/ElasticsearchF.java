@@ -1,10 +1,10 @@
 package org.elasticsearch.bootstrap;
 
 /**
- * Same as {@link ElasticSearch} just runs it in the foreground by default (does not close
+ * Same as {@link Elasticsearch} just runs it in the foreground by default (does not close
  * sout and serr).
  */
-public class ElasticSearchF {
+public class ElasticsearchF {
 
     public static void close(String[] args) {
         Bootstrap.close(args);

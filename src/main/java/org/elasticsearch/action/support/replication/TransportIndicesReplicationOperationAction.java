@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -65,7 +65,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     }
 
 
-    protected abstract Map<String, Set<String>> resolveRouting(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract Map<String, Set<String>> resolveRouting(ClusterState clusterState, Request request) throws ElasticsearchException;
 
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {

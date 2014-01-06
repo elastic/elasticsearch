@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.facet.Facet;
 
@@ -348,7 +348,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             } else if (id == REVERSE_MEAN.id()) {
                 return REVERSE_MEAN;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
         }
 
         public static ComparatorType fromString(String type) {
@@ -377,7 +377,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             } else if ("reverse_mean".equals(type) || "reverseMean".equals(type)) {
                 return REVERSE_MEAN;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms stats facet comparator [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for terms stats facet comparator [" + type + "]");
         }
     }
 

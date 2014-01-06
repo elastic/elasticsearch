@@ -19,14 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
-public class RecoveryFailedException extends ElasticSearchException {
+public class RecoveryFailedException extends ElasticsearchException {
 
     public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {
         this(request.shardId(), request.sourceNode(), request.targetNode(), cause);

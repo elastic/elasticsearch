@@ -19,13 +19,13 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  *
  */
-public class SendRequestTransportException extends ActionTransportException implements ElasticSearchWrapperException {
+public class SendRequestTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
         super(node == null ? null : node.name(), node == null ? null : node.address(), action, cause);

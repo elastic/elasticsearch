@@ -1,13 +1,13 @@
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
  * Exception during percolating document(s) at runtime.
  */
-public class PercolateException extends ElasticSearchException implements ElasticSearchWrapperException {
+public class PercolateException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final ShardId shardId;
 

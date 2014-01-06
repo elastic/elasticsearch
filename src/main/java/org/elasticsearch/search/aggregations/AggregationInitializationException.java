@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * Thrown when failing to execute an aggregation
  */
-public class AggregationInitializationException extends ElasticSearchException {
+public class AggregationInitializationException extends ElasticsearchException {
 
     public AggregationInitializationException(String msg) {
         super(msg);

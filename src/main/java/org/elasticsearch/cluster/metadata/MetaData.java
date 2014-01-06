@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -100,10 +100,10 @@ public class MetaData implements Iterable<IndexMetaData> {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticSearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticSearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
         }
         return factory;
     }
@@ -437,20 +437,20 @@ public class MetaData implements Iterable<IndexMetaData> {
             return routing;
         }
         if (indexAliases.size() > 1) {
-            throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
+            throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
         }
         AliasMetaData aliasMd = indexAliases.values().iterator().next().value;
         if (aliasMd.indexRouting() != null) {
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new ElasticSearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                    throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             routing = aliasMd.indexRouting();
         }
         if (routing != null) {
             if (routing.indexOf(',') != -1) {
-                throw new ElasticSearchIllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
+                throw new ElasticsearchIllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
             }
         }
         return routing;
@@ -689,7 +689,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
 
-    public String concreteIndex(String index) throws IndexMissingException, ElasticSearchIllegalArgumentException {
+    public String concreteIndex(String index) throws IndexMissingException, ElasticsearchIllegalArgumentException {
         // a quick check, if this is an actual index, if so, return it
         if (indices.containsKey(index)) {
             return index;
@@ -700,7 +700,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             throw new IndexMissingException(new Index(index));
         }
         if (lst.length > 1) {
-            throw new ElasticSearchIllegalArgumentException("Alias [" + index + "] has more than one indices associated with it [" + Arrays.toString(lst) + "], can't execute a single index op");
+            throw new ElasticsearchIllegalArgumentException("Alias [" + index + "] has more than one indices associated with it [" + Arrays.toString(lst) + "], can't execute a single index op");
         }
         return lst[0];
     }

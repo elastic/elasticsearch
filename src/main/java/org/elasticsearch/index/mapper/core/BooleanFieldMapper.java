@@ -25,7 +25,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -92,7 +92,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         @Override
         public Builder tokenized(boolean tokenized) {
             if (tokenized) {
-                throw new ElasticSearchIllegalArgumentException("bool field can't be tokenized");
+                throw new ElasticsearchIllegalArgumentException("bool field can't be tokenized");
             }
             return super.tokenized(tokenized);
         }

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -135,7 +135,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
+    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
 

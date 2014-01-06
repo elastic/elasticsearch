@@ -20,8 +20,8 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchTimeoutException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -133,7 +133,7 @@ public class PluginManager {
             try {
                 downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout);
                 downloaded = true;
-            } catch (ElasticSearchTimeoutException e) {
+            } catch (ElasticsearchTimeoutException e) {
                 throw e;
             } catch (Exception e) {
                 // ignore
@@ -149,7 +149,7 @@ public class PluginManager {
                     downloadHelper.download(url, pluginFile, progress, this.timeout);
                     downloaded = true;
                     break;
-                } catch (ElasticSearchTimeoutException e) {
+                } catch (ElasticsearchTimeoutException e) {
                     throw e;
                 } catch (Exception e) {
                     debug("Failed: " + ExceptionsHelper.detailedMessage(e));
@@ -235,7 +235,7 @@ public class PluginManager {
         boolean removed = false;
 
         if (Strings.isNullOrEmpty(pluginHandle.name)) {
-            throw new ElasticSearchIllegalArgumentException("plugin name is incorrect");
+            throw new ElasticsearchIllegalArgumentException("plugin name is incorrect");
         }
 
         File pluginToDelete = pluginHandle.extractedDir(environment);
@@ -392,7 +392,7 @@ public class PluginManager {
                         pluginManager.log("-> Removing " + pluginName + " ");
                         pluginManager.removePlugin(pluginName);
                         exitCode = EXIT_CODE_OK;
-                    } catch (ElasticSearchIllegalArgumentException e) {
+                    } catch (ElasticsearchIllegalArgumentException e) {
                         exitCode = EXIT_CODE_CMD_USAGE;
                         pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (IOException e) {

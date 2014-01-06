@@ -27,7 +27,7 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -179,7 +179,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 // lang
                 return new Locale(parts[0]);
             default:
-                throw new ElasticSearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
+                throw new ElasticsearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
         }
     }
 
@@ -410,7 +410,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }

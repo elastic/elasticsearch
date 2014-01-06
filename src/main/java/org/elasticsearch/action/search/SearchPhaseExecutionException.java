@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class SearchPhaseExecutionException extends ElasticSearchException {
+public class SearchPhaseExecutionException extends ElasticsearchException {
 
     private final String phaseName;
 

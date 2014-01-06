@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -31,7 +31,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
- * A field data implementation that forbids loading and will throw an {@link ElasticSearchIllegalStateException} if you try to load
+ * A field data implementation that forbids loading and will throw an {@link org.elasticsearch.ElasticsearchIllegalStateException} if you try to load
  * {@link AtomicFieldData} instances.
  */
 public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicFieldData<?>> {
@@ -64,8 +64,8 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
         throw fail();
     }
 
-    private ElasticSearchIllegalStateException fail() {
-        return new ElasticSearchIllegalStateException("Field data loading is forbidden on " + getFieldNames().name());
+    private ElasticsearchIllegalStateException fail() {
+        return new ElasticsearchIllegalStateException("Field data loading is forbidden on " + getFieldNames().name());
     }
 
 }

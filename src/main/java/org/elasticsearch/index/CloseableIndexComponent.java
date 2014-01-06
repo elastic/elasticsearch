@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
@@ -30,5 +30,5 @@ public interface CloseableIndexComponent {
      * Closes the index component. A boolean indicating if its part of an actual index
      * deletion or not is passed.
      */
-    void close() throws ElasticSearchException;
+    void close() throws ElasticsearchException;
 }

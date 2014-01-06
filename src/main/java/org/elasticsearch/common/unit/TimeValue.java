@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -250,7 +250,7 @@ public class TimeValue implements Serializable, Streamable {
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
-            throw new ElasticSearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
         }
     }
 

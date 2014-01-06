@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -71,7 +71,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
         clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             private volatile ClusterState clusterStateToSend;

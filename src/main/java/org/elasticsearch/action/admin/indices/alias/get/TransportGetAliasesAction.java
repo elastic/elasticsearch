@@ -18,7 +18,7 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -63,7 +63,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) throws ElasticsearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
         request.indices(concreteIndices);
 

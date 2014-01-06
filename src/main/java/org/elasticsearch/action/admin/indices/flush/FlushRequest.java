@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
- * by flushing data to the index storage and clearing the internal transaction log. By default, ElasticSearch uses
+ * by flushing data to the index storage and clearing the internal transaction log. By default, Elasticsearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
  * <p/>
  * <p>Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.

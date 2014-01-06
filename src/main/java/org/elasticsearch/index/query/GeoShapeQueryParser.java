@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -174,7 +174,7 @@ public class GeoShapeQueryParser implements QueryParser {
         case WITHIN:
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
         default:
-            throw new ElasticSearchIllegalArgumentException("");
+            throw new ElasticsearchIllegalArgumentException("");
         
         }
     }

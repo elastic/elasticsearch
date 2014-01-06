@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -77,7 +77,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticsearchException {
         long endTime = System.currentTimeMillis() + request.timeout().millis();
 
         if (request.waitForEvents() != null) {

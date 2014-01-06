@@ -21,7 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -70,7 +70,7 @@ public class XContentHelper {
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticsearchParseException {
         if (bytes.hasArray()) {
             return convertToMap(bytes.array(), bytes.arrayOffset(), bytes.length(), ordered);
         }
@@ -93,15 +93,15 @@ public class XContentHelper {
                 return Tuple.tuple(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
-            throw new ElasticSearchParseException("Failed to parse content to map", e);
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticsearchParseException {
         return convertToMap(data, 0, data.length, ordered);
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticsearchParseException {
         try {
             XContentParser parser;
             XContentType contentType;
@@ -121,7 +121,7 @@ public class XContentHelper {
                 return Tuple.tuple(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
-            throw new ElasticSearchParseException("Failed to parse content to map", e);
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
     }
 

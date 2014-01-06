@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import java.util.Locale;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Controls the operation threading model for broadcast operation that are performed
@@ -64,7 +64,7 @@ public enum BroadcastOperationThreading {
         if (id == 2) {
             return THREAD_PER_SHARD;
         }
-        throw new ElasticSearchIllegalArgumentException("No type matching id [" + id + "]");
+        throw new ElasticsearchIllegalArgumentException("No type matching id [" + id + "]");
     }
 
     public static BroadcastOperationThreading fromString(String value, BroadcastOperationThreading defaultValue) {

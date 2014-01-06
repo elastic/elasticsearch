@@ -24,7 +24,7 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -109,9 +109,9 @@ public interface FetchSubPhase {
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException;
+    void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException;
 
     boolean hitsExecutionNeeded(SearchContext context);
 
-    void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException;
+    void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException;
 }

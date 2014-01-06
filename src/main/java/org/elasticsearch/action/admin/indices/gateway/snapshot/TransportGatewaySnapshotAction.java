@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -109,7 +109,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
+    protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticsearchException {
         IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.index())
                 .shardInjectorSafe(request.shardId()).getInstance(IndexShardGatewayService.class);
         shardGatewayService.snapshot("api");

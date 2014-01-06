@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -66,7 +66,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticSearchException {
+    public void execute(SearchContext context) throws ElasticsearchException {
         final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
             return;
@@ -91,7 +91,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
             return new Suggest(Suggest.Fields.SUGGEST, suggestions);
         } catch (IOException e) {
-            throw new ElasticSearchException("I/O exception during suggest phase", e);
+            throw new ElasticsearchException("I/O exception during suggest phase", e);
         }
     }
 }

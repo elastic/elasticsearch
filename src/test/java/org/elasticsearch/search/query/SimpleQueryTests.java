@@ -20,7 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -1284,7 +1284,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2926
-    public void testMustNot() throws ElasticSearchException, IOException, ExecutionException, InterruptedException {
+    public void testMustNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 2, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
@@ -1306,7 +1306,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticSearchException, IOException, ExecutionException, InterruptedException {
+    public void testSimpleSpan() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
@@ -1333,7 +1333,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanMultiTermQuery() throws ElasticSearchException, IOException {
+    public void testSpanMultiTermQuery() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
 
@@ -1366,7 +1366,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleDFSQuery() throws ElasticSearchException, IOException {
+    public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0)
             .addMapping("s", jsonBuilder()
                 .startObject()

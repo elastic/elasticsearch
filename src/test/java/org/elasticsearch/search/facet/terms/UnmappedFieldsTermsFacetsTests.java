@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -156,7 +156,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
      * across indices, where the field is mapped in some indices and unmapped in others.
      */
     @Test
-    public void testPartiallyUnmappedField() throws ElasticSearchException, IOException {
+    public void testPartiallyUnmappedField() throws ElasticsearchException, IOException {
         client().admin().indices().prepareCreate("mapped_idx")
                 .setSettings(indexSettings())
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")

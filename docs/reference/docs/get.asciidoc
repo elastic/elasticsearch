@@ -21,7 +21,7 @@ The result of the above get operation is:
     "_source" : {
         "user" : "kimchy",
         "postDate" : "2009-11-15T14:12:12",
-        "message" : "trying out Elastic Search"
+        "message" : "trying out Elasticsearch"
     }
 }
 --------------------------------------------------

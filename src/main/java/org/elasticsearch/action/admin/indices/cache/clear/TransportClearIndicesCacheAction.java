@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -116,7 +116,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
+    protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticsearchException {
         IndexService service = indicesService.indexService(request.index());
         if (service != null) {
             // we always clear the query cache

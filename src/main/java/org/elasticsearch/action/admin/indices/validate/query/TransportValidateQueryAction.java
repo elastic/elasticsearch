@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -170,7 +170,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticsearchException {
         IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.warmer;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class IndexWarmerMissingException extends ElasticSearchException {
+public class IndexWarmerMissingException extends ElasticsearchException {
 
     private final String name;
 

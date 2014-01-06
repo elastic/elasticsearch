@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -135,7 +135,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             final String fieldName = it.next();
             if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
                 if (failOnUnsupportedField) {
-                    throw new ElasticSearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
                 } else {
                     it.remove();
                 }

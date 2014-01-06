@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -635,15 +635,15 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        protected void doStart() throws ElasticSearchException {
+        protected void doStart() throws ElasticsearchException {
         }
 
         @Override
-        protected void doStop() throws ElasticSearchException {
+        protected void doStop() throws ElasticsearchException {
         }
 
         @Override
-        protected void doClose() throws ElasticSearchException {
+        protected void doClose() throws ElasticsearchException {
         }
 
         @Override

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  */
-public class EsRejectedExecutionException extends ElasticSearchException {
+public class EsRejectedExecutionException extends ElasticsearchException {
 
     public EsRejectedExecutionException(String message) {
         super(message);

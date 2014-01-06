@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.common.Strings;
@@ -102,7 +102,7 @@ public class PluginsService extends AbstractComponent {
                 }
             }
             if (!missingPlugins.isEmpty()) {
-                throw new ElasticSearchException("Missing mandatory plugins [" + Strings.collectionToDelimitedString(missingPlugins, ", ") + "]");
+                throw new ElasticsearchException("Missing mandatory plugins [" + Strings.collectionToDelimitedString(missingPlugins, ", ") + "]");
             }
         }
 
@@ -441,14 +441,14 @@ public class PluginsService extends AbstractComponent {
                 try {
                     return pluginClass.getConstructor().newInstance();
                 } catch (NoSuchMethodException e1) {
-                    throw new ElasticSearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
+                    throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
                             "have either an empty default constructor or a single argument constructor accepting a " +
                             "Settings instance");
                 }
             }
 
         } catch (Exception e) {
-            throw new ElasticSearchException("Failed to load plugin class [" + className + "]", e);
+            throw new ElasticsearchException("Failed to load plugin class [" + className + "]", e);
         }
 
     }

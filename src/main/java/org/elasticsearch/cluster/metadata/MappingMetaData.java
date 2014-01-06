@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
@@ -274,7 +274,7 @@ public class MappingMetaData {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
         if (mappingMap.size() != 1) {
-            throw new ElasticSearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
+            throw new ElasticsearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
         initMappers((Map<String, Object>) mappingMap.get(this.type));

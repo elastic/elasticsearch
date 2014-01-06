@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.suggest;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -75,7 +75,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 if (source != null) {
                     suggestRequest.suggest(source);
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("no content or source provided to execute suggestion");
+                    throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
                 }
             }
             suggestRequest.routing(request.param("routing"));

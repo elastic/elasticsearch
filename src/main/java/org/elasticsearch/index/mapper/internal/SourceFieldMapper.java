@@ -25,7 +25,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -359,7 +359,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         try {
             return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 

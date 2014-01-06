@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class IndexShardAlreadyExistsException extends ElasticSearchException {
+public class IndexShardAlreadyExistsException extends ElasticsearchException {
 
     public IndexShardAlreadyExistsException(String message) {
         super(message);

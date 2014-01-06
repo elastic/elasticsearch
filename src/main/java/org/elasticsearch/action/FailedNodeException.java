@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class FailedNodeException extends ElasticSearchException {
+public class FailedNodeException extends ElasticsearchException {
 
     private final String nodeId;
 

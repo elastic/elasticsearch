@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -137,7 +137,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         } else if (topLeft != null) {
             builder.startArray("top_left").value(topLeft.lon()).value(topLeft.lat()).endArray();
         } else {
-            throw new ElasticSearchIllegalArgumentException("geo_bounding_box requires 'top_left' to be set");
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires 'top_left' to be set");
         }
 
         if (bottomRightGeohash != null) {
@@ -145,7 +145,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         } else if (bottomRight != null) {
             builder.startArray("bottom_right").value(bottomRight.lon()).value(bottomRight.lat()).endArray();
         } else {
-            throw new ElasticSearchIllegalArgumentException("geo_bounding_box requires 'bottom_right' to be set");
+            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires 'bottom_right' to be set");
         }
         builder.endObject();
 

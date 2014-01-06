@@ -2,7 +2,7 @@
 == API Anatomy
 
 Once a <<client,GClient>> has been
-obtained, all of ElasticSearch APIs can be executed on it. Each Groovy
+obtained, all of Elasticsearch APIs can be executed on it. Each Groovy
 API is exposed using three different mechanisms.
 
 

@@ -21,7 +21,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -66,7 +66,7 @@ public class PositionIterator implements Iterator<TermPosition> {
             termPosition.endOffset = docsAndPos.endOffset();
             termPosition.payload = docsAndPos.getPayload();
         } catch (IOException ex) {
-            throw new ElasticSearchException("can not advance iterator", ex);
+            throw new ElasticsearchException("can not advance iterator", ex);
         }
         currentPos++;
         return termPosition;
@@ -85,7 +85,7 @@ public class PositionIterator implements Iterator<TermPosition> {
 
     public Iterator<TermPosition> reset() {
         if (resetted) {
-            throw new ElasticSearchException(
+            throw new ElasticsearchException(
                     "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely.");
         }
         resetted = true;

@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.id.simple;
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -74,7 +74,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         indexService.mapperService().removeTypeListener(this);
         clear();
     }

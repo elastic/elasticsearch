@@ -22,9 +22,9 @@ package org.elasticsearch.index.service;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchInterruptedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
@@ -276,12 +276,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
+            throw new ElasticsearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
         }
     }
 
     @Override
-    public Injector shardInjector(int shardId) throws ElasticSearchException {
+    public Injector shardInjector(int shardId) throws ElasticsearchException {
         return shardsInjectors.get(shardId);
     }
 
@@ -300,14 +300,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
+    public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
          * keep it synced.
          */
         if (closed) {
-            throw new ElasticSearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new ElasticsearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
         ShardId shardId = new ShardId(index, sShardId);
         if (shardsInjectors.containsKey(shardId.id())) {
@@ -360,7 +360,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
+    public synchronized void removeShard(int shardId, String reason) throws ElasticsearchException {
         final Injector shardInjector;
         final IndexShard indexShard;
         final ShardId sId = new ShardId(index, shardId);

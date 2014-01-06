@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -180,7 +180,7 @@ public class AliasMetaData {
                 }
                 return this;
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+                throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
             }
         }
 
@@ -194,7 +194,7 @@ public class AliasMetaData {
                 this.filter = new CompressedString(builder.bytes());
                 return this;
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
         }
 
@@ -202,7 +202,7 @@ public class AliasMetaData {
             try {
                 return filter(filterBuilder.string());
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
         }
 

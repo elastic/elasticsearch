@@ -20,7 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
@@ -245,7 +245,7 @@ public class PercolateSourceBuilder implements ToXContent {
             try {
                 return setDoc(XContentFactory.contentBuilder(contentType).map(doc));
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to generate [" + doc + "]", e);
+                throw new ElasticsearchGenerationException("Failed to generate [" + doc + "]", e);
             }
         }
 

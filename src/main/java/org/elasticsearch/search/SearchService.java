@@ -822,7 +822,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return new TerminationHandle() {
                 @Override
                 public void awaitTermination() throws InterruptedException {
-                    latch.wait();
+                    latch.await();
                 }
             };
         }

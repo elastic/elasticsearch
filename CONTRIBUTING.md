@@ -82,6 +82,7 @@ Please follow these formatting guidelines:
 * Line width is 140 characters
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
+* Don't worry too much about imports.  Try not to change the order but don't worry about fighting your IDE to stop it from switching from * imports to specific imports or from specific to * imports.
 
 To create a distribution from the source, simply run:
 

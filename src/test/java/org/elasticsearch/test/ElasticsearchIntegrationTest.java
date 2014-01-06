@@ -53,11 +53,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
-<<<<<<< HEAD
-=======
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
->>>>>>> 9763d07... Eager norms loading options.
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;

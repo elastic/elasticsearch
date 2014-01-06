@@ -336,6 +336,11 @@ public class MockBigArrays extends BigArrays {
             return in.increment(index, inc);
         }
 
+        @Override
+        public void fill(long fromIndex, long toIndex, int value) {
+            in.fill(fromIndex, toIndex, value);
+        }
+
     }
 
     private class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {

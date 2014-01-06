@@ -27,11 +27,11 @@ public interface ObjectArray<T> extends BigArray {
     /**
      * Get an element given its index.
      */
-    public abstract T get(long index);
+    T get(long index);
 
     /**
      * Set a value at the given index and return the previous value.
      */
-    public abstract T set(long index, T value);
+    T set(long index, T value);
 
 }

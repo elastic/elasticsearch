@@ -42,6 +42,8 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
                 .build();
     }
 
+    protected long minValue, maxValue, minValues, maxValues;
+
     @Before
     public void init() throws Exception {
         createIndex("idx");
@@ -49,13 +51,18 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
 
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
 
-        for (int i = 0; i < 10; i++) { // TODO randomize the size and the params in here?
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
             builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i+1)
                     .startArray("values").value(i+2).value(i+3).endArray()
                     .endObject()));
         }
+        minValue = 1;
+        minValues = 2;
+        maxValue = numDocs;
+        maxValues = numDocs + 2;
         indexRandom(true, builders);
 
         // creating an index to test the empty buckets functionality. The way it works is by indexing

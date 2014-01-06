@@ -3,10 +3,8 @@
     "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-stats/",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/nodes/stats",
+      "path": "/_nodes/stats",
       "paths": [
-        "/_cluster/nodes/stats",
-        "/_cluster/nodes/{node_id}/stats",
         "/_nodes/stats",
         "/_nodes/{node_id}/stats",
         "/_nodes/stats/{metric_family}",
@@ -35,53 +33,9 @@
         }
       },
       "params": {
-        "all": {
-          "type" : "boolean",
-          "description" : "Return all available information"
-        },
-        "clear": {
-          "type" : "boolean",
-          "description" : "Reset the default level of detail"
-        },
         "fields": {
           "type" : "list",
           "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
-        },
-        "fs": {
-          "type" : "boolean",
-          "description" : "Return information about the filesystem"
-        },
-        "http": {
-          "type" : "boolean",
-          "description" : "Return information about HTTP"
-        },
-        "indices": {
-          "type" : "boolean",
-          "description" : "Return information about indices"
-        },
-        "jvm": {
-          "type" : "boolean",
-          "description" : "Return information about the JVM"
-        },
-        "network": {
-          "type" : "boolean",
-          "description" : "Return information about network"
-        },
-        "os": {
-          "type" : "boolean",
-          "description" : "Return information about the operating system"
-        },
-        "process": {
-          "type" : "boolean",
-          "description" : "Return information about the Elasticsearch process"
-        },
-        "thread_pool": {
-          "type" : "boolean",
-          "description" : "Return information about the thread pool"
-        },
-        "transport": {
-          "type" : "boolean",
-          "description" : "Return information about transport"
         }
       }
     },

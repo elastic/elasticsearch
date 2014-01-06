@@ -24,7 +24,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -345,6 +348,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return allocateUnassigned(unassigned, routing.ignoredUnassigned());
         }
 
+        private static boolean lessThan(float delta, float threshold) {
+            /* deltas close to the threshold are "rounded" to the threshold manually
+               to prevent floating point problems if the delta is very close to the
+               threshold ie. 1.000000002 which can trigger unnecessary balance actions*/
+            return delta <= threshold + 0.001f;
+        }
+
         /**
          * Balances the nodes on the cluster model according to the weight
          * function. The configured threshold is the minimum delta between the
@@ -384,8 +394,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             advance_range:
                             if (maxNode.numShards(index) > 0) {
                                 float delta = weights[highIdx] - weights[lowIdx];
-                                delta = delta <= threshold ? delta : sorter.weight(Operation.THRESHOLD_CHECK, maxNode) - sorter.weight(Operation.THRESHOLD_CHECK, minNode);
-                                if (delta <= threshold) {
+                                delta = lessThan(delta, threshold) ? delta : sorter.weight(Operation.THRESHOLD_CHECK, maxNode) - sorter.weight(Operation.THRESHOLD_CHECK, minNode);
+                                if (lessThan(delta, threshold)) {
                                     if (lowIdx > 0 && highIdx-1 > 0 // is there a chance for a higher delta?
                                         && (weights[highIdx-1] - weights[0] > threshold) // check if we need to break at all
                                         ) {
@@ -412,7 +422,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                             maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
                                 }
                                 /* pass the delta to the replication function to prevent relocations that only swap the weights of the two nodes.
-                                 * a relocation must bring us closer to the balance if we only achive the same delta the relocation is useless */
+                                 * a relocation must bring us closer to the balance if we only achieve the same delta the relocation is useless */
                                 if (tryRelocateShard(Operation.BALANCE, minNode, maxNode, index, delta)) {
                                     /*
                                      * TODO we could be a bit smarter here, we don't need to fully sort necessarily

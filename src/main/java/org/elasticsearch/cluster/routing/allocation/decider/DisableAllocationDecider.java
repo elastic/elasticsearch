@@ -50,7 +50,10 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  * {@link RoutingAllocation#ignoreDisable()}. Which is set if allocation are
  * explicit.
  * </p>
+ *
+ * @deprecated In favour for {@link EnableAllocationDecider}.
  */
+@Deprecated
 public class DisableAllocationDecider extends AllocationDecider {
 
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION = "cluster.routing.allocation.disable_new_allocation";

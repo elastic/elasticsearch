@@ -70,6 +70,7 @@ public class AllocationDecidersModule extends AbstractModule {
             add(RebalanceOnlyWhenActiveAllocationDecider.class).
             add(ClusterRebalanceAllocationDecider.class).
             add(ConcurrentRebalanceAllocationDecider.class).
+            add(EnableAllocationDecider.class). // new enable allocation logic should proceed old disable allocation logic
             add(DisableAllocationDecider.class).
             add(AwarenessAllocationDecider.class).
             add(ShardsLimitAllocationDecider.class).

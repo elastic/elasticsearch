@@ -91,7 +91,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
             if (randomBoolean()) {
                 percolateRequestBuilder.setScore(true);
             } else {
-                percolateRequestBuilder.setSort(true).setSize(numQueries);
+                percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
             }
 
             boolean countOnly = randomBoolean();

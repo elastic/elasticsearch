@@ -24,7 +24,11 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Specify timeout for connection to master"
-        }
+        },
+          "flat_settings": {
+              "type": "boolean",
+              "description": "Return settings in flat format (default: false)"
+          }
       }
     },
     "body": {

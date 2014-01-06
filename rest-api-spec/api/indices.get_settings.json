@@ -29,6 +29,10 @@
         "prefix" : {
            "type" : "string",
            "description" : "The prefix all settings must have in order to be included"
+        },
+        "flat_settings": {
+          "type": "boolean",
+          "description": "Return settings in flat format (default: false)"
         }
       }
     },

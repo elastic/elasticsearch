@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -271,6 +273,30 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             final Histogram.Bucket histoBucket = histo.getBucketByKey(key);
             assertEquals(bucket.getDocCount(), histoBucket.getDocCount());
         }
+    }
+
+    public void testLargeNumbersOfPercentileBuckets() throws Exception {
+        // test high numbers of percentile buckets to make sure paging and release work correctly
+        createIndex("idx");
+
+        final int numDocs = atLeast(25000);
+        int t = 0;
+        for (int i = 0; i < numDocs; ) {
+            BulkRequestBuilder request = client().prepareBulk();
+            final int bulkSize = Math.min(numDocs - i, 100);
+            client().prepareIndex("idx", "type").setSource("double_value", randomDouble()).execute().actionGet();
+            for (int j = 0; j < bulkSize; ++j) {
+                ++t;
+                request.add(client().prepareIndex("idx", "type", Integer.toString(i++)).setSource("double_value", randomDouble()));
+            }
+            BulkResponse response = request.execute().actionGet();
+            assertFalse(response.buildFailureMessage(), response.hasFailures());
+        }
+        assertEquals(numDocs, t);
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").execute().get());
+
+        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
+        assertNoFailures(response);
     }
 
 }

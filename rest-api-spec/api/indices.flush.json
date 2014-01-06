@@ -14,11 +14,11 @@
       "params": {
         "force": {
           "type" : "boolean",
-          "description" : "TODO: ?"
+          "description" : "Whether a flush should be forced even if it is not necessarily needed ie. if no changes will be committed to the index. This is useful if transaction log IDs should be incremented even if no uncommitted changes are present. (This setting can be considered as internal)"
         },
         "full": {
           "type" : "boolean",
-          "description" : "TODO: ?"
+          "description" : "If set to true a new index writer is created and settings that have been changed related to the index writer will be refreshed. Note: if a full flush is required for a setting to take effect this will be part of the settings update process and it not required to be executed by the user. (This setting can be considered as internal)"
         },
         "ignore_unavailable": {
             "type" : "boolean",

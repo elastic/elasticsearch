@@ -34,7 +34,6 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -66,11 +65,9 @@ public class RestGetSettingsAction extends BaseRestHandler {
                     builder.startObject();
                     for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
                         builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                        foundAny = true;
                         builder.startObject(Fields.SETTINGS);
-                        for (Map.Entry<String, String> entry : cursor.value.getAsMap().entrySet()) {
-                            foundAny = true;
-                            builder.field(entry.getKey(), entry.getValue());
-                        }
+                        cursor.value.toXContent(builder, request);
                         builder.endObject();
                         builder.endObject();
                     }

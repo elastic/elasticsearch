@@ -5,9 +5,12 @@
     "url": {
       "path": "/_cluster/settings",
       "paths": ["/_cluster/settings"],
-      "parts": {
-      },
+      "parts": {},
       "params": {
+        "flat_settings": {
+          "type": "boolean",
+          "description": "Return settings in flat format (default: false)"
+        }
       }
     },
     "body": null

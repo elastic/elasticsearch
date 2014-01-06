@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.util.Map;
 
@@ -36,7 +37,7 @@ import java.util.Map;
  *
  * @see ImmutableSettings
  */
-public interface Settings {
+public interface Settings extends ToXContent {
 
     /**
      * Component settings for a specific component. Returns all the settings for the given class, where the
@@ -69,9 +70,14 @@ public interface Settings {
     ClassLoader getClassLoaderIfSet();
 
     /**
-     * The settings as a {@link java.util.Map}.
+     * The settings as a flat {@link java.util.Map}.
      */
     ImmutableMap<String, String> getAsMap();
+
+    /**
+     * The settings as a structured {@link java.util.Map}.
+     */
+    Map<String, Object> getAsStructuredMap();
 
     /**
      * Returns the setting value associated with the setting key.
@@ -247,8 +253,8 @@ public interface Settings {
      * <p>It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param settingPrefix The setting prefix to load the array by
-     * @param defaultArray The default array to use if no value is specified
+     * @param settingPrefix  The setting prefix to load the array by
+     * @param defaultArray   The default array to use if no value is specified
      * @param commaDelimited Whether to try to parse a string as a comma-delimited value
      * @return The setting array values
      * @throws SettingsException

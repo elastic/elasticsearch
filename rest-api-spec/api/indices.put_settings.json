@@ -29,7 +29,11 @@
           "options": ["open", "closed"],
           "default": "open",
           "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        }
+        },
+          "flat_settings": {
+              "type": "boolean",
+              "description": "Return settings in flat format (default: false)"
+          }
       }
     },
     "body": {

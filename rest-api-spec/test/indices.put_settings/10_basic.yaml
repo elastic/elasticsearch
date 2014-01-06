@@ -11,6 +11,7 @@
   - do:
       indices.get_settings:
         index: test-index
+        flat_settings: true
 
   - match:
       test-index.settings.index\.number_of_replicas: "0"
@@ -21,8 +22,9 @@
           number_of_replicas: 1
 
   - do:
-      indices.get_settings: {}
+      indices.get_settings:
+        flat_settings: false
 
   - match:
-      test-index.settings.index\.number_of_replicas: "1"
+      test-index.settings.index.number_of_replicas: "1"
 

@@ -7,8 +7,14 @@
       "paths": ["/_nodes", "/_nodes/{node_id}", "/_nodes/settings", "/_nodes/{node_id}/settings", "/_nodes/os", "/_nodes/{node_id}/os", "/_nodes/process", "/_nodes/{node_id}/process", "/_nodes/jvm", "/_nodes/{node_id}/jvm", "/_nodes/thread_pool", "/_nodes/{node_id}/thread_pool", "/_nodes/network", "/_nodes/{node_id}/network", "/_nodes/transport", "/_nodes/{node_id}/transport", "/_nodes/http", "/_nodes/{node_id}/http", "/_nodes/plugin", "/_nodes/{node_id}/plugin"],
       "parts": {
         "node_id": {
-          "type" : "list",
-          "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+          "type": "list",
+          "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+        },
+        "params": {
+          "flat_settings": {
+            "type": "boolean",
+            "description": "Return settings in flat format (default: false)"
+          }
         }
       }
     },

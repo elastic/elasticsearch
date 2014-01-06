@@ -35,6 +35,7 @@ import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -77,6 +78,97 @@ public class ImmutableSettings implements Settings {
     public ImmutableMap<String, String> getAsMap() {
         return this.settings;
     }
+
+    @Override
+    public Map<String, Object> getAsStructuredMap() {
+        Map<String, Object> map = Maps.newHashMapWithExpectedSize(2);
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            processSetting(map, "", entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked") Map<String, Object> valMap = (Map<String, Object>) entry.getValue();
+                entry.setValue(convertMapsToArrays(valMap));
+            }
+        }
+
+        return map;
+    }
+
+    private void processSetting(Map<String, Object> map, String prefix, String setting, String value) {
+        int prefixLength = setting.indexOf('.');
+        if (prefixLength == -1) {
+            @SuppressWarnings("unchecked") Map<String, Object> innerMap = (Map<String, Object>) map.get(prefix + setting);
+            if (innerMap != null) {
+                // It supposed to be a value, but we already have a map stored, need to convert this map to "." notation
+                for (Map.Entry<String, Object> entry : innerMap.entrySet()) {
+                    map.put(prefix + setting + "." + entry.getKey(), entry.getValue());
+                }
+            }
+            map.put(prefix + setting, value);
+        } else {
+            String key = setting.substring(0, prefixLength);
+            String rest = setting.substring(prefixLength + 1);
+            Object existingValue = map.get(prefix + key);
+            if (existingValue == null) {
+                Map<String, Object> newMap = Maps.newHashMapWithExpectedSize(2);
+                processSetting(newMap, "", rest, value);
+                map.put(key, newMap);
+            } else {
+                if (existingValue instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> innerMap = (Map<String, Object>) existingValue;
+                    processSetting(innerMap, "", rest, value);
+                    map.put(key, innerMap);
+                } else {
+                    // It supposed to be a map, but we already have a value stored, which is not a map
+                    // fall back to "." notation
+                    processSetting(map, prefix + key + ".", rest, value);
+                }
+            }
+        }
+    }
+
+    private Object convertMapsToArrays(Map<String, Object> map) {
+        if (map.isEmpty()) {
+            return map;
+        }
+        boolean isArray = true;
+        int maxIndex = -1;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (isArray) {
+                try {
+                    int index = Integer.parseInt(entry.getKey());
+                    if (index >= 0) {
+                        maxIndex = Math.max(maxIndex, index);
+                    } else {
+                        isArray = false;
+                    }
+                } catch (NumberFormatException ex) {
+                    isArray = false;
+                }
+            }
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked") Map<String, Object> valMap = (Map<String, Object>) entry.getValue();
+                entry.setValue(convertMapsToArrays(valMap));
+            }
+        }
+        if (isArray && (maxIndex + 1) == map.size()) {
+            ArrayList<Object> newValue = Lists.newArrayListWithExpectedSize(maxIndex + 1);
+            for (int i = 0; i <= maxIndex; i++) {
+                Object obj = map.get(Integer.toString(i));
+                if (obj == null) {
+                    // Something went wrong. Different format?
+                    // Bailout!
+                    return map;
+                }
+                newValue.add(obj);
+            }
+            return newValue;
+        }
+        return map;
+    }
+
 
     @Override
     public Settings getComponentSettings(Class component) {
@@ -498,6 +590,20 @@ public class ImmutableSettings implements Settings {
      */
     public static Builder settingsBuilder() {
         return new Builder();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!params.paramAsBoolean("flat_settings", false)) {
+            for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+        } else {
+            for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+            }
+        }
+        return builder;
     }
 
     /**

@@ -68,6 +68,41 @@ consumption.  The default for the `human` flag is
 `false`. added[1.00.Beta,Previously defaulted to `true`]
 
 [float]
+=== Flat Settings
+
+The `flat_settings` flag affects rendering of the lists of settings. When
+flat_settings` flag is `true` settings are returned in a flat format:
+
+[source,js]
+--------------------------------------------------
+{
+  "persistent" : { },
+  "transient" : {
+    "discovery.zen.minimum_master_nodes" : "1"
+  }
+}
+--------------------------------------------------
+
+When the `flat_settings` flag is `false` settings are returned in a more
+human readable structured format:
+
+[source,js]
+--------------------------------------------------
+{
+  "persistent" : { },
+  "transient" : {
+    "discovery" : {
+      "zen" : {
+        "minimum_master_nodes" : "1"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+By default the `flat_settings` is set to `false`.
+
+[float]
 === Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the

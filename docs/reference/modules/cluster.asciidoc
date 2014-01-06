@@ -35,12 +35,22 @@ The following settings may be used:
      How many concurrent recoveries are allowed to happen on a node. 
      Defaults to `2`.
 
+added[1.0.0.RC1]
+
+`cluster.routing.allocation.enable`::
+    Controls shard allocation for all indices, by allowing specific
+    kinds of shard to be allocated. Can be set to:
+    * `all` (default) - Allows shard allocation for all kinds of shards.
+    * `primaries` - Allows shard allocation only for primary shards.
+    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
+    * `none` - No shard allocations of any kind are allowed for all indices.
 
 `cluster.routing.allocation.disable_new_allocation`::
        Allows to disable new primary allocations. Note, this will prevent 
        allocations for newly created indices. This setting really make 
        sense when dynamically updating it using the cluster update 
-       settings API.
+       settings API. This setting has been deprecated in favour
+       for `cluster.routing.allocation.enable`.
 
 
 `cluster.routing.allocation.disable_allocation`::
@@ -49,12 +59,14 @@ The following settings may be used:
         above). Note, a replica will still be promoted to primary if 
         one does not exist. This setting really make sense when 
         dynamically updating it using the cluster update settings API.
+        This setting has been deprecated in favour for `cluster.routing.allocation.enable`.
 
 
 `cluster.routing.allocation.disable_replica_allocation`::
       Allows to disable only replica allocation. Similar to the previous 
       setting, mainly make sense when using it dynamically using the 
-      cluster update settings API.
+      cluster update settings API. This setting has been deprecated in
+      favour for `cluster.routing.allocation.enable`.
 
 
 `indices.recovery.concurrent_streams`::

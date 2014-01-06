@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -51,14 +52,25 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
 
-
     @Test
-    public void rerouteWithCommands() throws Exception {
+    public void rerouteWithCommands_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .build();
+        rerouteWithCommands(commonSettings);
+    }
 
+    @Test
+    public void rerouteWithCommands_enableAllocationSettings() throws Exception {
+        Settings commonSettings = settingsBuilder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .put("gateway.type", "local")
+                .build();
+        rerouteWithCommands(commonSettings);
+    }
+
+    private void rerouteWithCommands(Settings commonSettings) throws Exception {
         String node_1 = cluster().startNode(commonSettings);
         String node_2 = cluster().startNode(commonSettings);
 
@@ -116,13 +128,25 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void rerouteWithAllocateLocalGateway() throws Exception {
+    public void rerouteWithAllocateLocalGateway_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .put("gateway.type", "local")
                 .build();
+        rerouteWithAllocateLocalGateway(commonSettings);
+    }
 
+    @Test
+    public void rerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
+        Settings commonSettings = settingsBuilder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .put("gateway.type", "local")
+                .build();
+        rerouteWithAllocateLocalGateway(commonSettings);
+    }
+
+    private void rerouteWithAllocateLocalGateway(Settings commonSettings) throws Exception {
         logger.info("--> starting 2 nodes");
         String node_1 = cluster().startNode(commonSettings);
         cluster().startNode(commonSettings);

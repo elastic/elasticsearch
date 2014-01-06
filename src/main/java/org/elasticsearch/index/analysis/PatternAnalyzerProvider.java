@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
@@ -50,7 +50,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {
-            throw new ElasticSearchIllegalArgumentException("Analyzer [" + name + "] of type pattern must have a `pattern` set");
+            throw new ElasticsearchIllegalArgumentException("Analyzer [" + name + "] of type pattern must have a `pattern` set");
         }
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 

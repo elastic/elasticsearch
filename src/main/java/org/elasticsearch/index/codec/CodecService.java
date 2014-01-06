@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.Codec;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,7 +36,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
  * codec layer that allows to use use-case specific file formats &
- * data-structures per field. ElasticSearch exposes the full
+ * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  *
  * @see PostingsFormatService
@@ -98,10 +98,10 @@ public class CodecService extends AbstractIndexComponent {
         return mapperService;
     }
 
-    public Codec codec(String name) throws ElasticSearchIllegalArgumentException {
+    public Codec codec(String name) throws ElasticsearchIllegalArgumentException {
         Codec codec = codecs.get(name);
         if (codec == null) {
-            throw new ElasticSearchIllegalArgumentException("failed to find codec [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("failed to find codec [" + name + "]");
         }
         return codec;
     }

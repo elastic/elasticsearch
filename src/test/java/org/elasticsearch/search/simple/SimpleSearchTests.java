@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.simple;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,14 +43,14 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
 
         }
 
         try {
             client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
 
         }
     }

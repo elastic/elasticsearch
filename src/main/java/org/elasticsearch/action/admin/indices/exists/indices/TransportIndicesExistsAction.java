@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -77,7 +77,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) throws ElasticsearchException {
         boolean exists;
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.

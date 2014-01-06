@@ -20,7 +20,7 @@
 package org.elasticsearch.common.lucene.all;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
@@ -110,7 +110,7 @@ public class AllEntries extends Reader {
                 entry.reader().reset();
             }
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("should not happen");
+            throw new ElasticsearchIllegalStateException("should not happen");
         }
         it = entries.iterator();
         if (it.hasNext()) {

@@ -16,13 +16,13 @@ See the {client}/python-api/current/index.html[official Elasticsearch Python cli
   Python client.
 
 * https://github.com/eriky/ESClient[ESClient]:
-  A lightweight and easy to use Python client for ElasticSearch.
+  A lightweight and easy to use Python client for Elasticsearch.
 
 * https://github.com/humangeo/rawes[rawes]:
   Python low level client.
 
 * https://github.com/mozilla/elasticutils/[elasticutils]:
-  A friendly chainable ElasticSearch interface for Python.
+  A friendly chainable Elasticsearch interface for Python.
 
 * http://intridea.github.io/surfiki-refine-elasticsearch/[Surfiki Refine]:
   Python Map-Reduce engine targeting Elasticsearch indices.
@@ -76,13 +76,13 @@ See the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 See the {client}/javascript-api/current/index.html[official Elasticsearch JavaScript client].
 
 * https://github.com/fullscale/elastic.js[Elastic.js]:
-  A JavaScript implementation of the ElasticSearch Query DSL and Core API.
+  A JavaScript implementation of the Elasticsearch Query DSL and Core API.
 
 * https://github.com/phillro/node-elasticsearch-client[node-elasticsearch-client]:
-  A NodeJS client for elastic search.
+  A NodeJS client for Elasticsearch.
 
 * https://github.com/ramv/node-elastical[node-elastical]:
-  Node.js client for the ElasticSearch REST API
+  Node.js client for the Elasticsearch REST API
 
 * https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
 
@@ -181,6 +181,6 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 [[community-cold-fusion]]
 === Cold Fusion
 
-* https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-ElasticSearch-Client]
+* https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-Elasticsearch-Client]
   Cold Fusion client for Elasticsearch
 

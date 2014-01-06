@@ -28,7 +28,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -657,7 +657,7 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(mergeContext.buildConflicts());
     }
 
-    public CompressedString refreshSource() throws ElasticSearchGenerationException {
+    public CompressedString refreshSource() throws ElasticsearchGenerationException {
         try {
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
@@ -667,7 +667,7 @@ public class DocumentMapper implements ToXContent {
             builder.close();
             return mappingSource = new CompressedString(bStream.bytes());
         } catch (Exception e) {
-            throw new ElasticSearchGenerationException("failed to serialize source for type [" + type + "]", e);
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
     }
 

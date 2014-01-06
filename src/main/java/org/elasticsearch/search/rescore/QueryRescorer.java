@@ -22,7 +22,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -178,10 +178,10 @@ public final class QueryRescorer implements Rescorer {
                     } else if ("multiply".equals(sScoreMode)) {
                         rescoreContext.setScoreMode(ScoreMode.Multiply);
                     } else {
-                        throw new ElasticSearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
+                        throw new ElasticsearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
                     }
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
             }
         }

@@ -19,7 +19,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
@@ -45,12 +45,12 @@ final class EmptyByteValuesWithOrdinals extends BytesValues.WithOrdinals {
 
     @Override
     public BytesRef nextValue() {
-        throw new ElasticSearchIllegalStateException("Empty BytesValues has no next value");
+        throw new ElasticsearchIllegalStateException("Empty BytesValues has no next value");
     }
 
     @Override
     public int currentValueHash() {
-        throw new ElasticSearchIllegalStateException("Empty BytesValues has no hash for the current value");
+        throw new ElasticsearchIllegalStateException("Empty BytesValues has no hash for the current value");
     }
 
 }

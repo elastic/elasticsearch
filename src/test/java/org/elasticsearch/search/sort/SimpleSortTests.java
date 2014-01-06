@@ -23,7 +23,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util._TestUtil;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -107,7 +107,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testRandomSorting() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
+    public void testRandomSorting() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         int numberOfShards = between(1, 10);
         Random random = getRandom();
         prepareCreate("test")
@@ -926,7 +926,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSortMissingStrings() throws ElasticSearchException, IOException {
+    public void testSortMissingStrings() throws ElasticsearchException, IOException {
         prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
                         .startObject()
@@ -1363,7 +1363,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSortOnRareField() throws ElasticSearchException, IOException {
+    public void testSortOnRareField() throws ElasticsearchException, IOException {
         prepareCreate("test")
                 .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")

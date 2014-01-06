@@ -27,7 +27,7 @@ import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -149,7 +149,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             } else if (Names.TREE_QUADTREE.equals(tree)) {
                 prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider, docValuesProvider);
@@ -299,7 +299,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
             return termStrategy;
         }
-        throw new ElasticSearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        throw new ElasticsearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
     }
 
 }

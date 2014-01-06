@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -75,7 +75,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) throws ElasticsearchException {
         SnapshotId[] snapshotIds = new SnapshotId[request.snapshots().length];
         for (int i = 0; i < snapshotIds.length; i++) {
             snapshotIds[i] = new SnapshotId(request.repository(), request.snapshots()[i]);

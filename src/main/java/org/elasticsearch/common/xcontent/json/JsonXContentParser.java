@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
@@ -203,7 +203,7 @@ public class JsonXContentParser extends AbstractXContentParser {
             case DOUBLE:
                 return NumberType.DOUBLE;
         }
-        throw new ElasticSearchIllegalStateException("No matching token for number_type [" + numberType + "]");
+        throw new ElasticsearchIllegalStateException("No matching token for number_type [" + numberType + "]");
     }
 
     private Token convertToken(JsonToken token) {
@@ -234,6 +234,6 @@ public class JsonXContentParser extends AbstractXContentParser {
             case VALUE_EMBEDDED_OBJECT:
                 return Token.VALUE_EMBEDDED_OBJECT;
         }
-        throw new ElasticSearchIllegalStateException("No matching token for json_token [" + token + "]");
+        throw new ElasticsearchIllegalStateException("No matching token for json_token [" + token + "]");
     }
 }

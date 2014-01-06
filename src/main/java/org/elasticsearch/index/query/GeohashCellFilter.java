@@ -20,8 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoHashUtils;
@@ -73,7 +73,7 @@ public class GeohashCellFilter {
      */
     public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<String> geohashes) {
         if (fieldMapper.geoHashStringMapper() == null) {
-            throw new ElasticSearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
+            throw new ElasticsearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
 
         StringFieldMapper geoHashMapper = fieldMapper.geoHashStringMapper();
@@ -191,7 +191,7 @@ public class GeohashCellFilter {
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
-                throw new ElasticSearchParseException(NAME + " must be an object");
+                throw new ElasticsearchParseException(NAME + " must be an object");
             }
 
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -225,7 +225,7 @@ public class GeohashCellFilter {
                         }
                     }
                 } else {
-                    throw new ElasticSearchParseException("unexpected token [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token [" + token + "]");
                 }
             }
 

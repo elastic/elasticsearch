@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class BlobStoreException extends ElasticSearchException {
+public class BlobStoreException extends ElasticsearchException {
 
     public BlobStoreException(String msg) {
         super(msg);

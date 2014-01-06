@@ -55,7 +55,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -205,7 +205,7 @@ public class Analysis {
      * Fetches a list of words from the specified settings file. The list should either be available at the key
      * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
      *
-     * @throws ElasticSearchIllegalArgumentException
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
@@ -226,7 +226,7 @@ public class Analysis {
             return loadWordList(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new ElasticSearchIllegalArgumentException(message);
+            throw new ElasticsearchIllegalArgumentException(message);
         }
     }
 
@@ -257,7 +257,7 @@ public class Analysis {
 
     /**
      * @return null If no settings set for "settingsPrefix" then return <code>null</code>.
-     * @throws ElasticSearchIllegalArgumentException
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
      *          If the Reader can not be instantiated.
      */
     public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
@@ -274,7 +274,7 @@ public class Analysis {
             reader = new InputStreamReader(fileUrl.openStream(), Charsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new ElasticSearchIllegalArgumentException(message);
+            throw new ElasticsearchIllegalArgumentException(message);
         }
 
         return reader;

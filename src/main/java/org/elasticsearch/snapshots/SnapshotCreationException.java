@@ -19,13 +19,13 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 
 /**
  * Thrown when snapshot creation fails completely
  */
-public class SnapshotCreationException extends SnapshotException implements ElasticSearchWrapperException {
+public class SnapshotCreationException extends SnapshotException implements ElasticsearchWrapperException {
 
     public SnapshotCreationException(SnapshotId snapshot, String message) {
         super(snapshot, message);

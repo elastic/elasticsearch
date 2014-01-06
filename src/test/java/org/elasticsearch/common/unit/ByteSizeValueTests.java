@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
@@ -67,12 +67,12 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
         assertThat(ByteSizeValue.parseBytesSizeValue("23").toString(), is("23b"));
     }
 
-    @Test(expected = ElasticSearchParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("").toString(), is("23kb"));
     }
 
-    @Test(expected = ElasticSearchParseException.class)
+    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyNumberParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("g").toString(), is("23b"));
     }

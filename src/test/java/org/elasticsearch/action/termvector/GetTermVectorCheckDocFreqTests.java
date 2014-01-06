@@ -24,9 +24,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +43,7 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
     
 
     @Test
-    public void testSimpleTermVectors() throws ElasticSearchException, IOException {
+    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")

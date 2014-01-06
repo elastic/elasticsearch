@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * Exception thrown when the circuit breaker trips
  */
-public class CircuitBreakingException extends ElasticSearchException {
+public class CircuitBreakingException extends ElasticsearchException {
 
     // TODO: maybe add more neat metrics here?
     public CircuitBreakingException(String message) {

@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -81,7 +81,7 @@ public class PlainHighlighter implements Highlighter {
             } else if ("span".equals(field.fragmenter())) {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
             } else {
-                throw new ElasticSearchIllegalArgumentException("unknown fragmenter option [" + field.fragmenter() + "] for the field [" + highlighterContext.fieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("unknown fragmenter option [" + field.fragmenter() + "] for the field [" + highlighterContext.fieldName + "]");
             }
             Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
 

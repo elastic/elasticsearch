@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchInterruptedException;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.BlockingQueue;
@@ -39,12 +39,12 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
             if (((AbstractRunnable) r).isForceExecution()) {
                 BlockingQueue<Runnable> queue = executor.getQueue();
                 if (!(queue instanceof SizeBlockingQueue)) {
-                    throw new ElasticSearchIllegalStateException("forced execution, but expected a size queue");
+                    throw new ElasticsearchIllegalStateException("forced execution, but expected a size queue");
                 }
                 try {
                     ((SizeBlockingQueue) queue).forcePut(r);
                 } catch (InterruptedException e) {
-                    throw new ElasticSearchInterruptedException(e.getMessage(), e);
+                    throw new ElasticsearchInterruptedException(e.getMessage(), e);
                 }
                 return;
             }

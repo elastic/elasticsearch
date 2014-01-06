@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -84,7 +84,7 @@ public class RestExplainAction extends BaseRestHandler {
                 } else if ("AND".equals(defaultOperator)) {
                     queryStringBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                    throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
 

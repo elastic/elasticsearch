@@ -25,7 +25,7 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
         if (terms == null) {
-            throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
+            throw new ElasticsearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
         }
         this.spellchecker = spellchecker;
         this.field = field;

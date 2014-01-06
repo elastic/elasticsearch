@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,7 +125,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * The source of the document (As a map).
      */
     @SuppressWarnings({"unchecked"})
-    public Map<String, Object> getSourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
         return getResult.sourceAsMap();
     }
 

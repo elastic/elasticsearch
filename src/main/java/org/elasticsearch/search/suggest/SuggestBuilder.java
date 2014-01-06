@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -193,7 +193,7 @@ public class SuggestBuilder implements ToXContent {
         @SuppressWarnings("unchecked")
         public T size(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticsearchIllegalArgumentException("Size must be positive");
             }
             this.size = size;
             return (T)this;

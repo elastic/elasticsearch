@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AbstractAtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -100,7 +100,7 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
                 docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
             }
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("Cannot load doc values", e);
+            throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
         return new DocValuesAndBits(values, docsWithField);
     }

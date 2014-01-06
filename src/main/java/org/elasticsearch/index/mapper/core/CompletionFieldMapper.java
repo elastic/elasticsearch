@@ -26,7 +26,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -118,7 +118,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         public Builder maxInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
-                throw new ElasticSearchIllegalArgumentException(Fields.MAX_INPUT_LENGTH + " must be > 0 but was [" + maxInputLength + "]");
+                throw new ElasticsearchIllegalArgumentException(Fields.MAX_INPUT_LENGTH + " must be > 0 but was [" + maxInputLength + "]");
             }
             this.maxInputLength = maxInputLength;
             return this;
@@ -178,7 +178,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private NamedAnalyzer getNamedAnalyzer(ParserContext parserContext, String name) {
             NamedAnalyzer analyzer = parserContext.analysisService().analyzer(name);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
+                throw new ElasticsearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
             }
             return analyzer;
         }
@@ -228,7 +228,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                     if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
-                        throw new ElasticSearchIllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
+                        throw new ElasticsearchIllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
                 } else if (Fields.CONTENT_FIELD_NAME_PAYLOAD.equals(currentFieldName)) {
                     if (!isStoringPayloads()) {
@@ -254,11 +254,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
                         NumberType numberType = parser.numberType();
                         if (NumberType.LONG != numberType && NumberType.INT != numberType) {
-                            throw new ElasticSearchIllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
+                            throw new ElasticsearchIllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
                         }
                         weight = parser.longValue(); // always parse a long to make sure we don't get the overflow value
                         if (weight < 0 || weight > Integer.MAX_VALUE) {
-                            throw new ElasticSearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
+                            throw new ElasticsearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -294,7 +294,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
         for (int i = 0; i < input.length(); i++) {
             if (isReservedChar(input.charAt(i))) {
-                throw new ElasticSearchIllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
+                throw new ElasticsearchIllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
                         + Integer.toHexString((int) input.charAt(i)).toUpperCase(Locale.ROOT)
                         + "] at position " + i + " is a reserved character");
             }

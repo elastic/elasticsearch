@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.child;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -134,7 +134,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     // see #2744
-    public void test2744() throws ElasticSearchException, IOException {
+    public void test2744() throws ElasticsearchException, IOException {
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
@@ -1579,7 +1579,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testHasChildNotBeingCached() throws ElasticSearchException, IOException {
+    public void testHasChildNotBeingCached() throws ElasticsearchException, IOException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -1839,7 +1839,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void indexChildDocWithNoParentMapping() throws ElasticSearchException, IOException {
+    public void indexChildDocWithNoParentMapping() throws ElasticsearchException, IOException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -1855,13 +1855,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
             fail();
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
         }
         try {
             client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").execute().actionGet();
             fail();
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
         }
 
@@ -1869,7 +1869,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testAddingParentToExistingMapping() throws ElasticSearchException, IOException {
+    public void testAddingParentToExistingMapping() throws ElasticsearchException, IOException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()

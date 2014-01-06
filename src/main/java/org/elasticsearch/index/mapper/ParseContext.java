@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -70,7 +70,7 @@ public class ParseContext {
             if (keyedFields == null) {
                 keyedFields = new ObjectObjectOpenHashMap<Object, IndexableField>();
             } else if (keyedFields.containsKey(key)) {
-                throw new ElasticSearchIllegalStateException("Only one field can be stored per key");
+                throw new ElasticsearchIllegalStateException("Only one field can be stored per key");
             }
             keyedFields.put(key, field);
             add(field);

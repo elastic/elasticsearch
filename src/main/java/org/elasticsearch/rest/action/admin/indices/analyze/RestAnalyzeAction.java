@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -58,7 +58,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         }
         if (text == null) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, new ElasticSearchIllegalArgumentException("text is missing")));
+                channel.sendResponse(new XContentThrowableRestResponse(request, new ElasticsearchIllegalArgumentException("text is missing")));
             } catch (IOException e1) {
                 logger.warn("Failed to send response", e1);
             }

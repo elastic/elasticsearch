@@ -7,10 +7,10 @@
 * https://github.com/karmi/elasticsearch-paramedic[paramedic]:
   Live charts with cluster stats and indices/shards information.
 
-* http://www.elastichq.org/[ElasticSearchHQ]:
+* http://www.elastichq.org/[ElasticsearchHQ]:
   Free cluster health monitoring tool
 
-* http://sematext.com/spm/index.html[SPM for ElasticSearch]:
+* http://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
 
@@ -18,11 +18,11 @@
   Nagios/Shinken plugins for checking on elasticsearch
 
 * https://github.com/anchor/nagios-plugin-elasticsearch[check_elasticsearch]:
-  An ElasticSearch availability and performance monitoring plugin for
+  An Elasticsearch availability and performance monitoring plugin for
   Nagios.
 
 * https://github.com/rbramley/Opsview-elasticsearch[opsview-elasticsearch]:
-  Opsview plugin written in Perl for monitoring ElasticSearch
+  Opsview plugin written in Perl for monitoring Elasticsearch
 
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy]:
   Plugin to watch Lucene segment merges across your cluster

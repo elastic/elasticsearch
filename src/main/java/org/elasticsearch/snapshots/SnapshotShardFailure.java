@@ -1,6 +1,6 @@
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -181,15 +181,15 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
                         } else if ("status".equals(currentFieldName)) {
                             snapshotShardFailure.status = RestStatus.valueOf(parser.text());
                         } else {
-                            throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                         }
                     }
                 } else {
-                    throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
                 }
             }
         } else {
-            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         }
         return snapshotShardFailure;
     }

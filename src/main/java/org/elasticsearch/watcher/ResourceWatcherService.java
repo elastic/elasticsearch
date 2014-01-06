@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +60,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -68,7 +68,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -76,7 +76,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     /**

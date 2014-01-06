@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -115,7 +115,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     }
 
     @Override
-    protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) throws ElasticSearchException {
+    protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) throws ElasticsearchException {
         NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<ShardStats>();

@@ -20,7 +20,7 @@ package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -305,7 +304,7 @@ public class ElasticsearchAssertions {
             future.actionGet();
             fail = true;
 
-        } catch (ElasticSearchException esException) {
+        } catch (ElasticsearchException esException) {
             assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
         } catch (Throwable e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));

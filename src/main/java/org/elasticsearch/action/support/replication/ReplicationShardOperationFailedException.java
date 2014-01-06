@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
  *
  *
  */
-public class ReplicationShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
+public class ReplicationShardOperationFailedException extends IndexShardException implements ElasticsearchWrapperException {
 
     public ReplicationShardOperationFailedException(ShardId shardId, String msg) {
         super(shardId, msg, null);

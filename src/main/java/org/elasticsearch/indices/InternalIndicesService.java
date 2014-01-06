@@ -20,8 +20,8 @@
 package org.elasticsearch.indices;
 
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -122,11 +122,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
 
@@ -158,7 +158,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         injector.getInstance(RecoverySettings.class).close();
         indicesStore.close();
         indicesAnalysisService.close();
@@ -256,9 +256,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticSearchException {
+    public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticsearchException {
         if (!lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
+            throw new ElasticsearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
         Index index = new Index(sIndexName);
         if (indicesInjectors.containsKey(index.name())) {
@@ -314,11 +314,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override
-    public void removeIndex(String index, String reason) throws ElasticSearchException {
+    public void removeIndex(String index, String reason) throws ElasticsearchException {
         removeIndex(index, reason, null);
     }
 
-    private synchronized void removeIndex(String index, String reason, @Nullable Executor executor) throws ElasticSearchException {
+    private synchronized void removeIndex(String index, String reason, @Nullable Executor executor) throws ElasticsearchException {
         IndexService indexService;
         Injector indexInjector = indicesInjectors.remove(index);
         if (indexInjector == null) {

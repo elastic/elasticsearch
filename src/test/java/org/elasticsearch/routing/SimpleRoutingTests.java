@@ -19,7 +19,7 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -188,7 +188,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
             assert false;
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
@@ -245,7 +245,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setRouting("1").setSource("field", "value1", "routing_field", "0").setRefresh(true).execute().actionGet();
             assert false;
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(MapperParsingException.class));
         }
 

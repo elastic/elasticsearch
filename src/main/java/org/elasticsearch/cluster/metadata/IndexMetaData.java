@@ -22,8 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -105,10 +105,10 @@ public class IndexMetaData {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticSearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticSearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
         }
         return factory;
     }
@@ -138,7 +138,7 @@ public class IndexMetaData {
             } else if (id == 1) {
                 return CLOSE;
             }
-            throw new ElasticSearchIllegalStateException("No state match for id [" + id + "]");
+            throw new ElasticsearchIllegalStateException("No state match for id [" + id + "]");
         }
 
         public static State fromString(String state) {
@@ -147,7 +147,7 @@ public class IndexMetaData {
             } else if ("close".equals(state)) {
                 return CLOSE;
             }
-            throw new ElasticSearchIllegalStateException("No state match for [" + state + "]");
+            throw new ElasticsearchIllegalStateException("No state match for [" + state + "]");
         }
     }
 

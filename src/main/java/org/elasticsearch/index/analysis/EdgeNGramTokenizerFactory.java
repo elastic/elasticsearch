@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -71,7 +71,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
              * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
              */
             if (side == Lucene43EdgeNGramTokenizer.Side.BACK) {
-                throw new ElasticSearchIllegalArgumentException("side=back is not supported anymore. Please fix your analysis chain or use"
+                throw new ElasticsearchIllegalArgumentException("side=back is not supported anymore. Please fix your analysis chain or use"
                         + " an older compatibility version (<=4.2) but beware that it might cause highlighting bugs." 
                         + " To obtain the same behavior as the previous version please use \"edgeNGram\" filter which still supports side=back" 
                         + " in combination with a \"keyword\" tokenizer");

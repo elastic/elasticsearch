@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -350,7 +350,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
             builder.map(searchSource);
             return searchSource(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + searchSource + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + searchSource + "]", e);
         }
     }
 
@@ -409,7 +409,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The search type of the mlt search query.
      */
-    public MoreLikeThisRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
+    public MoreLikeThisRequest searchType(String searchType) throws ElasticsearchIllegalArgumentException {
         return searchType(SearchType.fromString(searchType));
     }
 

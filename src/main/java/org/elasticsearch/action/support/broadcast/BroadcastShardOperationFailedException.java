@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
  *
  *
  */
-public class BroadcastShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
+public class BroadcastShardOperationFailedException extends IndexShardException implements ElasticsearchWrapperException {
 
     public BroadcastShardOperationFailedException(ShardId shardId, String msg) {
         super(shardId, msg, null);

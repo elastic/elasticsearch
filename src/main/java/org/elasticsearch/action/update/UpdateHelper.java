@@ -1,6 +1,6 @@
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -131,7 +131,7 @@ public class UpdateHelper extends AbstractComponent {
                 // we need to unwrap the ctx...
                 ctx = (Map<String, Object>) script.unwrap(ctx);
             } catch (Exception e) {
-                throw new ElasticSearchIllegalArgumentException("failed to execute script", e);
+                throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
             }
 
             operation = (String) ctx.get("op");

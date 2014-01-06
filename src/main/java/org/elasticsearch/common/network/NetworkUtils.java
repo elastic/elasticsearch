@@ -21,7 +21,7 @@ package org.elasticsearch.common.network;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.os.OsUtils;
@@ -116,7 +116,7 @@ public abstract class NetworkUtils {
                     try {
                         return ((Integer) getIndexMethod.invoke(o1)).intValue() - ((Integer) getIndexMethod.invoke(o2)).intValue();
                     } catch (Exception e) {
-                        throw new ElasticSearchIllegalStateException("failed to fetch index of network interface");
+                        throw new ElasticsearchIllegalStateException("failed to fetch index of network interface");
                     }
                 }
             });

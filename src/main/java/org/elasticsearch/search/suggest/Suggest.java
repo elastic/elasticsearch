@@ -19,8 +19,8 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -252,7 +252,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
                     if(suggestion.entries.size() != size) {
-                        throw new ElasticSearchIllegalStateException("Can't merge suggest result, this might be caused by suggest calls " +
+                        throw new ElasticsearchIllegalStateException("Can't merge suggest result, this might be caused by suggest calls " +
                                 "across multiple indices with different analysis chains. Suggest entries have different sizes actual [" +
                                 suggestion.entries.size() + "] expected [" + size +"]");
                     }
@@ -374,7 +374,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
                     if (!leader.text.equals(entry.text)) {
-                        throw new ElasticSearchIllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
+                        throw new ElasticsearchIllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
                                 "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
                                 entry.text + "] expected [" + leader.text +"]");
                     }
@@ -651,7 +651,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 } else if (id == 1) {
                     return FREQUENCY;
                 } else {
-                    throw new ElasticSearchException("Illegal suggest sort " + id);
+                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
         }

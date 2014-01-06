@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -62,7 +62,7 @@ public class AllField extends Field {
             allEntries.reset(); // reset the all entries, just in case it was read already
             return AllTokenStream.allTokenStream(name, allEntries, analyzer);
         } catch (IOException e) {
-            throw new ElasticSearchException("Failed to create token stream");
+            throw new ElasticsearchException("Failed to create token stream");
         }
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
@@ -137,7 +137,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
             builder.map(querySource);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + querySource + "]", e);
         }
     }
 

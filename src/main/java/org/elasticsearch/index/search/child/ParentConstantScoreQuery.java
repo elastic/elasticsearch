@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -155,7 +155,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             RecyclerUtils.release(parents);
             return true;
         }

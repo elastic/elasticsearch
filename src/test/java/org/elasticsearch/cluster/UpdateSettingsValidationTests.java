@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -55,7 +55,7 @@ public class UpdateSettingsValidationTests extends ElasticsearchIntegrationTest 
         try {
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.refresh_interval", "")).execute().actionGet();
             assert false;
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
             logger.info("Error message: [{}]", ex.getMessage());
         }
     }

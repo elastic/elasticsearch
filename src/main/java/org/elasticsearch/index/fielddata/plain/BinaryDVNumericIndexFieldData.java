@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -64,7 +64,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         try {
             return new BinaryDVNumericAtomicFieldData(context.reader(), context.reader().getBinaryDocValues(fieldNames.indexName()), numericType);
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("Cannot load doc values", e);
+            throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
     }
 

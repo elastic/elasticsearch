@@ -19,7 +19,7 @@
 
 package org.elasticsearch.bulk.udp;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -94,7 +94,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -154,7 +154,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -168,7 +168,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     class Handler extends SimpleChannelUpstreamHandler {

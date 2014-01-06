@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -96,7 +96,7 @@ public class RestActions {
             } else if ("AND".equals(defaultOperator)) {
                 queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }
         }
         return new QuerySourceBuilder().setQuery(queryBuilder);

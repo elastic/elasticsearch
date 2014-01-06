@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -74,7 +74,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected void masterOperation(final RestoreSnapshotRequest request, ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final RestoreSnapshotRequest request, ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) throws ElasticsearchException {
         RestoreService.RestoreRequest restoreRequest =
                 new RestoreService.RestoreRequest("restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot())
                         .indices(request.indices())

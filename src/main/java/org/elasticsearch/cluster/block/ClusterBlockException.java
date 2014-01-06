@@ -20,13 +20,13 @@
 package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class ClusterBlockException extends ElasticSearchException {
+public class ClusterBlockException extends ElasticsearchException {
 
     private final ImmutableSet<ClusterBlock> blocks;
 

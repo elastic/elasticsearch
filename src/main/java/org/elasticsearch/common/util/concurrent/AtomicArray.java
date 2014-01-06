@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -104,7 +104,7 @@ public class AtomicArray<E> {
      */
     public E[] toArray(E[] a) {
         if (a.length != array.length()) {
-            throw new ElasticSearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
+            throw new ElasticsearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
         }
         for (int i = 0; i < array.length(); i++) {
             a[i] = array.get(i);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.local;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -76,14 +76,14 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
         transports.put(localAddress, this);
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         transports.remove(localAddress);
         // now, go over all the transports connected to me, and raise disconnected event
         for (final LocalTransport targetTransport : transports.values()) {
@@ -96,7 +96,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override

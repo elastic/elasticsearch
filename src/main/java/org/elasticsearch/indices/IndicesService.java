@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +56,7 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
 
     IndexService indexServiceSafe(String index) throws IndexMissingException;
 
-    IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticSearchException;
+    IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticsearchException;
 
-    void removeIndex(String index, String reason) throws ElasticSearchException;
+    void removeIndex(String index, String reason) throws ElasticsearchException;
 }

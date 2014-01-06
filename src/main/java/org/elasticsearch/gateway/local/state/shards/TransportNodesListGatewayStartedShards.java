@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local.state.shards;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
@@ -115,7 +115,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeLocalGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
             ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
             if (shardStateInfo != null) {
@@ -123,7 +123,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             }
             return new NodeLocalGatewayStartedShards(clusterService.localNode(), -1);
         } catch (Exception e) {
-            throw new ElasticSearchException("failed to load started shards", e);
+            throw new ElasticsearchException("failed to load started shards", e);
         }
     }
 

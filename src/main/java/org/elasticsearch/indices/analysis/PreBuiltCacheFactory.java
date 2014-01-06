@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.analysis;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 
 import java.util.Map;
@@ -54,7 +54,7 @@ public class PreBuiltCacheFactory {
             case ELASTICSEARCH:
                 return new PreBuiltCacheStrategyElasticsearch<T>();
             default:
-                throw new ElasticSearchException("No action configured for caching strategy[" + cachingStrategy + "]");
+                throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
         }
     }
 

@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.AllDocIdSet;
 import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
@@ -87,14 +87,14 @@ public class FacetPhase implements SearchPhase {
                 } else if (entry.getMode() == FacetExecutor.Mode.POST) {
                     context.searcher().enableMainDocIdSetCollector();
                 } else {
-                    throw new ElasticSearchIllegalStateException("what mode?");
+                    throw new ElasticsearchIllegalStateException("what mode?");
                 }
             }
         }
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticSearchException {
+    public void execute(SearchContext context) throws ElasticsearchException {
         if (context.facets() == null) {
             return;
         }

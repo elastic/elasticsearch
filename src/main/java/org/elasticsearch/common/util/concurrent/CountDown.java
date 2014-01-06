@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,7 +36,7 @@ public final class CountDown {
 
     public CountDown(int count) {
         if (count < 0) {
-            throw new ElasticSearchIllegalArgumentException("count must be greater or equal to 0 but was: " + count);
+            throw new ElasticsearchIllegalArgumentException("count must be greater or equal to 0 but was: " + count);
         }
         this.originalCount = count;
         this.countDown = new AtomicInteger(count);

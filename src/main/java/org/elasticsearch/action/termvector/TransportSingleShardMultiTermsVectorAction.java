@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
@@ -90,7 +90,7 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
     }
 
     @Override
-    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, int shardId) throws ElasticSearchException {
+    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, int shardId) throws ElasticsearchException {
 
         MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
@@ -103,7 +103,7 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
                 response.add(request.locations.get(i), termVectorResponse);
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
-                    throw (ElasticSearchException) t;
+                    throw (ElasticsearchException) t;
                 } else {
                     logger.debug("[{}][{}] failed to execute multi term vectors for [{}]/[{}]", t, request.index(), shardId, termVectorRequest.type(), termVectorRequest.id());
                     response.add(request.locations.get(i),

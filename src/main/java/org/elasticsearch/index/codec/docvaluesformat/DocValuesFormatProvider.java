@@ -20,7 +20,7 @@
 package org.elasticsearch.index.codec.docvaluesformat;
 
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.CodecModule;
@@ -56,13 +56,13 @@ public interface DocValuesFormatProvider {
          * @param name                   the name of the doc values format to lookup
          * @param docValuesFormatFactories the factory mapping to lookup the {@link Factory} to create the {@link DocValuesFormatProvider}
          * @return a fully configured {@link DocValuesFormatProvider} for the given name.
-         * @throws ElasticSearchIllegalArgumentException
+         * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
          *          if the no {@link DocValuesFormatProvider} for the given name parameter could be found.
          */
-        public static DocValuesFormatProvider lookup(@IndexSettings Settings indexSettings, String name, Map<String, Factory> docValuesFormatFactories) throws ElasticSearchIllegalArgumentException {
+        public static DocValuesFormatProvider lookup(@IndexSettings Settings indexSettings, String name, Map<String, Factory> docValuesFormatFactories) throws ElasticsearchIllegalArgumentException {
             Factory factory = docValuesFormatFactories.get(name);
             if (factory == null) {
-                throw new ElasticSearchIllegalArgumentException("failed to find doc_values_format [" + name + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find doc_values_format [" + name + "]");
             }
             Settings settings = indexSettings.getGroups(DOC_VALUES_FORMAT_SETTINGS_PREFIX).get(name);
             if (settings == null) {

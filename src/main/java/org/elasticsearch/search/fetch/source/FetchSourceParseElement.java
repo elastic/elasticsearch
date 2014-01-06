@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch.source;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -71,7 +71,7 @@ public class FetchSourceParseElement implements SearchParseElement {
                     } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                         currentList = excludes != null ? excludes : (excludes = new ArrayList<String>(2));
                     } else {
-                        throw new ElasticSearchParseException("Source definition may not contain " + parser.text());
+                        throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -80,11 +80,11 @@ public class FetchSourceParseElement implements SearchParseElement {
                 } else if (token.isValue()) {
                     currentList.add(parser.text());
                 } else {
-                    throw new ElasticSearchParseException("unexpected token while parsing source settings");
+                    throw new ElasticsearchParseException("unexpected token while parsing source settings");
                 }
             }
         } else {
-            throw new ElasticSearchParseException("source element value can be of type " + token.name());
+            throw new ElasticsearchParseException("source element value can be of type " + token.name());
         }
 
 

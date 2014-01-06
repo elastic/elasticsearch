@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -63,10 +63,10 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (include == null) {
-            throw new ElasticSearchIllegalArgumentException("Must specify include when using spanNot query");
+            throw new ElasticsearchIllegalArgumentException("Must specify include when using spanNot query");
         }
         if (exclude == null) {
-            throw new ElasticSearchIllegalArgumentException("Must specify exclude when using spanNot query");
+            throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
         }
         builder.startObject(SpanNotQueryParser.NAME);
         builder.field("include");

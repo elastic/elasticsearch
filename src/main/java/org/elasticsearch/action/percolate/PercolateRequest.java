@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
@@ -123,17 +123,17 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return source;
     }
 
-    public PercolateRequest source(Map document) throws ElasticSearchGenerationException {
+    public PercolateRequest source(Map document) throws ElasticsearchGenerationException {
         return source(document, contentType);
     }
 
-    public PercolateRequest source(Map document, XContentType contentType) throws ElasticSearchGenerationException {
+    public PercolateRequest source(Map document, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(document);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + document + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + document + "]", e);
         }
     }
 

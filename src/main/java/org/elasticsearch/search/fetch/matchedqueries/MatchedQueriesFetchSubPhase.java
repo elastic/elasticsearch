@@ -25,7 +25,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -52,7 +52,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
     }
 
     @Override
@@ -62,7 +62,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
 
         addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);

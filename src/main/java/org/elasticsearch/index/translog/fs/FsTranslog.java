@@ -20,7 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -110,7 +110,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         close(false);
     }
 

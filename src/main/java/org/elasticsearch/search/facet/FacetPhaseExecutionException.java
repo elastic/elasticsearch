@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class FacetPhaseExecutionException extends ElasticSearchException {
+public class FacetPhaseExecutionException extends ElasticsearchException {
 
     public FacetPhaseExecutionException(String facetName, String msg) {
         super("Facet [" + facetName + "]: " + msg);

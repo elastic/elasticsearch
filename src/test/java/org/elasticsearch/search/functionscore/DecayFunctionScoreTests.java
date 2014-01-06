@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -487,7 +487,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
     }
 
 
-    @Test(expected = ElasticSearchIllegalStateException.class)
+    @Test(expected = ElasticsearchIllegalStateException.class)
     public void testExceptionThrownIfScaleRefNotBetween0And1() throws Exception {
         DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setDecay(100);
 

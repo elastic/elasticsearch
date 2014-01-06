@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -153,11 +153,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         for (SearchContext context : activeContexts.values()) {
             freeContext(context);
         }
@@ -165,11 +165,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         keepAliveReaper.cancel(false);
     }
 
-    public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticSearchException {
+    public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createAndPutContext(request);
         try {
             contextProcessing(context);
@@ -185,14 +185,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createAndPutContext(request);
         assert context.searchType() == SearchType.SCAN;
         context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
         assert context.searchType() == SearchType.COUNT;
         try {
             if (context.scroll() == null) {
-                throw new ElasticSearchException("Scroll must be provided when scanning...");
+                throw new ElasticsearchException("Scroll must be provided when scanning...");
             }
             contextProcessing(context);
             queryPhase.execute(context);
@@ -207,7 +207,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) throws ElasticSearchException {
+    public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
@@ -235,7 +235,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QuerySearchResult executeQueryPhase(ShardSearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeQueryPhase(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createAndPutContext(request);
         try {
             context.indexShard().searchService().onPreQueryPhase(context);
@@ -259,7 +259,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) throws ElasticSearchException {
+    public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         try {
             context.indexShard().searchService().onPreQueryPhase(context);
@@ -280,7 +280,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QuerySearchResult executeQueryPhase(QuerySearchRequest request) throws ElasticSearchException {
+    public QuerySearchResult executeQueryPhase(QuerySearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
@@ -307,7 +307,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws ElasticSearchException {
+    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createAndPutContext(request);
         contextProcessing(context);
         try {
@@ -345,7 +345,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request) throws ElasticSearchException {
+    public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
@@ -390,7 +390,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request) throws ElasticSearchException {
+    public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
@@ -429,7 +429,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    public FetchSearchResult executeFetchPhase(FetchSearchRequest request) throws ElasticSearchException {
+    public FetchSearchResult executeFetchPhase(FetchSearchRequest request) throws ElasticsearchException {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
@@ -463,18 +463,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticSearchException {
+    SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
         context.indexShard().searchService().onNewContext(context);
         return context;
     }
 
-    SearchContext createContext(ShardSearchRequest request) throws ElasticSearchException {
+    SearchContext createContext(ShardSearchRequest request) throws ElasticsearchException {
         return createContext(request, null);
     }
 
-    SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticSearchException {
+    SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 

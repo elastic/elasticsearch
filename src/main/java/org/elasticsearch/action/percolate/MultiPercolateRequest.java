@@ -19,8 +19,8 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
@@ -111,11 +111,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                         assert token == XContentParser.Token.START_OBJECT;
                         token = parser.nextToken();
                         if (token != XContentParser.Token.FIELD_NAME) {
-                            throw new ElasticSearchParseException("Expected field");
+                            throw new ElasticsearchParseException("Expected field");
                         }
                         token = parser.nextToken();
                         if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticSearchParseException("expected start object");
+                            throw new ElasticsearchParseException("expected start object");
                         }
                         String percolateAction = parser.currentName();
                         if ("percolate".equals(percolateAction)) {
@@ -124,7 +124,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                             percolateRequest.onlyCount(true);
                             parsePercolateAction(parser, percolateRequest);
                         } else {
-                            throw new ElasticSearchParseException(percolateAction + " isn't a supported percolate operation");
+                            throw new ElasticsearchParseException(percolateAction + " isn't a supported percolate operation");
                         }
                     }
                 } finally {
@@ -219,7 +219,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                         } else if ("closed".equals(wildcard)) {
                             expandWildcardsClosed = true;
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                         }
                     }
                 }
@@ -271,7 +271,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                         } else if ("closed".equals(wildcard)) {
                             expandWildcardsClosed = true;
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                         }
                     }
                 }

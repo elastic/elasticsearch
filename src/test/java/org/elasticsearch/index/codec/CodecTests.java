@@ -91,10 +91,10 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     public void testResolveDefaultPostingFormats() throws Exception {
         PostingsFormatService postingsFormatService = createCodecService().postingsFormatService();
         assertThat(postingsFormatService.get("default"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(postingsFormatService.get("default").get(), instanceOf(ElasticSearch090PostingsFormat.class));
+        assertThat(postingsFormatService.get("default").get(), instanceOf(Elasticsearch090PostingsFormat.class));
 
         // Should fail when upgrading Lucene with codec changes
-        assertThat(((ElasticSearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField("").getClass()));
+        assertThat(((Elasticsearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField("").getClass()));
         assertThat(postingsFormatService.get("Lucene41"), instanceOf(PreBuiltPostingsFormatProvider.class));
         // Should fail when upgrading Lucene with codec changes
         assertThat(postingsFormatService.get("Lucene41").get(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
@@ -163,7 +163,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(ElasticSearch090PostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(Elasticsearch090PostingsFormat.class));
 
         assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
         DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();

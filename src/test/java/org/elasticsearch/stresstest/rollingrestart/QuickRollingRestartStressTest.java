@@ -21,7 +21,7 @@ package org.elasticsearch.stresstest.rollingrestart;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -55,7 +55,7 @@ public class QuickRollingRestartStressTest {
         if (client.client().admin().indices().prepareExists("test").execute().actionGet().isExists()) {
             ClusterHealthResponse clusterHealthResponse = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
             if (clusterHealthResponse.isTimedOut()) {
-                throw new ElasticSearchException("failed to wait for green state on startup...");
+                throw new ElasticsearchException("failed to wait for green state on startup...");
             }
             COUNT = client.client().prepareCount().execute().actionGet().getCount();
             System.out.println("--> existing index, count [" + COUNT + "]");
@@ -97,7 +97,7 @@ public class QuickRollingRestartStressTest {
                 System.out.println(state.nodes().prettyPrint());
                 System.out.println(state.routingTable().prettyPrint());
                 System.out.println(state.routingNodes().prettyPrint());
-                throw new ElasticSearchException("timed out waiting for green state");
+                throw new ElasticsearchException("timed out waiting for green state");
             } else {
                 System.out.println("--> got green status");
             }

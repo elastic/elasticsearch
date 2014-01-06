@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -88,13 +88,13 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     }
 
     @Override
-    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticsearchException {
         // first execute the search request, see that its ok...
         searchAction.execute(request.searchRequest(), new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 if (searchResponse.getFailedShards() > 0) {
-                    listener.onFailure(new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.getShardFailures())));
+                    listener.onFailure(new ElasticsearchException("search failed with failed shards: " + Arrays.toString(searchResponse.getShardFailures())));
                     return;
                 }
 

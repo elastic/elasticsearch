@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -182,7 +182,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return filterParsers.get(name);
     }
 
-    public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
+    public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticsearchException {
         XContentParser parser = null;
         try {
             BytesReference bytes = queryBuilder.buildAsBytes();
@@ -199,11 +199,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(byte[] source) throws ElasticSearchException {
+    public ParsedQuery parse(byte[] source) throws ElasticsearchException {
         return parse(source, 0, source.length);
     }
 
-    public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticSearchException {
+    public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticsearchException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
@@ -219,7 +219,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(BytesReference source) throws ElasticSearchException {
+    public ParsedQuery parse(BytesReference source) throws ElasticsearchException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);

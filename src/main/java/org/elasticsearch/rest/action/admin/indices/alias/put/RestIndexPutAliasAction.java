@@ -18,7 +18,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias.put;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
@@ -62,7 +62,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                 parser = XContentFactory.xContent(request.content()).createParser(request.content());
                 XContentParser.Token token = parser.nextToken();
                 if (token == null) {
-                    throw new ElasticSearchIllegalArgumentException("No index alias is specified");
+                    throw new ElasticsearchIllegalArgumentException("No index alias is specified");
                 }
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != null) {

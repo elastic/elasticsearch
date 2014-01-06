@@ -20,7 +20,7 @@
 package org.elasticsearch.index.similarity;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
@@ -71,7 +71,7 @@ public class SimilarityModule extends AbstractModule {
             Class<? extends SimilarityProvider> type =
                     settings.getAsClass("type", null, "org.elasticsearch.index.similarity.", "SimilarityProvider");
             if (type == null) {
-                throw new ElasticSearchIllegalArgumentException("SimilarityProvider [" + name + "] must have an associated type");
+                throw new ElasticsearchIllegalArgumentException("SimilarityProvider [" + name + "] must have an associated type");
             }
             providers.put(name, type);
         }

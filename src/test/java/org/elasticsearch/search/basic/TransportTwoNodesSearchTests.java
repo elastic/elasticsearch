@@ -23,7 +23,7 @@ package org.elasticsearch.search.basic;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -352,7 +352,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(3));
             assert false : "search should fail";
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
             // all is well
         }

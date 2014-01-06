@@ -19,7 +19,7 @@ package org.elasticsearch.cluster;
  */
 
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
@@ -124,7 +124,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             case RELOCATING:
                 return new MutableShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING, 1);
             default:
-                throw new ElasticSearchException("Unknown state: " + state.name());
+                throw new ElasticsearchException("Unknown state: " + state.name());
         }
 
     }

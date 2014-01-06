@@ -25,7 +25,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -88,19 +88,19 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"));
         this.purgerThread.start();
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         this.purgerThread.doStop();
         this.purgerThread.interrupt();
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     private class PurgerThread extends Thread {

@@ -20,7 +20,7 @@
 package org.elasticsearch.common.transport;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -57,7 +57,7 @@ public abstract class TransportAddressSerializers {
 
     public static synchronized void addAddressType(TransportAddress address) throws Exception {
         if (addressConstructors.containsKey(address.uniqueAddressTypeId())) {
-            throw new ElasticSearchIllegalStateException("Address [" + address.uniqueAddressTypeId() + "] already bound");
+            throw new ElasticsearchIllegalStateException("Address [" + address.uniqueAddressTypeId() + "] already bound");
         }
         Constructor<? extends TransportAddress> constructor = address.getClass().getDeclaredConstructor();
         constructor.setAccessible(true);

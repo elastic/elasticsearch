@@ -26,7 +26,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -147,7 +147,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    public void validateIndexName(String index, ClusterState state) throws ElasticSearchException {
+    public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -461,7 +461,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return templates;
     }
 
-    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticSearchException {
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
     }
 }

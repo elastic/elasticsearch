@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +44,7 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
         super(index, indexSettings, name, settings);
         String[] regexes = settings.getAsArray(PATTERNS_KEY, null, false);
         if (regexes == null) {
-            throw new ElasticSearchIllegalArgumentException("required setting '" + PATTERNS_KEY + "' is missing for token filter [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("required setting '" + PATTERNS_KEY + "' is missing for token filter [" + name + "]");
         }
         patterns = new Pattern[regexes.length];
         for (int i = 0; i < regexes.length; i++) {

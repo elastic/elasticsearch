@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -50,6 +50,6 @@ public enum ClusterBlockLevel {
         } else if (id == 2) {
             return METADATA;
         }
-        throw new ElasticSearchIllegalArgumentException("No cluster block level matching [" + id + "]");
+        throw new ElasticsearchIllegalArgumentException("No cluster block level matching [" + id + "]");
     }
 }

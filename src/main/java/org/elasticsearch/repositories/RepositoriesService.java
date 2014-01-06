@@ -20,7 +20,7 @@
 package org.elasticsearch.repositories;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
@@ -397,7 +397,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
-            throw new ElasticSearchIllegalStateException("trying to modify or unregister repository that is currently used ");
+            throw new ElasticsearchIllegalStateException("trying to modify or unregister repository that is currently used ");
         }
     }
 

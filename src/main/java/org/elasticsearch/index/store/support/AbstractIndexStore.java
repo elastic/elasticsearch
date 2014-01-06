@@ -20,7 +20,7 @@
 package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -102,7 +102,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         indexService.settingsService().removeListener(applySettings);
     }
 

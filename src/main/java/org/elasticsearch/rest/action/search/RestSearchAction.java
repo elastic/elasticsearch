@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
@@ -164,7 +164,7 @@ public class RestSearchAction extends BaseRestHandler {
                 } else if ("AND".equals(defaultOperator)) {
                     queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                    throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
             if (searchSourceBuilder == null) {
@@ -269,14 +269,14 @@ public class RestSearchAction extends BaseRestHandler {
             for (String indexBoost : indicesBoost) {
                 int divisor = indexBoost.indexOf(',');
                 if (divisor == -1) {
-                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
+                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
                 }
                 String indexName = indexBoost.substring(0, divisor);
                 String sBoost = indexBoost.substring(divisor + 1);
                 try {
                     searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
                 } catch (NumberFormatException e) {
-                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
+                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
         }

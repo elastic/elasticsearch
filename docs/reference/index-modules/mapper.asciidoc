@@ -17,7 +17,7 @@ the `object` type and namely the root `object` type allow for schema
 less dynamic addition of unmapped fields.
 
 The default mapping definition is plain mapping definition that is
-embedded within ElasticSearch:
+embedded within Elasticsearch:
 
 [source,js]
 --------------------------------------------------

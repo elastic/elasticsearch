@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.geo.GeoPoint;
 
 /**
@@ -108,7 +108,7 @@ public abstract class GeoPointValues {
 
         @Override
         public GeoPoint nextValue() {
-            throw new ElasticSearchIllegalStateException("Empty GeoPointValues has no next value");
+            throw new ElasticsearchIllegalStateException("Empty GeoPointValues has no next value");
         }
 
     }

@@ -25,7 +25,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.NestedWrappableComparator;
@@ -65,7 +65,7 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
             case AVG:
                 return new NestedFieldComparator.Avg((NumberComparatorBase<?>) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             default:
-                throw new ElasticSearchIllegalArgumentException(
+                throw new ElasticsearchIllegalArgumentException(
                     String.format(Locale.ROOT, "Unsupported sort_mode[%s] for nested type", sortMode)
                 );
         }

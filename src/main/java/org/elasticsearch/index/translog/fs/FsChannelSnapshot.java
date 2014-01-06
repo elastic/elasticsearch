@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.FileChannelInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.translog.Translog;
@@ -138,7 +138,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public boolean release() throws ElasticSearchException {
+    public boolean release() throws ElasticsearchException {
         raf.decreaseRefCount(true);
         return true;
     }

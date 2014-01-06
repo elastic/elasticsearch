@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -98,7 +98,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
+    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -252,7 +252,7 @@ public class BulkProcessor {
 
     private void executeIfNeeded() {
         if (closed) {
-            throw new ElasticSearchIllegalStateException("bulk process already closed");
+            throw new ElasticsearchIllegalStateException("bulk process already closed");
         }
         if (!isOverTheLimit()) {
             return;

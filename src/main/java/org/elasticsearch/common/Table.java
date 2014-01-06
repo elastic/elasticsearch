@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,7 +65,7 @@ public class Table {
 
     public Table startRow() {
         if (headers.isEmpty()) {
-            throw new ElasticSearchIllegalArgumentException("no headers added...");
+            throw new ElasticsearchIllegalArgumentException("no headers added...");
         }
         currentCells = new ArrayList<Cell>(headers.size());
         return this;
@@ -78,7 +78,7 @@ public class Table {
             s.append(currentCells.size());
             s.append(" in a row compared to header ");
             s.append(headers.size());
-            throw new ElasticSearchIllegalArgumentException(s.toString());
+            throw new ElasticsearchIllegalArgumentException(s.toString());
         }
         rows.add(currentCells);
         currentCells = null;
@@ -97,7 +97,7 @@ public class Table {
     public Table addCell(Object value, String attributes) {
         if (!inHeaders) {
             if (currentCells.size() == headers.size()) {
-                throw new ElasticSearchIllegalArgumentException("can't add more cells to a row than the header");
+                throw new ElasticsearchIllegalArgumentException("can't add more cells to a row than the header");
             }
         }
         Map<String, String> mAttr;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -116,12 +116,12 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         /**
          * Indicates that the same translog exists, but new operations have been appended to it. Throws
-         * {@link ElasticSearchIllegalStateException} if {@link #newTranslogCreated()} is <tt>true</tt>, so
+         * {@link org.elasticsearch.ElasticsearchIllegalStateException} if {@link #newTranslogCreated()} is <tt>true</tt>, so
          * always check that first.
          */
         public boolean sameTranslogNewOperations() {
             if (newTranslogCreated()) {
-                throw new ElasticSearchIllegalStateException("Should not be called when there is a new translog");
+                throw new ElasticsearchIllegalStateException("Should not be called when there is a new translog");
             }
             return translogSnapshot.length() > lastTranslogLength;
         }

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -73,7 +73,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) throws ElasticsearchException {
         MetaData metaData = state.metaData();
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {

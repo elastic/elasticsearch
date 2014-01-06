@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -83,7 +83,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         filterCache.close();
         idCache.close();
         queryParserCache.close();

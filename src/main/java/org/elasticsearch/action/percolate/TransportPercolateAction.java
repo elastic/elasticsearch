@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetResponse;
@@ -189,7 +189,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticsearchException {
         try {
             return percolatorService.percolate(request);
         } catch (Throwable e) {

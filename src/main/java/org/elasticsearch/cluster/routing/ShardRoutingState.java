@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 /**
  * Represents the current state of a {@link ShardRouting} as defined by the
@@ -69,7 +69,7 @@ public enum ShardRoutingState {
             case 4:
                 return RELOCATING;
             default:
-                throw new ElasticSearchIllegalStateException("No routing state mapped for [" + value + "]");
+                throw new ElasticsearchIllegalStateException("No routing state mapped for [" + value + "]");
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.analyze;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.Priority;
@@ -71,7 +71,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void analyzeNumericField() throws ElasticSearchException, IOException {
+    public void analyzeNumericField() throws ElasticsearchException, IOException {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -90,11 +90,11 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().admin().indices().prepareAnalyze("test", "123").setField("long").execute().actionGet();
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
         }
         try {
             client().admin().indices().prepareAnalyze("test", "123.0").setField("double").execute().actionGet();
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
         }
     }
 

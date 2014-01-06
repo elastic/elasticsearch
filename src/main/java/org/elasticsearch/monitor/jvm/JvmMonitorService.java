@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -122,7 +122,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -130,7 +130,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -138,7 +138,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     private class JvmMonitor implements Runnable {

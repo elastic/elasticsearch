@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -92,10 +92,10 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                         } else if ( BOTTOM_RIGHT.equals(currentFieldName) || BOTTOMRIGHT.equals(currentFieldName)) {
                             GeoPoint.parse(parser, bottomRight);
                         } else {
-                            throw new ElasticSearchParseException("Unexpected field [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("Unexpected field [" + currentFieldName + "]");
                         }
                     } else {
-                        throw new ElasticSearchParseException("fieldname expected but [" + token + "] found");
+                        throw new ElasticsearchParseException("fieldname expected but [" + token + "] found");
                     }
                 }
             } else if (token.isValue()) {

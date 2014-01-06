@@ -22,13 +22,11 @@ package org.elasticsearch.index.merge.policy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider.CustomLogByteSizeMergePolicy;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -70,7 +68,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         indexSettingsService.removeListener(applySettings);
     }
 

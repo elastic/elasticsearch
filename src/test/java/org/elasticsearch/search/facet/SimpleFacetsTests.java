@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -174,7 +174,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testFacetNumeric() throws ElasticSearchException, IOException {
+    public void testFacetNumeric() throws ElasticsearchException, IOException {
         prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("byte").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                 .startObject("short").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
@@ -312,7 +312,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    public void testConcurrentFacets() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
+    public void testConcurrentFacets() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("byte").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
@@ -480,7 +480,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    public void testDuelByteFieldDataImpl() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
+    public void testDuelByteFieldDataImpl() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                  .startObject("name_paged")

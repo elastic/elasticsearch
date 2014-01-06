@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * The type of replication to perform.
@@ -62,7 +62,7 @@ public enum ReplicationType {
         } else if (id == 2) {
             return DEFAULT;
         } else {
-            throw new ElasticSearchIllegalArgumentException("No type match for [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
         }
     }
 
@@ -77,6 +77,6 @@ public enum ReplicationType {
         } else if ("default".equals(type)) {
             return DEFAULT;
         }
-        throw new ElasticSearchIllegalArgumentException("No replication type match for [" + type + "], should be either `async`, or `sync`");
+        throw new ElasticsearchIllegalArgumentException("No replication type match for [" + type + "], should be either `async`, or `sync`");
     }
 }

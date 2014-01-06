@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.CloseableComponent;
 
 /**
@@ -36,7 +36,7 @@ public abstract class RestFilter implements CloseableComponent {
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         // a no op
     }
 

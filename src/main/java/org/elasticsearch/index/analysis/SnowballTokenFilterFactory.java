@@ -29,7 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * Real work actually done here by Sebastian on the ElasticSearch mailing list
+ * Real work actually done here by Sebastian on the Elasticsearch mailing list
  * http://elasticsearch-users.115913.n3.nabble.com/Using-the-Snowball-stemmers-tp2126106p2127111.html
  */
 public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {

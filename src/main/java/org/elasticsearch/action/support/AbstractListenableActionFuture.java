@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -116,7 +116,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                         ActionListener<T> lst = (ActionListener<T>) listener;
                         try {
                             lst.onResponse(actionGet());
-                        } catch (ElasticSearchException e) {
+                        } catch (ElasticsearchException e) {
                             lst.onFailure(e);
                         }
                     }
@@ -129,7 +129,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                 ActionListener<T> lst = (ActionListener<T>) listener;
                 try {
                     lst.onResponse(actionGet());
-                } catch (ElasticSearchException e) {
+                } catch (ElasticsearchException e) {
                     lst.onFailure(e);
                 }
             }

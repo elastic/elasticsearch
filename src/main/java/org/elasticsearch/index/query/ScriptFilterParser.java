@@ -24,7 +24,7 @@ import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
@@ -191,7 +191,7 @@ public class ScriptFilterParser implements FilterParser {
                 if (val instanceof Number) {
                     return ((Number) val).longValue() != 0;
                 }
-                throw new ElasticSearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                throw new ElasticsearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
             }
         }
     }

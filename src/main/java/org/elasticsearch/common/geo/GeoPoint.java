@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -148,9 +148,9 @@ public class GeoPoint {
      * @return new {@link GeoPoint} parsed from the parse
      * 
      * @throws IOException
-     * @throws ElasticSearchParseException
+     * @throws org.elasticsearch.ElasticsearchParseException
      */
-    public static GeoPoint parse(XContentParser parser) throws IOException, ElasticSearchParseException {
+    public static GeoPoint parse(XContentParser parser) throws IOException, ElasticsearchParseException {
         return parse(parser, new GeoPoint());
     }
 
@@ -169,9 +169,9 @@ public class GeoPoint {
      * @return new {@link GeoPoint} parsed from the parse
      * 
      * @throws IOException
-     * @throws ElasticSearchParseException
+     * @throws org.elasticsearch.ElasticsearchParseException
      */
-    public static GeoPoint parse(XContentParser parser, GeoPoint point) throws IOException, ElasticSearchParseException {
+    public static GeoPoint parse(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
                 if(parser.currentToken() == Token.FIELD_NAME) {
@@ -180,25 +180,25 @@ public class GeoPoint {
                         if(parser.nextToken() == Token.VALUE_NUMBER) {
                             point.resetLat(parser.doubleValue());
                         } else {
-                            throw new ElasticSearchParseException("latitude must be a number");
+                            throw new ElasticsearchParseException("latitude must be a number");
                         }
                     } else if (LONGITUDE.equals(field)) {
                         if(parser.nextToken() == Token.VALUE_NUMBER) {
                             point.resetLon(parser.doubleValue());
                         } else {
-                            throw new ElasticSearchParseException("latitude must be a number");
+                            throw new ElasticsearchParseException("latitude must be a number");
                         }
                     } else if (GEOHASH.equals(field)) {
                         if(parser.nextToken() == Token.VALUE_STRING) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new ElasticSearchParseException("geohash must be a string");
+                            throw new ElasticsearchParseException("geohash must be a string");
                         }
                     } else {
-                        throw new ElasticSearchParseException("field must be either '" + LATITUDE + "', '" + LONGITUDE + "' or '" + GEOHASH + "'");
+                        throw new ElasticsearchParseException("field must be either '" + LATITUDE + "', '" + LONGITUDE + "' or '" + GEOHASH + "'");
                     }
                 } else {
-                    throw new ElasticSearchParseException("Token '"+parser.currentToken()+"' not allowed");
+                    throw new ElasticsearchParseException("Token '"+parser.currentToken()+"' not allowed");
                 }
             }
             return point;
@@ -212,10 +212,10 @@ public class GeoPoint {
                     } else if(element == 2) {
                         point.resetLat(parser.doubleValue());
                     } else {
-                        throw new ElasticSearchParseException("only two values allowed");
+                        throw new ElasticsearchParseException("only two values allowed");
                     }
                 } else {
-                    throw new ElasticSearchParseException("Numeric value expected");
+                    throw new ElasticsearchParseException("Numeric value expected");
                 }
             }
             return point;
@@ -231,7 +231,7 @@ public class GeoPoint {
                 return point;
             }
         } else {
-            throw new ElasticSearchParseException("geo_point expected");
+            throw new ElasticsearchParseException("geo_point expected");
         }
     }
 }

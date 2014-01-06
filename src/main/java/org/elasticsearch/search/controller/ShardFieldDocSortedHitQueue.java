@@ -24,7 +24,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.io.IOException;
 
@@ -72,7 +72,7 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<FieldDoc> {
                 comparators[fieldIDX] = fields[fieldIDX].getComparator(1, fieldIDX);
             }
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("failed to get comparator", e);
+            throw new ElasticsearchIllegalStateException("failed to get comparator", e);
         }
     }
 

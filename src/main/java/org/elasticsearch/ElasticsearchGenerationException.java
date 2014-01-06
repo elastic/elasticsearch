@@ -20,17 +20,17 @@
 package org.elasticsearch;
 
 /**
- * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
+ * A generic exception indicating failure to generate.
  *
  *
  */
-public class ElasticSearchTimeoutException extends ElasticSearchException {
+public class ElasticsearchGenerationException extends ElasticsearchException {
 
-    public ElasticSearchTimeoutException(String message) {
-        super(message);
+    public ElasticsearchGenerationException(String msg) {
+        super(msg);
     }
 
-    public ElasticSearchTimeoutException(String message, Throwable cause) {
-        super(message, cause);
+    public ElasticsearchGenerationException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 }

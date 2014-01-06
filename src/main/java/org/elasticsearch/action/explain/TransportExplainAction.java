@@ -21,7 +21,7 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
@@ -103,7 +103,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
     }
 
-    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
+    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexService(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
@@ -144,7 +144,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                 return new ExplainResponse(true, explanation);
             }
         } catch (IOException e) {
-            throw new ElasticSearchException("Could not explain", e);
+            throw new ElasticsearchException("Could not explain", e);
         } finally {
             context.release();
             SearchContext.removeCurrent();
@@ -167,7 +167,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
-    protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
+    protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticsearchException {
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
         );

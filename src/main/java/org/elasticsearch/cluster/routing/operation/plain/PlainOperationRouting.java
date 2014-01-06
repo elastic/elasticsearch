@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.operation.plain;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -279,14 +279,14 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     protected int hash(String type, String id) {
         if (type == null || "_all".equals(type)) {
-            throw new ElasticSearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
+            throw new ElasticsearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
         return hashFunction.hash(type, id);
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
         if (!nodes.dataNodes().keys().contains(nodeId)) {
-            throw new ElasticSearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
+            throw new ElasticsearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }
 }

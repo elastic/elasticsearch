@@ -19,7 +19,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
@@ -44,11 +44,11 @@ public abstract class AbstractMergePolicyProvider<MP extends MergePolicy> extend
             try {
                 double value = Double.parseDouble(noCFSRatio);
                 if (value < 0.0 || value > 1.0) {
-                    throw new ElasticSearchIllegalArgumentException("NoCFSRatio must be in the interval [0..1] but was: [" + value + "]");
+                    throw new ElasticsearchIllegalArgumentException("NoCFSRatio must be in the interval [0..1] but was: [" + value + "]");
                 }
                 return value;
             } catch (NumberFormatException ex) {
-                throw new ElasticSearchIllegalArgumentException("Expected a boolean or a value in the interval [0..1] but was: [" + noCFSRatio + "]", ex);
+                throw new ElasticsearchIllegalArgumentException("Expected a boolean or a value in the interval [0..1] but was: [" + noCFSRatio + "]", ex);
             }
         }
     }

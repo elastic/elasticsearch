@@ -19,14 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * An exception marking that this recovery attempt should be ignored (since probably, we already recovered).
  *
  *
  */
-public class DelayRecoveryException extends ElasticSearchException {
+public class DelayRecoveryException extends ElasticsearchException {
 
     public DelayRecoveryException(String msg) {
         super(msg);

@@ -21,7 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -157,6 +157,6 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 return shardIt;
             }
         }
-        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
+        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
     }
 }

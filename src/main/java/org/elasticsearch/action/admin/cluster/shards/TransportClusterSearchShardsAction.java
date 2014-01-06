@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -74,7 +74,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) throws ElasticsearchException {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());

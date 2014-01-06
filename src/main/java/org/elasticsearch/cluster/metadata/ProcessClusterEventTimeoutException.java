@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  */
-public class ProcessClusterEventTimeoutException extends ElasticSearchException {
+public class ProcessClusterEventTimeoutException extends ElasticsearchException {
 
     public ProcessClusterEventTimeoutException(TimeValue timeValue, String source) {
         super("failed to process cluster event (" + source + ") within " + timeValue);

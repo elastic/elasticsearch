@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.zen.ping.multicast;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -117,13 +117,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     @Override
     public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
         if (lifecycle.started()) {
-            throw new ElasticSearchIllegalStateException("Can't set nodes provider when started");
+            throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
         }
         this.nodesProvider = nodesProvider;
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         try {
             this.datagramPacketReceive = new DatagramPacket(new byte[bufferSize], bufferSize);
             this.datagramPacketSend = new DatagramPacket(new byte[bufferSize], bufferSize, InetAddress.getByName(group), port);
@@ -180,7 +180,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         if (receiver != null) {
             receiver.stop();
         }
@@ -194,7 +194,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     public PingResponse[] pingAndWait(TimeValue timeout) {
@@ -416,7 +416,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                             .createParser(datagramPacketReceive.getData(), datagramPacketReceive.getOffset(), datagramPacketReceive.getLength())
                                             .mapAndClose();
                                 } else {
-                                    throw new ElasticSearchIllegalStateException("failed multicast message, probably message from previous version");
+                                    throw new ElasticsearchIllegalStateException("failed multicast message, probably message from previous version");
                                 }
                             }
                         } catch (Exception e) {

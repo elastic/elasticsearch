@@ -28,7 +28,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -309,7 +309,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
             assert ((sumDocFreq == -1)) : "docCount was -1 but sumDocFreq ain't!";
             assert ((sumTotalTermFrequencies == -1)) : "docCount was -1 but sumTotalTermFrequencies ain't!";
         } else {
-            throw new ElasticSearchIllegalStateException(
+            throw new ElasticsearchIllegalStateException(
                     "Something is wrong with the field statistics of the term vector request: Values are " + "\n"
                             + FieldStrings.SUM_DOC_FREQ + " " + sumDocFreq + "\n" + FieldStrings.DOC_COUNT + " " + docCount + "\n"
                             + FieldStrings.SUM_TTF + " " + sumTotalTermFrequencies);

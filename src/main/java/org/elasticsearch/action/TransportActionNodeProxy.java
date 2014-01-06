@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -52,7 +52,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
         this.transportOptions = action.transportOptions(settings);
     }
 
-    public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
+    public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticsearchException {
         PlainActionFuture<Response> future = newFuture();
         request.listenerThreaded(false);
         execute(node, request, future);

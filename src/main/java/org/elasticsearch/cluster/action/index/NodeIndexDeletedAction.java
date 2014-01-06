@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -60,7 +60,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticSearchException {
+    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticsearchException {
         DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {
@@ -75,7 +75,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    public void nodeIndexStoreDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticSearchException {
+    public void nodeIndexStoreDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticsearchException {
         DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {

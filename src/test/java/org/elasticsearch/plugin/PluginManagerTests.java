@@ -18,8 +18,8 @@
 
 package org.elasticsearch.plugin;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchTimeoutException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -127,7 +127,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     /**
      * We build a plugin manager instance which wait only for 30 seconds before
-     * raising an ElasticSearchTimeoutException
+     * raising an ElasticsearchTimeoutException
      */
     private static PluginManager pluginManager(String pluginUrl) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
@@ -225,7 +225,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, notNullValue());
             assertThat(plugins.length, is(0));
-        } catch (ElasticSearchTimeoutException e) {
+        } catch (ElasticsearchTimeoutException e) {
             logger.warn("--> timeout exception raised while downloading plugin [{}]. Skipping test.", pluginShortName);
         }
     }
@@ -266,7 +266,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
     }
 
-    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testRemovePluginWithURLForm() throws Exception {
         PluginManager pluginManager = pluginManager(null);
         pluginManager.removePlugin("file://whatever");

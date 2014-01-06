@@ -11,7 +11,7 @@
   RPMs for elasticsearch.
 
 * http://www.github.com/neogenix/daikon[daikon]:
-  Daikon ElasticSearch CLI
+  Daikon Elasticsearch CLI
 
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed 

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class IndexTemplateMissingException extends ElasticSearchException {
+public class IndexTemplateMissingException extends ElasticsearchException {
 
     private final String name;
 

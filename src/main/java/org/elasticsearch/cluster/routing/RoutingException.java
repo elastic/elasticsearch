@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * A base {@link Exception}s for all exceptions thrown by routing related operations.
  */
-public class RoutingException extends ElasticSearchException {
+public class RoutingException extends ElasticsearchException {
 
     public RoutingException(String message) {
         super(message);

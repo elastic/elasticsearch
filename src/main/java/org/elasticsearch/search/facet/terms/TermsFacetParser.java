@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.terms;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -105,7 +105,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
                 } else {
-                    throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("exclude".equals(currentFieldName)) {
@@ -121,7 +121,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     }
                     fieldsNames = fields.toArray(new String[fields.size()]);
                 } else {
-                    throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
@@ -147,7 +147,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.textOrNull();
                 } else {
-                    throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             }
         }
@@ -197,7 +197,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         }
 
         if (field == null) {
-            throw new ElasticSearchParseException("terms facet [" + facetName + "] must have a field, fields or script parameter");
+            throw new ElasticsearchParseException("terms facet [" + facetName + "] must have a field, fields or script parameter");
         }
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);

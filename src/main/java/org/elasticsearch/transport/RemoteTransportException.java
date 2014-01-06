@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.transport.TransportAddress;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.common.transport.TransportAddress;
  *
  *
  */
-public class RemoteTransportException extends ActionTransportException implements ElasticSearchWrapperException {
+public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, cause);

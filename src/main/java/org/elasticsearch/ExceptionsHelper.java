@@ -34,19 +34,19 @@ public final class ExceptionsHelper {
         if (t instanceof RuntimeException) {
             return (RuntimeException) t;
         }
-        return new ElasticSearchException(t.getMessage(), t);
+        return new ElasticsearchException(t.getMessage(), t);
     }
 
-    public static ElasticSearchException convertToElastic(Throwable t) {
-        if (t instanceof ElasticSearchException) {
-            return (ElasticSearchException) t;
+    public static ElasticsearchException convertToElastic(Throwable t) {
+        if (t instanceof ElasticsearchException) {
+            return (ElasticsearchException) t;
         }
-        return new ElasticSearchException(t.getMessage(), t);
+        return new ElasticsearchException(t.getMessage(), t);
     }
 
     public static RestStatus status(Throwable t) {
-        if (t instanceof ElasticSearchException) {
-            return ((ElasticSearchException) t).status();
+        if (t instanceof ElasticsearchException) {
+            return ((ElasticsearchException) t).status();
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
     }
@@ -54,7 +54,7 @@ public final class ExceptionsHelper {
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;
         Throwable result = t;
-        while (result instanceof ElasticSearchWrapperException) {
+        while (result instanceof ElasticsearchWrapperException) {
             if (result.getCause() == null) {
                 return result;
             }

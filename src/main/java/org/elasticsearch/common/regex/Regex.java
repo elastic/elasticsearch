@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.regex;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
@@ -154,7 +154,7 @@ public class Regex {
             } else if ("UNICODE_CHAR_CLASS".equals(s)) {
                 pFlags |= UNICODE_CHARACTER_CLASS;
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unknown regex flag [" + s + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown regex flag [" + s + "]");
             }
         }
         return pFlags;

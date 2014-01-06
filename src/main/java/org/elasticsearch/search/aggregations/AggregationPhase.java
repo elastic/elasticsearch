@@ -24,7 +24,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -94,7 +94,7 @@ public class AggregationPhase implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticSearchException {
+    public void execute(SearchContext context) throws ElasticsearchException {
         if (context.aggregations() == null) {
             return;
         }

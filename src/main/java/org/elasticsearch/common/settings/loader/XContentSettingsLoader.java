@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -68,7 +68,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             return settings;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticSearchParseException("malformed, expected settings to start with 'object', instead was [" + token + "]");
+            throw new ElasticsearchParseException("malformed, expected settings to start with 'object', instead was [" + token + "]");
         }
         serializeObject(settings, sb, path, jp, null);
         return settings;

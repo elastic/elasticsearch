@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -73,10 +73,10 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
      */
     public CommonTermsQueryBuilder(String name, Object text) {
         if (name == null) {
-            throw new ElasticSearchIllegalArgumentException("Field name must not be null");
+            throw new ElasticsearchIllegalArgumentException("Field name must not be null");
         }
         if (text == null) {
-            throw new ElasticSearchIllegalArgumentException("Query must not be null");
+            throw new ElasticsearchIllegalArgumentException("Query must not be null");
         }
         this.text = text;
         this.name = name;

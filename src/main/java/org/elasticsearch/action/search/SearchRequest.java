@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -136,11 +136,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public SearchRequest indices(String... indices) {
         if (indices == null) {
-            throw new ElasticSearchIllegalArgumentException("indices must not be null");
+            throw new ElasticsearchIllegalArgumentException("indices must not be null");
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticSearchIllegalArgumentException("indices[" + i +"] must not be null");
+                    throw new ElasticsearchIllegalArgumentException("indices[" + i +"] must not be null");
                 }
             }
         }
@@ -247,7 +247,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
-    public SearchRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
+    public SearchRequest searchType(String searchType) throws ElasticsearchIllegalArgumentException {
         return searchType(SearchType.fromString(searchType));
     }
 
@@ -279,7 +279,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -346,7 +346,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

@@ -31,7 +31,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedString;
@@ -246,7 +246,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             try {
                 defaultMappingSource = mappingSource.string();
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("failed to un-compress", e);
+                throw new ElasticsearchGenerationException("failed to un-compress", e);
             }
             return mapper;
         } else {

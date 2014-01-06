@@ -22,8 +22,8 @@ package org.elasticsearch.repositories.blobstore;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -131,7 +131,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath());
         indexShardRepository.initialize(blobStore(), basePath(), chunkSize());
     }
@@ -140,14 +140,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         try {
             blobStore().close();
         } catch (Throwable t) {
@@ -366,7 +366,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                         continue;
                     }
                 }
-                throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                throw new ElasticsearchParseException("unexpected token  [" + token + "]");
             } catch (IOException ex) {
                 throw new SnapshotException(snapshotId, "failed to read metadata", ex);
             } finally {
@@ -415,7 +415,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         } finally {
             if (parser != null) {
                 parser.close();
@@ -444,7 +444,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         } finally {
             if (parser != null) {
                 parser.close();

@@ -22,7 +22,7 @@ package org.elasticsearch.index.gateway.local;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -223,7 +223,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 try {
                     indexShard.performRecoveryOperation(operation);
                     recoveryStatus.translog().addTranslogOperations(1);
-                } catch (ElasticSearchException e) {
+                } catch (ElasticsearchException e) {
                     if (e.status() == RestStatus.BAD_REQUEST) {
                         // mainly for MapperParsingException and Failure to detect xcontent
                         logger.info("ignoring recovery of a corrupt translog entry", e);

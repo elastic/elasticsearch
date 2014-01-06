@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -132,7 +132,7 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         }
         if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
             if (failOnUnsupportedField) {
-                throw new ElasticSearchIllegalArgumentException("fuzzy_like_this_field doesn't support binary/numeric fields: [" + fieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("fuzzy_like_this_field doesn't support binary/numeric fields: [" + fieldName + "]");
             } else {
                 return null;
             }

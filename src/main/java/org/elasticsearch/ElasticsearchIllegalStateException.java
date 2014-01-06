@@ -22,17 +22,17 @@ package org.elasticsearch;
 /**
  *
  */
-public class ElasticSearchIllegalStateException extends ElasticSearchException {
+public class ElasticsearchIllegalStateException extends ElasticsearchException {
 
-    public ElasticSearchIllegalStateException() {
+    public ElasticsearchIllegalStateException() {
         super(null);
     }
 
-    public ElasticSearchIllegalStateException(String msg) {
+    public ElasticsearchIllegalStateException(String msg) {
         super(msg);
     }
 
-    public ElasticSearchIllegalStateException(String msg, Throwable cause) {
+    public ElasticsearchIllegalStateException(String msg, Throwable cause) {
         super(msg, cause);
     }
 }

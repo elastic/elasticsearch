@@ -20,7 +20,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -249,13 +249,13 @@ public class BlobStoreIndexShardSnapshot {
                             } else if ("part_size".equals(currentFieldName)) {
                                 partSize = new ByteSizeValue(parser.longValue());
                             } else {
-                                throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "]");
+                                throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                             }
                         } else {
-                            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
                         }
                     } else {
-                        throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                        throw new ElasticsearchParseException("unexpected token  [" + token + "]");
                     }
                 }
             }
@@ -359,17 +359,17 @@ public class BlobStoreIndexShardSnapshot {
                         } else if ("index-version".equals(currentFieldName)) {
                             indexVersion = parser.longValue();
                         } else {
-                            throw new ElasticSearchParseException("unknown parameter [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             indexFiles.add(FileInfo.fromXContent(parser));
                         }
                     } else {
-                        throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                        throw new ElasticsearchParseException("unexpected token  [" + token + "]");
                     }
                 } else {
-                    throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+                    throw new ElasticsearchParseException("unexpected token  [" + token + "]");
                 }
             }
         }

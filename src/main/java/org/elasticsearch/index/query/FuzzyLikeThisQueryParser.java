@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
@@ -129,7 +129,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
             final String fieldName = it.next();
             if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
                 if (failOnUnsupportedField) {
-                    throw new ElasticSearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
                 } else {
                     it.remove();
                 }

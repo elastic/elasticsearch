@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +59,7 @@ public class AliasAction implements Streamable {
             } else if (value == 1) {
                 return REMOVE;
             } else {
-                throw new ElasticSearchIllegalArgumentException("No type for action [" + value + "]");
+                throw new ElasticsearchIllegalArgumentException("No type for action [" + value + "]");
             }
         }
     }
@@ -128,7 +128,7 @@ public class AliasAction implements Streamable {
             this.filter = builder.string();
             return this;
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
         }
     }
 
@@ -144,7 +144,7 @@ public class AliasAction implements Streamable {
             this.filter = builder.string();
             return this;
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+            throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
         }
     }
 

@@ -30,9 +30,9 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
@@ -173,7 +173,7 @@ public class PercolatorService extends AbstractComponent {
             if (request.docSource() != null && request.docSource().length() != 0) {
                 parsedDocument = parseFetchedDoc(request.docSource(), percolateIndexService, request.documentType());
             } else if (parsedDocument == null) {
-                throw new ElasticSearchIllegalArgumentException("Nothing to percolate");
+                throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
 
             if (context.percolateQuery() == null && (context.trackScores() || context.sort || context.facets() != null || context.aggregations() != null)) {
@@ -181,11 +181,11 @@ public class PercolatorService extends AbstractComponent {
             }
 
             if (context.sort && !context.limit) {
-                throw new ElasticSearchIllegalArgumentException("Can't sort if size isn't specified");
+                throw new ElasticsearchIllegalArgumentException("Can't sort if size isn't specified");
             }
 
             if (context.highlight() != null && !context.limit) {
-                throw new ElasticSearchIllegalArgumentException("Can't highlight if size isn't specified");
+                throw new ElasticsearchIllegalArgumentException("Can't highlight if size isn't specified");
             }
 
             if (context.size < 0) {
@@ -206,7 +206,7 @@ public class PercolatorService extends AbstractComponent {
                         memoryIndex.addField(field.name(), tokenStream, field.boost());
                     }
                 } catch (IOException e) {
-                    throw new ElasticSearchException("Failed to create token stream", e);
+                    throw new ElasticsearchException("Failed to create token stream", e);
                 }
             }
 
@@ -233,7 +233,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) throws ElasticSearchException {
+    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) throws ElasticsearchException {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             return null;
@@ -264,7 +264,7 @@ public class PercolatorService extends AbstractComponent {
                     // the actual document starting
                     if ("doc".equals(currentFieldName)) {
                         if (doc != null) {
-                            throw new ElasticSearchParseException("Either specify doc or get, not both");
+                            throw new ElasticsearchParseException("Either specify doc or get, not both");
                         }
 
                         MapperService mapperService = documentIndexService.mapperService();
@@ -284,12 +284,12 @@ public class PercolatorService extends AbstractComponent {
 
                     if ("query".equals(currentFieldName)) {
                         if (context.percolateQuery() != null) {
-                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                            throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
                         context.percolateQuery(documentIndexService.queryParserService().parse(parser).query());
                     } else if ("filter".equals(currentFieldName)) {
                         if (context.percolateQuery() != null) {
-                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                            throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
                         Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
                         context.percolateQuery(new XConstantScoreQuery(filter));
@@ -303,7 +303,7 @@ public class PercolatorService extends AbstractComponent {
                         context.limit = true;
                         context.size = parser.intValue();
                         if (context.size < 0) {
-                            throw new ElasticSearchParseException("size is set to [" + context.size + "] and is expected to be higher or equal to 0");
+                            throw new ElasticsearchParseException("size is set to [" + context.size + "] and is expected to be higher or equal to 0");
                         }
                     } else if ("sort".equals(currentFieldName)) {
                         context.sort = parser.booleanValue();
@@ -347,7 +347,7 @@ public class PercolatorService extends AbstractComponent {
             }
 
         } catch (Throwable e) {
-            throw new ElasticSearchParseException("failed to parse request", e);
+            throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
             context.types(previousTypes);
             SearchContext.removeCurrent();
@@ -368,7 +368,7 @@ public class PercolatorService extends AbstractComponent {
             DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
             doc = docMapper.parse(source(parser).type(type).flyweight(true));
         } catch (Throwable e) {
-            throw new ElasticSearchParseException("failed to parse request", e);
+            throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -376,7 +376,7 @@ public class PercolatorService extends AbstractComponent {
         }
 
         if (doc == null) {
-            throw new ElasticSearchParseException("No doc to percolate in the request");
+            throw new ElasticsearchParseException("No doc to percolate in the request");
         }
 
         return doc;

@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -160,7 +160,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             settings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate json settings from builder", e);
+            throw new ElasticsearchGenerationException("Failed to generate json settings from builder", e);
         }
         return this;
     }
@@ -175,7 +175,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             builder.map(source);
             settings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }
@@ -209,7 +209,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
         return this;
     }
@@ -231,7 +231,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             builder.map(source);
             return mapping(type, builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -278,7 +278,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             try {
                 source(XContentFactory.xContent(xContentType).createParser(source).mapAndClose());
             } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to parse source for create index", e);
+                throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
         } else {
             settings(new String(source.toBytes(), Charsets.UTF_8));
@@ -311,7 +311,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                     try {
                         customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
                     } catch (IOException e) {
-                        throw new ElasticSearchParseException("failed to parse custom metadata for [" + name + "]");
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [" + name + "]");
                     }
                 }
             }

@@ -6,8 +6,8 @@
 Mapping is the process of defining how a document should be mapped to
 the Search Engine, including its searchable characteristics such as
 which fields are searchable and if/how they are tokenized. In
-ElasticSearch, an index may store documents of different "mapping
-types". ElasticSearch allows one to associate multiple mapping
+Elasticsearch, an index may store documents of different "mapping
+types". Elasticsearch allows one to associate multiple mapping
 definitions for each mapping type.
 
 Explicit mapping is defined on an index/type level. By default, there

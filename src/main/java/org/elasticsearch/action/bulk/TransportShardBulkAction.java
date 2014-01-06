@@ -20,8 +20,8 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -174,9 +174,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         for (int j = 0; j < requestIndex; j++) {
                             applyVersion(request.items()[j], preVersions[j]);
                         }
-                        throw (ElasticSearchException) e;
+                        throw (ElasticsearchException) e;
                     }
-                    if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                    if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
                         logger.trace("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     } else {
                         logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
@@ -199,9 +199,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         for (int j = 0; j < requestIndex; j++) {
                             applyVersion(request.items()[j], preVersions[j]);
                         }
-                        throw (ElasticSearchException) e;
+                        throw (ElasticsearchException) e;
                     }
-                    if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
+                    if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
                         logger.trace("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     } else {
                         logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
@@ -288,7 +288,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 for (int j = 0; j < requestIndex; j++) {
                                     applyVersion(request.items()[j], preVersions[j]);
                                 }
-                                throw (ElasticSearchException) t;
+                                throw (ElasticsearchException) t;
                             }
                             if (updateResult.result == null) {
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), t));
@@ -297,7 +297,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                     case UPSERT:
                                     case INDEX:
                                         IndexRequest indexRequest = updateResult.request();
-                                        if (t instanceof ElasticSearchException && ((ElasticSearchException) t).status() == RestStatus.CONFLICT) {
+                                        if (t instanceof ElasticsearchException && ((ElasticsearchException) t).status() == RestStatus.CONFLICT) {
                                             logger.trace("[{}][{}] failed to execute bulk item (index) {}", t, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                                         } else {
                                             logger.debug("[{}][{}] failed to execute bulk item (index) {}", t, shardRequest.request.index(), shardRequest.shardId, indexRequest);
@@ -307,7 +307,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                         break;
                                     case DELETE:
                                         DeleteRequest deleteRequest = updateResult.request();
-                                        if (t instanceof ElasticSearchException && ((ElasticSearchException) t).status() == RestStatus.CONFLICT) {
+                                        if (t instanceof ElasticsearchException && ((ElasticsearchException) t).status() == RestStatus.CONFLICT) {
                                             logger.trace("[{}][{}] failed to execute bulk item (delete) {}", t, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                                         } else {
                                             logger.debug("[{}][{}] failed to execute bulk item (delete) {}", t, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
@@ -513,7 +513,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 UpdateResponse updateResponse = translate.action();
                 return new UpdateResult(translate, updateResponse);
             default:
-                throw new ElasticSearchIllegalStateException("Illegal update operation " + translate.operation());
+                throw new ElasticsearchIllegalStateException("Illegal update operation " + translate.operation());
         }
     }
 

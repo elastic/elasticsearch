@@ -20,7 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -540,7 +540,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
         @Override
         public Source readSource(StreamInput in) throws IOException {
-            throw new ElasticSearchIllegalStateException("trying to read doc source from delete operation");
+            throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
         }
 
         @Override
@@ -604,7 +604,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
         @Override
         public Source readSource(StreamInput in) throws IOException {
-            throw new ElasticSearchIllegalStateException("trying to read doc source from delete_by_query operation");
+            throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 
         @Override

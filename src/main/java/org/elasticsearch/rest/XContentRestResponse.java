@@ -21,7 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     public XContentRestResponse(RestRequest request, RestStatus status, XContentBuilder builder) throws IOException {
         if (request == null) {
-            throw new ElasticSearchIllegalArgumentException("request must be set");
+            throw new ElasticsearchIllegalArgumentException("request must be set");
         }
         this.builder = builder;
         this.status = status;

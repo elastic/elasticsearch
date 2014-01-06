@@ -24,11 +24,8 @@ import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -132,7 +129,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
 
     @Test
-    public void testSimpleTermVectors() throws ElasticSearchException, IOException {
+    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
@@ -200,7 +197,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     @Test
-    public void testRandomSingleTermVectors() throws ElasticSearchException, IOException {
+    public void testRandomSingleTermVectors() throws ElasticsearchException, IOException {
         FieldType ft = new FieldType();
         int config = randomInt(6);
         boolean storePositions = false;
@@ -382,7 +379,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     @Test
-    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws ElasticSearchException, IOException {
+    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws ElasticsearchException, IOException {
         
         //create the test document
         int encoding = randomIntBetween(0, 2);
@@ -487,7 +484,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     break;
                 }
                 default: {
-                    throw new ElasticSearchException("unsupported encoding type");
+                    throw new ElasticsearchException("unsupported encoding type");
                 }
                 }
             }
@@ -525,7 +522,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     break;
                 }
                 default: {
-                    throw new ElasticSearchException("unsupported encoding type");
+                    throw new ElasticsearchException("unsupported encoding type");
                 }
                 }
             } else {

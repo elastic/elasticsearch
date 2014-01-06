@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -54,7 +54,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      */
     public PhraseSuggestionBuilder gramSize(int gramSize) {
         if (gramSize < 1) {
-            throw new ElasticSearchIllegalArgumentException("gramSize must be >= 1");
+            throw new ElasticsearchIllegalArgumentException("gramSize must be >= 1");
         }
         this.gramSize = gramSize;
         return this;
@@ -159,7 +159,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      */
     public PhraseSuggestionBuilder highlight(String preTag, String postTag) {
         if ((preTag == null) != (postTag == null)) {
-            throw new ElasticSearchIllegalArgumentException("Pre and post tag must both be null or both not be null.");
+            throw new ElasticsearchIllegalArgumentException("Pre and post tag must both be null or both not be null.");
         }
         this.preTag = preTag;
         this.postTag = postTag;
@@ -426,7 +426,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          */
         public DirectCandidateGenerator size(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticsearchIllegalArgumentException("Size must be positive");
             }
             this.size = size;
             return this;

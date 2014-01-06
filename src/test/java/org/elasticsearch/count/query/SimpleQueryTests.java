@@ -19,7 +19,7 @@
 
 package org.elasticsearch.count.query;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -819,7 +819,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticSearchException, IOException {
+    public void testSimpleSpan() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
 

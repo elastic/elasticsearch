@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class RoutingMissingException extends ElasticSearchException {
+public class RoutingMissingException extends ElasticsearchException {
 
     private final String index;
 

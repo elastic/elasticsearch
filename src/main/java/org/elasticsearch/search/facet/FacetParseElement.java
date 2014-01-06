@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedFilter;
@@ -105,7 +105,7 @@ public class FacetParseElement implements SearchParseElement {
                             } else if ("post".equals(modeAsText)) {
                                 mode = FacetExecutor.Mode.POST;
                             } else {
-                                throw new ElasticSearchIllegalArgumentException("failed to parse facet mode [" + modeAsText + "]");
+                                throw new ElasticsearchIllegalArgumentException("failed to parse facet mode [" + modeAsText + "]");
                             }
                         } else if ("scope".equals(fieldName) || "_scope".equals(fieldName)) {
                             throw new SearchParseException(context, "the [scope] support in facets have been removed");

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
@@ -75,7 +75,7 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T start() throws ElasticSearchException {
+    public T start() throws ElasticsearchException {
         if (!lifecycle.canMoveToStarted()) {
             return (T) this;
         }
@@ -90,11 +90,11 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return (T) this;
     }
 
-    protected abstract void doStart() throws ElasticSearchException;
+    protected abstract void doStart() throws ElasticsearchException;
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T stop() throws ElasticSearchException {
+    public T stop() throws ElasticsearchException {
         if (!lifecycle.canMoveToStopped()) {
             return (T) this;
         }
@@ -109,10 +109,10 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return (T) this;
     }
 
-    protected abstract void doStop() throws ElasticSearchException;
+    protected abstract void doStop() throws ElasticsearchException;
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         if (lifecycle.started()) {
             stop();
         }
@@ -129,5 +129,5 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         }
     }
 
-    protected abstract void doClose() throws ElasticSearchException;
+    protected abstract void doClose() throws ElasticsearchException;
 }

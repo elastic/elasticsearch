@@ -20,7 +20,7 @@
 package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.CodecModule;
@@ -73,13 +73,13 @@ public interface PostingsFormatProvider {
          * @param name                   the name of the postings format to lookup
          * @param postingFormatFactories the factory mapping to lookup the {@link Factory} to create the {@link PostingsFormatProvider}
          * @return a fully configured {@link PostingsFormatProvider} for the given name.
-         * @throws ElasticSearchIllegalArgumentException
+         * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
          *          if the no {@link PostingsFormatProvider} for the given name parameter could be found.
          */
-        public static PostingsFormatProvider lookup(@IndexSettings Settings indexSettings, String name, Map<String, Factory> postingFormatFactories) throws ElasticSearchIllegalArgumentException {
+        public static PostingsFormatProvider lookup(@IndexSettings Settings indexSettings, String name, Map<String, Factory> postingFormatFactories) throws ElasticsearchIllegalArgumentException {
             Factory factory = postingFormatFactories.get(name);
             if (factory == null) {
-                throw new ElasticSearchIllegalArgumentException("failed to find postings_format [" + name + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find postings_format [" + name + "]");
             }
             Settings settings = indexSettings.getGroups(POSTINGS_FORMAT_SETTINGS_PREFIX).get(name);
             if (settings == null) {

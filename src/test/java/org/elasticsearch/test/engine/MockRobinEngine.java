@@ -23,7 +23,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,9 +46,7 @@ import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -82,7 +80,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
     }
 
 
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         try {
             super.close();
         } finally {
@@ -131,7 +129,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
                 return (DirectoryReader) nonRandom.newInstance(reader);
             }
         } catch (Exception e) {
-            throw new ElasticSearchException("Can not wrap reader", e);
+            throw new ElasticsearchException("Can not wrap reader", e);
         }
         return reader;
     }
@@ -161,7 +159,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
             synchronized (lock) {
                 // make sure we only get this once and store the stack of the first caller!

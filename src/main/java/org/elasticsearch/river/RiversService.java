@@ -22,7 +22,7 @@ package org.elasticsearch.river;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -90,11 +90,11 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         ImmutableSet<RiverName> indices = ImmutableSet.copyOf(this.rivers.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final RiverName riverName : indices) {
@@ -119,10 +119,10 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
-    public synchronized void createRiver(RiverName riverName, Map<String, Object> settings) throws ElasticSearchException {
+    public synchronized void createRiver(RiverName riverName, Map<String, Object> settings) throws ElasticsearchException {
         if (riversInjectors.containsKey(riverName)) {
             logger.warn("ignoring river [{}][{}] creation, already exists", riverName.type(), riverName.name());
             return;
@@ -184,7 +184,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         }
     }
 
-    public synchronized void closeRiver(RiverName riverName) throws ElasticSearchException {
+    public synchronized void closeRiver(RiverName riverName) throws ElasticsearchException {
         Injector riverInjector;
         River river;
         synchronized (this) {

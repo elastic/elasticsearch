@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchInterruptedException;
-import org.elasticsearch.ElasticSearchTimeoutException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchInterruptedException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,50 +40,50 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     private Throwable rootFailure;
 
     @Override
-    public T actionGet() throws ElasticSearchException {
+    public T actionGet() throws ElasticsearchException {
         try {
             return get();
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
+            throw new ElasticsearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
     }
 
     @Override
-    public T actionGet(String timeout) throws ElasticSearchException {
+    public T actionGet(String timeout) throws ElasticsearchException {
         return actionGet(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override
-    public T actionGet(long timeoutMillis) throws ElasticSearchException {
+    public T actionGet(long timeoutMillis) throws ElasticsearchException {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public T actionGet(TimeValue timeout) throws ElasticSearchException {
+    public T actionGet(TimeValue timeout) throws ElasticsearchException {
         return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
+    public T actionGet(long timeout, TimeUnit unit) throws ElasticsearchException {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
-            throw new ElasticSearchTimeoutException(e.getMessage());
+            throw new ElasticsearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
+            throw new ElasticsearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
     }
 
-    static ElasticSearchException rethrowExecutionException(ExecutionException e) {
-        if (e.getCause() instanceof ElasticSearchException) {
-            ElasticSearchException esEx = (ElasticSearchException) e.getCause();
+    static ElasticsearchException rethrowExecutionException(ExecutionException e) {
+        if (e.getCause() instanceof ElasticsearchException) {
+            ElasticsearchException esEx = (ElasticsearchException) e.getCause();
             Throwable root = esEx.unwrapCause();
-            if (root instanceof ElasticSearchException) {
-                return (ElasticSearchException) root;
+            if (root instanceof ElasticsearchException) {
+                return (ElasticsearchException) root;
             }
             return new UncategorizedExecutionException("Failed execution", root);
         } else {

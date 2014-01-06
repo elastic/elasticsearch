@@ -21,7 +21,7 @@ package org.elasticsearch.index.gateway.fs;
 
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.fs.AbstractFsBlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -65,7 +65,7 @@ public class FsIndexShardGateway extends BlobStoreIndexShardGateway {
         Lock lock = lockFactory.makeLock("snapshot.lock");
         boolean obtained = lock.obtain();
         if (!obtained) {
-            throw new ElasticSearchIllegalStateException("failed to obtain snapshot lock [" + lock + "]");
+            throw new ElasticsearchIllegalStateException("failed to obtain snapshot lock [" + lock + "]");
         }
         return new FsSnapshotLock(lock);
     }

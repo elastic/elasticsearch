@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,7 +51,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         transportService.registerHandler(NodeMappingRefreshTransportHandler.ACTION, new NodeMappingRefreshTransportHandler());
     }
 
-    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticSearchException {
+    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
         DiscoveryNodes nodes = state.nodes();
         if (nodes.localNodeMaster()) {
             innerMappingRefresh(request);

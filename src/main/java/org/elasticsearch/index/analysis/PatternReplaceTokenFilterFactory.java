@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
@@ -44,7 +44,7 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
 
         String sPattern = settings.get("pattern", null);
         if (sPattern == null) {
-            throw new ElasticSearchIllegalArgumentException("pattern is missing for [" + name + "] token filter of type 'pattern_replace'");
+            throw new ElasticsearchIllegalArgumentException("pattern is missing for [" + name + "] token filter of type 'pattern_replace'");
         }
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
         this.replacement = settings.get("replacement", "");

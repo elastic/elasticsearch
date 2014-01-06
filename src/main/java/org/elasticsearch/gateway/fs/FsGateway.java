@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway.fs;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -75,7 +75,7 @@ public class FsGateway extends BlobStoreGateway {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         super.doClose();
         concurrentStreamPool.shutdown();
     }

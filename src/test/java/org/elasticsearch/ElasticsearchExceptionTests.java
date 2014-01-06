@@ -28,17 +28,17 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ElasticSearchExceptionTests extends ElasticsearchTestCase {
+public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
     @Test
     public void testStatus() {
-        ElasticSearchException exception = new ElasticSearchException("test");
+        ElasticsearchException exception = new ElasticsearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticSearchException("test", new RuntimeException());
+        exception = new ElasticsearchException("test", new RuntimeException());
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticSearchException("test", new IndexMissingException(new Index("test")));
+        exception = new ElasticsearchException("test", new IndexMissingException(new Index("test")));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
         exception = new RemoteTransportException("test", new IndexMissingException(new Index("test")));

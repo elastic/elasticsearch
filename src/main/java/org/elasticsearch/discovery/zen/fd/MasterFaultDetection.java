@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -338,21 +338,21 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
-    static class NoLongerMasterException extends ElasticSearchIllegalStateException {
+    static class NoLongerMasterException extends ElasticsearchIllegalStateException {
         @Override
         public Throwable fillInStackTrace() {
             return null;
         }
     }
 
-    static class NotMasterException extends ElasticSearchIllegalStateException {
+    static class NotMasterException extends ElasticsearchIllegalStateException {
         @Override
         public Throwable fillInStackTrace() {
             return null;
         }
     }
 
-    static class NodeDoesNotExistOnMasterException extends ElasticSearchIllegalStateException {
+    static class NodeDoesNotExistOnMasterException extends ElasticsearchIllegalStateException {
         @Override
         public Throwable fillInStackTrace() {
             return null;

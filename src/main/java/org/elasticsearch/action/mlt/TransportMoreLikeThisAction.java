@@ -22,8 +22,8 @@ package org.elasticsearch.action.mlt;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -136,7 +136,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 try {
                     final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
                     if (docMapper == null) {
-                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
+                        throw new ElasticsearchException("No DocumentMapper found for type [" + request.type() + "]");
                     }
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
@@ -173,7 +173,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
                     if (!boolBuilder.hasClauses()) {
                         // no field added, fail
-                        listener.onFailure(new ElasticSearchException("No fields found to fetch the 'likeText' from"));
+                        listener.onFailure(new ElasticsearchException("No fields found to fetch the 'likeText' from"));
                         return;
                     }
 
@@ -236,7 +236,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, concreteIndex, request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
-            throw new ElasticSearchException("No shards for index " + request.index());
+            throw new ElasticsearchException("No shards for index " + request.index());
         }
         String nodeId = shardRouting.currentNodeId();
         DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
@@ -299,7 +299,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         } else if (field.numericValue() != null) {
             return field.numericValue();
         } else {
-            throw new ElasticSearchIllegalStateException("Field should have either a string, numeric or binary value");
+            throw new ElasticsearchIllegalStateException("Field should have either a string, numeric or binary value");
         }
     }
 

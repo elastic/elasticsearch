@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 
-public class AlreadyExpiredException extends ElasticSearchException implements IgnoreOnRecoveryEngineException {
+public class AlreadyExpiredException extends ElasticsearchException implements IgnoreOnRecoveryEngineException {
     private String index;
     private String type;
     private String id;

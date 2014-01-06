@@ -142,4 +142,10 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         }
         return value;
     }
+
+    @Override
+    public Iterable<Map.Entry<String, String>> headers() {
+        return request.headers().entries();
+    }
+
 }

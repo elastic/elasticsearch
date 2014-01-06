@@ -12,8 +12,8 @@ to find relationships in the data is tedious.  Human eyes, especially
 when looking at an ssh terminal, need compact and aligned text.  The
 cat API aims to meet this need.
 
-All the cat commands accept a query string parameter `h` to see all
-the headers and info they provide, and the `/_cat?h` command lists all
+All the cat commands accept a query string parameter `help` to see all
+the headers and info they provide, and the `/_cat?help` command lists all
 the available commands.
 
 [float]
@@ -38,12 +38,12 @@ EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
 [[help]]
 === Help
 
-Each of the commands accepts a query string parameter `h` which will
+Each of the commands accepts a query string parameter `help` which will
 output its available columns.
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/master?h'
+% curl 'localhost:9200/_cat/master?help'
 id   | node id
 ip   | node transport ip address
 node | node name
@@ -53,12 +53,12 @@ node | node name
 [[headers]]
 === Headers
 
-Each of the commands accepts a query string parameter `h` which will
-output its available columns.
+Each of the commands accepts a query string parameter `h` which forces
+only those columns to appear.
 
 [source,shell]
 --------------------------------------------------
-% curl 'n1:9200/_cat/nodes?headers=ip,port,heapPercent,name'
+% curl 'n1:9200/_cat/nodes?h=ip,port,heapPercent,name'
 192.168.56.40 9300 40.3 Captain Universe
 192.168.56.20 9300 15.3 Kaluu
 192.168.56.50 9300 17.0 Yellowjacket

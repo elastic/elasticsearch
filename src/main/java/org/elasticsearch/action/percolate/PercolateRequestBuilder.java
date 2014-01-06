@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.util.Map;
 
@@ -107,10 +108,18 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Similar as {@link #setScore(boolean)}, but also sort by the score.
+     * Similar as {@link #setScore(boolean)}, but whether to sort by the score descending.
      */
-    public PercolateRequestBuilder setSort(boolean sort) {
+    public PercolateRequestBuilder setSortByScore(boolean sort) {
         sourceBuilder().setSort(sort);
+        return this;
+    }
+
+    /**
+     * Adds
+     */
+    public PercolateRequestBuilder addSort(SortBuilder sort) {
+        sourceBuilder().addSort(sort);
         return this;
     }
 

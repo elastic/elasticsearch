@@ -42,7 +42,9 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -1181,7 +1183,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < runs; i++) {
             int size = randomIntBetween(1, 10);
             PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                    .setSort(true)
+                    .setSortByScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
@@ -1205,7 +1207,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             NavigableSet<Integer> levels = controlMap.get(value);
             int size = randomIntBetween(1, levels.size());
             PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                    .setSort(true)
+                    .setSortByScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
                     .setPercolateQuery(QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction("doc['level'].value")))
@@ -1237,7 +1239,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         refresh();
 
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSort(true)
+                .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
@@ -1249,7 +1251,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.getMatches()[1].getScore(), equalTo(1f));
 
         response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSort(true)
+                .setSortByScore(true)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
@@ -1263,12 +1265,37 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testPercolateSorting_unsupportedField() throws Exception {
+        client().admin().indices().prepareCreate("my-index").execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
+                .execute().actionGet();
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
+                .execute().actionGet();
+        refresh();
+
+        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                .setSize(2)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
+                .addSort(SortBuilders.fieldSort("level"))
+                .get();
+
+        assertThat(response.getShardFailures().length, equalTo(5));
+        assertThat(response.getShardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(response.getShardFailures()[0].reason(), containsString("Only _score desc is supported"));
+    }
+
+    @Test
     public void testPercolateOnEmptyIndex() throws Exception {
         client().admin().indices().prepareCreate("my-index").execute().actionGet();
         ensureGreen();
 
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSort(true)
+                .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
@@ -1288,7 +1315,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
-                .setSort(true)
+                .setSortByScore(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
@@ -1449,7 +1476,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
                 .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
-                .setSort(true)
+                .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);
         assertThat(response.getMatches(), arrayWithSize(5));

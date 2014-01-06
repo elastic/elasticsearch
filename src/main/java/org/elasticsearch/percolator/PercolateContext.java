@@ -84,7 +84,7 @@ public class PercolateContext extends SearchContext {
 
     public boolean limit;
     public int size;
-    public boolean sort;
+    public boolean doSort;
     public byte percolatorTypeId;
     private boolean trackScores;
 
@@ -112,6 +112,7 @@ public class PercolateContext extends SearchContext {
     private SearchContextFacets facets;
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
+    private Sort sort;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         this.request = request;
@@ -518,12 +519,13 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContext sort(Sort sort) {
-        throw new UnsupportedOperationException();
+        this.sort = sort;
+        return this;
     }
 
     @Override
     public Sort sort() {
-        throw new UnsupportedOperationException();
+        return sort;
     }
 
     @Override

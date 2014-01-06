@@ -21,23 +21,49 @@ package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.azure.AzureDiscovery;
 
 /**
+ * Azure Module
  *
+ * <ul>
+ * <li>If needed this module will bind azure discovery service by default
+ * to AzureComputeServiceImpl.</li>
+ * </ul>
+ *
+ * @see org.elasticsearch.cloud.azure.AzureComputeServiceImpl
  */
 public class AzureModule extends AbstractModule {
+    protected final ESLogger logger;
     private Settings settings;
 
     @Inject
     public AzureModule(Settings settings) {
         this.settings = settings;
+        this.logger = Loggers.getLogger(getClass(), settings);
     }
 
     @Override
     protected void configure() {
+        logger.debug("starting azure services");
+
+        // If we have set discovery to azure, let's start the azure compute service
+        if (isDiscoveryReady(settings)) {
+            logger.debug("starting azure discovery service");
         bind(AzureComputeService.class)
                 .to(settings.getAsClass("cloud.azure.api.impl", AzureComputeServiceImpl.class))
                 .asEagerSingleton();
+        }
+    }
+
+    /**
+     * Check if discovery is meant to start
+     * @return true if we can start discovery features
+     */
+    public static boolean isDiscoveryReady(Settings settings) {
+        return (AzureDiscovery.AZURE.equalsIgnoreCase(settings.get("discovery.type")));
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.azure.test;
+package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +34,6 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
     @Inject
     protected AzureComputeServiceTwoNodesMock(Settings settings) {
         super(settings);
-        logger.debug("starting Azure Mock");
     }
 
     @Override

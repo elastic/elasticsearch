@@ -41,6 +41,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public class AzureDiscovery extends ZenDiscovery {
 
+    public static final String AZURE = "azure";
+
     @Inject
     public AzureDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                           ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.azure.test;
+package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AzureComputeServiceImpl;
 import org.elasticsearch.cloud.azure.Instance;

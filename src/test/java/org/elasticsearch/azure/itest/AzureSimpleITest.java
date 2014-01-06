@@ -18,20 +18,40 @@
  */
 package org.elasticsearch.azure.itest;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.node.NodeBuilder;
-import org.junit.Ignore;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
-public class AzureSimpleITest {
+/**
+ * This test needs Azure to run and -Dtests.azure=true to be set
+ * and -Des.config=/path/to/elasticsearch.yml
+ * @see org.elasticsearch.cloud.azure.AbstractAzureTest
+ */
+@AbstractAzureTest.AzureTest
+@ElasticsearchIntegrationTest.ClusterScope(
+        scope = ElasticsearchIntegrationTest.Scope.TEST,
+        numNodes = 1,
+        transportClientRatio = 0.0)
+public class AzureSimpleITest extends AbstractAzureTest {
 
-    @Test @Ignore
+    @Test
     public void one_node_should_run() {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
-                //.put("gateway.type", "local")
-                .put("path.data", "./target/es/data")
-                .put("path.logs", "./target/es/logs")
-                .put("path.work", "./target/es/work");
-        NodeBuilder.nodeBuilder().settings(builder).node();
+        // Do nothing... Just start :-)
+        // but let's check that we have at least 1 node (local node)
+        ClusterStateResponse clusterState = client().admin().cluster().prepareState().execute().actionGet();
+
+        assertThat(clusterState.getState().getNodes().getSize(), Matchers.greaterThanOrEqualTo(1));
+    }
+
+    @Override
+    public Settings indexSettings() {
+        // During restore we frequently restore index to exactly the same state it was before, that might cause the same
+        // checksum file to be written twice during restore operation
+        return ImmutableSettings.builder().put(super.indexSettings())
+                .build();
     }
 }

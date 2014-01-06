@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.azure.test;
+package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cloud.azure.AzureComputeService;
@@ -32,6 +32,7 @@ public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleC
 
     protected AzureComputeServiceAbstractMock(Settings settings) {
         super(settings);
+        logger.debug("starting Azure Mock [{}]", this.getClass().getSimpleName());
     }
 
     @Override

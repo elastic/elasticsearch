@@ -16,11 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.azure.test;
+package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-public class AzureSimpleTest extends AzureAbstractTest {
+@ElasticsearchIntegrationTest.ClusterScope(
+        scope = ElasticsearchIntegrationTest.Scope.TEST,
+        numNodes = 1,
+        transportClientRatio = 0.0)
+public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     public AzureSimpleTest() {
         super(AzureComputeServiceSimpleMock.class);
@@ -28,10 +33,9 @@ public class AzureSimpleTest extends AzureAbstractTest {
 
     @Test
     public void one_node_should_run() {
-        // Then we start our node for tests
-        nodeBuilder();
-
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(1);
+
+
     }
 }

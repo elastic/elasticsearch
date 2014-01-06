@@ -16,11 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.azure.test;
+package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-public class AzureTwoStartedNodesTest extends AzureAbstractTest {
+@ElasticsearchIntegrationTest.ClusterScope(
+        scope = ElasticsearchIntegrationTest.Scope.TEST,
+        numNodes = 2,
+        transportClientRatio = 0.0)
+public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureTwoStartedNodesTest() {
         super(AzureComputeServiceTwoNodesMock.class);
@@ -28,11 +33,7 @@ public class AzureTwoStartedNodesTest extends AzureAbstractTest {
 
     @Test
     public void two_nodes_should_run() {
-        // Then we start our node for tests
-        nodeBuilder();
-        nodeBuilder();
-
         // We expect having 2 nodes as part of the cluster, let's test that
-        checkNumberOfNodes(2, false);
+        checkNumberOfNodes(2);
     }
 }

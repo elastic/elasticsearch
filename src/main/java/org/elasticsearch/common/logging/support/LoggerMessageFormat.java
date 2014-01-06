@@ -49,7 +49,7 @@ public class LoggerMessageFormat {
         }
         int i = 0;
         int j;
-        StringBuffer sbuf = new StringBuffer(messagePattern.length() + 50);
+        final StringBuilder sbuf = new StringBuilder(messagePattern.length() + 50);
         if (prefix != null) {
             sbuf.append(prefix);
         }
@@ -117,7 +117,7 @@ public class LoggerMessageFormat {
         }
     }
 
-    private static void deeplyAppendParameter(StringBuffer sbuf, Object o, Map seenMap) {
+    private static void deeplyAppendParameter(StringBuilder sbuf, Object o, Map seenMap) {
         if (o == null) {
             sbuf.append("null");
             return;
@@ -149,7 +149,7 @@ public class LoggerMessageFormat {
         }
     }
 
-    private static void safeObjectAppend(StringBuffer sbuf, Object o) {
+    private static void safeObjectAppend(StringBuilder sbuf, Object o) {
         try {
             String oAsString = o.toString();
             sbuf.append(oAsString);
@@ -159,7 +159,7 @@ public class LoggerMessageFormat {
 
     }
 
-    private static void objectArrayAppend(StringBuffer sbuf, Object[] a, Map seenMap) {
+    private static void objectArrayAppend(StringBuilder sbuf, Object[] a, Map seenMap) {
         sbuf.append('[');
         if (!seenMap.containsKey(a)) {
             seenMap.put(a, null);
@@ -177,7 +177,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void booleanArrayAppend(StringBuffer sbuf, boolean[] a) {
+    private static void booleanArrayAppend(StringBuilder sbuf, boolean[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -188,7 +188,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void byteArrayAppend(StringBuffer sbuf, byte[] a) {
+    private static void byteArrayAppend(StringBuilder sbuf, byte[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -199,7 +199,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void charArrayAppend(StringBuffer sbuf, char[] a) {
+    private static void charArrayAppend(StringBuilder sbuf, char[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -210,7 +210,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void shortArrayAppend(StringBuffer sbuf, short[] a) {
+    private static void shortArrayAppend(StringBuilder sbuf, short[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -221,7 +221,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void intArrayAppend(StringBuffer sbuf, int[] a) {
+    private static void intArrayAppend(StringBuilder sbuf, int[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -232,7 +232,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void longArrayAppend(StringBuffer sbuf, long[] a) {
+    private static void longArrayAppend(StringBuilder sbuf, long[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -243,7 +243,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void floatArrayAppend(StringBuffer sbuf, float[] a) {
+    private static void floatArrayAppend(StringBuilder sbuf, float[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {
@@ -254,7 +254,7 @@ public class LoggerMessageFormat {
         sbuf.append(']');
     }
 
-    private static void doubleArrayAppend(StringBuffer sbuf, double[] a) {
+    private static void doubleArrayAppend(StringBuilder sbuf, double[] a) {
         sbuf.append('[');
         final int len = a.length;
         for (int i = 0; i < len; i++) {

@@ -3,62 +3,12 @@
     "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-info/",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/nodes",
-      "paths": ["/_cluster/nodes", "/_cluster/nodes/{node_id}", "/_nodes", "/_nodes/{node_id}", "/_nodes/settings", "/_nodes/{node_id}/settings", "/_nodes/os", "/_nodes/{node_id}/os", "/_nodes/process", "/_nodes/{node_id}/process", "/_nodes/jvm", "/_nodes/{node_id}/jvm", "/_nodes/thread_pool", "/_nodes/{node_id}/thread_pool", "/_nodes/network", "/_nodes/{node_id}/network", "/_nodes/transport", "/_nodes/{node_id}/transport", "/_nodes/http", "/_nodes/{node_id}/http", "/_nodes/plugin", "/_nodes/{node_id}/plugin"],
+      "path": "/_nodes",
+      "paths": ["/_nodes", "/_nodes/{node_id}", "/_nodes/settings", "/_nodes/{node_id}/settings", "/_nodes/os", "/_nodes/{node_id}/os", "/_nodes/process", "/_nodes/{node_id}/process", "/_nodes/jvm", "/_nodes/{node_id}/jvm", "/_nodes/thread_pool", "/_nodes/{node_id}/thread_pool", "/_nodes/network", "/_nodes/{node_id}/network", "/_nodes/transport", "/_nodes/{node_id}/transport", "/_nodes/http", "/_nodes/{node_id}/http", "/_nodes/plugin", "/_nodes/{node_id}/plugin"],
       "parts": {
         "node_id": {
           "type" : "list",
           "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
-        }
-      },
-      "params": {
-        "all": {
-          "type" : "boolean",
-          "description" : "Return all available information"
-        },
-        "clear": {
-          "type" : "boolean",
-          "description" : "Reset the default settings"
-        },
-        "http": {
-          "type" : "boolean",
-          "description" : "Return information about HTTP"
-        },
-        "jvm": {
-          "type" : "boolean",
-          "description" : "Return information about the JVM"
-        },
-        "network": {
-          "type" : "boolean",
-          "description" : "Return information about network"
-        },
-        "os": {
-          "type" : "boolean",
-          "description" : "Return information about the operating system"
-        },
-        "plugin": {
-          "type" : "boolean",
-          "description" : "Return information about plugins"
-        },
-        "process": {
-          "type" : "boolean",
-          "description" : "Return information about the Elasticsearch process"
-        },
-        "settings": {
-          "type" : "boolean",
-          "description" : "Return information about node settings"
-        },
-        "thread_pool": {
-          "type" : "boolean",
-          "description" : "Return information about the thread pool"
-        },
-        "timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout"
-        },
-        "transport": {
-          "type" : "boolean",
-          "description" : "Return information about transport"
         }
       }
     },

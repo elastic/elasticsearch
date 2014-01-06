@@ -30,15 +30,15 @@ import java.io.IOException;
  */
 public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
 
-    private boolean settings = false;
-    private boolean os = false;
-    private boolean process = false;
-    private boolean jvm = false;
-    private boolean threadPool = false;
-    private boolean network = false;
-    private boolean transport = false;
-    private boolean http = false;
-    private boolean plugin = false;
+    private boolean settings = true;
+    private boolean os = true;
+    private boolean process = true;
+    private boolean jvm = true;
+    private boolean threadPool = true;
+    private boolean network = true;
+    private boolean transport = true;
+    private boolean http = true;
+    private boolean plugin = true;
 
     public NodesInfoRequest() {
     }

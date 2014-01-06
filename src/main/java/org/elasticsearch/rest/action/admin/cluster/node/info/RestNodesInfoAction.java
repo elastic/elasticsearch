@@ -32,6 +32,9 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 /**
@@ -45,70 +48,48 @@ public class RestNodesInfoAction extends BaseRestHandler {
     public RestNodesInfoAction(Settings settings, Client client, RestController controller,
                                SettingsFilter settingsFilter) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}", this);
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/settings", new RestSettingsHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/settings", new RestSettingsHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/os", new RestOsHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/os", new RestOsHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/process", new RestProcessHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/process", new RestProcessHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/jvm", new RestJvmHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/jvm", new RestJvmHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/thread_pool", new RestThreadPoolHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/thread_pool", new RestThreadPoolHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/network", new RestNetworkHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/network", new RestNetworkHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/transport", new RestTransportHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/transport", new RestTransportHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/http", new RestHttpHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http", new RestHttpHandler());
-
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/plugin", new RestPluginHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/plugin", new RestPluginHandler());
+        controller.registerHandler(GET, "/_nodes", this);
+        // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
+        controller.registerHandler(GET, "/_nodes/{nodeId}", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
+        // added this endpoint to be aligned with stats
+        controller.registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
 
         this.settingsFilter = settingsFilter;
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodesIds);
-
-        boolean clear = request.paramAsBoolean("clear", false);
-        if (clear) {
-            nodesInfoRequest.clear();
+        String[] nodeIds;
+        Set<String> metrics;
+        // special case like /_nodes/fs (in this case fs are metrics and not the nodeId)
+        if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
+            nodeIds = new String[] { "_all" };
+            metrics = Strings.splitStringByCommaToSet(request.param("nodeId", "_all"));
+        } else {
+            nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId", "_all"));
+            metrics = Strings.splitStringByCommaToSet(request.param("metrics", "_all"));
         }
-        boolean all = request.paramAsBoolean("all", false);
-        if (all) {
-            nodesInfoRequest.all();
-        }
-        nodesInfoRequest.settings(request.paramAsBoolean("settings", nodesInfoRequest.settings()));
-        nodesInfoRequest.os(request.paramAsBoolean("os", nodesInfoRequest.os()));
-        nodesInfoRequest.process(request.paramAsBoolean("process", nodesInfoRequest.process()));
-        nodesInfoRequest.jvm(request.paramAsBoolean("jvm", nodesInfoRequest.jvm()));
-        nodesInfoRequest.threadPool(request.paramAsBoolean("thread_pool", nodesInfoRequest.threadPool()));
-        nodesInfoRequest.network(request.paramAsBoolean("network", nodesInfoRequest.network()));
-        nodesInfoRequest.transport(request.paramAsBoolean("transport", nodesInfoRequest.transport()));
-        nodesInfoRequest.http(request.paramAsBoolean("http", nodesInfoRequest.http()));
-        nodesInfoRequest.plugin(request.paramAsBoolean("plugin", nodesInfoRequest.plugin()));
-        nodesInfoRequest.timeout( request.paramAsTime("timeout", nodesInfoRequest.timeout()));
 
-        executeNodeRequest(request, channel, nodesInfoRequest);
-    }
-
-    void executeNodeRequest(final RestRequest request, final RestChannel channel, NodesInfoRequest nodesInfoRequest) {
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
         nodesInfoRequest.listenerThreaded(false);
+
+        // shortcut, dont do checks if only all is specified
+        if (metrics.size() == 1 && metrics.contains("_all")) {
+            nodesInfoRequest.all();
+        } else {
+            nodesInfoRequest.clear();
+            nodesInfoRequest.settings(metrics.contains("settings"));
+            nodesInfoRequest.os(metrics.contains("os"));
+            nodesInfoRequest.process(metrics.contains("process"));
+            nodesInfoRequest.jvm(metrics.contains("jvm"));
+            nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
+            nodesInfoRequest.network(metrics.contains("network"));
+            nodesInfoRequest.transport(metrics.contains("transport"));
+            nodesInfoRequest.http(metrics.contains("http"));
+            nodesInfoRequest.plugin(metrics.contains("plugin"));
+        }
+
         client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override
             public void onResponse(NodesInfoResponse response) {
@@ -133,86 +114,5 @@ public class RestNodesInfoAction extends BaseRestHandler {
                 }
             }
         });
-    }
-
-    class RestSettingsHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().settings(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestOsHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().os(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestProcessHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().process(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestJvmHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().jvm(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestThreadPoolHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().threadPool(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestNetworkHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().network(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestTransportHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().transport(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestHttpHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().http(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
-    }
-
-    class RestPluginHandler implements RestHandler {
-        @Override
-        public void handleRequest(final RestRequest request, final RestChannel channel) {
-            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
-            nodesInfoRequest.clear().plugin(true);
-            executeNodeRequest(request, channel, nodesInfoRequest);
-        }
     }
 }

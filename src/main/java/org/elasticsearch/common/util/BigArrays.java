@@ -171,6 +171,13 @@ public class BigArrays extends AbstractComponent {
             return array[(int) index] += inc;
         }
 
+        @Override
+        public void fill(long fromIndex, long toIndex, int value) {
+            assert indexIsInt(fromIndex);
+            assert indexIsInt(toIndex);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
     }
 
     private static class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {

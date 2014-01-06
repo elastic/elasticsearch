@@ -50,7 +50,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null || indices.length == 0) {
+        if (indices == null) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;

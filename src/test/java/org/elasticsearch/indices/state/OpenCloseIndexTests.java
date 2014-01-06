@@ -177,22 +177,25 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void testCloseNoIndex() {
+    @Test
+    public void testCloseOpenNoIndex() {
         Client client = client();
-        client.admin().indices().prepareClose().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose().execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsClosed("test1", "test2", "test3");
+
+        OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen().execute().actionGet();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsOpened("test1", "test2", "test3");
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void testCloseNullIndex() {
         Client client = client();
         client.admin().indices().prepareClose(null).execute().actionGet();
-    }
-
-    @Test(expected = ActionRequestValidationException.class)
-    public void testOpenNoIndex() {
-        Client client = client();
-        client.admin().indices().prepareOpen().execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)

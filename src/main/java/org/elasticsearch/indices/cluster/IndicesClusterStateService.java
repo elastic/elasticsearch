@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -130,17 +130,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         clusterService.addFirst(this);
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         clusterService.remove(this);
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override
@@ -485,7 +485,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         indexAliasesService.addAll(newAliases);
     }
 
-    private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticSearchException {
+    private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticsearchException {
         if (!indicesService.changesAllowed()) {
             return;
         }
@@ -590,7 +590,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexMetaData indexMetaData, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticSearchException {
+    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexMetaData indexMetaData, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticsearchException {
         final IndexService indexService = indicesService.indexService(shardRouting.index());
         if (indexService == null) {
             // got deleted on us, ignore

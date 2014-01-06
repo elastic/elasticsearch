@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -162,7 +162,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
-                            throw new ElasticSearchIllegalArgumentException("malformed " + s);
+                            throw new ElasticsearchIllegalArgumentException("malformed " + s);
                         }
                         builder.field(s2[0], s2[1]);
                     }
@@ -182,7 +182,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
-                        throw new ElasticSearchIllegalArgumentException("malformed " + s);
+                        throw new ElasticsearchIllegalArgumentException("malformed " + s);
                     }
                     builder.field(s2[0], s2[1]);
                 }
@@ -195,7 +195,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
             builder.endObject();
             return builder;
         } catch (Exception e) {
-            throw new ElasticSearchIllegalArgumentException("failed to generate simplified mapping definition", e);
+            throw new ElasticsearchIllegalArgumentException("failed to generate simplified mapping definition", e);
         }
     }
 
@@ -206,7 +206,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
         try {
             return source(mappingBuilder.string());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
     }
 
@@ -220,7 +220,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
             builder.map(mappingSource);
             return source(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
     }
 

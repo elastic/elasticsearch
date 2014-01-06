@@ -21,7 +21,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
                 }
             }
         } catch (IOException e) {
-            throw new ElasticSearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
+            throw new ElasticsearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
         }
 
     }
@@ -162,7 +162,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
             }
             iterator.nextDoc();
         } catch (IOException e) {
-            throw new ElasticSearchException("While trying to initialize term positions in IndexFieldTerm.setNextDoc() ", e);
+            throw new ElasticsearchException("While trying to initialize term positions in IndexFieldTerm.setNextDoc() ", e);
         }
     }
 
@@ -190,7 +190,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
             termStats = indexLookup.getIndexSearcher().termStatistics(identifier,
                     TermContext.build(indexLookup.getReaderContext(), identifier));
         } catch (IOException e) {
-            throw new ElasticSearchException("Cannot get term statistics: ", e);
+            throw new ElasticsearchException("Cannot get term statistics: ", e);
         }
     }
 
@@ -227,7 +227,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
      */
     public void validateFlags(int flags2) {
         if ((this.flags & flags2) < flags2) {
-            throw new ElasticSearchException("You must call get with all required flags! Instead of " + getCalledStatement(flags2)
+            throw new ElasticsearchException("You must call get with all required flags! Instead of " + getCalledStatement(flags2)
                     + "call " + getCallStatement(flags2 | this.flags) + " once");
         }
     }

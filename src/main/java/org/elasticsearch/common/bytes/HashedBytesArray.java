@@ -21,7 +21,7 @@ package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -59,7 +59,7 @@ public class HashedBytesArray implements BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > bytes.length) {
-            throw new ElasticSearchIllegalArgumentException("can't slice a buffer with length [" + bytes.length + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new ElasticsearchIllegalArgumentException("can't slice a buffer with length [" + bytes.length + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
         return new BytesArray(bytes, from, length);
     }

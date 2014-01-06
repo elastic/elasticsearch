@@ -29,7 +29,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -251,7 +251,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             RecyclerUtils.release(uidToScore, uidToCount);
             return true;
         }

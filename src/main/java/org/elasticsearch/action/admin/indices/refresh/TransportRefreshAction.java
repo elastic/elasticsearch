@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -110,7 +110,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticSearchException {
+    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         indexShard.refresh(new Engine.Refresh("api").force(request.force()));
         logger.trace("{} refresh request executed, force: [{}]", indexShard.shardId(), request.force());

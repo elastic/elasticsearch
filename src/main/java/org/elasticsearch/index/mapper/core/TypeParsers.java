@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -157,7 +157,7 @@ public class TypeParsers {
         } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_ONLY;
         } else {
-            throw new ElasticSearchParseException("Failed to parse index option [" + value + "]");
+            throw new ElasticsearchParseException("Failed to parse index option [" + value + "]");
         }
     }
 

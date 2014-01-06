@@ -24,7 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -287,16 +287,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @param node id of the node to discover
      * @return discovered node matching the given id
-     * @throws ElasticSearchIllegalArgumentException
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
      *          if more than one node matches the request or no nodes have been resolved
      */
     public DiscoveryNode resolveNode(String node) {
         String[] resolvedNodeIds = resolveNodesIds(node);
         if (resolvedNodeIds.length > 1) {
-            throw new ElasticSearchIllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
+            throw new ElasticsearchIllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
         }
         if (resolvedNodeIds.length == 0) {
-            throw new ElasticSearchIllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
+            throw new ElasticsearchIllegalArgumentException("failed to resolve [" + node + " ], no matching nodes");
         }
         return nodes.get(resolvedNodeIds[0]);
     }

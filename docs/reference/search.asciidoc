@@ -21,7 +21,7 @@ when indexing tweets, the routing value can be the user name:
 $ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }
 '
 --------------------------------------------------

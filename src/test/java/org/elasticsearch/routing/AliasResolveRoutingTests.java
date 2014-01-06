@@ -19,7 +19,7 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -65,14 +65,14 @@ public class AliasResolveRoutingTests extends ElasticsearchIntegrationTest {
         try {
             clusterService().state().metaData().resolveIndexRouting("1", "alias10");
             assert false : "should fail";
-        } catch (ElasticSearchIllegalArgumentException e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
             clusterService().state().metaData().resolveIndexRouting(null, "alias0");
             assert false : "should fail";
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
             // Expected
         }
     }

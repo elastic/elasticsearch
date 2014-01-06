@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -41,7 +41,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
     void setNodesProvider(DiscoveryNodesProvider nodesProvider);
 
-    void ping(PingListener listener, TimeValue timeout) throws ElasticSearchException;
+    void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException;
 
     public interface PingListener {
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -52,7 +52,7 @@ public class TransportRequestOptions {
             } else if ("ping".equalsIgnoreCase(type)) {
                 return PING;
             } else {
-                throw new ElasticSearchIllegalArgumentException("failed to match transport type for [" + type + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to match transport type for [" + type + "]");
             }
         }
     }

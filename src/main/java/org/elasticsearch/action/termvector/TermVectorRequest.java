@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvector;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -364,7 +364,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                             fields.add(parser.text());
                         }
                     } else {
-                        throw new ElasticSearchParseException(
+                        throw new ElasticsearchParseException(
                                 "The parameter fields must be given as an array! Use syntax : \"fields\" : [\"field1\", \"field2\",...]");
                     }
                 } else if (currentFieldName.equals("offsets")) {
@@ -386,7 +386,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                     termVectorRequest.routing = parser.text();
                 } else {
-                    throw new ElasticSearchParseException("The parameter " + currentFieldName
+                    throw new ElasticsearchParseException("The parameter " + currentFieldName
                             + " is not valid for term vector request!");
                 }
             }

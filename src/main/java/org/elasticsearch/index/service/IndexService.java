@@ -20,7 +20,7 @@
 package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -66,12 +66,12 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     IndexStore store();
 
-    IndexShard createShard(int sShardId) throws ElasticSearchException;
+    IndexShard createShard(int sShardId) throws ElasticsearchException;
 
     /**
      * Removes the shard, does not delete local data or the gateway.
      */
-    void removeShard(int shardId, String reason) throws ElasticSearchException;
+    void removeShard(int shardId, String reason) throws ElasticsearchException;
 
     int numberOfShards();
 

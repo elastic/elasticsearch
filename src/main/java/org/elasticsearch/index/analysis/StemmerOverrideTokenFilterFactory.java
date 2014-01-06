@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter.StemmerOverrideMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -45,7 +45,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
 
         List<String> rules = Analysis.getWordList(env, settings, "rules");
         if (rules == null) {
-            throw new ElasticSearchIllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
+            throw new ElasticsearchIllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
         
         StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -181,7 +181,7 @@ public enum DistanceUnit {
      * 
      * @param unit name of the unit
      * @return unit matching the given name
-     * @throws ElasticSearchIllegalArgumentException if no unit matches the given name
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if no unit matches the given name
      */
     public static DistanceUnit fromString(String unit) {
         for (DistanceUnit dunit : values()) {
@@ -191,7 +191,7 @@ public enum DistanceUnit {
                 }
             }
         }
-        throw new ElasticSearchIllegalArgumentException("No distance unit match [" + unit + "]");
+        throw new ElasticsearchIllegalArgumentException("No distance unit match [" + unit + "]");
     }
 
     /**
@@ -229,13 +229,13 @@ public enum DistanceUnit {
      * @param in {@link StreamInput} to read the {@link DistanceUnit} from
      * @return {@link DistanceUnit} read from the {@link StreamInput}
      * @throws IOException if no unit can be read from the {@link StreamInput}
-     * @thrown ElasticSearchIllegalArgumentException if no matching {@link DistanceUnit} can be found
+     * @thrown ElasticsearchIllegalArgumentException if no matching {@link DistanceUnit} can be found
      */
     public static DistanceUnit readDistanceUnit(StreamInput in) throws IOException {
         byte b = in.readByte();
 
         if(b<0 || b>=values().length) {
-            throw new ElasticSearchIllegalArgumentException("No type for distance unit matching [" + b + "]");
+            throw new ElasticsearchIllegalArgumentException("No type for distance unit matching [" + b + "]");
         } else {
             return values()[b];
         }

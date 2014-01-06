@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support.numeric;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -38,7 +38,7 @@ public class ValueFormatterStreams {
             case ValueFormatter.IPv4Formatter.ID: return ValueFormatter.IPv4;
             case ValueFormatter.DateTime.ID: formatter = new ValueFormatter.DateTime(); break;
             case ValueFormatter.Number.Pattern.ID: formatter = new ValueFormatter.Number.Pattern(); break;
-            default: throw new ElasticSearchIllegalArgumentException("Unknown value formatter with id [" + id + "]");
+            default: throw new ElasticsearchIllegalArgumentException("Unknown value formatter with id [" + id + "]");
         }
         formatter.readFrom(in);
         return formatter;

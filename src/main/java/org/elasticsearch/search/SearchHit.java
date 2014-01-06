@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -124,7 +124,7 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     /**
      * The source of the document as a map (can be <tt>null</tt>).
      */
-    Map<String, Object> sourceAsMap() throws ElasticSearchParseException;
+    Map<String, Object> sourceAsMap() throws ElasticsearchParseException;
 
     /**
      * If enabled, the explanation of the search hit.

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,7 +76,7 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticsearchException {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
         logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         DiscoveryNodes nodes = clusterService.state().nodes();
@@ -93,7 +93,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticsearchException {
 
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
 

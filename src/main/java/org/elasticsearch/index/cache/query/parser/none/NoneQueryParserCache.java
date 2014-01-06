@@ -21,7 +21,7 @@ package org.elasticsearch.index.cache.query.parser.none;
 
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -53,6 +53,6 @@ public class NoneQueryParserCache extends AbstractIndexComponent implements Quer
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
     }
 }

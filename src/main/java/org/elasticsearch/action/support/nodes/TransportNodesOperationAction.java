@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
@@ -91,7 +91,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected abstract NodeResponse newNodeResponse();
 
-    protected abstract NodeResponse nodeOperation(NodeRequest request) throws ElasticSearchException;
+    protected abstract NodeResponse nodeOperation(NodeRequest request) throws ElasticsearchException;
 
     protected abstract boolean accumulateExceptions();
 

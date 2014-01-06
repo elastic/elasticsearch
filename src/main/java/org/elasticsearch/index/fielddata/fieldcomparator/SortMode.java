@@ -21,7 +21,7 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -342,13 +342,13 @@ public enum SortMode {
     /**
      * A case insensitive version of {@link #valueOf(String)}
      *
-     * @throws ElasticSearchIllegalArgumentException if the given string doesn't match a sort mode or is <code>null</code>.
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the given string doesn't match a sort mode or is <code>null</code>.
      */
     public static SortMode fromString(String sortMode) {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
         } catch (Throwable t) {
-            throw new ElasticSearchIllegalArgumentException("Illegal sort_mode " + sortMode);
+            throw new ElasticsearchIllegalArgumentException("Illegal sort_mode " + sortMode);
         }
     }
 

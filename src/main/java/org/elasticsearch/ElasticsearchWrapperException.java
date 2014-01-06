@@ -20,17 +20,9 @@
 package org.elasticsearch;
 
 /**
- * The same as {@link InterruptedException} simply a runtime one.
- *
  *
  */
-public class ElasticSearchInterruptedException extends ElasticSearchException {
+public interface ElasticsearchWrapperException {
 
-    public ElasticSearchInterruptedException(String message) {
-        super(message);
-    }
-
-    public ElasticSearchInterruptedException(String message, Throwable cause) {
-        super(message, cause);
-    }
+    Throwable getCause();
 }

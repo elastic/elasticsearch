@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -324,7 +324,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
             builder.map(source);
             settings(builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }
@@ -370,7 +370,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         try {
             return source(source.bytes());
         } catch (Exception e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to build json for repository request", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to build json for repository request", e);
         }
     }
 
@@ -394,7 +394,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed indices section, should be an array of strings");
+                    throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
                 assert entry.getValue() instanceof String;
@@ -410,28 +410,28 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 expandWildcardsClosed = Boolean.valueOf(entry.getValue().toString());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticSearchIllegalArgumentException("malformed settings section, should indices an inner object");
+                    throw new ElasticsearchIllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 if (!(entry.getValue() instanceof Boolean)) {
-                    throw new ElasticSearchIllegalArgumentException("malformed include_global_state, should be boolean");
+                    throw new ElasticsearchIllegalArgumentException("malformed include_global_state, should be boolean");
                 }
                 includeGlobalState((Boolean) entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed rename_pattern");
+                    throw new ElasticsearchIllegalArgumentException("malformed rename_pattern");
                 }
             } else if (name.equals("rename_replacement")) {
                 if (entry.getValue() instanceof String) {
                     renameReplacement((String) entry.getValue());
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed rename_replacement");
+                    throw new ElasticsearchIllegalArgumentException("malformed rename_replacement");
                 }
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unknown parameter " + name);
+                throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
         indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
@@ -451,7 +451,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
             try {
                 return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
             } catch (Exception e) {
-                throw new ElasticSearchIllegalArgumentException("failed to parse repository source [" + source + "]", e);
+                throw new ElasticsearchIllegalArgumentException("failed to parse repository source [" + source + "]", e);
             }
         }
         return this;
@@ -484,7 +484,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
             try {
                 return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
             } catch (IOException e) {
-                throw new ElasticSearchIllegalArgumentException("failed to parse repository source", e);
+                throw new ElasticsearchIllegalArgumentException("failed to parse repository source", e);
             }
         }
         return this;
@@ -502,7 +502,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         try {
             return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("failed to parse template source", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse template source", e);
         }
     }
 

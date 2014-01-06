@@ -24,8 +24,8 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -66,7 +66,7 @@ public abstract class TransportSearchHelper {
         } else if (searchType == SearchType.SCAN) {
             return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
-            throw new ElasticSearchIllegalStateException();
+            throw new ElasticsearchIllegalStateException();
         }
     }
 
@@ -97,7 +97,7 @@ public abstract class TransportSearchHelper {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
             UnicodeUtil.UTF8toUTF16(decode, 0, decode.length, spare);
         } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare, ';');
         int index = 0;
@@ -108,7 +108,7 @@ public abstract class TransportSearchHelper {
             String element = elements[index++];
             int sep = element.indexOf(':');
             if (sep == -1) {
-                throw new ElasticSearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+                throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
             }
             context[i] = new Tuple<String, Long>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }

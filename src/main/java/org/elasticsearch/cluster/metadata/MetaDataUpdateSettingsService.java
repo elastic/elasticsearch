@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
@@ -162,7 +162,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         // never allow to change the number of shards
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
             if (key.equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
-                listener.onFailure(new ElasticSearchIllegalArgumentException("can't change the number of shards for an index"));
+                listener.onFailure(new ElasticsearchIllegalArgumentException("can't change the number of shards for an index"));
                 return;
             }
         }
@@ -183,7 +183,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
 
         if (!errors.isEmpty()) {
-            listener.onFailure(new ElasticSearchIllegalArgumentException("can't process the settings: " + errors.toString()));
+            listener.onFailure(new ElasticsearchIllegalArgumentException("can't process the settings: " + errors.toString()));
             return;
         }
 
@@ -245,7 +245,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
                 if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
-                    throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT,
+                    throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings[%s] for open indices[%s]",
                             removedSettings,
                             openIndices

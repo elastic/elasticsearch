@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -221,7 +221,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
             Analyzer analyzerF = analyzerFactory.get();
             if (analyzerF == null) {
-                throw new ElasticSearchIllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
+                throw new ElasticsearchIllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
             }
             NamedAnalyzer analyzer;
             // if we got a named analyzer back, use it...
@@ -246,7 +246,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         defaultAnalyzer = analyzers.get("default");
         if (defaultAnalyzer == null) {
-            throw new ElasticSearchIllegalArgumentException("no default analyzer configured");
+            throw new ElasticsearchIllegalArgumentException("no default analyzer configured");
         }
         defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : analyzers.get("default");
         defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : analyzers.get("default");

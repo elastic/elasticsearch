@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,10 +52,10 @@ public class ByteSizeValue implements Serializable, Streamable {
         this.sizeUnit = sizeUnit;
     }
 
-    public int bytesAsInt() throws ElasticSearchIllegalArgumentException {
+    public int bytesAsInt() throws ElasticsearchIllegalArgumentException {
         long bytes = bytes();
         if (bytes > Integer.MAX_VALUE) {
-            throw new ElasticSearchIllegalArgumentException("size [" + toString() + "] is bigger than max int");
+            throw new ElasticsearchIllegalArgumentException("size [" + toString() + "] is bigger than max int");
         }
         return (int) bytes;
     }
@@ -134,11 +134,11 @@ public class ByteSizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue) throws ElasticSearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue) throws ElasticsearchParseException {
         return parseBytesSizeValue(sValue, null);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue) throws ElasticSearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue) throws ElasticsearchParseException {
         if (sValue == null) {
             return defaultValue;
         }
@@ -163,7 +163,7 @@ public class ByteSizeValue implements Serializable, Streamable {
                 bytes = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticSearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
         }
         return new ByteSizeValue(bytes, ByteSizeUnit.BYTES);
     }

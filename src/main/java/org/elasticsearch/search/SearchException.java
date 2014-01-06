@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class SearchException extends ElasticSearchException {
+public class SearchException extends ElasticsearchException {
 
     private final SearchShardTarget shardTarget;
 

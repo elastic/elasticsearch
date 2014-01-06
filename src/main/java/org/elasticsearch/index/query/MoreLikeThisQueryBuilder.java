@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -193,7 +193,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.endArray();
         }
         if (likeText == null) {
-            throw new ElasticSearchIllegalArgumentException("moreLikeThis requires 'likeText' to be provided");
+            throw new ElasticsearchIllegalArgumentException("moreLikeThis requires 'likeText' to be provided");
         }
         builder.field("like_text", likeText);
         if (percentTermsToMatch != -1) {

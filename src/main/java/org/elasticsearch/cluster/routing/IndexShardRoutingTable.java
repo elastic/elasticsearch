@@ -38,7 +38,7 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
- * Each ElasticSearch index consists of multiple shards, each shard encapsulates
+ * Each Elasticsearch index consists of multiple shards, each shard encapsulates
  * a disjoint set of the index data and each shard has one or more instances
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.

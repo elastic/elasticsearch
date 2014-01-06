@@ -25,8 +25,8 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
@@ -281,7 +281,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             RecyclerUtils.release(parentDocs);
             return true;
         }
@@ -316,7 +316,7 @@ public class TopChildrenQuery extends Query {
 
                     };
                 }
-                throw new ElasticSearchIllegalStateException("No support for score type [" + scoreType + "]");
+                throw new ElasticsearchIllegalStateException("No support for score type [" + scoreType + "]");
             }
             return new EmptyScorer(this);
         }

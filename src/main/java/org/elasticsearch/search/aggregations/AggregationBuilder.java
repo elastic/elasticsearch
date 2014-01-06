@@ -1,7 +1,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -75,7 +75,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
             builder.map(facets);
             return subAggregation(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + facets + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + facets + "]", e);
         }
     }
 

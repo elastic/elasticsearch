@@ -23,7 +23,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.inject.Inject;
@@ -75,7 +75,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 termVectorResponse.setExists(false);
             }
         } catch (Throwable ex) {
-            throw new ElasticSearchException("failed to execute term vector request", ex);
+            throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
             searcher.release();
         }

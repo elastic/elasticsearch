@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
 public class XContentThrowableRestResponse extends XContentRestResponse {
 
     public XContentThrowableRestResponse(RestRequest request, Throwable t) throws IOException {
-        this(request, ((t instanceof ElasticSearchException) ? ((ElasticSearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
+        this(request, ((t instanceof ElasticsearchException) ? ((ElasticsearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
     }
 
     public XContentThrowableRestResponse(RestRequest request, RestStatus status, Throwable t) throws IOException {

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import java.util.Locale;
 
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 /**
@@ -129,7 +129,7 @@ public enum RegexpFlag {
                 }
                 magic |= flag.value();
             } catch (IllegalArgumentException iae) {
-                throw new ElasticSearchIllegalArgumentException("Unknown regexp flag [" + s + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown regexp flag [" + s + "]");
             }
         }
         return magic;

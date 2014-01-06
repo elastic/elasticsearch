@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
 public interface CloseableComponent {
 
-    void close() throws ElasticSearchException;
+    void close() throws ElasticsearchException;
 }

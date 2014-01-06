@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.single.shard;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -78,7 +78,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected abstract String executor();
 
-    protected abstract Response shardOperation(Request request, int shardId) throws ElasticSearchException;
+    protected abstract Response shardOperation(Request request, int shardId) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 
@@ -92,7 +92,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         request.index(state.metaData().concreteIndex(request.index()));
     }
 
-    protected abstract ShardIterator shards(ClusterState state, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState state, Request request) throws ElasticsearchException;
 
     class AsyncSingleAction {
 

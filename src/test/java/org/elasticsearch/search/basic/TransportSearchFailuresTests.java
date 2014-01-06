@@ -20,7 +20,7 @@
 package org.elasticsearch.search.basic;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -70,7 +70,7 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
                 assert false : "search should fail";
-            } catch (ElasticSearchException e) {
+            } catch (ElasticsearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }
@@ -99,7 +99,7 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
                 assert false : "search should fail";
-            } catch (ElasticSearchException e) {
+            } catch (ElasticsearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -132,7 +132,7 @@ public interface Rounding extends Streamable {
                 case TimeZoneRounding.DayIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.DayIntervalTimeZoneRounding(); break;
                 case TimeZoneRounding.FactorTimeZoneRounding.ID: rounding = new TimeZoneRounding.FactorTimeZoneRounding(); break;
                 case TimeZoneRounding.PrePostTimeZoneRounding.ID: rounding = new TimeZoneRounding.PrePostTimeZoneRounding(); break;
-                default: throw new ElasticSearchException("unknown rounding id [" + id + "]");
+                default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
             rounding.readFrom(in);
             return rounding;

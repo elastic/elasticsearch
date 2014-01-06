@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.delete.index;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -137,6 +137,6 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
                 return shardIt;
             }
         }
-        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
+        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
     }
 }

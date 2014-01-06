@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -158,13 +158,13 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             try {
                 bytes = new BytesArray(Base64.decode(value.toString()));
             } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to convert bytes", e);
+                throw new ElasticsearchParseException("failed to convert bytes", e);
             }
         }
         try {
             return CompressorFactory.uncompressIfNeeded(bytes);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 

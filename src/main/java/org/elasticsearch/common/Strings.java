@@ -24,7 +24,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.BufferedReader;
@@ -1545,7 +1545,7 @@ public class Strings {
             // we always have padding of two at the end, encode it differently
             return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("should not be thrown");
+            throw new ElasticsearchIllegalStateException("should not be thrown");
         }
     }
 }

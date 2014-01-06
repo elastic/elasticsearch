@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -73,7 +73,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticsearchException {
         indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
             @Override
             public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {

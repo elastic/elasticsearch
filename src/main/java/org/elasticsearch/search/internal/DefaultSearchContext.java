@@ -24,7 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -195,7 +195,7 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticSearchException {
+    public boolean release() throws ElasticsearchException {
         if (scanContext != null) {
             scanContext.clear();
         }

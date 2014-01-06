@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -49,7 +49,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         InitialStateDiscoveryListener listener = new InitialStateDiscoveryListener() {
             @Override
@@ -79,12 +79,12 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         discovery.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         discovery.close();
     }
 

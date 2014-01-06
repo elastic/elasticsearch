@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  *
  *
  */
-public class NodeClosedException extends ElasticSearchException {
+public class NodeClosedException extends ElasticsearchException {
 
     public NodeClosedException(DiscoveryNode node) {
         super("node closed " + node);

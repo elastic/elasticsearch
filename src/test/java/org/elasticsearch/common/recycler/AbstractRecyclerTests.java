@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.Arrays;
@@ -78,7 +78,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         v1.release();
         try {
             v1.release();
-        } catch (ElasticSearchIllegalStateException e) {
+        } catch (ElasticsearchIllegalStateException e) {
             // impl has protection against double release: ok
             return;
         }

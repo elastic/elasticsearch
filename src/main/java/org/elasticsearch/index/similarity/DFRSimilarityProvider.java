@@ -21,7 +21,7 @@ package org.elasticsearch.index.similarity;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.similarities.*;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -82,7 +82,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         String basicModel = settings.get("basic_model");
         BasicModel model = MODEL_CACHE.get(basicModel);
         if (model == null) {
-            throw new ElasticSearchIllegalArgumentException("Unsupported BasicModel [" + basicModel + "]");
+            throw new ElasticsearchIllegalArgumentException("Unsupported BasicModel [" + basicModel + "]");
         }
         return model;
     }
@@ -97,7 +97,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         String afterEffect = settings.get("after_effect");
         AfterEffect effect = EFFECT_CACHE.get(afterEffect);
         if (effect == null) {
-            throw new ElasticSearchIllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "]");
+            throw new ElasticsearchIllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "]");
         }
         return effect;
     }

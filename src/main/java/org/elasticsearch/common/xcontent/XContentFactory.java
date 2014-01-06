@@ -20,8 +20,8 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -93,7 +93,7 @@ public class XContentFactory {
         } else if (type == XContentType.YAML) {
             return yamlBuilder(outputStream);
         }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
+        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
 
     /**
@@ -107,7 +107,7 @@ public class XContentFactory {
         } else if (type == XContentType.YAML) {
             return YamlXContent.contentBuilder();
         }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
+        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
 
     /**
@@ -152,7 +152,7 @@ public class XContentFactory {
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from " + content);
+            throw new ElasticsearchParseException("Failed to derive xcontent from " + content);
         }
         return xContent(type);
     }
@@ -170,7 +170,7 @@ public class XContentFactory {
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
+            throw new ElasticsearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
         }
         return xContent(type);
     }
@@ -231,7 +231,7 @@ public class XContentFactory {
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from " + bytes);
+            throw new ElasticsearchParseException("Failed to derive xcontent from " + bytes);
         }
         return xContent(type);
     }

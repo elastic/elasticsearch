@@ -24,7 +24,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -116,7 +116,7 @@ public class RecoverySource extends AbstractComponent {
         final RecoveryResponse response = new RecoveryResponse();
         shard.recover(new Engine.RecoveryHandler() {
             @Override
-            public void phase1(final SnapshotIndexCommit snapshot) throws ElasticSearchException {
+            public void phase1(final SnapshotIndexCommit snapshot) throws ElasticsearchException {
                 long totalSize = 0;
                 long existingTotalSize = 0;
                 try {
@@ -233,7 +233,7 @@ public class RecoverySource extends AbstractComponent {
             }
 
             @Override
-            public void phase2(Translog.Snapshot snapshot) throws ElasticSearchException {
+            public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
@@ -254,7 +254,7 @@ public class RecoverySource extends AbstractComponent {
             }
 
             @Override
-            public void phase3(Translog.Snapshot snapshot) throws ElasticSearchException {
+            public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
@@ -278,7 +278,7 @@ public class RecoverySource extends AbstractComponent {
                 response.phase3Operations = totalOperations;
             }
 
-            private int sendSnapshot(Translog.Snapshot snapshot) throws ElasticSearchException {
+            private int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
                 int ops = 0;
                 long size = 0;
                 int totalOperations = 0;

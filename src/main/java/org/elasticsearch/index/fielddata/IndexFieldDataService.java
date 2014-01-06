@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -215,7 +215,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         builder = buildersByType.get(type.getType());
                     }
                     if (builder == null) {
-                        throw new ElasticSearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
+                        throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
                     }
 
                     IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
@@ -230,7 +230,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         } else if ("node".equals(cacheType)) {
                             cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
+                            throw new ElasticsearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                         }
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }

@@ -4,7 +4,7 @@
 [float]
 === Environment Variables
 
-Within the scripts, ElasticSearch comes with built in `JAVA_OPTS` passed
+Within the scripts, Elasticsearch comes with built in `JAVA_OPTS` passed
 to the JVM started. The most important setting for that is the `-Xmx` to
 control the maximum allowed memory for the process, and `-Xms` to
 control the minimum allocated memory for the process (_in general, the
@@ -74,9 +74,9 @@ memory is available on the machine).
 
 *elasticsearch* configuration files can be found under `ES_HOME/config`
 folder. The folder comes with two files, the `elasticsearch.yml` for
-configuring ElasticSearch different
+configuring Elasticsearch different
 <<modules,modules>>, and `logging.yml` for
-configuring the ElasticSearch logging.
+configuring the Elasticsearch logging.
 
 The configuration format is http://www.yaml.org/[YAML]. Here is an
 example of changing the address all network based modules will use to
@@ -121,7 +121,7 @@ cluster:
 ==== Node name
 
 You may also want to change the default node name for each node to
-something like the display hostname. By default ElasticSearch will
+something like the display hostname. By default Elasticsearch will
 randomly pick a Marvel character name from a list of around 3000 names
 when your node starts up.
 
@@ -231,7 +231,7 @@ All of the index level configuration can be found within each
 [[logging]]
 === Logging
 
-ElasticSearch uses an internal logging abstraction and comes, out of the
+Elasticsearch uses an internal logging abstraction and comes, out of the
 box, with http://logging.apache.org/log4j/[log4j]. It tries to simplify
 log4j configuration by using http://www.yaml.org/[YAML] to configure it,
 and the logging configuration file is `config/logging.yml` file.

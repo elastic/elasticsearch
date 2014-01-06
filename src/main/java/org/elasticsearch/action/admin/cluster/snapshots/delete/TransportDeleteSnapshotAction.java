@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -72,7 +72,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) throws ElasticsearchException {
         SnapshotId snapshotIds = new SnapshotId(request.repository(), request.snapshot());
         snapshotsService.deleteSnapshot(snapshotIds, new SnapshotsService.DeleteSnapshotListener() {
             @Override

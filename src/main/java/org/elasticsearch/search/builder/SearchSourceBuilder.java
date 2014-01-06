@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -181,7 +181,7 @@ public class SearchSourceBuilder implements ToXContent {
             builder.map(query);
             return query(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + query + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + query + "]", e);
         }
     }
 
@@ -243,7 +243,7 @@ public class SearchSourceBuilder implements ToXContent {
             builder.map(postFilter);
             return postFilter(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + postFilter + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + postFilter + "]", e);
         }
     }
 
@@ -393,7 +393,7 @@ public class SearchSourceBuilder implements ToXContent {
             builder.map(facets);
             return facets(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + facets + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + facets + "]", e);
         }
     }
 
@@ -446,7 +446,7 @@ public class SearchSourceBuilder implements ToXContent {
             builder.map(aggregations);
             return aggregations(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + aggregations + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + aggregations + "]", e);
         }
     }
 

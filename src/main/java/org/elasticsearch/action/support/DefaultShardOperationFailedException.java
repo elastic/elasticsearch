@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,8 +58,8 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         this.index = index;
         this.shardId = shardId;
         this.reason = detailedMessage(t);
-        if (t != null && t instanceof ElasticSearchException) {
-            status = ((ElasticSearchException) t).status();
+        if (t != null && t instanceof ElasticsearchException) {
+            status = ((ElasticsearchException) t).status();
         } else {
             status = RestStatus.INTERNAL_SERVER_ERROR;
         }

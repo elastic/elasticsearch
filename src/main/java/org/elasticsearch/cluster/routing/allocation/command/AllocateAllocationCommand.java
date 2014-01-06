@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -82,20 +82,20 @@ public class AllocateAllocationCommand implements AllocationCommand {
                     } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
                         allowPrimary = parser.booleanValue();
                     } else {
-                        throw new ElasticSearchParseException("[allocate] command does not support field [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("[allocate] command does not support field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticSearchParseException("[allocate] command does not support complex json tokens [" + token + "]");
+                    throw new ElasticsearchParseException("[allocate] command does not support complex json tokens [" + token + "]");
                 }
             }
             if (index == null) {
-                throw new ElasticSearchParseException("[allocate] command missing the index parameter");
+                throw new ElasticsearchParseException("[allocate] command missing the index parameter");
             }
             if (shardId == -1) {
-                throw new ElasticSearchParseException("[allocate] command missing the shard parameter");
+                throw new ElasticsearchParseException("[allocate] command missing the shard parameter");
             }
             if (nodeId == null) {
-                throw new ElasticSearchParseException("[allocate] command missing the node parameter");
+                throw new ElasticsearchParseException("[allocate] command missing the node parameter");
             }
             return new AllocateAllocationCommand(new ShardId(index, shardId), nodeId, allowPrimary);
         }
@@ -161,7 +161,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticSearchException {
+    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
         MutableShardRouting shardRouting = null;
@@ -175,17 +175,17 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         if (shardRouting == null) {
-            throw new ElasticSearchIllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
+            throw new ElasticsearchIllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
         }
 
         if (shardRouting.primary() && !allowPrimary) {
-            throw new ElasticSearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + "], which is disabled");
+            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + "], which is disabled");
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
         Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
         if (decision.type() == Decision.Type.NO) {
-            throw new ElasticSearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
+            throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
         for (Iterator<MutableShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {

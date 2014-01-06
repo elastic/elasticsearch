@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -67,7 +67,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to get the token count in a search response.
      */
     @Test
-    public void searchReturnsTokenCount() throws ElasticSearchException, IOException {
+    public void searchReturnsTokenCount() throws ElasticsearchException, IOException {
         init();
 
         assertSearchReturns(searchById("single"), "single");
@@ -82,7 +82,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to search by token count.
      */
     @Test
-    public void searchByTokenCount() throws ElasticSearchException, IOException {
+    public void searchByTokenCount() throws ElasticsearchException, IOException {
         init();
 
         assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
@@ -96,7 +96,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to search by token count.
      */
     @Test
-    public void facetByTokenCount() throws ElasticSearchException, IOException {
+    public void facetByTokenCount() throws ElasticsearchException, IOException {
         init();
 
         String facetField = randomFrom(ImmutableList.of(
@@ -109,7 +109,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
         assertThat(facet.getEntries().size(), equalTo(9));
     }
 
-    private void init() throws ElasticSearchException, IOException {
+    private void init() throws ElasticsearchException, IOException {
         prepareCreate("test").addMapping("test", jsonBuilder().startObject()
                 .startObject("test")
                     .startObject("properties")
@@ -203,7 +203,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
             } else if (id.equals("multibulk2")) {
                 assertSearchHit(hit, 6, 10);
             } else {
-                throw new ElasticSearchException("Unexpected response!");
+                throw new ElasticsearchException("Unexpected response!");
             }
         }
     }

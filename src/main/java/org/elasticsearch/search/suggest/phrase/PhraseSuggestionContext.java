@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -125,7 +125,7 @@ class PhraseSuggestionContext extends SuggestionContext {
 
         public void size(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticsearchIllegalArgumentException("Size must be positive");
             }
             this.size = size;
         }

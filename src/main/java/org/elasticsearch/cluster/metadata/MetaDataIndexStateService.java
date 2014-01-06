@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -71,7 +71,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
     public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
         if (request.indices() == null || request.indices().length == 0) {
-            throw new ElasticSearchIllegalArgumentException("Index name is required");
+            throw new ElasticsearchIllegalArgumentException("Index name is required");
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
@@ -162,7 +162,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
         if (request.indices() == null || request.indices().length == 0) {
-            throw new ElasticSearchIllegalArgumentException("Index name is required");
+            throw new ElasticsearchIllegalArgumentException("Index name is required");
         }
 
         final String indicesAsString = Arrays.toString(request.indices());

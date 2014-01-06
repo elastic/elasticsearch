@@ -22,7 +22,7 @@ package org.elasticsearch.gateway.local.state.meta;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -90,7 +90,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             } else if ("closed".equalsIgnoreCase(value)) {
                 return CLOSED;
             } else {
-                throw new ElasticSearchIllegalArgumentException("failed to parse [" + value + "], not a valid auto dangling import type");
+                throw new ElasticsearchIllegalArgumentException("failed to parse [" + value + "], not a valid auto dangling import type");
             }
         }
     }

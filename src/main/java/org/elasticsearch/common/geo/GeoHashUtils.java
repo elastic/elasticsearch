@@ -17,7 +17,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -277,7 +277,7 @@ public class GeoHashUtils {
             case 'z':
                 return 31;
             default:
-                throw new ElasticSearchIllegalArgumentException("the character '" + geo + "' is not a valid geohash character");
+                throw new ElasticsearchIllegalArgumentException("the character '" + geo + "' is not a valid geohash character");
         }
     }
 

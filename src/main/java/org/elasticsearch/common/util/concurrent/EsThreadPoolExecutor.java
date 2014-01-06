@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -46,7 +46,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     public void shutdown(ShutdownListener listener) {
         synchronized (monitor) {
             if (this.listener != null) {
-                throw new ElasticSearchIllegalStateException("Shutdown was already called on this thread pool");
+                throw new ElasticsearchIllegalStateException("Shutdown was already called on this thread pool");
             }
             if (isTerminated()) {
                 listener.onTerminated();

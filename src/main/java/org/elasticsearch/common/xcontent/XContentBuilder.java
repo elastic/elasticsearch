@@ -1202,7 +1202,7 @@ public final class XContentBuilder implements BytesStream {
             // if this is a "value" object, like enum, DistanceUnit, ..., just toString it
             // yea, it can be misleading when toString a Java class, but really, jackson should be used in that case
             generator.writeString(value.toString());
-            //throw new ElasticSearchIllegalArgumentException("type not supported for generic value conversion: " + type);
+            //throw new ElasticsearchIllegalArgumentException("type not supported for generic value conversion: " + type);
         }
     }
 }

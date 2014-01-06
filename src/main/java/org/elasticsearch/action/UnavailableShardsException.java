@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 /**
  *
  */
-public class UnavailableShardsException extends ElasticSearchException {
+public class UnavailableShardsException extends ElasticsearchException {
 
     public UnavailableShardsException(@Nullable ShardId shardId, String message) {
         super(buildMessage(shardId, message));

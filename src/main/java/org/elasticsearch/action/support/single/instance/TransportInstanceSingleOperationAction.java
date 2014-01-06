@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -75,7 +75,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected abstract String transportAction();
 
-    protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticSearchException;
+    protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 
@@ -105,7 +105,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     /**
      * Should return an iterator with a single shard!
      */
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticsearchException;
 
     class AsyncSingleAction {
 
@@ -128,7 +128,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             start(false);
         }
 
-        public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
+        public boolean start(final boolean fromClusterEvent) throws ElasticsearchException {
             final ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
             try {

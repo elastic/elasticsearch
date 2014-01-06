@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.LongsRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 /**
  */
@@ -107,7 +107,7 @@ public class EmptyOrdinals implements Ordinals {
 
         @Override
         public long nextOrd() {
-            throw new ElasticSearchIllegalStateException("Empty ordinals has no nextOrd");
+            throw new ElasticsearchIllegalStateException("Empty ordinals has no nextOrd");
         }
 
         @Override

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class TransportException extends ElasticSearchException {
+public class TransportException extends ElasticsearchException {
 
     public TransportException(String msg) {
         super(msg);

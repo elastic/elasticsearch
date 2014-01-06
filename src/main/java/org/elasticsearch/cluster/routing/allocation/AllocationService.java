@@ -22,8 +22,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -114,7 +114,7 @@ public class AllocationService extends AbstractComponent {
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
 
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) throws ElasticSearchException {
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) throws ElasticsearchException {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
@@ -469,7 +469,7 @@ public class AllocationService extends AbstractComponent {
                 }
                 return dirty;
             } else {
-                throw new ElasticSearchIllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
+                throw new ElasticsearchIllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
             }
         } else {
             // the shard is not relocating, its either started, or initializing, just cancel it and move on...

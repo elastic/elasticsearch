@@ -26,7 +26,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -348,12 +348,12 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public IndexShard createShard(int sShardId) throws ElasticSearchException {
+        public IndexShard createShard(int sShardId) throws ElasticsearchException {
             return null;
         }
 
         @Override
-        public void removeShard(int shardId, String reason) throws ElasticSearchException {
+        public void removeShard(int shardId, String reason) throws ElasticsearchException {
         }
 
         @Override

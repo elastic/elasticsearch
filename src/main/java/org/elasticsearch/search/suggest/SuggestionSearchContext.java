@@ -23,7 +23,8 @@ import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 /**
  */
 public class SuggestionSearchContext {
@@ -87,7 +88,7 @@ public class SuggestionSearchContext {
 
         public void setSize(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive but was: " + size);
+                throw new ElasticsearchIllegalArgumentException("Size must be positive but was: " + size);
             }
             this.size = size;
         }
@@ -98,7 +99,7 @@ public class SuggestionSearchContext {
 
         public void setShardSize(int shardSize) {
             if (shardSize <= 0) {
-                throw new ElasticSearchIllegalArgumentException("ShardSize must be positive but was: " + shardSize);
+                throw new ElasticsearchIllegalArgumentException("ShardSize must be positive but was: " + shardSize);
             }
             this.shardSize = shardSize;
         }

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -128,7 +128,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 
@@ -157,7 +157,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         try {
             return XContentHelper.convertToJson(source, false);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to convert source to a json string");
+            throw new ElasticsearchParseException("failed to convert source to a json string");
         }
     }
 
@@ -165,7 +165,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * The source of the document (As a map).
      */
     @SuppressWarnings({"unchecked"})
-    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;
         }

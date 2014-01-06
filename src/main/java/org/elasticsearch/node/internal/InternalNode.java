@@ -20,7 +20,7 @@
 package org.elasticsearch.node.internal;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
@@ -116,11 +116,11 @@ public final class InternalNode implements Node {
 
     private final Client client;
 
-    public InternalNode() throws ElasticSearchException {
+    public InternalNode() throws ElasticsearchException {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
-    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
+    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
 
         Version version = Version.CURRENT;

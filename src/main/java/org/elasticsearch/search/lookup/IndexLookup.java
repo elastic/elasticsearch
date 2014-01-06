@@ -22,7 +22,7 @@ package org.elasticsearch.search.lookup;
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.MinimalMap;
 
 import java.io.IOException;
@@ -198,7 +198,7 @@ public class IndexLookup extends MinimalMap<String, IndexField> {
                 indexField = new IndexField(stringField, this);
                 indexFields.put(stringField, indexField);
             } catch (IOException e) {
-                throw new ElasticSearchException(e.getMessage());
+                throw new ElasticsearchException(e.getMessage());
             }
         }
         return indexField;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalGenericClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -63,21 +63,21 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     /**
      * Short version of execute().actionGet().
      */
-    public Response get() throws ElasticSearchException {
+    public Response get() throws ElasticsearchException {
         return execute().actionGet();
     }
 
     /**
      * Short version of execute().actionGet().
      */
-    public Response get(TimeValue timeout) throws ElasticSearchException {
+    public Response get(TimeValue timeout) throws ElasticsearchException {
         return execute().actionGet(timeout);
     }
 
     /**
      * Short version of execute().actionGet().
      */
-    public Response get(String timeout) throws ElasticSearchException {
+    public Response get(String timeout) throws ElasticsearchException {
         return execute().actionGet(timeout);
     }
 

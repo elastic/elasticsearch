@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -90,7 +90,7 @@ public final class QueryParsers {
             int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
             return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
         }
-        throw new ElasticSearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
+        throw new ElasticsearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,

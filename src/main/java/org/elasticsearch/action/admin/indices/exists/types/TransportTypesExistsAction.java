@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -71,7 +71,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticsearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));

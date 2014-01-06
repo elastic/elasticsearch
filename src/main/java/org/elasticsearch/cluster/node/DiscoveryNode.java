@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +52,7 @@ public class DiscoveryNode implements Streamable, Serializable {
             } else if ("network".equals(nodeMode)) {
                 return false;
             } else {
-                throw new ElasticSearchIllegalArgumentException("unsupported node.mode [" + nodeMode + "]");
+                throw new ElasticsearchIllegalArgumentException("unsupported node.mode [" + nodeMode + "]");
             }
         }
         return false;

@@ -23,7 +23,7 @@ gateway:
 The location where the gateway stores the cluster state can be set using
 the `gateway.fs.location` setting. By default, it will be stored under
 the `work` directory. Note, the `work` directory is considered a
-temporal directory with ElasticSearch (meaning it is safe to `rm -rf`
+temporal directory with Elasticsearch (meaning it is safe to `rm -rf`
 it), the default location of the persistent gateway in work intentional,
 *it should be changed*.
 

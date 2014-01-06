@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -48,7 +48,7 @@ public enum ClusterHealthStatus {
             case 2:
                 return RED;
             default:
-                throw new ElasticSearchIllegalArgumentException("No cluster health status for value [" + value + "]");
+                throw new ElasticsearchIllegalArgumentException("No cluster health status for value [" + value + "]");
         }
     }
 }

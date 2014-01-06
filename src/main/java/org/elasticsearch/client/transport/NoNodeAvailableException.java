@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  * An exception indicating no node is available to perform the operation.
  */
-public class NoNodeAvailableException extends ElasticSearchException {
+public class NoNodeAvailableException extends ElasticsearchException {
 
     public NoNodeAvailableException() {
         super("No node available");

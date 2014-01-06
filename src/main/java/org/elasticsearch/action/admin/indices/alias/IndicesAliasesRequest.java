@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -93,7 +93,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             aliasActions.add(new AliasAction(AliasAction.Type.ADD, index, alias, builder.string()));
             return this;
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
         }
     }
 
@@ -115,7 +115,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             builder.close();
             return addAlias(index, alias, builder.string());
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+            throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
         }
     }
 

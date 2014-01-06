@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -127,7 +127,7 @@ public class GlobalTests extends ElasticsearchIntegrationTest {
             fail("expected to fail executing non-top-level global aggregator. global aggregations are only allowed as top level" +
                     "aggregations");
 
-        } catch (ElasticSearchException ese) {
+        } catch (ElasticsearchException ese) {
         }
     }
 }

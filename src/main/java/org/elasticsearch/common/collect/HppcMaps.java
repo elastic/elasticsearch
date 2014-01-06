@@ -4,7 +4,7 @@ import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.Iterator;
 
@@ -53,7 +53,7 @@ public final class HppcMaps {
             @Override
             public V put(K key, V value) {
                 if (key == null) {
-                    throw new ElasticSearchIllegalArgumentException("Map key must not be null");
+                    throw new ElasticsearchIllegalArgumentException("Map key must not be null");
                 }
                 return super.put(key, value);
             }
@@ -115,7 +115,7 @@ public final class HppcMaps {
                     @Override
                     public int put(V key, int value) {
                         if (key == null) {
-                            throw new ElasticSearchIllegalArgumentException("Map key must not be null");
+                            throw new ElasticsearchIllegalArgumentException("Map key must not be null");
                         }
                         return super.put(key, value);
                     }

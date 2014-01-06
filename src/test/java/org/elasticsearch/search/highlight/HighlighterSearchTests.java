@@ -20,7 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -58,7 +58,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     // see #3486
-    public void testHighTermFrequencyDoc() throws ElasticSearchException, IOException {
+    public void testHighTermFrequencyDoc() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test", "name", "type=string,term_vector=with_positions_offsets,store=" + (randomBoolean() ? "yes" : "no"))
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1, 5))));
@@ -76,7 +76,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testNgramHighlightingWithBrokenPositions() throws ElasticSearchException, IOException {
+    public void testNgramHighlightingWithBrokenPositions() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("test", jsonBuilder()
                         .startObject()
@@ -132,7 +132,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test 
-    public void testMultiPhraseCutoff() throws ElasticSearchException, IOException {
+    public void testMultiPhraseCutoff() throws ElasticsearchException, IOException {
         /*
          * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
          * query. We cut off and extract terms if there are more than 16 terms in the query
@@ -165,7 +165,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testNgramHighlightingPreLucene42() throws ElasticSearchException, IOException {
+    public void testNgramHighlightingPreLucene42() throws ElasticsearchException, IOException {
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test",
@@ -221,7 +221,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testNgramHighlighting() throws ElasticSearchException, IOException {
+    public void testNgramHighlighting() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test",
                         "name", "type=string,index_analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
@@ -1232,7 +1232,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testBoostingQueryTermVector() throws ElasticSearchException, IOException {
+    public void testBoostingQueryTermVector() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
@@ -1272,7 +1272,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testCommonTermsTermVector() throws ElasticSearchException, IOException {
+    public void testCommonTermsTermVector() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
 
@@ -1289,7 +1289,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPhrasePrefix() throws ElasticSearchException, IOException {
+    public void testPhrasePrefix() throws ElasticsearchException, IOException {
         Builder builder = ImmutableSettings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
@@ -2195,7 +2195,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPostingsHighlighterBoostingQuery() throws ElasticSearchException, IOException {
+    public void testPostingsHighlighterBoostingQuery() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
@@ -2212,7 +2212,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPostingsHighlighterCommonTermsQuery() throws ElasticSearchException, IOException {
+    public void testPostingsHighlighterCommonTermsQuery() throws ElasticsearchException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 

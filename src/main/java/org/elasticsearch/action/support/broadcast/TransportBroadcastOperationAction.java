@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportAction;
@@ -89,7 +89,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticSearchException;
+    protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticsearchException;
 
     protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 

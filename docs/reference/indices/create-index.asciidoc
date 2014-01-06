@@ -1,7 +1,7 @@
 [[indices-create-index]]
 == Create Index
 
-The create index API allows to instantiate an index. ElasticSearch
+The create index API allows to instantiate an index. Elasticsearch
 provides support for multiple indices, including executing operations
 across several indices. Each index created can have specific settings
 associated with it.

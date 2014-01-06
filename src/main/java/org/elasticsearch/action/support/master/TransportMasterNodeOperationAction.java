@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
@@ -67,7 +67,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response newResponse();
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws ElasticSearchException;
+    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws ElasticsearchException;
 
     protected boolean localExecute(Request request) {
         return false;

@@ -23,7 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -140,7 +140,7 @@ public class ScriptService extends AbstractComponent {
         // not the end of the world if we compile it twice...
         ScriptEngineService service = scriptEngines.get(lang);
         if (service == null) {
-            throw new ElasticSearchIllegalArgumentException("script_lang not supported [" + lang + "]");
+            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
         }
         compiled = new CompiledScript(lang, service.compile(script));
         cache.put(cacheKey, compiled);

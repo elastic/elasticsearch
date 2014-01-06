@@ -23,7 +23,7 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
@@ -49,7 +49,7 @@ public abstract class WordScorer {
     public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
         this.field = field;
         if (terms == null) {
-            throw new ElasticSearchIllegalArgumentException("Field: [" + field + "] does not exist");
+            throw new ElasticsearchIllegalArgumentException("Field: [" + field + "] does not exist");
         }
         this.terms = terms;
         final long vocSize = terms.getSumTotalTermFreq();

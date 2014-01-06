@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,11 +124,11 @@ public class SizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static SizeValue parseSizeValue(String sValue) throws ElasticSearchParseException {
+    public static SizeValue parseSizeValue(String sValue) throws ElasticsearchParseException {
         return parseSizeValue(sValue, null);
     }
 
-    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticSearchParseException {
+    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticsearchParseException {
         if (sValue == null) {
             return defaultValue;
         }
@@ -146,7 +146,7 @@ public class SizeValue implements Serializable, Streamable {
                 singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticSearchParseException("Failed to parse [" + sValue + "]", e);
+            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
     }

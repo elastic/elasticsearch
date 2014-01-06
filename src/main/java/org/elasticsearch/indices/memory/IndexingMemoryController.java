@@ -21,7 +21,7 @@ package org.elasticsearch.indices.memory;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -132,14 +132,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         indicesService.indicesLifecycle().addListener(listener);
         // its fine to run it on the scheduler thread, no busy work
         this.scheduler = threadPool.scheduleWithFixedDelay(new ShardsIndicesStatusChecker(), interval);
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         indicesService.indicesLifecycle().removeListener(listener);
         if (scheduler != null) {
             scheduler.cancel(false);
@@ -148,7 +148,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     class ShardsIndicesStatusChecker implements Runnable {

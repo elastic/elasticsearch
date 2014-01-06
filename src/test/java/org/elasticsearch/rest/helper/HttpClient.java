@@ -19,7 +19,7 @@
 package org.elasticsearch.rest.helper;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,7 +43,7 @@ public class HttpClient {
         try {
             baseUrl = new URL("http", address.getAddress().getHostAddress(), address.getPort(), "/");
         } catch (MalformedURLException e) {
-            throw new ElasticSearchException("", e);
+            throw new ElasticsearchException("", e);
         }
     }
 
@@ -51,7 +51,7 @@ public class HttpClient {
         try {
             baseUrl = new URL(url);
         } catch (MalformedURLException e) {
-            throw new ElasticSearchException("", e);
+            throw new ElasticsearchException("", e);
         }
     }
 
@@ -72,7 +72,7 @@ public class HttpClient {
         try {
             url = new URL(baseUrl, path);
         } catch (MalformedURLException e) {
-            throw new ElasticSearchException("Cannot parse " + path, e);
+            throw new ElasticsearchException("Cannot parse " + path, e);
         }
 
         HttpURLConnection urlConnection;
@@ -86,7 +86,7 @@ public class HttpClient {
             }
             urlConnection.connect();
         } catch (IOException e) {
-            throw new ElasticSearchException("", e);
+            throw new ElasticsearchException("", e);
         }
 
         int errorCode = -1;
@@ -99,7 +99,7 @@ public class HttpClient {
             try {
                 body = Streams.copyToString(new InputStreamReader(inputStream, Charsets.UTF_8));
             } catch (IOException e1) {
-                throw new ElasticSearchException("problem reading error stream", e1);
+                throw new ElasticsearchException("problem reading error stream", e1);
             }
             return new HttpClientResponse(body, errorCode, respHeaders, null);
         } catch (IOException e) {
@@ -109,7 +109,7 @@ public class HttpClient {
                 try {
                     body = Streams.copyToString(new InputStreamReader(errStream, Charsets.UTF_8));
                 } catch (IOException e1) {
-                    throw new ElasticSearchException("problem reading error stream", e1);
+                    throw new ElasticsearchException("problem reading error stream", e1);
                 }
             }
             return new HttpClientResponse(body, errorCode, respHeaders, e);

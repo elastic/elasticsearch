@@ -19,12 +19,12 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class HttpException extends ElasticSearchException {
+public class HttpException extends ElasticsearchException {
 
     public HttpException(String message) {
         super(message);

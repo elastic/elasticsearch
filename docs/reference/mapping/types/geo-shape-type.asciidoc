@@ -78,7 +78,7 @@ http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
-amount of levels for the quad trees in elastic search is 50.
+amount of levels for the quad trees in Elasticsearch is 50.
 
 [float]
 ===== Accuracy
@@ -124,7 +124,7 @@ Big, complex polygons can take up a lot of space at higher tree levels.
 Which setting is right depends on the use case. Generally one trades off
 accuracy against index size and query performance.
 
-The defaults in elastic search for both implementations are a compromise
+The defaults in Elasticsearch for both implementations are a compromise
 between index size and a reasonable level of precision of 50m at the
 equator. This allows for indexing tens of millions of shapes without
 overly bloating the resulting index too much relative to the input size.

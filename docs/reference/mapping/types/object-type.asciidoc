@@ -2,7 +2,7 @@
 === Object Type
 
 JSON documents are hierarchical in nature, allowing them to define inner
-"objects" within the actual JSON. ElasticSearch completely understands
+"objects" within the actual JSON. Elasticsearch completely understands
 the nature of these inner objects and can map them easily, providing
 query support for their inner fields. Because each document can have
 objects with different fields each time, objects mapped this way are
@@ -72,7 +72,7 @@ An object mapping can optionally define one or more properties using the
 [float]
 ==== dynamic
 
-One of the most important features of ElasticSearch is its ability to be
+One of the most important features of Elasticsearch is its ability to be
 schema-less. This means that, in our example above, the `person` object
 can be indexed later with a new property -- `age`, for example -- and it
 will automatically be added to the mapping definitions. Same goes for

@@ -30,8 +30,8 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -194,7 +194,7 @@ public class MatchQuery {
         } else {
             analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
+                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
         }
 
@@ -354,7 +354,7 @@ public class MatchQuery {
             return wrapSmartNameQuery(mpq, smartNameFieldMappers, parseContext);
         }
 
-        throw new ElasticSearchIllegalStateException("No type found for [" + type + "]");
+        throw new ElasticsearchIllegalStateException("No type found for [" + type + "]");
     }
 
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {

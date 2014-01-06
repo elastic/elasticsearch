@@ -21,7 +21,7 @@ package org.elasticsearch.cache.recycler;
 
 import com.carrotsearch.hppc.*;
 import com.google.common.base.Strings;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.*;
@@ -261,7 +261,7 @@ public class CacheRecycler extends AbstractComponent {
                 recycler = new Recycler.Sizing<T>(recycler, smartSize);
             }
         } catch (IllegalArgumentException ex) {
-            throw new ElasticSearchIllegalArgumentException("no type support [" + type + "] for recycler");
+            throw new ElasticsearchIllegalArgumentException("no type support [" + type + "] for recycler");
         }
 
         return recycler;
@@ -308,7 +308,7 @@ public class CacheRecycler extends AbstractComponent {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ElasticSearchIllegalArgumentException("no type support [" + type + "]");
+                throw new ElasticsearchIllegalArgumentException("no type support [" + type + "]");
             }
         }
 

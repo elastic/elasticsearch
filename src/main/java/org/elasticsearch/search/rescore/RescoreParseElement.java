@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -45,7 +44,7 @@ public class RescoreParseElement implements SearchParseElement {
                     Rescorer rescorer = QueryRescorer.INSTANCE;
                     token = parser.nextToken();
                     if (token != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticSearchParseException("rescore type malformed, must start with start_object");
+                        throw new ElasticsearchParseException("rescore type malformed, must start with start_object");
                     }
                     rescoreContext = rescorer.parse(parser, context);
                 }
@@ -53,12 +52,12 @@ public class RescoreParseElement implements SearchParseElement {
                 if ("window_size".equals(fieldName)) {
                     windowSize = parser.intValue();
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
             }
         }
         if (rescoreContext == null) {
-            throw new ElasticSearchIllegalArgumentException("missing rescore type");
+            throw new ElasticsearchIllegalArgumentException("missing rescore type");
         }
         if (windowSize != null) {
             rescoreContext.setWindowSize(windowSize.intValue());

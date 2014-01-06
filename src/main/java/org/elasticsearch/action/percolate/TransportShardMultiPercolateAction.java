@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportActions;
@@ -87,14 +87,14 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, Request request) throws ElasticSearchException {
+    protected ShardIterator shards(ClusterState state, Request request) throws ElasticsearchException {
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.index(), request.shardId(), request.preference
         );
     }
 
     @Override
-    protected Response shardOperation(Request request, int shardId) throws ElasticSearchException {
+    protected Response shardOperation(Request request, int shardId) throws ElasticsearchException {
         // TODO: Look into combining the shard req's docs into one in memory index.
         Response response = new Response();
         response.items = new ArrayList<Response.Item>(request.items.size());
@@ -105,7 +105,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
                 responseItem = new Response.Item(slot, percolatorService.percolate(item.request));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
-                    throw (ElasticSearchException) t;
+                    throw (ElasticsearchException) t;
                 } else {
                     logger.debug("[{}][{}] failed to multi percolate", t, request.index(), request.shardId());
                     responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(t)));

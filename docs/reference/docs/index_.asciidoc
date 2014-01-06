@@ -10,7 +10,7 @@ into the "twitter" index, under a type called "tweet" with an id of 1:
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -54,7 +54,7 @@ $ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
     "tweet" : {
         "user" : "kimchy",
         "post_date" : "2009-11-15T14:12:12",
-        "message" : "trying out Elastic Search"
+        "message" : "trying out Elasticsearch"
     }
 }'
 --------------------------------------------------
@@ -133,7 +133,7 @@ Here is an example of using the `op_type` parameter:
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1?op_type=create' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -144,7 +144,7 @@ Another option to specify `create` is to use the following uri:
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1/_create' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -161,7 +161,7 @@ will automatically be set to `create`. Here is an example (note the
 $ curl -XPOST 'http://localhost:9200/twitter/tweet/' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -192,7 +192,7 @@ on a per-operation basis using the `routing` parameter. For example:
 $ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -236,7 +236,7 @@ parameter. For example:
 --------------------------------------------------
 $ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
     "user" : "kimchy",
-    "message" : "trying out Elastic Search",
+    "message" : "trying out Elasticsearch",
 }'
 --------------------------------------------------
 
@@ -348,6 +348,6 @@ to 5 minutes:
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1?timeout=5m' -d '{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elastic Search"
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------

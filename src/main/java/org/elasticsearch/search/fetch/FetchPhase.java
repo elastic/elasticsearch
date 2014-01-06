@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -121,7 +121,7 @@ public class FetchPhase implements SearchPhase {
                 if (x == null) {
                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                     if (context.smartNameObjectMapper(fieldName) != null) {
-                        throw new ElasticSearchIllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                        throw new ElasticsearchIllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                     }
                 } else if (x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {

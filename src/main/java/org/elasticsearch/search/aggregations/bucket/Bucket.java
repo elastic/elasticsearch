@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 
@@ -86,7 +86,7 @@ public interface Bucket {
         private double value(B bucket) {
             MetricsAggregation aggregation = bucket.getAggregations().get(aggName);
             if (aggregation == null) {
-                throw new ElasticSearchIllegalArgumentException("Unknown aggregation named [" + aggName + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown aggregation named [" + aggName + "]");
             }
             if (aggregation instanceof MetricsAggregation.SingleValue) {
                 //TODO should we throw an exception if the value name is specified?
@@ -94,12 +94,12 @@ public interface Bucket {
             }
             if (aggregation instanceof MetricsAggregation.MultiValue) {
                 if (valueName == null) {
-                    throw new ElasticSearchIllegalArgumentException("Cannot sort on multi valued aggregation [" + aggName + "]. A value name is required");
+                    throw new ElasticsearchIllegalArgumentException("Cannot sort on multi valued aggregation [" + aggName + "]. A value name is required");
                 }
                 return ((MetricsAggregation.MultiValue) aggregation).value(valueName);
             }
 
-            throw new ElasticSearchIllegalArgumentException("A mal attempt to sort terms by aggregation [" + aggregation.getName() +
+            throw new ElasticsearchIllegalArgumentException("A mal attempt to sort terms by aggregation [" + aggregation.getName() +
                     "]. Terms can only be ordered by either standard order or direct calc aggregators of the terms");
         }
     }

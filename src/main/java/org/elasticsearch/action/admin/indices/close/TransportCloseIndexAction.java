@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -82,7 +82,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         if (disableCloseAllIndices) {
             if (state.metaData().isExplicitAllIndices(indicesOrAliases) ||
                     state.metaData().isPatternMatchingAllIndices(indicesOrAliases, request.indices())) {
-                throw new ElasticSearchIllegalArgumentException("closing all indices is disabled");
+                throw new ElasticsearchIllegalArgumentException("closing all indices is disabled");
             }
         }
 
@@ -95,7 +95,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticsearchException {
 
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

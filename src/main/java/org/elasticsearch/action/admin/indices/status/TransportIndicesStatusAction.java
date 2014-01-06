@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -143,7 +143,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
+    protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticsearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());

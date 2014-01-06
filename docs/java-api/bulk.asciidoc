@@ -16,7 +16,7 @@ bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())
-                        .field("message", "trying out Elastic Search")
+                        .field("message", "trying out Elasticsearch")
                     .endObject()
                   )
         );

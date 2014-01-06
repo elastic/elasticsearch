@@ -25,7 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.CloseableComponent;
@@ -154,11 +154,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      */
     static interface RecoveryHandler {
 
-        void phase1(SnapshotIndexCommit snapshot) throws ElasticSearchException;
+        void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException;
 
-        void phase2(Translog.Snapshot snapshot) throws ElasticSearchException;
+        void phase2(Translog.Snapshot snapshot) throws ElasticsearchException;
 
-        void phase3(Translog.Snapshot snapshot) throws ElasticSearchException;
+        void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
     }
 
     static interface SnapshotHandler<T> {
@@ -204,7 +204,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             // nothing to release here...
             return true;
         }

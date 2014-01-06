@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch.script;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -56,7 +56,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
     }
 
     @Override
@@ -65,7 +65,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             scriptField.script().setNextReader(hitContext.readerContext());
             scriptField.script().setNextDocId(hitContext.docId());

@@ -31,7 +31,7 @@ import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -58,7 +58,7 @@ public class PostingsHighlighter implements Highlighter {
         FieldMapper<?> fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
         if (fieldMapper.fieldType().indexOptions() != FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            throw new ElasticSearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
+            throw new ElasticsearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
         }
 
         SearchContext context = highlighterContext.context;

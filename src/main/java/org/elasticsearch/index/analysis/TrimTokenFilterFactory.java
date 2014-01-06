@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
@@ -43,7 +43,7 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
     public TrimTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         if (version.onOrAfter(Version.LUCENE_44) && settings.get(UPDATE_OFFSETS_KEY) != null) {
-            throw new ElasticSearchIllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain or use"
+            throw new ElasticsearchIllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
         }
         this.updateOffsets = settings.getAsBoolean("update_offsets", false);

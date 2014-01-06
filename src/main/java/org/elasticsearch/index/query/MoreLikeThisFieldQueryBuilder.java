@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -179,7 +179,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
         builder.startObject(MoreLikeThisFieldQueryParser.NAME);
         builder.startObject(name);
         if (likeText == null) {
-            throw new ElasticSearchIllegalArgumentException("moreLikeThisField requires 'like_text' to be provided");
+            throw new ElasticsearchIllegalArgumentException("moreLikeThisField requires 'like_text' to be provided");
         }
         builder.field("like_text", likeText);
         if (percentTermsToMatch != -1) {

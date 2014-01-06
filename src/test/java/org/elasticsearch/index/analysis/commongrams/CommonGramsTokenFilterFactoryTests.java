@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis.commongrams;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -46,7 +46,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             Assert.fail("[common_words] or [common_words_path] is set");
         } catch (Exception e) {
-            assertThat(e.getCause(), instanceOf(ElasticSearchIllegalArgumentException.class));
+            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
         }
     }
     @Test

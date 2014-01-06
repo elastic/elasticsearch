@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -59,15 +59,15 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         for (RestFilter filter : filters) {
             filter.close();
         }
@@ -113,7 +113,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 headHandlers.insert(path, handler);
                 break;
             default:
-                throw new ElasticSearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
+                throw new ElasticsearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
     }
 
@@ -211,7 +211,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 int loc = index;
                 index++;
                 if (loc > filters.length) {
-                    throw new ElasticSearchIllegalStateException("filter continueProcessing was called more than expected");
+                    throw new ElasticsearchIllegalStateException("filter continueProcessing was called more than expected");
                 } else if (loc == filters.length) {
                     executionFilter.process(request, channel, this);
                 } else {

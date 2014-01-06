@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.support;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,7 +48,7 @@ public abstract class AbstractRestRequest implements RestRequest {
         try {
             return Float.parseFloat(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -61,7 +61,7 @@ public abstract class AbstractRestRequest implements RestRequest {
         try {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -74,7 +74,7 @@ public abstract class AbstractRestRequest implements RestRequest {
         try {
             return Long.parseLong(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new ElasticsearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 

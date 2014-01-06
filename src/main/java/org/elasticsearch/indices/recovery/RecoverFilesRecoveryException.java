@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
@@ -27,7 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  *
  */
-public class RecoverFilesRecoveryException extends IndexShardException implements ElasticSearchWrapperException {
+public class RecoverFilesRecoveryException extends IndexShardException implements ElasticsearchWrapperException {
 
     private final int numberOfFiles;
 

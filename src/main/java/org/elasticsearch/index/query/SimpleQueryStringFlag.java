@@ -1,7 +1,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queryparser.XSimpleQueryParser;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
@@ -50,7 +50,7 @@ public enum SimpleQueryStringFlag {
                         magic |= flag.value();
                 }
             } catch (IllegalArgumentException iae) {
-                throw new ElasticSearchIllegalArgumentException("Unknown " + SimpleQueryStringParser.NAME + " flag [" + s + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown " + SimpleQueryStringParser.NAME + " flag [" + s + "]");
             }
         }
         return magic;

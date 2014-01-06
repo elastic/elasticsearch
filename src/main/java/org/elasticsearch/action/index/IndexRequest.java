@@ -20,10 +20,10 @@
 package org.elasticsearch.action.index;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
@@ -109,7 +109,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             } else if (id == 1) {
                 return CREATE;
             } else {
-                throw new ElasticSearchIllegalArgumentException("No type match for [" + id + "]");
+                throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
             }
         }
     }
@@ -280,13 +280,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise. Setting it
      * to <tt>null</tt> will reset to have no ttl.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticSearchGenerationException {
+    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
         if (ttl == null) {
             this.ttl = -1;
             return this;
         }
         if (ttl <= 0) {
-            throw new ElasticSearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
+            throw new ElasticsearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
         }
         this.ttl = ttl;
         return this;
@@ -320,7 +320,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source) throws ElasticSearchGenerationException {
+    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
         return source(source, contentType);
     }
 
@@ -329,13 +329,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
+    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -366,7 +366,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.startObject().field(field1, value1).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -376,7 +376,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.startObject().field(field1, value1).field(field2, value2).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -386,7 +386,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -396,7 +396,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -413,7 +413,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -471,13 +471,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
      * be either "index" or "create".
      */
-    public IndexRequest opType(String opType) throws ElasticSearchIllegalArgumentException {
+    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
         if ("create".equals(opType)) {
             return opType(OpType.CREATE);
         } else if ("index".equals(opType)) {
             return opType(OpType.INDEX);
         } else {
-            throw new ElasticSearchIllegalArgumentException("No index opType matching [" + opType + "]");
+            throw new ElasticsearchIllegalArgumentException("No index opType matching [" + opType + "]");
         }
     }
 
@@ -538,7 +538,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         return this.versionType;
     }
 
-    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticSearchException {
+    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticsearchException {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
         // resolve timestamp if provided externally
@@ -566,7 +566,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                         timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
                     }
                 } catch (Exception e) {
-                    throw new ElasticSearchParseException("failed to parse doc to extract routing/timestamp", e);
+                    throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp", e);
                 } finally {
                     if (parser != null) {
                         parser.close();
@@ -580,11 +580,11 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             }
 
             if (parent != null && !mappingMd.hasParentField()) {
-                throw new ElasticSearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
             }
         } else {
             if (parent != null) {
-                throw new ElasticSearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
             }
         }
 

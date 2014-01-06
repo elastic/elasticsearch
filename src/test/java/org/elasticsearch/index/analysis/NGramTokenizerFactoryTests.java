@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.*;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -57,7 +57,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
             try {
                 new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(""));
                 fail();
-            } catch (ElasticSearchIllegalArgumentException expected) {
+            } catch (ElasticsearchIllegalArgumentException expected) {
                 // OK
             }
         }
@@ -133,7 +133,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
         try {
             new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("foo bar"));
             fail("should fail side:back is not supported anymore");
-        } catch (ElasticSearchIllegalArgumentException ex) {
+        } catch (ElasticsearchIllegalArgumentException ex) {
         }
         
     }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.lease;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
 public interface Releasable {
 
-    boolean release() throws ElasticSearchException;
+    boolean release() throws ElasticsearchException;
 }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  */
-public class TimestampParsingException extends ElasticSearchException {
+public class TimestampParsingException extends ElasticsearchException {
 
     private final String timestamp;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
@@ -101,7 +101,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
-    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticSearchException {
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
@@ -127,7 +127,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
-                    throw (ElasticSearchException) t;
+                    throw (ElasticsearchException) t;
                 } else {
                     logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", t, request.index(), shardId, type, id);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(t)));

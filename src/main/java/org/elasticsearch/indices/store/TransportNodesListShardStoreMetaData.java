@@ -22,7 +22,7 @@ package org.elasticsearch.indices.store;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
@@ -123,7 +123,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticsearchException {
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {
@@ -140,7 +140,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         try {
             return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
-            throw new ElasticSearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
+            throw new ElasticsearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
         }
     }
 

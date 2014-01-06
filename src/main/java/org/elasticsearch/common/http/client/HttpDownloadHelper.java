@@ -20,7 +20,7 @@
 package org.elasticsearch.common.http.client;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticSearchTimeoutException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -64,7 +64,7 @@ public class HttpDownloadHelper {
             getThread.join(timeout.millis());
 
             if (getThread.isAlive()) {
-                throw new ElasticSearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it.");
+                throw new ElasticsearchTimeoutException("The GET operation took longer than " + timeout + ", stopping it.");
             }
         }
         catch (InterruptedException ie) {

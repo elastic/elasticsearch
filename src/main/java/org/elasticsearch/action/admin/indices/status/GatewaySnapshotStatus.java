@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -60,7 +60,7 @@ public class GatewaySnapshotStatus {
             } else if (value == 5) {
                 return Stage.FAILURE;
             }
-            throw new ElasticSearchIllegalArgumentException("No stage found for [" + value + "]");
+            throw new ElasticsearchIllegalArgumentException("No stage found for [" + value + "]");
         }
     }
 

@@ -24,7 +24,7 @@ import java.util.Locale;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.HunspellDictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -45,19 +45,19 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
         if (locale == null) {
-            throw new ElasticSearchIllegalArgumentException("missing [locale | language | lang] configuration for hunspell token filter");
+            throw new ElasticsearchIllegalArgumentException("missing [locale | language | lang] configuration for hunspell token filter");
         }
 
         dictionary = hunspellService.getDictionary(locale);
         if (dictionary == null) {
-            throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
+            throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
         dedup = settings.getAsBoolean("dedup", true);
 
         recursionLevel = settings.getAsInt("recursion_level", 2);
         if (recursionLevel < 0) {
-            throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, "Negative recursion level not allowed for hunspell [%d]", recursionLevel));
+            throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT, "Negative recursion level not allowed for hunspell [%d]", recursionLevel));
         }
     }
 

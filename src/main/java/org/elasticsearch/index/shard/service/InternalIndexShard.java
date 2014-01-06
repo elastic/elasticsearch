@@ -25,9 +25,9 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -264,7 +264,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard routingEntry(ShardRouting newRouting) {
         ShardRouting currentRouting = this.shardRouting;
         if (!newRouting.shardId().equals(shardId())) {
-            throw new ElasticSearchIllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
+            throw new ElasticsearchIllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
         if (currentRouting != null) {
             if (!newRouting.primary() && currentRouting.primary()) {
@@ -365,7 +365,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException {
+    public Engine.Create prepareCreate(SourceToParse source) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
@@ -373,7 +373,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
+    public ParsedDocument create(Engine.Create create) throws ElasticsearchException {
         writeAllowed(create.origin());
         create = indexingService.preCreate(create);
         if (logger.isTraceEnabled()) {
@@ -386,7 +386,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException {
+    public Engine.Index prepareIndex(SourceToParse source) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
@@ -394,7 +394,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
+    public ParsedDocument index(Engine.Index index) throws ElasticsearchException {
         writeAllowed(index.origin());
         index = indexingService.preIndex(index);
         try {
@@ -412,14 +412,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Delete prepareDelete(String type, String id, long version) throws ElasticSearchException {
+    public Engine.Delete prepareDelete(String type, String id, long version) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
         return new Engine.Delete(type, id, docMapper.uidMapper().term(type, id)).version(version).startTime(startTime);
     }
 
     @Override
-    public void delete(Engine.Delete delete) throws ElasticSearchException {
+    public void delete(Engine.Delete delete) throws ElasticsearchException {
         writeAllowed(delete.origin());
         delete = indexingService.preDelete(delete);
         try {
@@ -436,7 +436,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException {
+    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticsearchException {
         long startTime = System.nanoTime();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
@@ -450,7 +450,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException {
+    public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticsearchException {
         writeAllowed(deleteByQuery.origin());
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
@@ -462,13 +462,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.GetResult get(Engine.Get get) throws ElasticSearchException {
+    public Engine.GetResult get(Engine.Get get) throws ElasticsearchException {
         readAllowed();
         return engine.get(get);
     }
 
     @Override
-    public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
+    public void refresh(Engine.Refresh refresh) throws ElasticsearchException {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
@@ -518,7 +518,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             return store.stats();
         } catch (IOException e) {
-            throw new ElasticSearchException("io exception while building 'store stats'", e);
+            throw new ElasticsearchException("io exception while building 'store stats'", e);
         }
     }
 
@@ -584,7 +584,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void flush(Engine.Flush flush) throws ElasticSearchException {
+    public void flush(Engine.Flush flush) throws ElasticsearchException {
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc).
@@ -598,7 +598,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void optimize(Engine.Optimize optimize) throws ElasticSearchException {
+    public void optimize(Engine.Optimize optimize) throws ElasticsearchException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
@@ -692,7 +692,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public void performRecoveryPrepareForTranslog() throws ElasticSearchException {
+    public void performRecoveryPrepareForTranslog() throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -713,12 +713,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this.peerRecoveryStatus;
     }
 
-    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus peerRecoveryStatus) throws ElasticSearchException {
+    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus peerRecoveryStatus) throws ElasticsearchException {
         performRecoveryFinalization(withFlush);
         this.peerRecoveryStatus = peerRecoveryStatus;
     }
 
-    public void performRecoveryFinalization(boolean withFlush) throws ElasticSearchException {
+    public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
         if (withFlush) {
             engine.flush(new Engine.Flush());
         }
@@ -733,7 +733,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.enableGcDeletes(true);
     }
 
-    public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {
+    public void performRecoveryOperation(Translog.Operation operation) throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -762,18 +762,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()).origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 default:
-                    throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
+                    throw new ElasticsearchIllegalStateException("No operation defined for [" + operation + "]");
             }
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             boolean hasIgnoreOnRecoveryException = false;
-            ElasticSearchException current = e;
+            ElasticsearchException current = e;
             while (true) {
                 if (current instanceof IgnoreOnRecoveryEngineException) {
                     hasIgnoreOnRecoveryException = true;
                     break;
                 }
-                if (current.getCause() instanceof ElasticSearchException) {
-                    current = (ElasticSearchException) current.getCause();
+                if (current.getCause() instanceof ElasticsearchException) {
+                    current = (ElasticsearchException) current.getCause();
                 } else {
                     break;
                 }

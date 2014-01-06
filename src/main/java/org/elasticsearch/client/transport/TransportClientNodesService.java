@@ -23,8 +23,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -139,7 +139,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService addTransportAddresses(TransportAddress... transportAddresses) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticSearchIllegalStateException("transport client is closed, can't add an address");
+                throw new ElasticsearchIllegalStateException("transport client is closed, can't add an address");
             }
             List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {
@@ -174,7 +174,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService removeTransportAddress(TransportAddress transportAddress) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticSearchIllegalStateException("transport client is closed, can't remove an address");
+                throw new ElasticsearchIllegalStateException("transport client is closed, can't remove an address");
             }
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             for (DiscoveryNode otherNode : listedNodes) {
@@ -190,7 +190,7 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <T> T execute(NodeCallback<T> callback) throws ElasticSearchException {
+    public <T> T execute(NodeCallback<T> callback) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         if (nodes.isEmpty()) {
             throw new NoNodeAvailableException();
@@ -204,7 +204,7 @@ public class TransportClientNodesService extends AbstractComponent {
             DiscoveryNode node = nodes.get((index + i) % nodes.size());
             try {
                 return callback.doWithNode(node);
-            } catch (ElasticSearchException e) {
+            } catch (ElasticsearchException e) {
                 if (!(e.unwrapCause() instanceof ConnectTransportException)) {
                     throw e;
                 }
@@ -213,7 +213,7 @@ public class TransportClientNodesService extends AbstractComponent {
         throw new NoNodeAvailableException();
     }
 
-    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticSearchException {
+    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         if (nodes.isEmpty()) {
             throw new NoNodeAvailableException();
@@ -226,7 +226,7 @@ public class TransportClientNodesService extends AbstractComponent {
         RetryListener<Response> retryListener = new RetryListener<Response>(callback, listener, nodes, index);
         try {
             callback.doWithNode(nodes.get((index) % nodes.size()), retryListener);
-        } catch (ElasticSearchException e) {
+        } catch (ElasticsearchException e) {
             if (e.unwrapCause() instanceof ConnectTransportException) {
                 retryListener.onFailure(e);
             } else {
@@ -494,11 +494,11 @@ public class TransportClientNodesService extends AbstractComponent {
 
     public static interface NodeCallback<T> {
 
-        T doWithNode(DiscoveryNode node) throws ElasticSearchException;
+        T doWithNode(DiscoveryNode node) throws ElasticsearchException;
     }
 
     public static interface NodeListenerCallback<Response> {
 
-        void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticSearchException;
+        void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException;
     }
 }

@@ -20,8 +20,8 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
@@ -165,7 +165,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) throws ElasticSearchException {
+    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) throws ElasticsearchException {
         if (request.shardId() != -1) {
             return clusterState.routingTable().index(request.index()).shard(request.shardId()).primaryShardIt();
         }
@@ -181,11 +181,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) throws ElasticSearchException {
+    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) throws ElasticsearchException {
         shardOperation(request, listener, 0);
     }
 
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
+    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticsearchException {
         final UpdateHelper.Result result = updateHelper.prepare(request);
         switch (result.operation()) {
             case UPSERT:
@@ -286,7 +286,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onResponse(update);
                 break;
             default:
-                throw new ElasticSearchIllegalStateException("Illegal operation " + result.operation());
+                throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());
         }
     }
 }

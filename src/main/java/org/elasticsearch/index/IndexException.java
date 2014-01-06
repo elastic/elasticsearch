@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class IndexException extends ElasticSearchException {
+public class IndexException extends ElasticsearchException {
 
     private final Index index;
 

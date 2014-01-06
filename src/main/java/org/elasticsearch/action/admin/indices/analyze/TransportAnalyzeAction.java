@@ -26,8 +26,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -111,7 +111,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticSearchException {
+    protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = null;
         if (request.index() != null) {
             indexService = indicesService.indexServiceSafe(request.index());
@@ -121,12 +121,12 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         String field = null;
         if (request.field() != null) {
             if (indexService == null) {
-                throw new ElasticSearchIllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
+                throw new ElasticsearchIllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
             }
             FieldMapper<?> fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
             if (fieldMapper != null) {
                 if (fieldMapper.isNumeric()) {
-                    throw new ElasticSearchIllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
+                    throw new ElasticsearchIllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                 }
                 analyzer = fieldMapper.indexAnalyzer();
                 field = fieldMapper.names().indexName();
@@ -147,20 +147,20 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 analyzer = indexService.analysisService().analyzer(request.analyzer());
             }
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
             }
         } else if (request.tokenizer() != null) {
             TokenizerFactory tokenizerFactory;
             if (indexService == null) {
                 TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(request.tokenizer());
                 if (tokenizerFactoryFactory == null) {
-                    throw new ElasticSearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
+                    throw new ElasticsearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
                 }
                 tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), ImmutableSettings.Builder.EMPTY_SETTINGS);
             } else {
                 tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
                 if (tokenizerFactory == null) {
-                    throw new ElasticSearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
+                    throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
             }
             TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
@@ -171,17 +171,17 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     if (indexService == null) {
                         TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
                         if (tokenFilterFactoryFactory == null) {
-                            throw new ElasticSearchIllegalArgumentException("failed to find global token filter under [" + request.tokenizer() + "]");
+                            throw new ElasticsearchIllegalArgumentException("failed to find global token filter under [" + request.tokenizer() + "]");
                         }
                         tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
                     } else {
                         tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
                         if (tokenFilterFactories[i] == null) {
-                            throw new ElasticSearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                            throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
                         }
                     }
                     if (tokenFilterFactories[i] == null) {
-                        throw new ElasticSearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                        throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
                     }
                 }
             }
@@ -195,7 +195,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             }
         }
         if (analyzer == null) {
-            throw new ElasticSearchIllegalArgumentException("failed to find analyzer");
+            throw new ElasticsearchIllegalArgumentException("failed to find analyzer");
         }
 
         List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
@@ -218,7 +218,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             }
             stream.end();
         } catch (IOException e) {
-            throw new ElasticSearchException("failed to analyze", e);
+            throw new ElasticsearchException("failed to analyze", e);
         } finally {
             if (stream != null) {
                 try {

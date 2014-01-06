@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -78,10 +78,10 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
-            throw new ElasticSearchIllegalArgumentException("Must have at least one clause when building a spanNear query");
+            throw new ElasticsearchIllegalArgumentException("Must have at least one clause when building a spanNear query");
         }
         if (slop == null) {
-            throw new ElasticSearchIllegalArgumentException("Must set the slop when building a spanNear query");
+            throw new ElasticsearchIllegalArgumentException("Must set the slop when building a spanNear query");
         }
         builder.startObject(SpanNearQueryParser.NAME);
         builder.startArray("clauses");

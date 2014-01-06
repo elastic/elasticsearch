@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 /**
  */
@@ -60,7 +60,7 @@ public class NoneRecycler<T> extends Recycler<T> {
         @Override
         public boolean release() {
             if (value == null) {
-                throw new ElasticSearchIllegalStateException("recycler entry already released...");
+                throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
             value = null;
             return true;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
@@ -49,7 +49,7 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Adds an initial block to be set on the first cluster state created.
      */
-    void addInitialStateBlock(ClusterBlock block) throws ElasticSearchIllegalStateException;
+    void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
 
     /**
      * The operation routing.

@@ -21,8 +21,7 @@ package org.elasticsearch.indices.fielddata.breaker;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -129,7 +128,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             try {
                 client().prepareIndex("test", "type", "" + i)
                         .setTimeout(TimeValue.timeValueSeconds(1)).setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i).get();
-            } catch (ElasticSearchException ex) {
+            } catch (ElasticsearchException ex) {
             }
         }
         logger.info("Start Refresh");

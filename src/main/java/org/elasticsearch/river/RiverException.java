@@ -19,12 +19,12 @@
 
 package org.elasticsearch.river;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  *
  */
-public class RiverException extends ElasticSearchException {
+public class RiverException extends ElasticsearchException {
 
     private final RiverName river;
 

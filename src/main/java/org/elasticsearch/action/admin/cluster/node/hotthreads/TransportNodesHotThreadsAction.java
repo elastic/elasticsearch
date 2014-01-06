@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -91,7 +91,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     }
 
     @Override
-    protected NodeHotThreads nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeHotThreads nodeOperation(NodeRequest request) throws ElasticsearchException {
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)
@@ -100,7 +100,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
         try {
             return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
         } catch (Exception e) {
-            throw new ElasticSearchException("failed to detect hot threads", e);
+            throw new ElasticsearchException("failed to detect hot threads", e);
         }
     }
 

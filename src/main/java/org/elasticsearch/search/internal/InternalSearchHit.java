@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -174,7 +174,7 @@ public class InternalSearchHit implements SearchHit {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 
@@ -231,7 +231,7 @@ public class InternalSearchHit implements SearchHit {
         try {
             return XContentHelper.convertToJson(sourceRef(), false);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to convert source to a json string");
+            throw new ElasticsearchParseException("failed to convert source to a json string");
         }
     }
 
@@ -242,7 +242,7 @@ public class InternalSearchHit implements SearchHit {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;
         }

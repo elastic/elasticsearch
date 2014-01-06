@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -134,7 +134,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticSearchException {
+    protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticsearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments());

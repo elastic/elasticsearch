@@ -22,7 +22,7 @@ package org.elasticsearch.search.rescore;
 import java.io.IOException;
 import java.util.Map;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -53,13 +53,13 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticSearchException {
+    public void execute(SearchContext context) throws ElasticsearchException {
         final RescoreSearchContext ctx = context.rescore();
         final Rescorer rescorer = ctx.rescorer();
         try {
             rescorer.rescore(context.queryResult().topDocs(), context, ctx);
         } catch (IOException e) {
-            throw new ElasticSearchException("Rescore Phase Failed", e);
+            throw new ElasticsearchException("Rescore Phase Failed", e);
         }    
     }
   

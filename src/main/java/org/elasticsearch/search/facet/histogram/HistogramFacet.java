@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.facet.Facet;
 
 import java.util.Comparator;
@@ -125,7 +125,7 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             } else if (id == 2) {
                 return TOTAL;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for histogram comparator [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for histogram comparator [" + id + "]");
         }
 
         public static ComparatorType fromString(String type) {
@@ -136,7 +136,7 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             } else if ("total".equals(type)) {
                 return TOTAL;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for histogram comparator [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for histogram comparator [" + type + "]");
         }
     }
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -126,7 +126,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticSearchParseException("failed to parse repository [" + name + "], expected object");
+                        throw new ElasticsearchParseException("failed to parse repository [" + name + "], expected object");
                     }
                     String type = null;
                     Settings settings = ImmutableSettings.EMPTY;
@@ -135,27 +135,27 @@ public class RepositoriesMetaData implements MetaData.Custom {
                             String currentFieldName = parser.currentName();
                             if ("type".equals(currentFieldName)) {
                                 if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                                    throw new ElasticSearchParseException("failed to parse repository [" + name + "], unknown type");
+                                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown type");
                                 }
                                 type = parser.text();
                             } else if ("settings".equals(currentFieldName)) {
                                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                    throw new ElasticSearchParseException("failed to parse repository [" + name + "], incompatible params");
+                                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], incompatible params");
                                 }
                                 settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
                             } else {
-                                throw new ElasticSearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
+                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
                             }
                         } else {
-                            throw new ElasticSearchParseException("failed to parse repository [" + name + "]");
+                            throw new ElasticsearchParseException("failed to parse repository [" + name + "]");
                         }
                     }
                     if (type == null) {
-                        throw new ElasticSearchParseException("failed to parse repository [" + name + "], missing repository type");
+                        throw new ElasticsearchParseException("failed to parse repository [" + name + "], missing repository type");
                     }
                     repository.add(new RepositoryMetaData(name, type, settings));
                 } else {
-                    throw new ElasticSearchParseException("failed to parse repositories");
+                    throw new ElasticsearchParseException("failed to parse repositories");
                 }
             }
             return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));

@@ -32,7 +32,7 @@ import java.io.OutputStream;
  * <code>System.err</code> using a layout specified by the user. The
  * default target is <code>System.out</code>.
  * <p/>
- * <p>ElasticSearch: Adapter from log4j to allow to disable console logging...</p>
+ * <p>Elasticsearch: Adapter from log4j to allow to disable console logging...</p>
  *
  * @author Ceki G&uuml;lc&uuml;
  * @author Curt Arnold

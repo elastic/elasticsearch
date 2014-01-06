@@ -8,7 +8,7 @@ _Facets_ provide aggregated data based on a search query. In the
 simplest case, a
 <<search-facets-terms-facet,terms facet>>
 can return _facet counts_ for various _facet values_ for a specific
-_field_. ElasticSearch supports more facet implementations, such as
+_field_. Elasticsearch supports more facet implementations, such as
 <<search-facets-statistical-facet,statistical>>
 or
 <<search-facets-date-histogram-facet,date

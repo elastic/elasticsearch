@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -122,7 +122,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected abstract String transportAction();
 
-    protected abstract GroupShardsIterator shards(Request request) throws ElasticSearchException;
+    protected abstract GroupShardsIterator shards(Request request) throws ElasticsearchException;
 
     protected abstract ShardRequest newShardRequestInstance(Request request, int shardId);
 

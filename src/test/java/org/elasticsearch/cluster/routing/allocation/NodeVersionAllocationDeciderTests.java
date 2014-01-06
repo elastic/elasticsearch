@@ -34,7 +34,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -209,7 +211,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
                nodesBuilder.put(node);
             }
             clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-            clusterState = stabelize(clusterState, service);
+            clusterState = stabilize(clusterState, service);
         }
     }
 
@@ -247,28 +249,28 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
                 .put(newNode("old0", getPreviousVersion()))
                 .put(newNode("old1", getPreviousVersion()))
                 .put(newNode("old2", getPreviousVersion()))).build();
-        clusterState = stabelize(clusterState, service);
+        clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("old0", getPreviousVersion()))
                 .put(newNode("old1", getPreviousVersion()))
                 .put(newNode("new0"))).build();
 
-        clusterState = stabelize(clusterState, service);
+        clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node0", getPreviousVersion()))
                 .put(newNode("new1"))
                 .put(newNode("new0"))).build();
 
-        clusterState = stabelize(clusterState, service);
+        clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("new2"))
                 .put(newNode("new1"))
                 .put(newNode("new0"))).build();
 
-        clusterState = stabelize(clusterState, service);
+        clusterState = stabilize(clusterState, service);
         routingTable = clusterState.routingTable();
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -281,7 +283,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         }
     }
 
-    private ClusterState stabelize(ClusterState clusterState, AllocationService service) {
+    private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
         logger.trace("RoutingNodes: {}", clusterState.routingNodes().prettyPrint());
 
         RoutingTable routingTable = service.reroute(clusterState).routingTable();
@@ -289,30 +291,22 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         RoutingNodes routingNodes = clusterState.routingNodes();
         assertRecoveryNodeVersions(routingNodes);
 
-        logger.info("start all the primary shards, replicas will start initializing");
-        routingNodes = clusterState.routingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
-        assertRecoveryNodeVersions(routingNodes);
-
-        logger.info("start the replica shards");
-        routingNodes = clusterState.routingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
-        while (true) {
+        boolean stable = false;
+        for (int i = 0; i < 1000; i++) {   // at most 200 iters - this should be enough for all tests
             logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
-            if (routingTable == prev)
+            if (stable = (routingTable == prev)) {
                 break;
+            }
             assertRecoveryNodeVersions(routingNodes);
             prev = routingTable;
         }
+        logger.info("stabilized success [{}]", stable);
+        assertThat(stable, is(true));
         return clusterState;
     }
 

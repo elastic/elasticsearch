@@ -1,8 +1,5 @@
 ---
 "Text format":
-    - skip:
-          version:     "0.90.9-99"
-          reason:      Text format removed in 1.0.0.RC1
 
     - do:
         indices.analyze:

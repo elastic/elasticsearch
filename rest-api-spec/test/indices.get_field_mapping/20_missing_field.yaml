@@ -1,8 +1,5 @@
 ---
 "Raise 404 when field doesn't exist":
-  - skip:
-      version:  "0 - 0.90.5"
-      reason:   "get field mapping was added in 0.90.6"
 
   - do:
         indices.create:

@@ -1,9 +1,5 @@
 ---
 setup:
- - skip:
-      version:  "0 - 0.90.2"
-      reason:   "Parent not supported in exists https://github.com/elasticsearch/elasticsearch/issues/3276"
-
  - do:
       indices.create:
           index: test_1
@@ -35,27 +31,7 @@ setup:
  - is_true: ''
 
 ---
-"Parent omitted pre 1.0":
-
- - skip:
-      version:  "1 - 999"
-      reason: "Pre 1.0 omitting a parent with exists would just use the id for routing, possibly resulting in 404"
-
- - do:
-      exists:
-          index:   test_1
-          type:    test
-          id:      1
-
- - is_false: ''
-
-
----
-"Parent omitted post 1.0":
-
- - skip:
-      version:  "0 - 0.999"
-      reason: "When a parent is specified in the mapping it cannot be omitted"
+"Parent omitted":
 
  - do:
       catch: request
@@ -63,7 +39,4 @@ setup:
           index:   test_1
           type:    test
           id:      1
-
- - is_false: ''
-
 

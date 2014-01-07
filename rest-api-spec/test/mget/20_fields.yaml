@@ -1,8 +1,6 @@
 ---
 "Fields":
-  - skip:
-      version:  "0 - 0.90.2"
-      reason:   "Single string fields not supported pre 0.90.3. See https://github.com/elasticsearch/elasticsearch/issues/3270"
+
   - do:
       index:
           index:  test_1

@@ -23,7 +23,7 @@ public class ThreadLocalRecyclerTests extends AbstractRecyclerTests {
 
     @Override
     protected Recycler<byte[]> newRecycler() {
-        return new ThreadLocalRecycler<byte[]>(RECYCLER_C, randomIntBetween(5, 10));
+        return Recyclers.threadLocal(Recyclers.dequeFactory(RECYCLER_C, 10));
     }
 
 }

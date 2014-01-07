@@ -24,10 +24,13 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.recycler.*;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.Locale;
+
+import static org.elasticsearch.common.recycler.Recyclers.*;
 
 @SuppressWarnings("unchecked")
 public class CacheRecycler extends AbstractComponent {
@@ -66,8 +69,9 @@ public class CacheRecycler extends AbstractComponent {
         final Type type = Type.parse(settings.get("type"));
         int limit = settings.getAsInt("limit", 10);
         int smartSize = settings.getAsInt("smart_size", 1024);
+        final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
-        hashMap = build(type, limit, smartSize, new Recycler.C<ObjectObjectOpenHashMap>() {
+        hashMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectObjectOpenHashMap>() {
             @Override
             public ObjectObjectOpenHashMap newInstance(int sizing) {
                 return new ObjectObjectOpenHashMap(size(sizing));
@@ -78,7 +82,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        hashSet = build(type, limit, smartSize, new Recycler.C<ObjectOpenHashSet>() {
+        hashSet = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectOpenHashSet>() {
             @Override
             public ObjectOpenHashSet newInstance(int sizing) {
                 return new ObjectOpenHashSet(size(sizing), 0.5f);
@@ -89,7 +93,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        doubleObjectMap = build(type, limit, smartSize, new Recycler.C<DoubleObjectOpenHashMap>() {
+        doubleObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<DoubleObjectOpenHashMap>() {
             @Override
             public DoubleObjectOpenHashMap newInstance(int sizing) {
                 return new DoubleObjectOpenHashMap(size(sizing));
@@ -100,7 +104,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        longObjectMap = build(type, limit, smartSize, new Recycler.C<LongObjectOpenHashMap>() {
+        longObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongObjectOpenHashMap>() {
             @Override
             public LongObjectOpenHashMap newInstance(int sizing) {
                 return new LongObjectOpenHashMap(size(sizing));
@@ -111,7 +115,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        longLongMap = build(type, limit, smartSize, new Recycler.C<LongLongOpenHashMap>() {
+        longLongMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongLongOpenHashMap>() {
             @Override
             public LongLongOpenHashMap newInstance(int sizing) {
                 return new LongLongOpenHashMap(size(sizing));
@@ -122,7 +126,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        intIntMap = build(type, limit, smartSize, new Recycler.C<IntIntOpenHashMap>() {
+        intIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<IntIntOpenHashMap>() {
             @Override
             public IntIntOpenHashMap newInstance(int sizing) {
                 return new IntIntOpenHashMap(size(sizing));
@@ -133,7 +137,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        floatIntMap = build(type, limit, smartSize, new Recycler.C<FloatIntOpenHashMap>() {
+        floatIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<FloatIntOpenHashMap>() {
             @Override
             public FloatIntOpenHashMap newInstance(int sizing) {
                 return new FloatIntOpenHashMap(size(sizing));
@@ -144,7 +148,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        doubleIntMap = build(type, limit, smartSize, new Recycler.C<DoubleIntOpenHashMap>() {
+        doubleIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<DoubleIntOpenHashMap>() {
             @Override
             public DoubleIntOpenHashMap newInstance(int sizing) {
                 return new DoubleIntOpenHashMap(size(sizing));
@@ -155,7 +159,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        longIntMap = build(type, limit, smartSize, new Recycler.C<LongIntOpenHashMap>() {
+        longIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongIntOpenHashMap>() {
             @Override
             public LongIntOpenHashMap newInstance(int sizing) {
                 return new LongIntOpenHashMap(size(sizing));
@@ -166,7 +170,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        objectIntMap = build(type, limit, smartSize, new Recycler.C<ObjectIntOpenHashMap>() {
+        objectIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectIntOpenHashMap>() {
             @Override
             public ObjectIntOpenHashMap newInstance(int sizing) {
                 return new ObjectIntOpenHashMap(size(sizing));
@@ -177,7 +181,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        intObjectMap = build(type, limit, smartSize, new Recycler.C<IntObjectOpenHashMap>() {
+        intObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<IntObjectOpenHashMap>() {
             @Override
             public IntObjectOpenHashMap newInstance(int sizing) {
                 return new IntObjectOpenHashMap(size(sizing));
@@ -188,7 +192,7 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
-        objectFloatMap = build(type, limit, smartSize, new Recycler.C<ObjectFloatOpenHashMap>() {
+        objectFloatMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectFloatOpenHashMap>() {
             @Override
             public ObjectFloatOpenHashMap newInstance(int sizing) {
                 return new ObjectFloatOpenHashMap(size(sizing));
@@ -253,12 +257,12 @@ public class CacheRecycler extends AbstractComponent {
         return sizing > 0 ? sizing : 256;
     }
 
-    private <T> Recycler<T> build(Type type, int limit, int smartSize, Recycler.C<T> c) {
+    private <T> Recycler<T> build(Type type, int limit, int smartSize, int availableProcessors, Recycler.C<T> c) {
         Recycler<T> recycler;
         try {
-            recycler = type.build(c, limit);
+            recycler = type.build(c, limit, availableProcessors);
             if (smartSize > 0) {
-                recycler = new Recycler.Sizing<T>(recycler, smartSize);
+                recycler = sizing(recycler, none(c), smartSize);
             }
         } catch (IllegalArgumentException ex) {
             throw new ElasticsearchIllegalArgumentException("no type support [" + type + "] for recycler");
@@ -270,40 +274,44 @@ public class CacheRecycler extends AbstractComponent {
     public static enum Type {
         SOFT_THREAD_LOCAL {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new SoftThreadLocalRecycler<T>(c, limit);
-            }
-            @Override
-            boolean perThread() {
-                return true;
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return threadLocal(softFactory(dequeFactory(c, limit)));
             }
         },
         THREAD_LOCAL {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new ThreadLocalRecycler<T>(c, limit);
-            }
-            @Override
-            boolean perThread() {
-                return true;
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return threadLocal(dequeFactory(c, limit));
             }
         },
         QUEUE {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new QueueRecycler<T>(c, limit);
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return concurrentDeque(c, limit);
+            }
+        },
+        SOFT_CONCURRENT {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return concurrent(softFactory(dequeFactory(c, limit)), availableProcessors);
+            }
+        },
+        CONCURRENT {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return concurrent(dequeFactory(c, limit), availableProcessors);
             }
         },
         NONE {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new NoneRecycler<T>(c);
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
+                return none(c);
             }
         };
 
         public static Type parse(String type) {
             if (Strings.isNullOrEmpty(type)) {
-                return SOFT_THREAD_LOCAL;
+                return SOFT_CONCURRENT;
             }
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
@@ -312,9 +320,6 @@ public class CacheRecycler extends AbstractComponent {
             }
         }
 
-        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit);
-        boolean perThread() {
-            return false;
-        }
+        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors);
     }
 }

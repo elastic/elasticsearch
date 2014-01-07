@@ -23,7 +23,7 @@ public class NoneRecyclerTests extends AbstractRecyclerTests {
 
     @Override
     protected Recycler<byte[]> newRecycler() {
-        return new NoneRecycler<byte[]>(RECYCLER_C);
+        return Recyclers.none(RECYCLER_C);
     }
 
 }

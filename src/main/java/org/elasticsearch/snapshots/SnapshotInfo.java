@@ -209,8 +209,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
         if (endTime != 0) {
             builder.field(Fields.END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
             builder.field(Fields.END_TIME_IN_MILLIS, endTime);
-            builder.field(Fields.DURATION, endTime - startTime);
-            builder.field(Fields.DURATION_IN_MILLIS, TimeValue.timeValueMillis(endTime - startTime));
+            builder.timeValueField(Fields.DURATION_IN_MILLIS, Fields.DURATION, endTime - startTime);
         }
         builder.startArray(Fields.FAILURES);
         for (SnapshotShardFailure shardFailure : shardFailures) {

@@ -30,9 +30,9 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.recycler.RecyclerUtils;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -206,10 +206,10 @@ public class TopChildrenQuery extends Query {
                 ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
                 Arrays.sort(_parentDocs, PARENT_DOC_COMP);
                 parentDocs.v().put(keys[i], _parentDocs);
-                RecyclerUtils.release(value);
+                Releasables.release(value);
             }
         }
-        RecyclerUtils.release(parentDocsPerReader);
+        Releasables.release(parentDocsPerReader);
         return parentHitsResolved;
     }
 
@@ -282,7 +282,7 @@ public class TopChildrenQuery extends Query {
 
         @Override
         public boolean release() throws ElasticsearchException {
-            RecyclerUtils.release(parentDocs);
+            Releasables.release(parentDocs);
             return true;
         }
 

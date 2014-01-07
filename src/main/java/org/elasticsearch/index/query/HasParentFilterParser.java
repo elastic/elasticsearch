@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
@@ -132,15 +133,20 @@ public class HasParentFilterParser implements FilterParser {
 
         Set<String> parentTypes = new HashSet<String>(5);
         parentTypes.add(parentType);
+        ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
+                parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());
                 }
             }
+        }
+        if (parentChildIndexFieldData == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
         }
 
         Filter parentFilter;
@@ -157,7 +163,7 @@ public class HasParentFilterParser implements FilterParser {
             parentFilter = parentsFilter;
         }
         Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
-        Query parentConstantScoreQuery = new ParentConstantScoreQuery(query, parentType, childrenFilter);
+        Query parentConstantScoreQuery = new ParentConstantScoreQuery(parentChildIndexFieldData, query, parentType, childrenFilter);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(parentConstantScoreQuery));

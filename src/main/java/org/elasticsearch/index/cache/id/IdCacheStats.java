@@ -30,7 +30,10 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import java.io.IOException;
 
 /**
+ * @deprecated Id cache has been removed in favor for {@link org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData}
+ * this class now reports field data memory usage for _parent field.
  */
+@Deprecated
 public class IdCacheStats implements Streamable, ToXContent {
 
     long memorySize;

@@ -23,15 +23,20 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -57,6 +62,7 @@ public class TopChildrenQuery extends Query {
 
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
+    private final ParentChildIndexFieldData parentChildIndexFieldData;
     private final CacheRecycler cacheRecycler;
     private final String parentType;
     private final String childType;
@@ -64,13 +70,15 @@ public class TopChildrenQuery extends Query {
     private final int factor;
     private final int incrementalFactor;
     private final Query originalChildQuery;
+    private final Filter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler) {
+    public TopChildrenQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler, Filter nonNestedDocsFilter) {
+        this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
@@ -78,6 +86,7 @@ public class TopChildrenQuery extends Query {
         this.factor = factor;
         this.incrementalFactor = incrementalFactor;
         this.cacheRecycler = cacheRecycler;
+        this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
     // Rewrite invocation logic:
@@ -106,7 +115,6 @@ public class TopChildrenQuery extends Query {
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs = cacheRecycler.hashMap(-1);
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
         int requestedDocs = (searchContext.from() + searchContext.size());
@@ -128,7 +136,11 @@ public class TopChildrenQuery extends Query {
         while (true) {
             parentDocs.v().clear();
             TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);
-            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext, parentDocs);
+            try {
+                parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext, parentDocs);
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
 
             // check if we found enough docs, if so, break
             if (parentHitsResolved >= requestedDocs) {
@@ -150,16 +162,18 @@ public class TopChildrenQuery extends Query {
         return parentWeight;
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws Exception {
         int parentHitsResolved = 0;
         Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            BytesValues.WithOrdinals parentValues = parentChildIndexFieldData.load(subContext).getBytesValues(parentType);
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            HashedBytesArray parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
+            parentValues.setDocument(subDoc);
+            BytesRef parentId = parentValues.nextValue();
             if (parentId == null) {
                 // no parent found
                 continue;
@@ -167,9 +181,25 @@ public class TopChildrenQuery extends Query {
             // now go over and find the parent doc Id and reader tuple
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
-                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                Bits liveDocs = indexReader.getLiveDocs();
-                if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
+                FixedBitSet nonNestedDocs = null;
+                if (nonNestedDocsFilter != null) {
+                    nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                }
+
+                Terms terms = indexReader.terms(UidFieldMapper.NAME);
+                if (terms == null) {
+                    continue;
+                }
+                TermsEnum termsEnum = terms.iterator(null);
+                if (!termsEnum.seekExact(Uid.createUidAsBytes(parentType, parentId))) {
+                    continue;
+                }
+                DocsEnum docsEnum = termsEnum.docs(indexReader.getLiveDocs(), null, DocsEnum.FLAG_NONE);
+                int parentDocId = docsEnum.nextDoc();
+                if (nonNestedDocs != null && !nonNestedDocs.get(parentDocId)) {
+                    parentDocId = nonNestedDocs.nextSetBit(parentDocId);
+                }
+                if (parentDocId != DocsEnum.NO_MORE_DOCS) {
                     // we found a match, add it and break
 
                     Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());

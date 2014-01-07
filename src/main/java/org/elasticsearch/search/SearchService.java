@@ -709,32 +709,26 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
-            boolean parentChild = false;
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        ParentFieldMapper parentFieldMapper = (ParentFieldMapper) fieldMapper;
-                        if (parentFieldMapper.active()) {
-                            parentChild = true;
-                        }
-                    }
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != Loading.EAGER) {
-                        continue;
-                    }
                     final String indexName = fieldMapper.names().indexName();
-                    if (warmUp.containsKey(indexName)) {
-                        continue;
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        ParentFieldMapper parentFieldMapper = (ParentFieldMapper) fieldMapper;
+                        if (parentFieldMapper.active()) {
+                            warmUp.put(indexName, parentFieldMapper);
+                        }
+                    } else if (fieldDataType.getLoading() != Loading.EAGER && warmUp.containsKey(indexName)) {
+                        warmUp.put(indexName, fieldMapper);
                     }
-                    warmUp.put(indexName, fieldMapper);
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.newSearcher().reader().leaves().size() * warmUp.size() + (parentChild ? 1 : 0));
+            final CountDownLatch latch = new CountDownLatch(context.newSearcher().reader().leaves().size() * warmUp.size());
             for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
                     executor.execute(new Runnable() {
@@ -757,28 +751,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     });
                 }
             }
-
-            if (parentChild) {
-                executor.execute(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        try {
-                            final long start = System.nanoTime();
-                            indexShard.indexService().cache().idCache().refresh(context.newSearcher().reader().leaves());
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed id_cache, took [{}]", TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up id cache", t);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                });
-            }
-
             return new TerminationHandle() {
                 @Override
                 public void awaitTermination() throws InterruptedException {

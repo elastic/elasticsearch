@@ -29,7 +29,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -67,27 +66,27 @@ public class TestSearchContext extends SearchContext {
 
     final CacheRecycler cacheRecycler;
     final PageCacheRecycler pageCacheRecycler;
-    final IdCache idCache;
     final IndexService indexService;
     final FilterCache filterCache;
+    final IndexFieldDataService indexFieldDataService;
 
     ContextIndexSearcher searcher;
     int size;
 
-    public TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, IdCache idCache, IndexService indexService, FilterCache filterCache) {
+    public TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.idCache = idCache;
         this.indexService = indexService;
         this.filterCache = filterCache;
+        this.indexFieldDataService = indexFieldDataService;
     }
 
     public TestSearchContext() {
         this.cacheRecycler = null;
         this.pageCacheRecycler = null;
-        this.idCache = null;
         this.indexService = null;
         this.filterCache = null;
+        this.indexFieldDataService = null;
     }
 
     @Override
@@ -332,12 +331,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public IndexFieldDataService fieldData() {
-        return null;
-    }
-
-    @Override
-    public IdCache idCache() {
-        return idCache;
+        return indexFieldDataService;
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.io.IOException;
@@ -67,7 +68,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
 
         @Override
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService) {
+                                       CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final FieldMapper.Names fieldNames = mapper.names();
             return new GeoPointBinaryDVIndexFieldData(index, fieldNames);

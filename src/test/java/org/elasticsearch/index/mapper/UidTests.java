@@ -19,11 +19,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UidTests extends ElasticsearchTestCase {
@@ -31,16 +29,16 @@ public class UidTests extends ElasticsearchTestCase {
     @Test
     public void testCreateAndSplitId() {
         BytesRef createUid = Uid.createUidAsBytes("foo", "bar");
-        HashedBytesArray[] splitUidIntoTypeAndId = Uid.splitUidIntoTypeAndId(createUid);
-        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].toUtf8()));
-        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].toUtf8()));
+        BytesRef[] splitUidIntoTypeAndId = Uid.splitUidIntoTypeAndId(createUid);
+        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].utf8ToString()));
+        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].utf8ToString()));
         // split also with an offset
         BytesRef ref = new BytesRef(createUid.length+10);
         ref.offset = 9;
         ref.length = createUid.length;
         System.arraycopy(createUid.bytes, createUid.offset, ref.bytes, ref.offset, ref.length);
         splitUidIntoTypeAndId = Uid.splitUidIntoTypeAndId(ref);
-        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].toUtf8()));
-        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].toUtf8()));
+        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].utf8ToString()));
+        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].utf8ToString()));
     }
 }

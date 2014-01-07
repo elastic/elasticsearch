@@ -28,32 +28,29 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 
 import java.io.IOException;
 
 /**
  * Advantages over using this filter over Lucene's TermsFilter in the parent child context:
  * 1) Don't need to copy all values over to a list from the id cache and then
- *    copy all the ids values over to one continuous byte array. Should save a lot of of object creations and gcs..
+ * copy all the ids values over to one continuous byte array. Should save a lot of of object creations and gcs..
  * 2) We filter docs by one field only.
  * 3) We can directly reference to values that originate from the id cache.
  */
 final class ParentIdsFilter extends Filter {
 
     private final BytesRef parentTypeBr;
-    private final Object[] keys;
-    private final boolean[] allocated;
-
     private final Filter nonNestedDocsFilter;
+    private final BytesRefHash parentIds;
 
-    public ParentIdsFilter(String parentType, Object[] keys, boolean[] allocated, Filter nonNestedDocsFilter) {
+    ParentIdsFilter(String parentType, Filter nonNestedDocsFilter, BytesRefHash parentIds) {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
-        this.keys = keys;
-        this.allocated = allocated;
+        this.parentIds = parentIds;
     }
 
     @Override
@@ -78,13 +75,9 @@ final class ParentIdsFilter extends Filter {
 
         DocsEnum docsEnum = null;
         FixedBitSet result = null;
-        for (int i = 0; i < allocated.length; i++) {
-            if (!allocated[i]) {
-                continue;
-            }
-
-            idSpare.bytes = ((HashedBytesArray) keys[i]).toBytes();
-            idSpare.length = idSpare.bytes.length;
+        long size = parentIds.size();
+        for (int i = 0; i < size; i++) {
+            parentIds.get(i, idSpare);
             Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
             if (termsEnum.seekExact(uidSpare)) {
                 int docId;

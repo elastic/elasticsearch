@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -675,6 +677,29 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
     }
+
+    /**
+     * The FHV can spend a long time highlighting degenerate documents if phraseLimit is not set.
+     */
+    @Test(timeout=120000)
+    public void testFVHManyMatches() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        // Index one megabyte of "t   " over and over and over again
+        client().prepareIndex("test", "type1")
+                .setSource("field1", Joiner.on("").join(Iterables.limit(Iterables.cycle("t   "), 1024*256))).get();
+        refresh();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "t"))
+                .highlight(highlight().highlighterType("fvh").field("field1", 20, 1).order("score").preTags("<xxx>").postTags("</xxx>"));
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, containsString("<xxx>t</xxx>"));
+        logger.info("--> done");
+    }
+
 
     @Test
     public void testMatchedFieldsFvhRequireFieldMatch() throws Exception {

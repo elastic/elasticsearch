@@ -80,6 +80,8 @@ public class SearchContextHighlight {
 
         private Map<String, Object> options;
 
+        private int phraseLimit = -1;
+
         public Field(String field) {
             this.field = field;
         }
@@ -214,6 +216,14 @@ public class SearchContextHighlight {
 
         public void noMatchSize(int noMatchSize) {
             this.noMatchSize = noMatchSize;
+        }
+
+        public int phraseLimit() {
+            return phraseLimit;
+        }
+
+        public void phraseLimit(int phraseLimit) {
+            this.phraseLimit = phraseLimit;
         }
 
         public Set<String> matchedFields() {

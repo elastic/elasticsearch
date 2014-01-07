@@ -138,6 +138,7 @@ public class FastVectorHighlighter implements Highlighter {
                 CustomFieldQuery.highlightFilters.set(field.highlightFilter());
                 cache.mappers.put(mapper, entry);
             }
+            cache.fvh.setPhraseLimit(field.phraseLimit());
 
             String[] fragments;
 

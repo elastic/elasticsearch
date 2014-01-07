@@ -526,3 +526,15 @@ to
     }
 --------------------------------------------------
 ===================================================================
+
+added[0.90.10]
+[[matched-fields]]
+==== Phrase Limit
+The `fast-vector-highlighter` has a `phrase_limit` parameter that prevents
+it from analyzing too many phrases and eating tons of memory.  It defaults
+to 256 so only the first 256 matching phrases in the document scored
+considered.  You can raise the limit with the `phrase_limit` parameter but
+keep in mind that scoring more phrases consumes more time and memory.
+
+If using `matched_fields` keep in mind that `phrase_limit` phrases per
+matched field are considered.

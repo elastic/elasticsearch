@@ -26,7 +26,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.*;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -124,9 +126,14 @@ public class HasChildQueryParser implements QueryParser {
         if (!childDocMapper.parentFieldMapper().active()) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] does not have parent mapping");
         }
-        String parentType = childDocMapper.parentFieldMapper().type();
-        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
 
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (!parentFieldMapper.active()) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] _parent field not configured");
+        }
+
+        String parentType = parentFieldMapper.type();
+        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
@@ -142,10 +149,11 @@ public class HasChildQueryParser implements QueryParser {
         boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
         if (!deleteByQuery && scoreType != null) {
-            query = new ChildrenQuery(parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
-            query = new ChildrenConstantScoreQuery(innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

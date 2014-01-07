@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
@@ -130,17 +131,22 @@ public class HasParentQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
+        ParentChildIndexFieldData parentChildIndexFieldData = null;
         Set<String> parentTypes = new HashSet<String>(5);
         parentTypes.add(parentType);
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
+                parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());
                 }
             }
+        }
+        if (parentChildIndexFieldData == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
         }
 
         Filter parentFilter;
@@ -161,9 +167,9 @@ public class HasParentQueryParser implements QueryParser {
         boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;
         if (!deleteByQuery && score) {
-            query = new ParentQuery(innerQuery, parentType, childrenFilter);
+            query = new ParentQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
         } else {
-            query = new ParentConstantScoreQuery(innerQuery, parentType, childrenFilter);
+            query = new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

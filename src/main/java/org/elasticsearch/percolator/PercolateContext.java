@@ -37,7 +37,6 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
@@ -486,11 +485,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public DocSetCache docSetCache() {
         return indexService.cache().docSet();
-    }
-
-    @Override
-    public IdCache idCache() {
-        return indexService.cache().idCache();
     }
 
     @Override

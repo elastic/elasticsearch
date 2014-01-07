@@ -34,7 +34,6 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
-import org.elasticsearch.index.cache.id.ShardIdCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
@@ -153,7 +152,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         // inject workarounds for cyclic dep
         indexCache.filter().setIndexService(this);
-        indexCache.idCache().setIndexService(this);
         indexFieldData.setIndexService(this);
     }
 
@@ -330,7 +328,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new MergeSchedulerModule(indexSettings));
         modules.add(new ShardFilterCacheModule());
         modules.add(new ShardFieldDataModule());
-        modules.add(new ShardIdCacheModule());
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));

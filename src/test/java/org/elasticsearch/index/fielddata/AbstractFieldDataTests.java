@@ -23,13 +23,13 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -69,6 +69,8 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
             mapper = MapperBuilders.byteField(fieldName).fieldDataSettings(type.getSettings()).build(context);
         } else if (type.getType().equals("geo_point")) {
             mapper = MapperBuilders.geoPointField(fieldName).fieldDataSettings(type.getSettings()).build(context);
+        } else if (type.getType().equals("_parent")) {
+            mapper = MapperBuilders.parent().type(fieldName).build(context);
         } else {
             throw new UnsupportedOperationException(type.getType());
         }
@@ -78,6 +80,8 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
     @Before
     public void setup() throws Exception {
         ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
+        ifdService.setIndexService(new StubIndexService(mapperService));
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
     }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.recycler;
 
-public class SoftThreadLocalRecyclerTests extends AbstractRecyclerTests {
+public class LockedRecyclerTests extends AbstractRecyclerTests {
 
     @Override
     protected Recycler<byte[]> newRecycler() {
-        return Recyclers.threadLocal(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, 10)));
+        return Recyclers.locked(Recyclers.deque(RECYCLER_C, randomIntBetween(5, 10)));
     }
 
 }

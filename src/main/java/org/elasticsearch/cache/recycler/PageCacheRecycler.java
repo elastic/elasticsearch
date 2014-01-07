@@ -19,18 +19,20 @@
 
 package org.elasticsearch.cache.recycler;
 
-import org.elasticsearch.cache.recycler.CacheRecycler.Type;
+import com.google.common.base.Strings;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.recycler.NoneRecycler;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.Locale;
+
+import static org.elasticsearch.common.recycler.Recyclers.*;
 
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent {
@@ -79,17 +81,9 @@ public class PageCacheRecycler extends AbstractComponent {
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
         final Type type = Type.parse(componentSettings.get(TYPE));
-        long limit = componentSettings.getAsMemory(LIMIT_HEAP, "10%").bytes();
-        if (type.perThread()) {
-            final long limitPerThread = componentSettings.getAsBytesSize(LIMIT_PER_THREAD, new ByteSizeValue(-1)).bytes();
-            if (limitPerThread != -1) {
-                // if the per_thread limit is set, it has precedence
-                limit = limitPerThread;
-            } else {
-                // divide memory equally to all search threads
-                limit /= maximumSearchThreadPoolSize(threadPool, settings);
-            }
-        }
+        final long limit = componentSettings.getAsMemory(LIMIT_HEAP, "10%").bytes();
+        final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        final int searchThreadPoolSize = maximumSearchThreadPoolSize(threadPool, settings);
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
@@ -113,7 +107,7 @@ public class PageCacheRecycler extends AbstractComponent {
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + doublesWeight + objectsWeight;
 
-        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), new Recycler.C<byte[]>() {
+        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
                 return new byte[BigArrays.BYTE_PAGE_SIZE];
@@ -121,7 +115,7 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void clear(byte[] value) {}
         });
-        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), new Recycler.C<int[]>() {
+        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
                 return new int[BigArrays.INT_PAGE_SIZE];
@@ -129,7 +123,7 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void clear(int[] value) {}
         });
-        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), new Recycler.C<long[]>() {
+        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
                 return new long[BigArrays.LONG_PAGE_SIZE];
@@ -137,7 +131,7 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void clear(long[] value) {}
         });
-        doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), new Recycler.C<double[]>() {
+        doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<double[]>() {
             @Override
             public double[] newInstance(int sizing) {
                 return new double[BigArrays.DOUBLE_PAGE_SIZE];
@@ -145,7 +139,7 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void clear(double[] value) {}
         });
-        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), new Recycler.C<Object[]>() {
+        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
                 return new Object[BigArrays.OBJECT_PAGE_SIZE];
@@ -194,13 +188,65 @@ public class PageCacheRecycler extends AbstractComponent {
         return objectPage.obtain();
     }
 
-    private static <T> Recycler<T> build(Type type, int limit, Recycler.C<T> c) {
+    private static <T> Recycler<T> build(Type type, int limit, int estimatedThreadPoolSize, int availableProcessors, Recycler.C<T> c) {
         final Recycler<T> recycler;
         if (limit == 0) {
-            recycler = new NoneRecycler<T>(c);
+            recycler = none(c);
         } else {
-            recycler = type.build(c, limit);
+            recycler = type.build(c, limit, estimatedThreadPoolSize, availableProcessors);
         }
         return recycler;
+    }
+
+    public static enum Type {
+        SOFT_THREAD_LOCAL {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return threadLocal(softFactory(dequeFactory(c, limit / estimatedThreadPoolSize)));
+            }
+        },
+        THREAD_LOCAL {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return threadLocal(dequeFactory(c, limit / estimatedThreadPoolSize));
+            }
+        },
+        QUEUE {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return concurrentDeque(c, limit);
+            }
+        },
+        SOFT_CONCURRENT {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return concurrent(softFactory(dequeFactory(c, limit / availableProcessors)), availableProcessors);
+            }
+        },
+        CONCURRENT {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return concurrent(dequeFactory(c, limit / availableProcessors), availableProcessors);
+            }
+        },
+        NONE {
+            @Override
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+                return none(c);
+            }
+        };
+
+        public static Type parse(String type) {
+            if (Strings.isNullOrEmpty(type)) {
+                return SOFT_CONCURRENT;
+            }
+            try {
+                return Type.valueOf(type.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ElasticsearchIllegalArgumentException("no type support [" + type + "]");
+            }
+        }
+
+        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors);
     }
 }

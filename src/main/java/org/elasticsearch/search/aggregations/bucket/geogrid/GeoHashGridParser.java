@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -131,11 +131,11 @@ public class GeoHashGridParser implements Aggregator.Parser {
         @Override
         protected Aggregator create(final GeoPointValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final CellValues cellIdValues = new CellValues(valuesSource,precision);
-            FieldDataSource.Numeric cellIdSource = new CellIdSource(cellIdValues);
-            //TODO "sortedAndUnique" line below is following the example in GeoDistanceParser which assumes
-            // that docs always have multi-points. There is an open question as to if we can detect 
-            // if any multi-point exists in a segment and if so, avoid this needless wrapper  
-            cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
+            FieldDataSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
+            if (cellIdSource.metaData().multiValued()) {
+                // we need to wrap to ensure uniqueness
+                cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
+            }
             final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource,null,null);
             return new GeoHashGridAggregator(name, factories, geohashIdSource,  requiredSize,
                     shardSize, aggregationContext, parent);
@@ -169,9 +169,12 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         private static class CellIdSource extends FieldDataSource.Numeric {
             private final LongValues values;
+            private MetaData metaData;
 
-            public CellIdSource(LongValues values) {
+            public CellIdSource(LongValues values, MetaData delegate) {
                 this.values = values;
+                //different GeoPoints could map to the same or different geohash cells.
+                this.metaData = MetaData.builder(delegate).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
             }
 
             @Override
@@ -192,6 +195,11 @@ public class GeoHashGridParser implements Aggregator.Parser {
             @Override
             public BytesValues bytesValues() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MetaData metaData() {
+                return metaData;
             }
 
         }

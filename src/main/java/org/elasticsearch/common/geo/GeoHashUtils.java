@@ -355,7 +355,7 @@ public class GeoHashUtils {
     public static long encodeAsLong(double latitude, double longitude, int precision) {
         if((precision>12)||(precision<1))
         {
-            throw new ElasticSearchIllegalArgumentException("Illegal precision length of "+precision+
+            throw new ElasticsearchIllegalArgumentException("Illegal precision length of "+precision+
                     ". Long-based geohashes only support precisions between 1 and 12");
         }
         double latInterval0 = -90.0;

@@ -23,12 +23,10 @@ import com.google.common.collect.Sets;
 import jsr166e.ConcurrentHashMapV8;
 import jsr166y.LinkedTransferQueue;
 
+import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.*;
 
 /**
  *
@@ -81,6 +79,10 @@ public abstract class ConcurrentCollections {
             return new LinkedTransferQueue<T>();
         }
         return new ConcurrentLinkedQueue<T>();
+    }
+
+    public static <T> Deque<T> newDeque() {
+        return new ConcurrentLinkedDeque<T>();
     }
 
     public static <T> BlockingQueue<T> newBlockingQueue() {

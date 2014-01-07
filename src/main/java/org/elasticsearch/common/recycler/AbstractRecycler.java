@@ -19,52 +19,22 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
-/**
- */
-public class NoneRecycler<T> extends AbstractRecycler<T> {
+abstract class AbstractRecycler<T> implements Recycler<T> {
 
-    public NoneRecycler(C<T> c) {
-        super(c);
+    protected final Recycler.C<T> c;
+
+    protected AbstractRecycler(Recycler.C<T> c) {
+        this.c = c;
     }
 
-    @Override
-    public V<T> obtain(int sizing) {
-        return new NV<T>(c.newInstance(sizing));
+    public V<T> obtain() {
+        return obtain(-1);
     }
 
     @Override
     public void close() {
-
+        // no-op by default
     }
 
-    public static class NV<T> implements Recycler.V<T> {
-
-        T value;
-
-        NV(T value) {
-            this.value = value;
-        }
-
-        @Override
-        public T v() {
-            return value;
-        }
-
-        @Override
-        public boolean isRecycled() {
-            return false;
-        }
-
-        @Override
-        public boolean release() {
-            if (value == null) {
-                throw new ElasticsearchIllegalStateException("recycler entry already released...");
-            }
-            value = null;
-            return true;
-        }
-    }
 }
-

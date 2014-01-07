@@ -24,10 +24,12 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.recycler.*;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
+
+import static org.elasticsearch.common.recycler.Recyclers.*;
 
 @SuppressWarnings("unchecked")
 public class CacheRecycler extends AbstractComponent {
@@ -258,7 +260,7 @@ public class CacheRecycler extends AbstractComponent {
         try {
             recycler = type.build(c, limit);
             if (smartSize > 0) {
-                recycler = new Recycler.Sizing<T>(recycler, smartSize);
+                recycler = sizing(recycler, none(c), smartSize);
             }
         } catch (IllegalArgumentException ex) {
             throw new ElasticsearchIllegalArgumentException("no type support [" + type + "] for recycler");
@@ -271,33 +273,25 @@ public class CacheRecycler extends AbstractComponent {
         SOFT_THREAD_LOCAL {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new SoftThreadLocalRecycler<T>(c, limit);
-            }
-            @Override
-            boolean perThread() {
-                return true;
+                return threadLocal(softFactory(dequeFactory(c, limit)));
             }
         },
         THREAD_LOCAL {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new ThreadLocalRecycler<T>(c, limit);
-            }
-            @Override
-            boolean perThread() {
-                return true;
+                return threadLocal(dequeFactory(c, limit));
             }
         },
         QUEUE {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new QueueRecycler<T>(c, limit);
+                return concurrentDeque(c, limit);
             }
         },
         NONE {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit) {
-                return new NoneRecycler<T>(c);
+                return none(c);
             }
         };
 
@@ -313,8 +307,5 @@ public class CacheRecycler extends AbstractComponent {
         }
 
         abstract <T> Recycler<T> build(Recycler.C<T> c, int limit);
-        boolean perThread() {
-            return false;
-        }
     }
 }

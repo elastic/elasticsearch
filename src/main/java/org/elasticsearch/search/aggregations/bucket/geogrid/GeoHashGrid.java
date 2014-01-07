@@ -20,11 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
  * Represents the results of a GeoHashGrid aggregation
  */
-public interface GeoHashGrid extends Iterable<GeoHashGrid.Bucket> {
+public interface GeoHashGrid extends Iterable<GeoHashGrid.Bucket>, Aggregation {
 
     public static interface Bucket extends org.elasticsearch.search.aggregations.bucket.Bucket {
 

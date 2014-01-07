@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      version:     "0 - 0.90.2"
-      reason:      "Suggest is broken on 0.90.2 - see #3246"
   - do:
       index:
         index: test
@@ -12,31 +9,8 @@ setup:
   - do:
       indices.refresh: {}
 
-
 ---
-"Basic tests for suggest API - pre v1":
-  - skip:
-      version:     "1 - 99"
-      reason:      "Standard analyzer uses stopwords"
-
-
-  - do:
-      suggest:
-        body:
-          test_suggestion:
-            text: "The Amsterdma meetpu"
-            term:
-              field: body
-
-  - match: {test_suggestion.0.options.0.text: amsterdam}
-  - match: {test_suggestion.1.options.0.text: meetup}
-
----
-"Basic tests for suggest API - post v1":
-  - skip:
-      version:     "0 - 0.90.999"
-      reason:      "Standard analyzer ignores stopwords"
-
+"Basic tests for suggest API":
 
   - do:
       suggest:

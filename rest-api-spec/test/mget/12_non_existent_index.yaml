@@ -1,9 +1,5 @@
 ---
 "Non-existent index":
-  - skip:
-      version:  "0 - 0.90.2"
-      reason:   "See https://github.com/elasticsearch/elasticsearch/issues/3267"
-
   - do:
       index:
           index:  test_1

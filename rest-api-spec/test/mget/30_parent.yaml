@@ -1,10 +1,6 @@
 ---
 "Parent":
 
- - skip:
-      version:  "0 - 0.90.2"
-      reason:   Parent not supported in mget. https://github.com/elasticsearch/elasticsearch/issues/3274
-
  - do:
       indices.create:
           index: test_1

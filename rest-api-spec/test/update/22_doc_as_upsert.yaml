@@ -1,10 +1,6 @@
 ---
 "Doc as upsert":
 
-  - skip:
-      version:    "0-0.90.1"
-      reason:     "doc_as_upsert added in 0.90.2"
-
   - do:
       update:
           index:            test_1

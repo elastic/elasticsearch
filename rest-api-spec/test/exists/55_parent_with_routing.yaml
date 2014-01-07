@@ -1,10 +1,6 @@
 ---
 "Parent with routing":
 
- - skip:
-      version:  "0 - 0.90.2"
-      reason:   "Parent not supported in exists https://github.com/elasticsearch/elasticsearch/issues/3276"
-
  - do:
       indices.create:
           index: test_1

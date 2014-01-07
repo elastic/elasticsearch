@@ -85,6 +85,7 @@ public class HighlighterParseElement implements SearchParseElement {
         Map<String, Object> globalOptions = null;
         Query globalHighlightQuery = null;
         int globalNoMatchSize = 0;
+        int globalPhraseLimit = 256;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -136,6 +137,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalFragmenter = parser.text();
                 } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
                     globalNoMatchSize = parser.intValue();
+                } else if ("phrase_limit".equals(topLevelFieldName) || "phraseLimit".equals(topLevelFieldName)) {
+                    globalPhraseLimit = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
                 globalOptions = parser.map();
@@ -199,6 +202,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.fragmenter(parser.text());
                                     } else if ("no_match_size".equals(fieldName) || "noMatchSize".equals(fieldName)) {
                                         field.noMatchSize(parser.intValue());
+                                    } else if ("phrase_limit".equals(fieldName) || "phraseLimit".equals(fieldName)) {
+                                        field.phraseLimit(parser.intValue());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
@@ -266,6 +271,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.noMatchSize() == -1) {
                 field.noMatchSize(globalNoMatchSize);
+            }
+            if (field.phraseLimit() == -1) {
+                field.phraseLimit(globalPhraseLimit);
             }
         }
 

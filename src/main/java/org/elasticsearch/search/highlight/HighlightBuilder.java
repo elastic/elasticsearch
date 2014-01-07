@@ -58,6 +58,8 @@ public class HighlightBuilder implements ToXContent {
 
     private Integer noMatchSize;
 
+    private Integer phraseLimit;
+
     private Map<String, Object> options;
 
     /**
@@ -226,6 +228,16 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
+     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
+     * @param phraseLimit maximum number of phrases the fvh will consider
+     * @return this for chaining
+     */
+    public HighlightBuilder phraseLimit(Integer phraseLimit) {
+        this.phraseLimit = phraseLimit;
+        return this;
+    }
+
+    /**
      * Allows to set custom options for custom highlighters.
      */
     public HighlightBuilder options(Map<String, Object> options) {
@@ -265,6 +277,9 @@ public class HighlightBuilder implements ToXContent {
         }
         if (noMatchSize != null) {
             builder.field("no_match_size", noMatchSize);
+        }
+        if (phraseLimit != null) {
+            builder.field("phrase_limit", phraseLimit);
         }
         if (options != null && options.size() > 0) {
             builder.field("options", options);
@@ -318,6 +333,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.matchedFields != null) {
                     builder.field("matched_fields", field.matchedFields);
                 }
+                if (field.phraseLimit != null) {
+                    builder.field("phrase_limit", field.phraseLimit);
+                }
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
                 }
@@ -348,6 +366,7 @@ public class HighlightBuilder implements ToXContent {
         QueryBuilder highlightQuery;
         Integer noMatchSize;
         String[] matchedFields;
+        Integer phraseLimit;
         Map<String, Object> options;
 
         public Field(String name) {
@@ -479,5 +498,16 @@ public class HighlightBuilder implements ToXContent {
             this.matchedFields = matchedFields;
             return this;
         }
+
+        /**
+         * Sets the maximum number of phrases the fvh will consider.
+         * @param phraseLimit maximum number of phrases the fvh will consider
+         * @return this for chaining
+         */
+        public Field phraseLimit(Integer phraseLimit) {
+            this.phraseLimit = phraseLimit;
+            return this;
+        }
+
     }
 }

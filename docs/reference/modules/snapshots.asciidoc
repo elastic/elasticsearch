@@ -53,7 +53,7 @@ or
 
 [source,js]
 -----------------------------------
-$ curl -XGET 'http://localhost:9200/_snapshot/all'
+$ curl -XGET 'http://localhost:9200/_snapshot/_all'
 -----------------------------------
 
 [float]

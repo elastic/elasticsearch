@@ -86,6 +86,7 @@ public class HighlighterParseElement implements SearchParseElement {
         Map<String, Object> globalOptions = null;
         Query globalHighlightQuery = null;
         int globalNoMatchSize = 0;
+        int globalPhraseLimit = 256;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -139,6 +140,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalNoMatchSize = parser.intValue();
                 } else if ("force_source".equals(topLevelFieldName) || "forceSource".equals(topLevelFieldName)) {
                     globalForceSource = parser.booleanValue();
+                } else if ("phrase_limit".equals(topLevelFieldName) || "phraseLimit".equals(topLevelFieldName)) {
+                    globalPhraseLimit = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
                 globalOptions = parser.map();
@@ -204,6 +207,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.noMatchSize(parser.intValue());
                                     } else if ("force_source".equals(fieldName) || "forceSource".equals(fieldName)) {
                                         field.forceSource(parser.booleanValue());
+                                    } else if ("phrase_limit".equals(fieldName) || "phraseLimit".equals(fieldName)) {
+                                        field.phraseLimit(parser.intValue());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
@@ -274,6 +279,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.forceSource() == null) {
                 field.forceSource(globalForceSource);
+            }
+            if (field.phraseLimit() == -1) {
+                field.phraseLimit(globalPhraseLimit);
             }
         }
 

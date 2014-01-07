@@ -1,5 +1,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -79,7 +80,11 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                 return null;
             } else {
                 strValue = strValue.toUpperCase(Locale.ROOT);
-                return Allocation.valueOf(strValue);
+                try {
+                    return Allocation.valueOf(strValue);
+                } catch (IllegalArgumentException e) {
+                    throw new ElasticSearchIllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
+                }
             }
         }
     }

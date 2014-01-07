@@ -1,4 +1,3 @@
-package org.elasticsearch.common;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.common;
  * under the License.
  */
 
+package org.elasticsearch.common;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;

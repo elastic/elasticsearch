@@ -1,4 +1,3 @@
-package org.elasticsearch.search.suggest.phrase;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,6 +16,8 @@ package org.elasticsearch.search.suggest.phrase;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.suggest.phrase;
+
 import com.google.common.base.Charsets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
@@ -51,6 +52,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+
 public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
     private final BytesRef space = new BytesRef(" ");
     private final BytesRef preTag = new BytesRef("<em>");

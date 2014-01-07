@@ -1,4 +1,3 @@
-package org.elasticsearch.index.analysis;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,6 +16,9 @@ package org.elasticsearch.index.analysis;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.index.analysis;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.elasticsearch.common.inject.Inject;

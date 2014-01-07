@@ -1,4 +1,3 @@
-package org.elasticsearch.cluster;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.cluster;
  * under the License.
  */
 
+package org.elasticsearch.cluster;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;

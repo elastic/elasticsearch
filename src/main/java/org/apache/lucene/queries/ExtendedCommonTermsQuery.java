@@ -1,4 +1,3 @@
-package org.apache.lucene.queries;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,11 +16,14 @@ package org.apache.lucene.queries;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.apache.lucene.queries;
+
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.lucene.search.Queries;
 
 /**
- * Extended version of {@link CommonTermsQuery} that allows to pass in a 
+ * Extended version of {@link CommonTermsQuery} that allows to pass in a
  * <tt>minimumNumberShouldMatch</tt> specification that uses the actual num of high frequent terms
  * to calculate the minimum matching terms.
  */
@@ -34,7 +36,7 @@ public class ExtendedCommonTermsQuery extends CommonTermsQuery {
     public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         super(highFreqOccur, lowFreqOccur, maxTermFrequency);
     }
-    
+
     private String lowFreqMinNumShouldMatchSpec;
     private String highFreqMinNumShouldMatchSpec;
 
@@ -54,7 +56,7 @@ public class ExtendedCommonTermsQuery extends CommonTermsQuery {
     protected int calcHighFreqMinimumNumberShouldMatch(int numOptional) {
         return calcMinimumNumberShouldMatch(highFreqMinNumShouldMatchSpec, numOptional);
     }
- 
+
     public void setHighFreqMinimumNumberShouldMatch(String spec) {
         this.highFreqMinNumShouldMatchSpec = spec;
     }

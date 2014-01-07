@@ -46,7 +46,7 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testClusterEnableNone() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.id())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build());
 
         logger.info("Building initial routing table");
@@ -75,7 +75,7 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testClusterEnableOnlyPrimaries() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.PRIMARIES.id())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.PRIMARIES.name())
                 .build());
 
         logger.info("Building initial routing table");
@@ -113,7 +113,7 @@ public class EnableAllocationTests extends ElasticsearchAllocationTestCase {
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("disabled").settings(ImmutableSettings.builder()
-                        .put(INDEX_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.id()))
+                        .put(INDEX_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name()))
                         .numberOfShards(1).numberOfReplicas(1))
                 .put(IndexMetaData.builder("enabled").numberOfShards(1).numberOfReplicas(1))
                 .build();

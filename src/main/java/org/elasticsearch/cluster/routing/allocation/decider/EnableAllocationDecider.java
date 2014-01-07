@@ -1,11 +1,14 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
+
+import java.util.Locale;
 
 /**
  */
@@ -19,7 +22,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
     @Inject
     public EnableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.ALL.id()));
+        this.enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.ALL.name()));
         nodeSettingsService.addListener(this);
     }
 
@@ -30,12 +33,16 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
         }
 
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
-        Allocation enable = Allocation.parse(indexSettings.get(INDEX_ROUTING_ALLOCATION_ENABLE, this.enable.id()));
-        if (enable == null) { // Invalid enable setting value then default to all.
-            enable = Allocation.ALL;
+        String enableIndexValue = indexSettings.get(INDEX_ROUTING_ALLOCATION_ENABLE);
+        final Allocation enable;
+        if (enableIndexValue != null) {
+            enable = Allocation.parse(enableIndexValue);
+        } else {
+            enable = this.enable;
         }
-
         switch (enable) {
+            case ALL:
+                return Decision.YES;
             case NONE:
                 return Decision.NO;
             case NEW_PRIMARIES:
@@ -46,48 +53,33 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                 }
             case PRIMARIES:
                 return shardRouting.primary() ? Decision.YES : Decision.NO;
+            default:
+                throw new ElasticSearchIllegalStateException("Unknown allocation enable option");
         }
-
-        return Decision.YES;
     }
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enable.id()));
+        Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enable.name()));
         if (enable != this.enable) {
-            logger.info("updating [cluster.routing.allocation.enable] from [{}] to [{}]", this.enable.id(), enable.id());
+            logger.info("updating [cluster.routing.allocation.enable] from [{}] to [{}]", this.enable, enable);
             EnableAllocationDecider.this.enable = enable;
         }
     }
 
     public enum Allocation {
 
-        NONE("none"),
-        NEW_PRIMARIES("new_primaries"),
-        PRIMARIES("primaries"),
-        ALL("all");
-
-        private final String id;
-
-        Allocation(String id) {
-            this.id = id;
-        }
-
-        public String id() {
-            return id;
-        }
+        NONE,
+        NEW_PRIMARIES,
+        PRIMARIES,
+        ALL;
 
         public static Allocation parse(String strValue) {
-            if ("none".equals(strValue)) {
-                return NONE;
-            } else if ("new_primaries".equals(strValue)) {
-                return NEW_PRIMARIES;
-            } else if ("primaries".equals(strValue)) {
-                return PRIMARIES;
-            } else if ("all".equals(strValue)) {
-                return ALL;
-            } else {
+            if (strValue == null) {
                 return null;
+            } else {
+                strValue = strValue.toUpperCase(Locale.ROOT);
+                return Allocation.valueOf(strValue);
             }
         }
     }

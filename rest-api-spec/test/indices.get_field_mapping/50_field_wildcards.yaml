@@ -25,9 +25,6 @@ setup:
 
 ---
 "Get field mapping with * for fields":
-  - skip:
-        version:  "0 - 0.90.7"
-        reason:   "The API was added in 0.90.8"
 
   - do:
       indices.get_field_mapping:
@@ -41,9 +38,6 @@ setup:
 
 ---
 "Get field mapping with t* for fields":
-  - skip:
-        version:  "0 - 0.90.7"
-        reason:   "The API was added in 0.90.8"
 
   - do:
       indices.get_field_mapping:
@@ -58,9 +52,6 @@ setup:
 
 ---
 "Get field mapping with *t1 for fields":
-  - skip:
-        version:  "0 - 0.90.7"
-        reason:   "The API was added in 0.90.8"
 
   - do:
       indices.get_field_mapping:
@@ -72,9 +63,6 @@ setup:
 
 ---
 "Get field mapping with wildcarded relative names":
-  - skip:
-        version:  "0 - 0.90.7"
-        reason:   "The API was added in 0.90.8"
 
   - do:
       indices.get_field_mapping:

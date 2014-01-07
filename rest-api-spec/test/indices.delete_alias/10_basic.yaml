@@ -1,8 +1,5 @@
 ---
 "Basic test for delete alias":
-  - skip:
-      version:  "0 - 0.90.0"
-      reason:   "Delete alias not supported before 0.90.1"
 
   - do:
       indices.create:

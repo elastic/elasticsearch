@@ -1,10 +1,5 @@
 ---
 "Parent":
-
- - skip:
-      version:     "0 - 0.90.2"
-      reason:      Delete ignores the parent param
-
  - do:
       indices.create:
           index: test_1

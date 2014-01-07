@@ -1,6 +1,16 @@
 
+# Installing the last release of Marvel
 
-## Grunt build system
+The easiest way to play/get to know Marvel is to install the latest release version of it. To do so, just run the following command on every node on your cluster (restart node for it to have effect):
+
+```
+./bin/plugin -i elasticsearch/marvel/latest
+```
+
+Once done, open up the following url (assuming standard ES config): http://localhost:9200/_plugin/marvel  . This will take you to the Overview Dashboard. Use Kibana's Load dashboard menu to navigate to the Cluster Pulse dashboard
+
+
+## Grunt build system (for running the UI from a code checkout)
 This grunt-based build system handles Kibana development environment setup for Marvel as well as building, packaging and distribution of the Marvel plugin. Note that you **must** run *grunt setup* before any other tasks as this build system reuses parts of the Kibana build system that must be fetched
 
 ### Installing

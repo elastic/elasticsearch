@@ -35,6 +35,7 @@ public enum BigArrays {
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
     public static final int BYTE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_BYTE;
     public static final int INT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_INT;
+    public static final int FLOAT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_FLOAT;
     public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_LONG;
     public static final int DOUBLE_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_DOUBLE;
     public static final int OBJECT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
@@ -236,6 +237,49 @@ public enum BigArrays {
 
     }
 
+    private static class FloatArrayWrapper extends AbstractArray implements FloatArray {
+
+        private final float[] array;
+
+        FloatArrayWrapper(float[] array, PageCacheRecycler recycler, boolean clearOnResize) {
+            super(recycler, clearOnResize);
+            this.array = array;
+        }
+
+        @Override
+        public long size() {
+            return array.length;
+        }
+
+        @Override
+        public float get(long index) {
+            assert indexIsInt(index);
+            return array[(int) index];
+        }
+
+        @Override
+        public float set(long index, float value) {
+            assert indexIsInt(index);
+            float ret = array[(int) index];
+            array[(int) index] = value;
+            return ret;
+        }
+
+        @Override
+        public float increment(long index, float inc) {
+            assert indexIsInt(index);
+            return array[(int) index] += inc;
+        }
+
+        @Override
+        public void fill(long fromIndex, long toIndex, float value) {
+            assert indexIsInt(fromIndex);
+            assert indexIsInt(toIndex);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+    }
+
     private static class ObjectArrayWrapper<T> extends AbstractArray implements ObjectArray<T> {
 
         private final Object[] array;
@@ -416,6 +460,44 @@ public enum BigArrays {
             return array;
         }
         final long newSize = overSize(minSize, DOUBLE_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_DOUBLE);
+        return resize(array, newSize);
+    }
+
+    /** Allocate a new {@link FloatArray} of the given capacity. */
+    public static FloatArray newFloatArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
+        if (size <= FLOAT_PAGE_SIZE) {
+            return new FloatArrayWrapper(new float[(int) size], recycler, clearOnResize);
+        } else {
+            return new BigFloatArray(size, recycler, clearOnResize);
+        }
+    }
+
+    /** Allocate a new {@link FloatArray} of the given capacity. */
+    public static FloatArray newFloatArray(long size) {
+        return newFloatArray(size, null, true);
+    }
+
+    /** Resize the array to the exact provided size. */
+    public static FloatArray resize(FloatArray array, long size) {
+        if (array instanceof BigFloatArray) {
+            ((BigFloatArray) array).resize(size);
+            return array;
+        } else {
+            AbstractArray arr = (AbstractArray) array;
+            final FloatArray newArray = newFloatArray(size, arr.recycler, arr.clearOnResize);
+            for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
+                newArray.set(i, array.get(i));
+            }
+            return newArray;
+        }
+    }
+
+    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    public static FloatArray grow(FloatArray array, long minSize) {
+        if (minSize <= array.size()) {
+            return array;
+        }
+        final long newSize = overSize(minSize, FLOAT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_FLOAT);
         return resize(array, newSize);
     }
 

@@ -52,6 +52,8 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
@@ -66,6 +68,7 @@ import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.index.service.StubIndexService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.hamcrest.Matchers;
@@ -116,6 +119,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
                 new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
+                new IndexFieldDataModule(settings),
                 new IndexNameModule(index),
                 new FunctionScoreModule(),
                 new AbstractModule() {
@@ -127,6 +131,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
                 }
         ).createInjector();
 
+        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));

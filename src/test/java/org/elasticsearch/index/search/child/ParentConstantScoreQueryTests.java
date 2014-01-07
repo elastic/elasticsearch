@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -148,6 +149,8 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
@@ -200,12 +203,12 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasParentQueryParser
-                query = new ParentConstantScoreQuery(parentQuery, "parent", childrenFilter);
+                query = new ParentConstantScoreQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
             } else {
                 // Usage in HasParentFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ParentConstantScoreQuery(parentQuery, "parent", childrenFilter)
+                                new ParentConstantScoreQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter)
                         )
                 );
             }

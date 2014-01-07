@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
@@ -149,7 +150,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             }
             if (request.idCache()) {
                 clearedAtLeastOne = true;
-                service.cache().idCache().clear();
+                service.fieldData().clearField(ParentFieldMapper.NAME);
             }
             if (!clearedAtLeastOne) {
                 if (request.fields() != null && request.fields().length > 0) {

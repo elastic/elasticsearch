@@ -1,5 +1,3 @@
-package org.elasticsearch.cluster.allocation;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +16,8 @@ package org.elasticsearch.cluster.allocation;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.EvenShardsCountAllocator;

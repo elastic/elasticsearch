@@ -1,4 +1,3 @@
-package org.elasticsearch.common.xcontent.support;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.common.xcontent.support;
  * under the License.
  */
 
+package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -28,8 +28,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class XContentHelperTests extends ElasticsearchTestCase {
 

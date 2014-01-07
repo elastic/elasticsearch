@@ -1,4 +1,3 @@
-package org.elasticsearch.index.fielddata.fieldcomparator;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,6 +16,8 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;

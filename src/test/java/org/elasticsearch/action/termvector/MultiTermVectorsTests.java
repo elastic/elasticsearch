@@ -1,4 +1,3 @@
-package org.elasticsearch.action.termvector;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,16 +17,14 @@ package org.elasticsearch.action.termvector;
  * under the License.
  */
 
+package org.elasticsearch.action.termvector;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
-import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequestBuilder;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
+
 public class MultiTermVectorsTests extends AbstractTermVectorTests {
 
     @Test
@@ -64,6 +61,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
         }
 
     }
+
     public void testMissingIndexThrowsMissingIndex() throws Exception {
         TermVectorRequestBuilder requestBuilder = client().prepareTermVector("testX", "typeX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = new MultiTermVectorsRequestBuilder(client());

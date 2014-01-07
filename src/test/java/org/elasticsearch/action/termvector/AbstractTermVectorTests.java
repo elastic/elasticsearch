@@ -1,5 +1,3 @@
-package org.elasticsearch.action.termvector;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,6 +17,8 @@ package org.elasticsearch.action.termvector;
  * under the License.
  */
 
+package org.elasticsearch.action.termvector;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
@@ -37,8 +37,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -205,11 +203,11 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
      * Generate test documentsThe returned documents are already indexed.
      */
     protected TestDoc[] generateTestDocs(int numberOfDocs, TestFieldSetting[] fieldSettings) {
-        String[] fieldContentOptions = new String[] { "Generating a random permutation of a sequence (such as when shuffling cards).",
+        String[] fieldContentOptions = new String[]{"Generating a random permutation of a sequence (such as when shuffling cards).",
                 "Selecting a random sample of a population (important in statistical sampling).",
                 "Allocating experimental units via random assignment to a treatment or control condition.",
                 "Generating random numbers: see Random number generation.",
-                "Transforming a data stream (such as when using a scrambler in telecommunications)." };
+                "Transforming a data stream (such as when using a scrambler in telecommunications)."};
 
         String[] contentArray = new String[fieldSettings.length];
         Map<String, Object> docSource = new HashMap<String, Object>();
@@ -252,21 +250,21 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
 
             }
             TestConfig config = new TestConfig(testDocs[randomInt(testDocs.length - 1)], selectedFields == null ? null
-                    : selectedFields.toArray(new String[] {}), randomBoolean(), randomBoolean(), randomBoolean());
+                    : selectedFields.toArray(new String[]{}), randomBoolean(), randomBoolean(), randomBoolean());
 
             configs.add(config);
         }
         // always adds a test that fails
-        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[] {}, new String[] {}).index("doesn't_exist"),
-                new String[] { "doesnt_exist" }, true, true, true).expectedException(IndexMissingException.class));
+        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist"),
+                new String[]{"doesnt_exist"}, true, true, true).expectedException(IndexMissingException.class));
 
         refresh();
 
-        return configs.toArray(new TestConfig[] {});
+        return configs.toArray(new TestConfig[]{});
     }
 
     protected TestFieldSetting[] getFieldSettings() {
-        return new TestFieldSetting[] { new TestFieldSetting("field_with_positions", false, false, true),
+        return new TestFieldSetting[]{new TestFieldSetting("field_with_positions", false, false, true),
                 new TestFieldSetting("field_with_offsets", true, false, false),
                 new TestFieldSetting("field_with_only_tv", false, false, false),
                 new TestFieldSetting("field_with_positions_offsets", false, false, true),

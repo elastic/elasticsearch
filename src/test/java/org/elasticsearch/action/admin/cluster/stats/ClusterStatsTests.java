@@ -1,4 +1,3 @@
-package org.elasticsearch.action.admin.cluster.stats;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.action.admin.cluster.stats;
  * under the License.
  */
 
+package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;

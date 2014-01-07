@@ -1,4 +1,3 @@
-package org.elasticsearch.index;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.index;
  * under the License.
  */
 
+package org.elasticsearch.index;
 
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.test.ElasticsearchTestCase;

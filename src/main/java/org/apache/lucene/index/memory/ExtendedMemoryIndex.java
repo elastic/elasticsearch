@@ -1,5 +1,3 @@
-package org.apache.lucene.index.memory;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +16,8 @@ package org.apache.lucene.index.memory;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.apache.lucene.index.memory;
 
 /**
  * This class overwrites {@link MemoryIndex} to make the reuse constructor visible.

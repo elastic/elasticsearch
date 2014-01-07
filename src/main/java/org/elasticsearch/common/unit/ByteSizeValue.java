@@ -92,6 +92,22 @@ public class ByteSizeValue implements Serializable, Streamable {
         return gb();
     }
 
+    public long tb() {
+        return sizeUnit.toTB(size);
+    }
+
+    public long getTb() {
+        return tb();
+    }
+
+    public long pb() {
+        return sizeUnit.toPB(size);
+    }
+
+    public long getPb() {
+        return pb();
+    }
+
     public double kbFrac() {
         return ((double) bytes()) / ByteSizeUnit.C1;
     }
@@ -116,12 +132,34 @@ public class ByteSizeValue implements Serializable, Streamable {
         return gbFrac();
     }
 
+    public double tbFrac() {
+        return ((double) bytes()) / ByteSizeUnit.C4;
+    }
+
+    public double getTbFrac() {
+        return tbFrac();
+    }
+
+    public double pbFrac() {
+        return ((double) bytes()) / ByteSizeUnit.C5;
+    }
+
+    public double getPbFrac() {
+        return pbFrac();
+    }
+
     @Override
     public String toString() {
         long bytes = bytes();
         double value = bytes;
         String suffix = "b";
-        if (bytes >= ByteSizeUnit.C3) {
+        if (bytes >= ByteSizeUnit.C5) {
+            value = pbFrac();
+            suffix = "pb";
+        } else if (bytes >= ByteSizeUnit.C4) {
+            value = tbFrac();
+            suffix = "tb";
+        } else if (bytes >= ByteSizeUnit.C3) {
             value = gbFrac();
             suffix = "gb";
         } else if (bytes >= ByteSizeUnit.C2) {
@@ -157,6 +195,14 @@ public class ByteSizeValue implements Serializable, Streamable {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C3);
             } else if (lastTwoChars.endsWith("gb")) {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C3);
+            } else if (lastTwoChars.endsWith("t")) {
+                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C4);
+            } else if (lastTwoChars.endsWith("tb")) {
+                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C4);
+            } else if (lastTwoChars.endsWith("p")) {
+                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * ByteSizeUnit.C5);
+            } else if (lastTwoChars.endsWith("pb")) {
+                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C5);
             } else if (lastTwoChars.endsWith("b")) {
                 bytes = Long.parseLong(sValue.substring(0, sValue.length() - 1));
             } else {

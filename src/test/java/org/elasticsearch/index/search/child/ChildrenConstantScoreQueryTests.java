@@ -39,10 +39,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
-import org.elasticsearch.index.cache.id.SimpleIdCacheTests;
-import org.elasticsearch.index.cache.id.simple.SimpleIdCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
@@ -52,10 +51,12 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.index.service.StubIndexService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Description;
 import org.hamcrest.StringDescription;
@@ -109,7 +110,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int shortCircuitParentDocSet = random().nextInt(5);
-        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null);
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
+        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null);
 
         BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
         searcher.search(query, collector);
@@ -198,6 +201,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
@@ -253,12 +258,12 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
+                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
                         )
                 );
             }
@@ -325,13 +330,13 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         final Index index = new Index(indexName);
-        final IdCache idCache = new SimpleIdCache(index, ImmutableSettings.EMPTY);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool());
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
-        final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
-        idCache.setIndexService(indexService);
+        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());
+        final IndexService indexService = new StubIndexService(mapperService);
+        indexFieldDataService.setIndexService(indexService);
         // Id_cache is now registered as document type listener, so we can add mappings.
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
@@ -341,7 +346,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(cacheRecycler, pageCacheRecycler, idCache, indexService, filterCache);
+        return new TestSearchContext(cacheRecycler, pageCacheRecycler, indexService, filterCache, indexFieldDataService);
     }
 
 }

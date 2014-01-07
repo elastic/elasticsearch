@@ -284,9 +284,12 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().get();
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).get();
+                .prepareStats("test").setFieldData(true).get();
         // automatic warm-up has populated the cache since it found a parent field mapper
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
+        // Even though p/c is field data based the stats stay zero, because _parent field data field is kept
+        // track of under id cache stats memory wise for bwc
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
@@ -295,13 +298,15 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).get();
+                .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
         client().admin().indices().prepareClearCache("test").setIdCache(true).get();
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).get();
+                .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
     }
 
     @Test
@@ -1866,13 +1871,23 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         }
 
-        // can't fail, because there is no check, this b/c parent type can be refered by many child types.
-        client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
-                .get();
-        client().prepareSearch("test")
-                .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
-                .get();
+        try {
+            client().prepareSearch("test")
+                    .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        try {
+            client().prepareSearch("test")
+                    .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
     }
 
     @Test

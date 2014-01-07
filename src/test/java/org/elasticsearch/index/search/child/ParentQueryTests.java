@@ -32,6 +32,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -145,6 +146,8 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
@@ -194,7 +197,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", parentValue)));
-            Query query = new ParentQuery(parentQuery,"parent", childrenFilter);
+            Query query = new ParentQuery(parentChildIndexFieldData, parentQuery,"parent", childrenFilter);
             query = new XFilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);

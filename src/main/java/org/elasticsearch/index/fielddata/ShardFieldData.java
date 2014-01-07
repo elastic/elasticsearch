@@ -26,9 +26,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesAtomicFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,7 +65,14 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
                 }
             }
         }
-        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals);
+
+        // Because we report _parent field used memory separately via id cache, we need to subtract it from the
+        // field data total memory used. This code should be removed for >= 2.0
+        long memorySize = totalMetric.count();
+        if (perFieldTotals.containsKey(ParentFieldMapper.NAME)) {
+            memorySize -= perFieldTotals.get(ParentFieldMapper.NAME).count();
+        }
+        return new FieldDataStats(memorySize, evictionsMetric.count(), fieldTotals);
     }
 
     @Override

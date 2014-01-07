@@ -20,14 +20,12 @@
 package org.elasticsearch.index.shard.service;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
-import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -56,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorService;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -74,8 +73,6 @@ public interface IndexShard extends IndexShardComponent {
     ShardIndexWarmerService warmerService();
 
     ShardFilterCache filterCache();
-
-    ShardIdCache idCache();
 
     ShardFieldData fieldData();
 

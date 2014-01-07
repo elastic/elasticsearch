@@ -45,6 +45,8 @@ import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
@@ -57,6 +59,7 @@ import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.index.service.StubIndexService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
@@ -101,6 +104,7 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
                 new FunctionScoreModule(),
+                new IndexFieldDataModule(settings),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -110,6 +114,7 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
                 }
         ).createInjector();
 
+        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
         String childMapping = copyToStringFromClasspath("/org/elasticsearch/index/query/child-mapping.json");

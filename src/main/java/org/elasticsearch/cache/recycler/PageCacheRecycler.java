@@ -46,6 +46,7 @@ public class PageCacheRecycler extends AbstractComponent {
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
     private final Recycler<long[]> longPage;
+    private final Recycler<float[]> floatPage;
     private final Recycler<double[]> doublePage;
     private final Recycler<Object[]> objectPage;
 
@@ -53,6 +54,7 @@ public class PageCacheRecycler extends AbstractComponent {
         bytePage.close();
         intPage.close();
         longPage.close();
+        floatPage.close();
         doublePage.close();
         objectPage.close();
     }
@@ -102,6 +104,7 @@ public class PageCacheRecycler extends AbstractComponent {
         final double bytesWeight = componentSettings.getAsDouble(WEIGHT + ".bytes", 1d);
         final double intsWeight = componentSettings.getAsDouble(WEIGHT + ".ints", 1d);
         final double longsWeight = componentSettings.getAsDouble(WEIGHT + ".longs", 1d);
+        final double floatsWeight = componentSettings.getAsDouble(WEIGHT + ".floats", 1d);
         final double doublesWeight = componentSettings.getAsDouble(WEIGHT + ".doubles", 1d);
         // object pages are less useful to us so we give them a lower weight by default
         final double objectsWeight = componentSettings.getAsDouble(WEIGHT + ".objects", 0.1d);
@@ -136,6 +139,16 @@ public class PageCacheRecycler extends AbstractComponent {
             @Override
             public void recycle(long[] value) {
                 // nothing to do               
+            }
+        });
+        floatPage = build(type, maxCount(limit, BigArrays.FLOAT_PAGE_SIZE, floatsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<float[]>() {
+            @Override
+            public float[] newInstance(int sizing) {
+                return new float[BigArrays.FLOAT_PAGE_SIZE];
+            }
+            @Override
+            public void recycle(float[] value) {
+                // nothing to do
             }
         });
         doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<double[]>() {
@@ -180,6 +193,14 @@ public class PageCacheRecycler extends AbstractComponent {
         final Recycler.V<long[]> v = longPage.obtain();
         if (v.isRecycled() && clear) {
             Arrays.fill(v.v(), 0L);
+        }
+        return v;
+    }
+
+    public Recycler.V<float[]> floatPage(boolean clear) {
+        final Recycler.V<float[]> v = floatPage.obtain();
+        if (v.isRecycled() && clear) {
+            Arrays.fill(v.v(), 0f);
         }
         return v;
     }

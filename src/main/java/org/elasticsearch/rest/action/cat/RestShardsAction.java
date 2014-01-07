@@ -114,65 +114,65 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("ip", "default:true;desc:ip of node where it lives")
                 .addCell("node", "default:true;desc:name of node where it lives");
 
-        table.addCell("total.completion.size", "alias:tcs,totalCompletionSize;default:false;text-align:right;desc:size of completion");
+        table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 
-        table.addCell("total.fielddata.memory_size", "alias:tfm,totalFielddataMemory;default:false;text-align:right;desc:used fielddata cache");
-        table.addCell("total.fielddata.evictions", "alias:tfe,totalFielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
+        table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
+        table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("total.filter_cache.memory_size", "alias:tfcm,totalFilterCacheMemory;default:false;text-align:right;desc:used filter cache");
-        table.addCell("total.filter_cache.evictions", "alias:tfce,totalFilterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
+        table.addCell("filter_cache.memory_size", "alias:fcm,filterCacheMemory;default:false;text-align:right;desc:used filter cache");
+        table.addCell("filter_cache.evictions", "alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
 
-        table.addCell("total.flush.total", "alias:tft,totalFlushTotal;default:false;text-align:right;desc:number of flushes");
-        table.addCell("total.flush.total_time", "alias:tftt,totalFlushTotalTime;default:false;text-align:right;desc:time spent in flush");
+        table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
+        table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
 
-        table.addCell("total.get.current", "alias:tgc,totalGetCurrent;default:false;text-align:right;desc:number of current get ops");
-        table.addCell("total.get.time", "alias:tgti,totalGetTime;default:false;text-align:right;desc:time spent in get");
-        table.addCell("total.get.total", "alias:tgto,totalGetTotal;default:false;text-align:right;desc:number of get ops");
-        table.addCell("total.get.exists_time", "alias:tgeti,totalGetExistsTime;default:false;text-align:right;desc:time spent in successful gets");
-        table.addCell("total.get.exists_total", "alias:tgeto,totalGetExistsTotal;default:false;text-align:right;desc:number of successful gets");
-        table.addCell("total.get.missing_time", "alias:tgmti,totalGetMissingTime;default:false;text-align:right;desc:time spent in failed gets");
-        table.addCell("total.get.missing_total", "alias:tgmto,totalGetMissingTotal;default:false;text-align:right;desc:number of failed gets");
+        table.addCell("get.current", "alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops");
+        table.addCell("get.time", "alias:gti,getTime;default:false;text-align:right;desc:time spent in get");
+        table.addCell("get.total", "alias:gto,getTotal;default:false;text-align:right;desc:number of get ops");
+        table.addCell("get.exists_time", "alias:geti,getExistsTime;default:false;text-align:right;desc:time spent in successful gets");
+        table.addCell("get.exists_total", "alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets");
+        table.addCell("get.missing_time", "alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
+        table.addCell("get.missing_total", "alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("total.id_cache.memory_size", "alias:tim,totalIdCacheMemory;default:false;text-align:right;desc:used id cache");
+        table.addCell("id_cache.memory_size", "alias:im,idCacheMemory;default:false;text-align:right;desc:used id cache");
 
-        table.addCell("total.indexing.delete_current", "alias:tidc,totalIndexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
-        table.addCell("total.indexing.delete_time", "alias:tidti,totalIndexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
-        table.addCell("total.indexing.delete_total", "alias:tidto,totalIndexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
-        table.addCell("total.indexing.index_current", "alias:tiic,totalIndexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
-        table.addCell("total.indexing.index_time", "alias:tiiti,totalIndexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
-        table.addCell("total.indexing.index_total", "alias:tiito,totalIndexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("indexing.delete_current", "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("indexing.delete_time", "alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
+        table.addCell("indexing.delete_total", "alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
+        table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
+        table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
 
-        table.addCell("total.merges.current", "alias:tmc,totalMergesCurrent;default:false;text-align:right;desc:number of current merges");
-        table.addCell("total.merges.current_docs", "alias:tmcd,totalMergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
-        table.addCell("total.merges.current_size", "alias:tmcs,totalMergesCurrentSize;default:false;text-align:right;desc:size of current merges");
-        table.addCell("total.merges.total", "alias:tmt,totalMergesTotal;default:false;text-align:right;desc:number of completed merge ops");
-        table.addCell("total.merges.total_docs", "alias:tmtd,totalMergesTotalDocs;default:false;text-align:right;desc:docs merged");
-        table.addCell("total.merges.total_size", "alias:tmts,totalMergesTotalSize;default:false;text-align:right;desc:size merged");
-        table.addCell("total.merges.total_time", "alias:tmtt,totalMergesTotalTime;default:false;text-align:right;desc:time spent in merges");
+        table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
+        table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("merges.current_size", "alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges");
+        table.addCell("merges.total", "alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops");
+        table.addCell("merges.total_docs", "alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged");
+        table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
+        table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("total.percolate.current", "alias:tpc,totalPercolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("total.percolate.memory_size", "alias:tpm,totalPercolateMemory;default:false;text-align:right;desc:memory used by percolations");
-        table.addCell("total.percolate.queries", "alias:tpq,totalPercolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("total.percolate.time", "alias:tpti,totalPercolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("total.percolate.total", "alias:tpto,totalPercolateTotal;default:false;text-align:right;desc:total percolations");
+        table.addCell("percolate.current", "alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
+        table.addCell("percolate.memory_size", "alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
+        table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
+        table.addCell("percolate.time", "alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
+        table.addCell("percolate.total", "alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
 
-        table.addCell("total.refresh.total", "alias:trto,totalRefreshTotal;default:false;text-align:right;desc:total refreshes");
-        table.addCell("total.refresh.time", "alias:trti,totalRefreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
+        table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
 
-        table.addCell("total.search.fetch_current", "alias:tsfc,totalSearchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
-        table.addCell("total.search.fetch_time", "alias:tsfti,totalSearchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
-        table.addCell("total.search.fetch_total", "alias:tsfto,totalSearchFetchTotal;default:false;text-align:right;desc:total fetch ops");
-        table.addCell("total.search.open_contexts", "alias:tso,totalSearchOpenContexts;default:false;text-align:right;desc:open search contexts");
-        table.addCell("total.search.query_current", "alias:tsqc,totalSearchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
-        table.addCell("total.search.query_time", "alias:tsqti,totalSearchQueryTime;default:false;text-align:right;desc:time spent in query phase");
-        table.addCell("total.search.query_total", "alias:tsqto,totalSearchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
+        table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
+        table.addCell("search.fetch_total", "alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops");
+        table.addCell("search.open_contexts", "alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts");
+        table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
+        table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
+        table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
 
-        table.addCell("total.segments.count", "alias:tsc,totalSegmentsCount;default:false;text-align:right;desc:number of segments");
-        table.addCell("total.segments.memory", "alias:tsm,totalSegmentsMemory;default:false;text-align:right;desc:memory used by segments");
+        table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
+        table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
 
-        table.addCell("total.warmer.current", "alias:twc,totalWarmerCurrent;default:false;text-align:right;desc:current warmer ops");
-        table.addCell("total.warmer.total", "alias:twto,totalWarmerTotal;default:false;text-align:right;desc:total warmer ops");
-        table.addCell("total.warmer.total_time", "alias:twtt,totalWarmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
+        table.addCell("warmer.current", "alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
+        table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
+        table.addCell("warmer.total_time", "alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
         table.endHeaders();
         return table;

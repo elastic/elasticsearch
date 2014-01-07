@@ -1548,4 +1548,21 @@ public class Strings {
             throw new ElasticsearchIllegalStateException("should not be thrown");
         }
     }
+
+    /**
+     * Return substring(beginIndex, endIndex) that is impervious to string length.
+     */
+    public static String substring(String s, int beginIndex, int endIndex) {
+        if (s == null) {
+            return s;
+        }
+
+        int realEndIndex = s.length() > 0 ? s.length() - 1 : 0;
+
+        if (endIndex > realEndIndex) {
+            return s.substring(beginIndex);
+        } else {
+            return s.substring(beginIndex, endIndex);
+        }
+    }
 }

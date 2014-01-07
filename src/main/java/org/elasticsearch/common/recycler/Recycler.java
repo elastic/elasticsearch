@@ -23,31 +23,10 @@ import org.elasticsearch.common.lease.Releasable;
 
 /**
  */
-public abstract class Recycler<T> {
+public interface Recycler<T> {
 
-    public static class Sizing<T> extends Recycler<T> {
-
-        private final Recycler<T> recycler;
-        private final int smartSize;
-
-        public Sizing(Recycler<T> recycler, int smartSize) {
-            super(recycler.c);
-            this.recycler = recycler;
-            this.smartSize = smartSize;
-        }
-
-        @Override
-        public void close() {
-            recycler.close();
-        }
-
-        @Override
-        public V<T> obtain(int sizing) {
-            if (sizing > 0 && sizing < smartSize) {
-                return new NoneRecycler.NV<T>(c.newInstance(sizing));
-            }
-            return recycler.obtain(sizing);
-        }
+    public static interface Factory<T> {
+        Recycler<T> build();
     }
 
     public static interface C<T> {
@@ -69,17 +48,9 @@ public abstract class Recycler<T> {
 
     }
 
-    protected final C<T> c;
+    void close();
 
-    protected Recycler(C<T> c) {
-        this.c = c;
-    }
+    V<T> obtain();
 
-    public abstract void close();
-
-    public V<T> obtain() {
-        return obtain(-1);
-    }
-
-    public abstract V<T> obtain(int sizing);
+    V<T> obtain(int sizing);
 }

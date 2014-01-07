@@ -20,54 +20,51 @@
 package org.elasticsearch.common.recycler;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Deque;
 
 /**
+ * A {@link Recycler} implementation based on a {@link Deque}. This implementation is NOT thread-safe.
  */
-public class QueueRecycler<T> extends Recycler<T> {
+public class DequeRecycler<T> extends AbstractRecycler<T> {
 
-    final Queue<T> queue;
-    final AtomicInteger size;
+    final Deque<T> deque;
     final int maxSize;
 
-    public QueueRecycler(C<T> c, int maxSize) {
-        this(c, ConcurrentCollections.<T>newQueue(), maxSize);
-    }
-
-    public QueueRecycler(C<T> c, Queue<T> queue, int maxSize) {
+    public DequeRecycler(C<T> c, Deque<T> queue, int maxSize) {
         super(c);
-        this.queue = queue;
+        this.deque = queue;
         this.maxSize = maxSize;
-        // we maintain size separately because concurrent queue implementations typically have linear-time size() impls
-        this.size = new AtomicInteger();
     }
 
     @Override
     public void close() {
-        assert queue.size() == size.get();
-        queue.clear();
-        size.set(0);
+        deque.clear();
     }
 
     @Override
     public V<T> obtain(int sizing) {
-        final T v = queue.poll();
+        final T v = deque.pollFirst();
         if (v == null) {
-            return new QV(c.newInstance(sizing), false);
+            return new DV(c.newInstance(sizing), false);
         }
-        size.decrementAndGet();
-        return new QV(v, true);
+        return new DV(v, true);
     }
 
-    class QV implements Recycler.V<T> {
+    /** Called before releasing an object, returns true if the object should be recycled and false otherwise. */
+    protected boolean beforeRelease() {
+        return deque.size() < maxSize;
+    }
+
+    /** Called after a release. */
+    protected void afterRelease(boolean recycled) {}
+
+    private class DV implements Recycler.V<T> {
 
         T value;
         final boolean recycled;
 
-        QV(T value, boolean recycled) {
+        DV(T value, boolean recycled) {
             this.value = value;
             this.recycled = recycled;
         }
@@ -87,13 +84,13 @@ public class QueueRecycler<T> extends Recycler<T> {
             if (value == null) {
                 throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
-            if (size.incrementAndGet() <= maxSize) {
+            final boolean recycle = beforeRelease();
+            if (recycle) {
                 c.clear(value);
-                queue.offer(value);
-            } else {
-                size.decrementAndGet();
+                deque.addFirst(value);
             }
             value = null;
+            afterRelease(recycle);
             return true;
         }
     }

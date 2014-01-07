@@ -23,7 +23,7 @@ public class QueueRecyclerTests extends AbstractRecyclerTests {
 
     @Override
     protected Recycler<byte[]> newRecycler() {
-        return new QueueRecycler<byte[]>(RECYCLER_C, randomIntBetween(5, 10));
+        return Recyclers.concurrentDeque(RECYCLER_C, randomIntBetween(5, 10));
     }
 
 }

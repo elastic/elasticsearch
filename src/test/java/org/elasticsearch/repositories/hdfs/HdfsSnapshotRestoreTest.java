@@ -62,7 +62,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     @Before
     public final void wipeBefore() throws Exception {
         wipeRepositories();
-        path = "/build/data/repo-" + randomInt();
+        path = "build/data/repo-" + randomInt();
         cleanRepositoryFiles(path);
     }
 

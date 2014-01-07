@@ -1,6 +1,6 @@
 repositories:
     hdfs:
-        uri: "file:///"
+        uri: "file://./"
         # the path is loaded from higher up (the repository settings)
         #path: "/tmp/test/snapshot"
         load_defaults: "true"

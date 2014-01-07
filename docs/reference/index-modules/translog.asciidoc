@@ -18,6 +18,9 @@ a flush will happen. Defaults to `200mb`.
 
 |index.translog.flush_threshold_period |The period with no flush
 happening to force a flush. Defaults to `30m`.
+
+|index.translog.interval |How often to check if a flush is needed, randomized
+between the interval value and 2x the interval value. Defaults to `5s`.
 |=======================================================================
 
 Note: these parameters can be updated at runtime using the Index

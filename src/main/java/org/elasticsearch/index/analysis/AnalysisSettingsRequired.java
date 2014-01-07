@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*
- * Created by IntelliJ IDEA.
- * User: kimchy
- * Date: 1/20/11
- * Time: 11:38 PM
- */
 package org.elasticsearch.index.analysis;
 
 import java.lang.annotation.*;

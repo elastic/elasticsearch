@@ -1,4 +1,3 @@
-package org.elasticsearch.search.source;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.search.source;
  * under the License.
  */
 
+package org.elasticsearch.search.source;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;

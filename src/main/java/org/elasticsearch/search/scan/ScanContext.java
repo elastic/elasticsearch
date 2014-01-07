@@ -1,4 +1,3 @@
-package org.elasticsearch.search.scan;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,6 +16,9 @@ package org.elasticsearch.search.scan;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.search.scan;
+
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;

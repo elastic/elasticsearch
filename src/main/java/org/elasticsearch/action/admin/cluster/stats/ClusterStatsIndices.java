@@ -1,4 +1,3 @@
-package org.elasticsearch.action.admin.cluster.stats;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.action.admin.cluster.stats;
  * under the License.
  */
 
+package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
@@ -249,17 +249,23 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
             return (((double) (total - primaries)) / primaries);
         }
 
-        /** the maximum number of shards (primary+replicas) an index has */
+        /**
+         * the maximum number of shards (primary+replicas) an index has
+         */
         public int getMaxIndexShards() {
             return this.maxIndexShards;
         }
 
-        /** the minimum number of shards (primary+replicas) an index has */
+        /**
+         * the minimum number of shards (primary+replicas) an index has
+         */
         public int getMinIndexShards() {
             return this.minIndexShards;
         }
 
-        /** average number of shards (primary+replicas) across the indices */
+        /**
+         * average number of shards (primary+replicas) across the indices
+         */
         public double getAvgIndexShards() {
             if (this.indices == 0) {
                 return -1;
@@ -274,12 +280,16 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
             return this.maxIndexPrimaryShards;
         }
 
-        /** the minimum number of primary shards an index has */
+        /**
+         * the minimum number of primary shards an index has
+         */
         public int getMinIndexPrimaryShards() {
             return this.minIndexPrimaryShards;
         }
 
-        /** the average number primary shards across the indices */
+        /**
+         * the average number primary shards across the indices
+         */
         public double getAvgIndexPrimaryShards() {
             if (this.indices == 0) {
                 return -1;

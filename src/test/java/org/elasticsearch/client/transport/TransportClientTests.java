@@ -1,4 +1,3 @@
-package org.elasticsearch.client.transport;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.client.transport;
  * under the License.
  */
 
+package org.elasticsearch.client.transport;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;

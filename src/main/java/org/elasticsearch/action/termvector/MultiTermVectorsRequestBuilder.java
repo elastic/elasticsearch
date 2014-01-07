@@ -1,4 +1,3 @@
-package org.elasticsearch.action.termvector;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +17,7 @@ package org.elasticsearch.action.termvector;
  * under the License.
  */
 
+package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;

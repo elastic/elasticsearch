@@ -9,7 +9,7 @@
         "/_nodes/{node_id}/stats",
         "/_nodes/stats/{metric_family}",
         "/_nodes/{node_id}/stats/{metric_family}",
-        "/_nodes/stats/{metric_family}/{metric}"
+        "/_nodes/stats/{metric_family}/{metric}",
         "/_nodes/{node_id}/stats/{metric_family}/{metric}"
       ],
       "parts": {

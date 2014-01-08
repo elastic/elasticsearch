@@ -48,7 +48,7 @@ public class DeleteWarmerRequestTests extends ElasticsearchTestCase {
         DeleteWarmerRequest inRequest = new DeleteWarmerRequest();
         inRequest.readFrom(esBuffer);
 
-        assertThat(inRequest.name(), equalTo("warmer1"));
+        assertThat(inRequest.names()[0], equalTo("warmer1"));
         //timeout is default as we don't read it from the received buffer
         assertThat(inRequest.timeout().millis(), equalTo(new DeleteWarmerRequest().timeout().millis()));
 
@@ -70,7 +70,7 @@ public class DeleteWarmerRequestTests extends ElasticsearchTestCase {
         DeleteWarmerRequest inRequest = new DeleteWarmerRequest();
         inRequest.readFrom(esBuffer);
 
-        assertThat(inRequest.name(), equalTo("warmer1"));
+        assertThat(inRequest.names()[0], equalTo("warmer1"));
         //timeout is default as we don't read it from the received buffer
         assertThat(inRequest.timeout().millis(), equalTo(outRequest.timeout().millis()));
 

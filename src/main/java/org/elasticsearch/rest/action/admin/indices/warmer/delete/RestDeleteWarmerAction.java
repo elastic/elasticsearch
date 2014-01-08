@@ -37,12 +37,13 @@ public class RestDeleteWarmerAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(DELETE, "/{index}/_warmer", this);
         controller.registerHandler(DELETE, "/{index}/_warmer/{name}", this);
-        controller.registerHandler(DELETE, "/{index}/{type}/_warmer/{name}", this);
+        controller.registerHandler(DELETE, "/{index}/_warmers", this);
+        controller.registerHandler(DELETE, "/{index}/_warmers/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest(request.param("name"))
+        DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest(Strings.splitStringByCommaToArray(request.param("name")))
                 .indices(Strings.splitStringByCommaToArray(request.param("index")));
         deleteWarmerRequest.listenerThreaded(false);
         deleteWarmerRequest.timeout(request.paramAsTime("timeout", deleteWarmerRequest.timeout()));

@@ -23,17 +23,19 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Arrays;
+
 /**
  *
  */
 public class TypeMissingException extends IndexException {
 
-    public TypeMissingException(Index index, String type) {
-        super(index, "type[" + type + "] missing");
+    public TypeMissingException(Index index, String... types) {
+        super(index, "type[" + Arrays.toString(types) + "] missing");
     }
 
-    public TypeMissingException(Index index, String type, String message) {
-        super(index, "type[" + type + "] missing: " + message);
+    public TypeMissingException(Index index, String[] types, String message) {
+        super(index, "type[" + Arrays.toString(types) + "] missing: " + message);
     }
 
 

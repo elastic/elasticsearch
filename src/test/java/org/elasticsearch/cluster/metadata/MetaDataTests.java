@@ -369,37 +369,37 @@ public class MetaDataTests extends ElasticsearchTestCase {
     @Test
     public void testIsExplicitAllIndices_null() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(null), equalTo(false));
+        assertThat(metaData.isExplicitAllPattern(null), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_empty() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(new String[0]), equalTo(false));
+        assertThat(metaData.isExplicitAllPattern(new String[0]), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_explicitAll() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(new String[]{"_all"}), equalTo(true));
+        assertThat(metaData.isExplicitAllPattern(new String[]{"_all"}), equalTo(true));
     }
 
     @Test
     public void testIsExplicitAllIndices_explicitAllPlusOther() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(new String[]{"_all", "other"}), equalTo(false));
+        assertThat(metaData.isExplicitAllPattern(new String[]{"_all", "other"}), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_normalIndexes() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(new String[]{"index1", "index2", "index3"}), equalTo(false));
+        assertThat(metaData.isExplicitAllPattern(new String[]{"index1", "index2", "index3"}), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_wildcard() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllIndices(new String[]{"*"}), equalTo(false));
+        assertThat(metaData.isExplicitAllPattern(new String[]{"*"}), equalTo(false));
     }
 
     @Test

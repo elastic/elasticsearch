@@ -3,8 +3,8 @@
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}/_warmer",
-      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "path": "/{index}/_warmer/{name}",
+      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/_warmers", "/{index}/_warmers/{name}"],
       "parts": {
         "index": {
           "type" : "list",

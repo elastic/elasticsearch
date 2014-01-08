@@ -1,10 +1,10 @@
 {
   "indices.put_warmer": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
-    "methods": ["PUT"],
+    "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}/_warmer/{name}",
-      "paths": ["/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "paths": ["/_warmer/{name}", "/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}", "/_warmers/{name}", "/{index}/_warmers/{name}", "/{index}/{type}/_warmers/{name}"],
       "parts": {
         "index": {
           "type" : "list",

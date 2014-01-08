@@ -175,10 +175,10 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         try {
-            client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("foo").execute().actionGet(1000);
+            client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("foo").execute().actionGet(1000);
             assert false : "warmer foo should not exist";
         } catch (IndexWarmerMissingException ex) {
-            assertThat(ex.name(), equalTo("foo"));
+            assertThat(ex.names()[0], equalTo("foo"));
         }
     }
 
@@ -199,7 +199,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         assertThat(entry.value.size(), equalTo(1));
         assertThat(entry.value.iterator().next().name(), equalTo("custom_warmer"));
 
-        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer").get();
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").get();
         assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
 
         getWarmersResponse = client().admin().indices().prepareGetWarmers("test").get();

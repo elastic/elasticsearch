@@ -124,7 +124,9 @@ can contain misspellings (See parameter descriptions below).
     accepts a float value in the range `[0..1)` as a fraction of the actual
     query terms a number `>=1` as an absolute number of query terms. The
     default is set to `1.0` which corresponds to that only corrections with
-    at most 1 misspelled term are returned.
+    at most 1 misspelled term are returned.  Note that setting this too high
+    can really impact performance.  Stick with 1 or 2 or some queries will
+    spend much more time suggesting then searching.
 
 `separator`:: 
     the separator that is used to separate terms in the

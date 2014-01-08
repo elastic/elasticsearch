@@ -123,7 +123,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
 
-        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer"));
+        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
 
         for (Client client : clients()) {
             GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();

@@ -149,7 +149,8 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
                 .put(DestructiveOperations.REQUIRES_NAME, true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
+        
+        
         assertAcked(client().admin().indices().prepareCreate("index1").addMapping("1", "field1", "type=string").get());
         assertAcked(client().admin().indices().prepareCreate("1index").addMapping("1", "field1", "type=string").get());
 
@@ -158,20 +159,19 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         try {
             client().admin().indices().prepareDeleteMapping("_all").setType("1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
         try {
-            client().admin().indices().prepareDeleteMapping().setType("1").get();
+            client().admin().indices().prepareDeleteMapping().setIndices("*").setType("1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
 
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
-                .build();
+        settings = ImmutableSettings.builder().put(DestructiveOperations.REQUIRES_NAME, false).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         assertAcked(client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string"));
-        assertAcked(client().admin().indices().prepareDeleteMapping().setType("1"));
+        assertAcked(client().admin().indices().prepareDeleteMapping().setIndices("*").setType("1"));
         assertAcked(client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string"));
         assertAcked(client().admin().indices().prepareDeleteMapping("_all").setType("1"));
     }

@@ -4,7 +4,7 @@
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_alias/{name}",
-      "paths": ["/{index}/_alias/{name}"],
+      "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
       "parts": {
         "index": {
           "type" : "string",

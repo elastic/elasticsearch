@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.warmer;
+package org.elasticsearch.rest.action.admin.indices.alias.delete;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
@@ -26,19 +26,18 @@ import java.util.Arrays;
 /**
  *
  */
-public class IndexWarmerMissingException extends ElasticsearchException {
+public class AliasesMissingException extends ElasticsearchException {
 
     private final String[] names;
 
-    public IndexWarmerMissingException(String... names) {
-        super("index_warmer [" +  Arrays.toString(names) + "] missing");
+    public AliasesMissingException(String... names) {
+        super("aliases [" +  Arrays.toString(names) + "] missing");
         this.names = names;
     }
 
     public String[] names() {
         return this.names;
     }
-
 
     @Override
     public RestStatus status() {

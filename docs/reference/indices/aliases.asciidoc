@@ -153,17 +153,22 @@ curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
 
 [float]
 [[alias-adding]]
-=== Add a single index alias
+=== Add a single alias
 
-There is also an api to add a single index alias, with options: 
+An alias can also be added with the endpoint
+
+`PUT /{index}/_alias/{name}`
+
+
+where
 
 [horizontal]
-`index`::   The index to alias refers to. This is a required option. 
-`alias`::   The name of the alias. This is a required option. 
+`index`::   The index to alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …` 
+`name`::   The name of the alias. This is a required option. 
 `routing`:: An optional routing that can be associated with an alias. 
 `filter`::  An optional filter that can be associated with an alias.
 
-The rest endpoint is: `/{index}/_alias/{alias}`.
+You can also use the plural `_aliases`.
 
 [float]
 ==== Examples:
@@ -191,16 +196,18 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 
 [float]
 [[deleting]]
-=== Delete a single index alias
+=== Delete aliases
 
-Th API to delete a single index alias, has options: 
+
+The rest endpoint is: `/{index}/_alias/{name}`
+
+where
 
 [horizontal]
-`index`:: The index the alias is in, the needs to be deleted. This is
-          a required option. 
-`alias`:: The name of the alias to delete. This is a required option.
+`index`::  `* | _all | glob pattern | name1, name2, …` 
+`name`::  `* | _all | glob pattern | name1, name2, …` 
 
-The rest endpoint is: `/{index}/_alias/{alias}`. Example:
+Alternatively you can use the plural `_aliases`. Example:
 
 [source,js]
 --------------------------------------------------

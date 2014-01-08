@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -37,14 +38,20 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.OrFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TypeFilterBuilder;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Delete mapping action.
@@ -108,8 +115,23 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
+  
+                // get all types that need to be deleted.
+                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = state.metaData().findMappings(
+                        request.indices(), request.types()
+                );
+                // create OrFilter with type filters within to account for different types
+                OrFilterBuilder filterBuilder = new OrFilterBuilder();
+                Set<String> types = new HashSet<String>();
+                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> typesMeta : result) {
+                    for (ObjectObjectCursor<String, MappingMetaData> type : typesMeta.value) {
+                        filterBuilder.add(new TypeFilterBuilder(type.key));
+                        types.add(type.key);
+                    }
+                }
+                request.types(types.toArray(new String[types.size()]));
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder()
-                        .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type())));
+                        .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filterBuilder));
                 deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).source(querySourceBuilder), new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
@@ -126,7 +148,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
                             protected void removeMapping() {
                                 DeleteMappingClusterStateUpdateRequest clusterStateUpdateRequest = new DeleteMappingClusterStateUpdateRequest()
-                                        .indices(request.indices()).type(request.type())
+                                        .indices(request.indices()).types(request.types())
                                         .ackTimeout(request.timeout())
                                         .masterNodeTimeout(request.masterNodeTimeout());
 

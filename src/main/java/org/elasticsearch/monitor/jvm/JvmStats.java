@@ -145,18 +145,23 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         stats.mem.nonHeapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
 
         List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
-        stats.mem.pools = new MemoryPool[memoryPoolMXBeans.size()];
+        List<MemoryPool> pools = new ArrayList<MemoryPool>();
         for (int i = 0; i < memoryPoolMXBeans.size(); i++) {
             MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
             MemoryUsage usage = memoryPoolMXBean.getUsage();
             MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
-            stats.mem.pools[i] = new MemoryPool(memoryPoolMXBean.getName(),
+            String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
+            if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
+                continue;
+            }
+            pools.add(new MemoryPool(name,
                     usage.getUsed() < 0 ? 0 : usage.getUsed(),
                     usage.getMax() < 0 ? 0 : usage.getMax(),
                     peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
                     peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
-            );
+            ));
         }
+        stats.mem.pools = pools.toArray(new MemoryPool[pools.size()]);
 
         stats.threads = new Threads();
         stats.threads.count = threadMXBean.getThreadCount();
@@ -168,7 +173,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         for (int i = 0; i < stats.gc.collectors.length; i++) {
             GarbageCollectorMXBean gcMxBean = gcMxBeans.get(i);
             stats.gc.collectors[i] = new GarbageCollector();
-            stats.gc.collectors[i].name = gcMxBean.getName();
+            stats.gc.collectors[i].name = GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName());
             stats.gc.collectors[i].collectionCount = gcMxBean.getCollectionCount();
             stats.gc.collectors[i].collectionTime = gcMxBean.getCollectionTime();
             if (enableLastGc) {
@@ -321,8 +326,6 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
         if (gc != null) {
             builder.startObject(Fields.GC);
-            builder.field(Fields.COLLECTION_COUNT, gc.collectionCount());
-            builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, gc.collectionTime());
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
@@ -481,22 +484,6 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         @Override
         public Iterator<GarbageCollector> iterator() {
             return Iterators.forArray(collectors);
-        }
-
-        public long collectionCount() {
-            long collectionCount = 0;
-            for (GarbageCollector gc : collectors) {
-                collectionCount += gc.collectionCount();
-            }
-            return collectionCount;
-        }
-
-        public TimeValue collectionTime() {
-            long collectionTime = 0;
-            for (GarbageCollector gc : collectors) {
-                collectionTime += gc.collectionTime;
-            }
-            return new TimeValue(collectionTime, TimeUnit.MILLISECONDS);
         }
     }
 

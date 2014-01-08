@@ -106,11 +106,11 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                 gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
             }
         }
-        if (!gcThresholds.containsKey("ParNew")) {
-            gcThresholds.put("ParNew", new GcThreshold("ParNew", 1000, 700, 400));
+        if (!gcThresholds.containsKey(GcNames.YOUNG)) {
+            gcThresholds.put(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
         }
-        if (!gcThresholds.containsKey("ConcurrentMarkSweep")) {
-            gcThresholds.put("ConcurrentMarkSweep", new GcThreshold("ConcurrentMarkSweep", 10000, 5000, 2000));
+        if (!gcThresholds.containsKey(GcNames.OLD)) {
+            gcThresholds.put(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
         }
         if (!gcThresholds.containsKey("default")) {
             gcThresholds.put("default", new GcThreshold("default", 10000, 5000, 2000));
@@ -154,8 +154,12 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         @Override
         public void run() {
+            try {
 //            monitorDeadlock();
-            monitorLongGc();
+                monitorLongGc();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
         }
 
         private synchronized void monitorLongGc() {

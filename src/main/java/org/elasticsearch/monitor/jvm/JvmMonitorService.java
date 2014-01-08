@@ -158,7 +158,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 //            monitorDeadlock();
                 monitorLongGc();
             } catch (Throwable t) {
-                t.printStackTrace();
+                logger.debug("failed to monitor", t);
             }
         }
 

@@ -21,10 +21,7 @@ package org.elasticsearch.cluster.ack;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -40,7 +37,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,11 +50,11 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = TEST)
+@ClusterScope(scope = SUITE)
 public class AckTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -98,7 +97,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         for (Client client : clients()) {
             GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
             assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-            ObjectObjectCursor<String,ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
+            ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
             assertThat(entry.key, equalTo("test"));
             assertThat(entry.value.size(), equalTo(1));
             assertThat(entry.value.get(0).name(), equalTo("custom_warmer"));
@@ -198,7 +197,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
             }
 
             boolean found = false;
-            for (MutableShardRouting mutableShardRouting :  clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
+            for (MutableShardRouting mutableShardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
                 if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                     assertThat(mutableShardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
                     found = true;
@@ -241,7 +240,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         boolean found = false;
-        for (MutableShardRouting mutableShardRouting :  clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
+        for (MutableShardRouting mutableShardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
             //the shard that we wanted to move is still on the same node, as we had dryRun flag
             if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                 assertThat(mutableShardRouting.started(), equalTo(true));
@@ -282,7 +281,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
             if (routingNode.node().isDataNode()) {
                 if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
                     fromNodeId = routingNode.nodeId();
-                    shardToBeMoved = routingNode.get(randomInt(routingNode.size()-1));
+                    shardToBeMoved = routingNode.get(randomInt(routingNode.size() - 1));
                 } else {
                     toNodeId = routingNode.nodeId();
                 }
@@ -299,81 +298,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         logger.info("==> going to move shard [{}] from [{}] to [{}]", shardToBeMoved, fromNodeId, toNodeId);
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
-    }
-
-    @Test
-    public void testClusterUpdateSettingsAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
-        ensureGreen();
-
-        NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
-        String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
-            if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodesInfo.getAt(0).getNode().id();
-                break;
-            }
-        }
-        assert excludedNodeId != null;
-
-        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
-        assertAcked(clusterUpdateSettingsResponse);
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
-
-        for (Client client : clients()) {
-            ClusterState clusterState = getLocalClusterState(client);
-            assertThat(clusterState.routingNodes().metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        if (clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
-                            //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
-                            assertThat(shardRouting.relocating(), equalTo(true));
-                        }
-                    }
-                }
-            }
-        }
-
-        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
-        waitForRelocation();
-
-        //removes the allocation exclude settings
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
-    }
-
-    @Test
-    public void testClusterUpdateSettingsNoAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
-        ensureGreen();
-
-        NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
-        String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
-            if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodesInfo.getAt(0).getNode().id();
-                break;
-            }
-        }
-        assert excludedNodeId != null;
-
-        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
-        assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
-
-        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
-        waitForRelocation();
-
-        //removes the allocation exclude settings
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
     }
 
     @Test
@@ -418,7 +342,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        CloseIndexResponse closeIndexResponse= client().admin().indices().prepareClose("test").setTimeout("0s").get();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").setTimeout("0s").get();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
     }
 

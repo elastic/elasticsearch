@@ -22,22 +22,84 @@ package org.elasticsearch.river;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.river.dummy.DummyRiverModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.TEST)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRiverStart() throws Exception {
-        final String riverName = "dummy-river-test";
-        logger.info("-->  creating river [{}]", riverName);
+        startAndCheckRiverIsStarted("dummy-river-test");
+    }
+
+    @Test
+    public void testMultipleRiversStart() throws Exception {
+        int nbRivers = between(2,10);
+        logger.info("-->  testing with {} rivers...", nbRivers);
+
+        for (int i = 0; i < nbRivers; i++) {
+            final String riverName = "dummy-river-test-" + i;
+            startAndCheckRiverIsStarted(riverName);
+        }
+    }
+
+    /**
+     * Test case for https://github.com/elasticsearch/elasticsearch/issues/4577
+     * River does not start when using config/templates files
+     */
+    @Test
+    public void startDummyRiverWithDefaultTemplate() throws Exception {
+        logger.info("--> create empty template");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("*")
+                .setOrder(0)
+                .addMapping(MapperService.DEFAULT_MAPPING,
+                        JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                                .endObject().endObject())
+                .get();
+
+        startAndCheckRiverIsStarted("dummy-river-default-template-test");
+    }
+
+    /**
+     * Test case for https://github.com/elasticsearch/elasticsearch/issues/4577
+     * River does not start when using config/templates files
+     */
+    @Test
+    public void startDummyRiverWithSomeTemplates() throws Exception {
+        logger.info("--> create some templates");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("*")
+                .setOrder(0)
+                .addMapping(MapperService.DEFAULT_MAPPING,
+                        JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                                .endObject().endObject())
+                .get();
+        client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("*")
+                .setOrder(0)
+                .addMapping("atype",
+                        JsonXContent.contentBuilder().startObject().startObject("atype")
+                                .endObject().endObject())
+                .get();
+
+        startAndCheckRiverIsStarted("dummy-river-template-test");
+    }
+
+    /**
+     * Create a Dummy river then check it has been started. We will fail after 5 seconds.
+     * @param riverName Dummy river needed to be started
+     */
+    private void startAndCheckRiverIsStarted(final String riverName) throws InterruptedException {
+        logger.info("-->  starting river [{}]", riverName);
         IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
                 .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
         assertTrue(indexResponse.isCreated());
@@ -50,4 +112,5 @@ public class RiverTests extends ElasticsearchIntegrationTest {
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
     }
+
 }

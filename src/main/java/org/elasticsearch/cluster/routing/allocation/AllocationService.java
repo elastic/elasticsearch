@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,9 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -250,9 +253,22 @@ public class AllocationService extends AbstractComponent {
             // move out if we don't have unassigned primaries
             return changed;
         }
+        
+        // filter disable primaryNodeIDMap
+        Map<String, Boolean> disablePrimaryNodeIDMap = null;
+        if (DisableAllocationDecider.disablePrimaryEnable) {
+            disablePrimaryNodeIDMap = newHashMap();
+            RoutingNode[] routingNodeArray = routingNodes.toArray();
+            for (RoutingNode routingNode : routingNodeArray) {
+                if (DisableAllocationDecider.isDisablePrimary(routingNode)) {
+                    disablePrimaryNodeIDMap.put(routingNode.nodeId(), Boolean.TRUE);
+                }
+            }
+        }
+        
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
-                MutableShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
+                MutableShardRouting candidate = allocation.routingNodes().activeReplicaWithDisablePrimaryNode(shardEntry,disablePrimaryNodeIDMap);
                 if (candidate != null) {
                     routingNodes.swapPrimaryFlag(shardEntry, candidate);
                     if (candidate.relocatingNodeId() != null) {

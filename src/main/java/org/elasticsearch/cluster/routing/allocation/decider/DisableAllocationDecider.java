@@ -19,12 +19,15 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
+
+import java.util.Map;
 
 /**
  * This {@link AllocationDecider} prevents cluster-wide shard allocations. The
@@ -56,11 +59,14 @@ public class DisableAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION = "cluster.routing.allocation.disable_new_allocation";
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION = "cluster.routing.allocation.disable_allocation";
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION = "cluster.routing.allocation.disable_replica_allocation";
-
+    public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_PRIMARY_ATTRIBUTES = "cluster.routing.allocation.disable.primary.attributes";
+    public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_PRIMARY_GROUPS = "cluster.routing.allocation.disable.primary.groups.";
+    
     public static final String INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION = "index.routing.allocation.disable_new_allocation";
     public static final String INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION = "index.routing.allocation.disable_allocation";
     public static final String INDEX_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION = "index.routing.allocation.disable_replica_allocation";
-
+    
+    
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -81,25 +87,89 @@ public class DisableAllocationDecider extends AllocationDecider {
                 logger.info("updating [cluster.routing.allocation.disable_replica_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableReplicaAllocation, disableReplicaAllocation);
                 DisableAllocationDecider.this.disableReplicaAllocation = disableReplicaAllocation;
             }
+            Map<String, Settings> disablePrimaryGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_DISABLE_PRIMARY_GROUPS);
+            if(!disablePrimaryGroups.isEmpty()){
+                initDisablePrimaryAllocation(settings);
+            }
+           
         }
     }
 
     private volatile boolean disableNewAllocation;
     private volatile boolean disableAllocation;
     private volatile boolean disableReplicaAllocation;
-
+    public static Map<String, String[]> disablePrimaryGroupAttributes;
+    public static volatile boolean disablePrimaryEnable;
+    private static String[] disablePrimaryAttributes ;
+    
     @Inject
     public DisableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.disableNewAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, false);
         this.disableAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, false);
         this.disableReplicaAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, false);
-
+        
         nodeSettingsService.addListener(new ApplySettings());
+        initDisablePrimaryAllocation(settings);
     }
 
+    /**
+     * init disable primary allocation
+     * 
+     * @param settings
+     */
+    private void initDisablePrimaryAllocation(Settings settings) {
+        this.disablePrimaryAttributes=settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_DISABLE_PRIMARY_ATTRIBUTES);
+        Map<String, String[]> disablePrimaryGroupAttributes = Maps.newHashMap();
+        Map<String, Settings> disablePrimaryGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_DISABLE_PRIMARY_GROUPS);
+        if (!disablePrimaryGroups.isEmpty()) {
+            for (Map.Entry<String, Settings> entry : disablePrimaryGroups.entrySet()) {
+                String[] aValues = entry.getValue().getAsArray("values");
+                if (aValues.length > 0) {
+                    disablePrimaryGroupAttributes.put(entry.getKey(), aValues);
+                }
+            }
+        }
+        if (disablePrimaryGroupAttributes.isEmpty()) {
+            disablePrimaryEnable = false;
+        } else {
+            disablePrimaryEnable = true;
+        }
+        this.disablePrimaryGroupAttributes = disablePrimaryGroupAttributes;
+    }
+    
+    /**
+     * disable primary shard allocate
+     * 
+     * @param node
+     * @return
+     */
+    public static boolean isDisablePrimary(RoutingNode node) {
+        for (String disablePrimaryAttribute : disablePrimaryAttributes) {
+            if (!node.node().attributes().containsKey(disablePrimaryAttribute)) {
+                continue;
+            } else {
+                String[] disablePrimaryValues = disablePrimaryGroupAttributes.get(disablePrimaryAttribute);
+                if (null != disablePrimaryValues) {
+                    for (String disablePrimaryValue : disablePrimaryValues) {
+                        if (node.node().attributes().containsValue(disablePrimaryValue)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (shardRouting.primary()) {
+            if (isDisablePrimary(node)) {
+                return Decision.NO;
+            }
+        }
+        
         if (allocation.ignoreDisable()) {
             return Decision.YES;
         }

@@ -22,7 +22,10 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -267,6 +270,32 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
         return null;
+    }
+    
+    /**
+     * 
+     * if existed disable primary node,shoud go through this methed 
+     * 
+     * @param shard
+     * @param disablePrimaryNodeIDMap
+     * @return
+     */
+    public MutableShardRouting activeReplicaWithDisablePrimaryNode(ShardRouting shard, Map<String, Boolean> disablePrimaryNodeIDMap) {
+        if (null == disablePrimaryNodeIDMap) {
+            return activeReplica(shard);
+        }
+        MutableShardRouting disablePrimaryNodeShardRouting = null;
+        for (MutableShardRouting shardRouting : assignedShards(shard.shardId())) {
+            if (!shardRouting.primary() && shardRouting.active()) {
+                if (null == disablePrimaryNodeIDMap.get(shardRouting.currentNodeId())) {
+                    return shardRouting;
+                } else {
+                    disablePrimaryNodeShardRouting = shardRouting;
+                }
+
+            }
+        }
+        return disablePrimaryNodeShardRouting;
     }
 
     /**

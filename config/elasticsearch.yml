@@ -39,6 +39,10 @@
 #
 # node.name: "Franz Kafka"
 
+#  node.zone: "west"
+#  cluster.routing.allocation.disable.primary.groups.zone.values: west
+#  cluster.routing.allocation.disable.primary.attributes: zone
+
 # Every node can be configured to allow or deny being eligible as the master,
 # and to allow or deny to store the data.
 #

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.ScriptValueType;
 
 import java.util.Collection;
@@ -76,54 +77,18 @@ public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
     static abstract class Order implements ToXContent {
 
         /**
-         * Order by the (higher) count of each term.
+         * @return a bucket ordering strategy that sorts buckets by their document counts (ascending or descending)
          */
-        public static final Order COUNT_DESC = new InternalOrder((byte) 1, "_count", false, new Comparator<Terms.Bucket>() {
-            @Override
-            public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                long i = o2.getDocCount() - o1.getDocCount();
-                if (i == 0) {
-                    i = o2.compareTo(o1);
-                    if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                    }
-                }
-                return i > 0 ? 1 : -1;
-            }
-        });
+        public static Order count(boolean asc) {
+            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
+        }
 
         /**
-         * Order by the (lower) count of each term.
+         * @return a bucket ordering strategy that sorts buckets by their terms (ascending or descending)
          */
-        public static final Order COUNT_ASC = new InternalOrder((byte) 2, "_count", true, new Comparator<Terms.Bucket>() {
-
-            @Override
-            public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                return -COUNT_DESC.comparator().compare(o1, o2);
-            }
-        });
-
-        /**
-         * Order by the terms.
-         */
-        public static final Order TERM_DESC = new InternalOrder((byte) 3, "_term", false, new Comparator<Terms.Bucket>() {
-
-            @Override
-            public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                return o2.compareTo(o1);
-            }
-        });
-
-        /**
-         * Order by the terms.
-         */
-        public static final Order TERM_ASC = new InternalOrder((byte) 4, "_term", true, new Comparator<Terms.Bucket>() {
-
-            @Override
-            public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                return -TERM_DESC.comparator().compare(o1, o2);
-            }
-        });
+        public static Order term(boolean asc) {
+            return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
+        }
 
         /**
          * Creates a bucket ordering strategy which sorts buckets based on a single-valued calc get
@@ -131,7 +96,7 @@ public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
          * @param   aggregationName the name of the get
          * @param   asc             The direction of the order (ascending or descending)
          */
-        public static InternalOrder aggregation(String aggregationName, boolean asc) {
+        public static Order aggregation(String aggregationName, boolean asc) {
             return new InternalOrder.Aggregation(aggregationName, null, asc);
         }
 
@@ -139,15 +104,24 @@ public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
          * Creates a bucket ordering strategy which sorts buckets based on a multi-valued calc get
          *
          * @param   aggregationName the name of the get
-         * @param   valueName       The name of the value of the multi-value get by which the sorting will be applied
+         * @param   metricName       The name of the value of the multi-value get by which the sorting will be applied
          * @param   asc             The direction of the order (ascending or descending)
          */
-        public static InternalOrder aggregation(String aggregationName, String valueName, boolean asc) {
-            return new InternalOrder.Aggregation(aggregationName, valueName, asc);
+        public static Order aggregation(String aggregationName, String metricName, boolean asc) {
+            return new InternalOrder.Aggregation(aggregationName, metricName, asc);
         }
 
-
-        protected abstract Comparator<Bucket> comparator();
+        /**
+         * @return  A comparator for the bucket based on the given terms aggregator. The comparator is used in two phases:
+         *
+         *          - aggregation phase, where each shard builds a list of term buckets to be sent to the coordinating node.
+         *            In this phase, the passed in aggregator will be the terms aggregator that aggregates the buckets on the
+         *            shard level.
+         *
+         *          - reduce phase, where the coordinating node gathers all the buckets from all the shards and reduces them
+         *            to a final bucket list. In this case, the passed in aggregator will be {@code null}
+         */
+        protected abstract Comparator<Bucket> comparator(Aggregator aggregator);
 
     }
 }

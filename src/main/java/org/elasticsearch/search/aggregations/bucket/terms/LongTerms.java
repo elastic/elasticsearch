@@ -145,7 +145,7 @@ public class LongTerms extends InternalTerms {
 
         // TODO: would it be better to sort the backing array buffer of the hppc map directly instead of using a PQ?
         final int size = Math.min(requiredSize, buckets.v().size());
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
+        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
         Object[] internalBuckets = buckets.v().values;
         boolean[] states = buckets.v().allocated;
         for (int i = 0; i < states.length; i++) {

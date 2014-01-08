@@ -41,6 +41,8 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  */
 public class RestMultiPercolateAction extends BaseRestHandler {
 
+    private final boolean allowExplicitIndex;
+
     @Inject
     public RestMultiPercolateAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -51,6 +53,8 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_mpercolate", this);
         controller.registerHandler(GET, "/{index}/_mpercolate", this);
         controller.registerHandler(GET, "/{index}/{type}/_mpercolate", this);
+
+        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
     @Override
@@ -61,7 +65,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         multiPercolateRequest.documentType(restRequest.param("type"));
 
         try {
-            multiPercolateRequest.add(restRequest.content(), restRequest.contentUnsafe());
+            multiPercolateRequest.add(restRequest.content(), restRequest.contentUnsafe(), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 restChannel.sendResponse(new XContentThrowableRestResponse(restRequest, e));

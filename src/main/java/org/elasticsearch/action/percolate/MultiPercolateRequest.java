@@ -70,10 +70,10 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     }
 
     public MultiPercolateRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe);
+        return add(new BytesArray(data, from, length), contentUnsafe, true);
     }
 
-    public MultiPercolateRequest add(BytesReference data, boolean contentUnsafe) throws Exception {
+    public MultiPercolateRequest add(BytesReference data, boolean contentUnsafe, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -119,10 +119,10 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                         }
                         String percolateAction = parser.currentName();
                         if ("percolate".equals(percolateAction)) {
-                            parsePercolateAction(parser, percolateRequest);
+                            parsePercolateAction(parser, percolateRequest, allowExplicitIndex);
                         } else if ("count".equals(percolateAction)) {
                             percolateRequest.onlyCount(true);
-                            parsePercolateAction(parser, percolateRequest);
+                            parsePercolateAction(parser, percolateRequest, allowExplicitIndex);
                         } else {
                             throw new ElasticsearchParseException(percolateAction + " isn't a supported percolate operation");
                         }
@@ -151,7 +151,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this;
     }
 
-    private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest) throws IOException {
+    private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
         Map<String, Object> header = new HashMap<String, Object>();
@@ -182,6 +182,9 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     getRequest.id((String) value);
                     header.put("id", entry.getValue());
                 } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                    if (!allowExplicitIndex) {
+                        throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
+                    }
                     getRequest.index((String) value);
                 } else if ("type".equals(entry.getKey())) {
                     getRequest.type((String) value);
@@ -242,6 +245,9 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             for (Map.Entry<String, Object> entry : header.entrySet()) {
                 Object value = entry.getValue();
                 if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                    if (!allowExplicitIndex) {
+                        throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
+                    }
                     if (value instanceof String[]) {
                         percolateRequest.indices((String[]) value);
                     } else {

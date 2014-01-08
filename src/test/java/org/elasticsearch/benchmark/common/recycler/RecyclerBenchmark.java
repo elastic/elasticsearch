@@ -21,9 +21,10 @@ package org.elasticsearch.benchmark.common.recycler;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -33,14 +34,27 @@ import static org.elasticsearch.common.recycler.Recyclers.*;
 public class RecyclerBenchmark {
 
     private static final long NUM_RECYCLES = 5000000L;
+    private static final Random RANDOM = new Random(0);
 
     private static long bench(final Recycler<?> recycler, long numRecycles, int numThreads) throws InterruptedException {
         final AtomicLong recycles = new AtomicLong(numRecycles);
+        final CountDownLatch latch = new CountDownLatch(1);
         final Thread[] threads = new Thread[numThreads];
         for (int i = 0; i < numThreads; ++i){
+            // Thread ids happen to be generated sequentially, so we also generate random threads so that distribution of IDs
+            // is not perfect for the concurrent recycler
+            for (int j = RANDOM.nextInt(5); j >= 0; --j) {
+                new Thread();
+            }
+
             threads[i] = new Thread() {
                 @Override
                 public void run() {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
                     while (recycles.getAndDecrement() > 0) {
                         final Recycler.V<?> v = recycler.obtain();
                         v.release();
@@ -48,10 +62,11 @@ public class RecyclerBenchmark {
                 }
             };
         }
-        final long start = System.nanoTime();
         for (Thread thread : threads) {
             thread.start();
         }
+        final long start = System.nanoTime();
+        latch.countDown();
         for (Thread thread : threads) {
             thread.join();
         }
@@ -77,8 +92,8 @@ public class RecyclerBenchmark {
                 .put("thread-local", threadLocal(dequeFactory(c, limit)))
                 .put("soft-thread-local", threadLocal(softFactory(dequeFactory(c, limit))))
                 .put("locked", locked(deque(c, limit)))
-                .put("concurrent", concurrent(dequeFactory(c, limit)))
-                .put("soft-concurrent", concurrent(softFactory(dequeFactory(c, limit)))).build();
+                .put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors()))
+                .put("soft-concurrent", concurrent(softFactory(dequeFactory(c, limit)), Runtime.getRuntime().availableProcessors())).build();
 
         // warmup
         final long start = System.nanoTime();
@@ -98,7 +113,7 @@ public class RecyclerBenchmark {
             }
             for (int i = 0; i < 5; ++i) {
                 for (Map.Entry<String, Recycler<Object>> entry : recyclers.entrySet()) {
-                    System.out.println(entry.getKey() + "\t" + new TimeValue(bench(entry.getValue(), NUM_RECYCLES, numThreads), TimeUnit.NANOSECONDS));
+                    System.out.println(entry.getKey() + "\t" + TimeUnit.NANOSECONDS.toMillis(bench(entry.getValue(), NUM_RECYCLES, numThreads)));
                 }
                 System.out.println();
             }

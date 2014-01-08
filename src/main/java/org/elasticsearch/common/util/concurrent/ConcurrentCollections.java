@@ -21,12 +21,16 @@ package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.collect.Sets;
 import jsr166e.ConcurrentHashMapV8;
+import jsr166y.ConcurrentLinkedDeque;
 import jsr166y.LinkedTransferQueue;
 
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *

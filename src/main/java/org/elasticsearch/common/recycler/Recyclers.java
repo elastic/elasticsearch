@@ -24,7 +24,6 @@ import com.google.common.collect.Queues;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.lang.ref.SoftReference;
 
@@ -38,7 +37,7 @@ public enum Recyclers {
 
     /** Return a concurrent recycler based on a deque. */
     public static <T> Recycler<T> concurrentDeque(Recycler.C<T> c, int limit) {
-        return new DequeRecycler<T>(c, ConcurrentCollections.<T>newDeque(), limit);
+        return new ConcurrentDequeRecycler<T>(c, limit);
     }
 
     /** Return a recycler based on a deque. */
@@ -108,17 +107,6 @@ public enum Recyclers {
                 recyclers.close();
             }
 
-        };
-    }
-
-    /** Wrap the factory so that it returns thread-local instances.
-     *  @see #threadLocal(org.elasticsearch.common.recycler.Recycler.Factory) */
-    public static <T> Recycler.Factory<T> threadLocalFactory(final Recycler.Factory<T> factory) {
-        return new Recycler.Factory<T>() {
-            @Override
-            public Recycler<T> build() {
-                return threadLocal(factory);
-            }
         };
     }
 
@@ -234,9 +222,9 @@ public enum Recyclers {
             }
 
             final int slot() {
-                int slot = Thread.currentThread().hashCode();
+                final long id = Thread.currentThread().getId();
                 // don't trust Thread.hashCode to have equiprobable low bits
-                slot = MurmurHash3.hash(slot);
+                int slot = (int) MurmurHash3.hash(id);
                 // make positive, otherwise % may return negative numbers
                 slot &= 0x7FFFFFFF;
                 slot %= concurrencyLevel;

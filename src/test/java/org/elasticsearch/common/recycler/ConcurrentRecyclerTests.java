@@ -23,7 +23,7 @@ public class ConcurrentRecyclerTests extends AbstractRecyclerTests {
 
     @Override
     protected Recycler<byte[]> newRecycler() {
-        return Recyclers.concurrent(Recyclers.dequeFactory(RECYCLER_C, randomIntBetween(5, 10)));
+        return Recyclers.concurrent(Recyclers.dequeFactory(RECYCLER_C, randomIntBetween(5, 10)), randomIntBetween(1,5));
     }
 
 }

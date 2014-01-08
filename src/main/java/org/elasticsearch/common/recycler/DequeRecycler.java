@@ -20,38 +20,26 @@
 package org.elasticsearch.common.recycler;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Deque;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A {@link Recycler} implementation based on a {@link Deque}. This implementation is thread-safe if, and only if the deque is
- * thread-safe.
+ * A {@link Recycler} implementation based on a {@link Deque}. This implementation is NOT thread-safe.
  */
 public class DequeRecycler<T> extends AbstractRecycler<T> {
 
     final Deque<T> deque;
-    final AtomicInteger size;
     final int maxSize;
-
-    public DequeRecycler(C<T> c, int maxSize) {
-        this(c, ConcurrentCollections.<T>newDeque(), maxSize);
-    }
 
     public DequeRecycler(C<T> c, Deque<T> queue, int maxSize) {
         super(c);
         this.deque = queue;
         this.maxSize = maxSize;
-        // we maintain size separately because concurrent queue implementations typically have linear-time size() impls
-        this.size = new AtomicInteger();
     }
 
     @Override
     public void close() {
-        assert deque.size() == size.get();
         deque.clear();
-        size.set(0);
     }
 
     @Override
@@ -60,11 +48,18 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
         if (v == null) {
             return new DV(c.newInstance(sizing), false);
         }
-        size.decrementAndGet();
         return new DV(v, true);
     }
 
-    class DV implements Recycler.V<T> {
+    /** Called before releasing an object, returns true if the object should be recycled and false otherwise. */
+    protected boolean beforeRelease() {
+        return deque.size() < maxSize;
+    }
+
+    /** Called after a release. */
+    protected void afterRelease(boolean recycled) {}
+
+    private class DV implements Recycler.V<T> {
 
         T value;
         final boolean recycled;
@@ -89,13 +84,13 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             if (value == null) {
                 throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
-            if (size.incrementAndGet() <= maxSize) {
+            final boolean recycle = beforeRelease();
+            if (recycle) {
                 c.clear(value);
                 deque.addFirst(value);
-            } else {
-                size.decrementAndGet();
             }
             value = null;
+            afterRelease(recycle);
             return true;
         }
     }

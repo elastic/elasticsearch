@@ -24,8 +24,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -39,7 +39,7 @@ import java.io.IOException;
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  */
-public class ValueCountAggregator extends Aggregator {
+public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
     private final BytesValuesSource valuesSource;
 
@@ -47,7 +47,7 @@ public class ValueCountAggregator extends Aggregator {
     LongArray counts;
 
     public ValueCountAggregator(String name, long expectedBucketsCount, BytesValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
+        super(name, 0, aggregationContext, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             // expectedBucketsCount == 0 means it's a top level bucket
@@ -69,6 +69,11 @@ public class ValueCountAggregator extends Aggregator {
         }
         counts = BigArrays.grow(counts, owningBucketOrdinal + 1);
         counts.increment(owningBucketOrdinal, values.setDocument(doc));
+    }
+
+    @Override
+    public double metric(long owningBucketOrd) {
+        return counts.get(owningBucketOrd);
     }
 
     @Override

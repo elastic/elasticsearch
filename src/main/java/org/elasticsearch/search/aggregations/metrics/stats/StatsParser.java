@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregatorParser;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 /**
  *

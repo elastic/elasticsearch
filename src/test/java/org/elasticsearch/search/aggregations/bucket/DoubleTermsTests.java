@@ -19,12 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -115,7 +120,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .field("value")
                         .size(20)
-                        .order(Terms.Order.TERM_ASC)) // we need to sort by terms cause we're checking the first 20 values
+                        .order(Terms.Order.term(true))) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -140,7 +145,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value")
-                        .order(Terms.Order.TERM_ASC))
+                        .order(Terms.Order.term(true)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -166,7 +171,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field("value")
-                        .order(Terms.Order.TERM_DESC))
+                        .order(Terms.Order.term(false)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -610,7 +615,235 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         assertThat(terms, Matchers.notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.buckets().isEmpty(), is(true));
+    }
+
+    @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field("value"))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("" + (double)i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
+
+        try {
+
+            client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .field("value")
+                            .order(Terms.Order.aggregation("avg_i", true))
+                    ).execute().actionGet();
+
+            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
+
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedByNonMetricsSubAggregation() throws Exception {
+
+        try {
+
+            client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .field("value")
+                            .order(Terms.Order.aggregation("filter", true))
+                            .subAggregation(filter("filter").filter(FilterBuilders.termFilter("foo", "bar")))
+                    ).execute().actionGet();
+
+            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
+
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
+
+        try {
+
+            client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .field("value")
+                            .order(Terms.Order.aggregation("stats.foo", true))
+                            .subAggregation(stats("stats").field("value"))
+                    ).execute().actionGet();
+
+            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                    "with an unknown specified metric to order by");
+
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
+
+        try {
+
+            client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .field("value")
+                            .order(Terms.Order.aggregation("stats", true))
+                            .subAggregation(stats("stats").field("value"))
+                    ).execute().actionGet();
+
+            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                    "where the metric name is not specified");
+
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationDesc() throws Exception {
+        boolean asc = false;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field("value"))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 4; i >= 0; i--) {
+
+            Terms.Bucket bucket = terms.getByTerm("" + (double)i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+        }
 
     }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueSubAggregationAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .subAggregation(stats("stats").field("value"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("" + (double)i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Stats stats = bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueSubAggregationDesc() throws Exception {
+        boolean asc = false;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .subAggregation(stats("stats").field("value"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 4; i >= 0; i--) {
+            Terms.Bucket bucket = terms.getByTerm("" + (double)i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            Stats stats = bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
+    @Test
+    public void singleValuedField_OrderedByMultiValueExtendedStatsAsc() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .order(Terms.Order.aggregation("stats.variance", asc))
+                        .subAggregation(extendedStats("stats").field("value"))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getByTerm("" + (double)i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKey().string(), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            ExtendedStats stats = bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+        }
+
+    }
+
 
 }

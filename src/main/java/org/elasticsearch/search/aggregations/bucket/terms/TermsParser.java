@@ -261,16 +261,16 @@ public class TermsParser implements Aggregator.Parser {
 
     static InternalOrder resolveOrder(String key, boolean asc) {
         if ("_term".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC);
+            return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
         }
         if ("_count".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
+            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
         }
         int i = key.indexOf('.');
         if (i < 0) {
-            return Terms.Order.aggregation(key, asc);
+            return new InternalOrder.Aggregation(key, asc);
         }
-        return Terms.Order.aggregation(key.substring(0, i), key.substring(i+1), asc);
+        return new InternalOrder.Aggregation(key.substring(0, i), key.substring(i+1), asc);
     }
 
 }

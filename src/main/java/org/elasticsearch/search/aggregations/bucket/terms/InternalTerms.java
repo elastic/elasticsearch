@@ -38,6 +38,8 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
     public static abstract class Bucket implements Terms.Bucket {
 
+        long bucketOrd;
+
         protected long docCount;
         protected InternalAggregations aggregations;
 
@@ -166,7 +168,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         }
 
         final int size = Math.min(requiredSize, buckets.size());
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
+        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
         for (Map.Entry<Text, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
             ordered.insertWithOverflow(sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler()));

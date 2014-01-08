@@ -73,7 +73,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms  terms = response.getAggregations().get("keys");
@@ -100,7 +100,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -127,7 +127,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -154,7 +154,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -181,7 +181,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -208,7 +208,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -235,7 +235,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -262,7 +262,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
@@ -289,7 +289,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
                 .setQuery(matchAllQuery())
-                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.COUNT_DESC))
+                .addAggregation(terms("keys").field("key").size(3).shardSize(5).order(Terms.Order.count(false)))
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");

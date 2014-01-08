@@ -51,6 +51,15 @@ public class InternalStats extends MetricsAggregation.MultiValue implements Stat
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
+    enum Metrics {
+
+        count, sum, min, max, avg;
+
+        public static Metrics resolve(String name) {
+            return Metrics.valueOf(name);
+        }
+    }
+
     protected long count;
     protected double min;
     protected double max;
@@ -98,18 +107,15 @@ public class InternalStats extends MetricsAggregation.MultiValue implements Stat
 
     @Override
     public double value(String name) {
-        if ("min".equals(name)) {
-            return min;
-        } else if ("max".equals(name)) {
-            return max;
-        } else if ("avg".equals(name)) {
-            return getAvg();
-        } else if ("count".equals(name)) {
-            return count;
-        } else if ("sum".equals(name)) {
-            return sum;
-        } else {
-            throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+        Metrics metrics = Metrics.valueOf(name);
+        switch (metrics) {
+            case min: return this.min;
+            case max: return this.max;
+            case avg: return this.getAvg();
+            case count: return this.count;
+            case sum: return this.sum;
+            default:
+                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
     }
 

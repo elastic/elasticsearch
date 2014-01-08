@@ -23,7 +23,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.LongHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
@@ -49,7 +48,7 @@ public class LongTermsAggregator extends BucketsAggregator {
                                InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
-        this.order = order;
+        this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
@@ -76,24 +75,13 @@ public class LongTermsAggregator extends BucketsAggregator {
         }
     }
 
-    // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
-    static class OrdinalBucket extends LongTerms.Bucket {
-
-        long bucketOrd;
-
-        public OrdinalBucket() {
-            super(0, 0, (InternalAggregations) null);
-        }
-
-    }
-
     @Override
     public LongTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
-        OrdinalBucket spare = null;
+        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
+        LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.capacity(); ++i) {
             final long ord = bucketOrds.id(i);
             if (ord < 0) {
@@ -102,17 +90,17 @@ public class LongTermsAggregator extends BucketsAggregator {
             }
 
             if (spare == null) {
-                spare = new OrdinalBucket();
+                spare = new LongTerms.Bucket(0, 0, null);
             }
             spare.term = bucketOrds.key(i);
             spare.docCount = bucketDocCount(ord);
             spare.bucketOrd = ord;
-            spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
+            spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdinalBucket bucket = (OrdinalBucket) ordered.pop();
+            final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }

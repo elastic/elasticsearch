@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -37,7 +38,7 @@ import java.io.IOException;
 /**
  *
  */
-public class StatsAggegator extends Aggregator {
+public class StatsAggegator extends MetricsAggregator.MultiValue {
 
     private final NumericValuesSource valuesSource;
 
@@ -47,7 +48,7 @@ public class StatsAggegator extends Aggregator {
     private DoubleArray maxes;
 
     public StatsAggegator(String name, long estimatedBucketsCount, NumericValuesSource valuesSource, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
+        super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
@@ -99,6 +100,29 @@ public class StatsAggegator extends Aggregator {
         sums.increment(owningBucketOrdinal, sum);
         mins.set(owningBucketOrdinal, min);
         maxes.set(owningBucketOrdinal, max);
+    }
+
+    @Override
+    public boolean hasMetric(String name) {
+        try {
+            InternalStats.Metrics.resolve(name);
+            return true;
+        } catch (IllegalArgumentException iae) {
+            return false;
+        }
+    }
+
+    @Override
+    public double metric(String name, long owningBucketOrd) {
+        switch(InternalStats.Metrics.resolve(name)) {
+            case count: return valuesSource == null ? 0 : counts.get(owningBucketOrd);
+            case sum: return valuesSource == null ? 0 : sums.get(owningBucketOrd);
+            case min: return valuesSource == null ? Double.POSITIVE_INFINITY : mins.get(owningBucketOrd);
+            case max: return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
+            case avg: return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+        }
     }
 
     @Override

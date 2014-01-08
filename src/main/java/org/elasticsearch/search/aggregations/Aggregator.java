@@ -106,6 +106,10 @@ public abstract class Aggregator implements Releasable {
         return parent;
     }
 
+    public Aggregator[] subAggregators() {
+        return subAggregators;
+    }
+
     /**
      * @return  The current aggregation context.
      */

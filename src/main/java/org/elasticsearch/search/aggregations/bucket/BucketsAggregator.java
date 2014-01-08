@@ -29,7 +29,9 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  *
@@ -38,10 +40,19 @@ public abstract class BucketsAggregator extends Aggregator {
 
     private LongArray docCounts;
 
+    private final Aggregator[] collectableSugAggregators;
+
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
         docCounts = BigArrays.newLongArray(estimatedBucketsCount, context.pageCacheRecycler(), true);
+        List<Aggregator> collectables = new ArrayList<Aggregator>(subAggregators.length);
+        for (int i = 0; i < subAggregators.length; i++) {
+            if (subAggregators[i].shouldCollect()) {
+                collectables.add((subAggregators[i]));
+            }
+        }
+        collectableSugAggregators = collectables.toArray(new Aggregator[collectables.size()]);
     }
 
     /**
@@ -50,8 +61,8 @@ public abstract class BucketsAggregator extends Aggregator {
     protected final void collectBucket(int doc, long bucketOrd) throws IOException {
         docCounts = BigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, 1);
-        for (int i = 0; i < subAggregators.length; i++) {
-            subAggregators[i].collect(doc, bucketOrd);
+        for (int i = 0; i < collectableSugAggregators.length; i++) {
+            collectableSugAggregators[i].collect(doc, bucketOrd);
         }
     }
 
@@ -59,8 +70,8 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to collect the given doc in the given bucket but not to update the doc counts of the bucket
      */
     protected final void collectBucketNoCounts(int doc, long bucketOrd) throws IOException {
-        for (int i = 0; i < subAggregators.length; i++) {
-            subAggregators[i].collect(doc, bucketOrd);
+        for (int i = 0; i < collectableSugAggregators.length; i++) {
+            collectableSugAggregators[i].collect(doc, bucketOrd);
         }
     }
 

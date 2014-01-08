@@ -25,8 +25,8 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -37,16 +37,15 @@ import java.io.IOException;
 /**
  *
  */
-public class AvgAggregator extends Aggregator {
+public class AvgAggregator extends MetricsAggregator.SingleValue {
 
     private final NumericValuesSource valuesSource;
 
     private LongArray counts;
     private DoubleArray sums;
 
-
     public AvgAggregator(String name, long estimatedBucketsCount, NumericValuesSource valuesSource, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
+        super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
@@ -79,6 +78,11 @@ public class AvgAggregator extends Aggregator {
             sum += values.nextValue();
         }
         sums.increment(owningBucketOrdinal, sum);
+    }
+
+    @Override
+    public double metric(long owningBucketOrd) {
+        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
@@ -36,8 +37,21 @@ public class RestPutWarmerAction extends BaseRestHandler {
     @Inject
     public RestPutWarmerAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
+        controller.registerHandler(PUT, "/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/{type}/_warmer/{name}", this);
+        
+        controller.registerHandler(PUT, "/_warmers/{name}", this);
+        controller.registerHandler(PUT, "/{index}/_warmers/{name}", this);
+        controller.registerHandler(PUT, "/{index}/{type}/_warmers/{name}", this);
+        
+        controller.registerHandler(POST, "/_warmer/{name}", this);
+        controller.registerHandler(POST, "/{index}/_warmer/{name}", this);
+        controller.registerHandler(POST, "/{index}/{type}/_warmer/{name}", this);
+        
+        controller.registerHandler(POST, "/_warmers/{name}", this);
+        controller.registerHandler(POST, "/{index}/_warmers/{name}", this);
+        controller.registerHandler(POST, "/{index}/{type}/_warmers/{name}", this);
     }
 
     @Override

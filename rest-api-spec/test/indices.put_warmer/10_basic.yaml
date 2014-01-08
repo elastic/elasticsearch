@@ -32,6 +32,7 @@
   - do:
       indices.delete_warmer:
         index: test_index
+        name: test_warmer
 
   - do:
       catch: missing

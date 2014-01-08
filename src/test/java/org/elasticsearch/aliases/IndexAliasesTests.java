@@ -35,6 +35,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
@@ -90,7 +92,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
-        admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
+        admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("alias1", "test_x")).actionGet();
         Thread.sleep(300);
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
@@ -412,6 +414,43 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertHits(searchResponse.getHits(), "4");
     }
 
+    
+    
+    @Test
+    public void testDeleteAliases() throws Exception {
+
+        logger.info("--> creating index [test1]");
+        admin().indices().create(createIndexRequest("test1")).actionGet();
+
+        logger.info("--> creating index [test2]");
+        admin().indices().create(createIndexRequest("test2")).actionGet();
+
+        ensureGreen();
+
+        logger.info("--> adding filtering aliases to index [test1]");
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "tests", termFilter("name", "test")).execute().actionGet();
+
+        logger.info("--> adding filtering aliases to index [test2]");
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
+        
+        String[] indices = {"test1", "test2"}; 
+        String[] aliases = {"aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests"};
+        
+        admin().indices().prepareAliases().removeAlias(indices, aliases).execute().actionGet();
+        
+        AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).execute().actionGet();
+        assertThat(response.exists(), equalTo(false));
+
+    }
+
+    
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
 
@@ -512,10 +551,16 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
-        logger.info("--> deleting alias1 one more time");
-        stopWatch.start();
-        assertThat(admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
-        assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
+        
+    }
+    
+    @Test(expected = AliasesMissingException.class)
+    public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
+        logger.info("--> creating index [test]");
+        createIndex("test");
+        ensureGreen();
+        logger.info("--> deleting alias1 which does not exist");
+        assertThat(admin().indices().prepareAliases().removeAlias("test", "alias1").execute().actionGet().isAcknowledged(), equalTo(true));
     }
 
     @Test
@@ -729,7 +774,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(existsResponse.exists(), equalTo(false));
     }
 
-    @Test(expected = ActionRequestValidationException.class)
+    @Test(expected = IndexMissingException.class)
     public void testAddAliasNullIndex() {
 
         admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1"))
@@ -765,7 +810,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(2));
+            assertThat(e.validationErrors().size(), equalTo(1));
         }
     }
 
@@ -808,7 +853,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testRemoveAliasNullAliasNullIndex() {
         try {
-            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, null))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {

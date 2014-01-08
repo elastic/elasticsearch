@@ -93,8 +93,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                     .startObject("text").field("type", "string").endObject()
                     .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("test", "release", termFilter("text", "release"))).actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("test", "beta", termFilter("text", "beta"))).actionGet();
+        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termFilter("text", "release"), "test")).actionGet();
+        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termFilter("text", "beta"), "test")).actionGet();
 
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));

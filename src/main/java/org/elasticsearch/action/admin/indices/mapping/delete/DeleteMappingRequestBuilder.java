@@ -45,8 +45,8 @@ public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<Dele
     /**
      * Sets the type of the mapping to remove
      */
-    public DeleteMappingRequestBuilder setType(String type) {
-        request.type(type);
+    public DeleteMappingRequestBuilder setType(String... types) {
+        request.types(types);
         return this;
     }
 

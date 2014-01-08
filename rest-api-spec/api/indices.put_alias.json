@@ -1,10 +1,10 @@
 {
   "indices.put_alias": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-aliases.html",
-    "methods": ["PUT"],
+    "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}/_alias/{name}",
-      "paths": ["/{index}/_alias/{name}", "/_alias/{name}", "/{index}/_alias", "/_alias"],
+      "paths": ["/{index}/_alias/{name}", "/_alias/{name}", "/{index}/_aliases/{name}", "/_aliases/{name}"],
       "parts": {
         "index": {
           "type" : "string",

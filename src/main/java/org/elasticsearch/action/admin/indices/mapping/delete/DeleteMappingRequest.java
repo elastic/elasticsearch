@@ -23,8 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -37,7 +39,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
-    private String type;
+    private String[] types;
 
     DeleteMappingRequest() {
     }
@@ -53,8 +55,29 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (type == null) {
+        if (CollectionUtils.isEmpty(types)) {
             validationException = addValidationError("mapping type is missing", validationException);
+        } else {
+            validationException = checkForEmptyString(validationException, types);
+        }
+        if (CollectionUtils.isEmpty(indices)) {
+            validationException = addValidationError("index is missing", validationException);
+        } else {
+            validationException = checkForEmptyString(validationException, indices);
+        }
+
+        return validationException;
+    }
+
+    private ActionRequestValidationException checkForEmptyString(ActionRequestValidationException validationException, String[] strings) {
+        boolean containsEmptyString = false;
+        for (String string : strings) {
+            if (!Strings.hasText(string)) {
+                containsEmptyString = true;
+            }
+        }
+        if (containsEmptyString) {
+            validationException = addValidationError("types must not contain empty strings", validationException);
         }
         return validationException;
     }
@@ -84,52 +107,35 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
     }
 
     /**
-     * The mapping type.
+     * The mapping types.
      */
-    public String type() {
-        return type;
+    public String[] types() {
+        return types;
     }
 
     /**
      * The type of the mappings to remove.
      */
-    public DeleteMappingRequest type(String type) {
-        this.type = type;
+    public DeleteMappingRequest types(String... types) {
+        this.types = types;
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
+        indices = in.readStringArray();
         indicesOptions =  IndicesOptions.readIndicesOptions(in);
-        if (in.readBoolean()) {
-            type = in.readString();
-        }
+        types = in.readStringArray();
         readTimeout(in, Version.V_0_90_6);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-        }
+        out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (type == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(type);
-        }
+        out.writeStringArrayNullable(types);
         writeTimeout(out, Version.V_0_90_6);
     }
 }

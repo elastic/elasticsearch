@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
  */
 public class DeleteMappingClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteMappingClusterStateUpdateRequest> {
 
-    private String type;
+    private String[] types;
 
     DeleteMappingClusterStateUpdateRequest() {
 
@@ -35,15 +35,15 @@ public class DeleteMappingClusterStateUpdateRequest extends IndicesClusterStateU
     /**
      * Returns the type to be removed
      */
-    public String type() {
-        return type;
+    public String[] types() {
+        return types;
     }
 
     /**
      * Sets the type to be removed
      */
-    public DeleteMappingClusterStateUpdateRequest type(String type) {
-        this.type = type;
+    public DeleteMappingClusterStateUpdateRequest types(String[] types) {
+        this.types = types;
         return this;
     }
 }

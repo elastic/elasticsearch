@@ -4,7 +4,7 @@
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/_mapping",
-      "paths": ["/{index}/{type}/_mapping", "/{index}/{type}"],
+      "paths": ["/{index}/{type}/_mapping", "/{index}/{type}", "/{index}/_mapping/{type}", "/{index}/{type}/_mappings", "/{index}/_mappings/{type}"],
       "parts": {
         "index": {
           "type" : "list",

@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -537,6 +538,103 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type1").get().isExists(), equalTo(false));
     }
 
+
+    @Test
+    public void testPutWarmer() throws Exception {
+        assertAcked(prepareCreate("foobar"));
+        ensureYellow();
+        verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foobar").setQuery(QueryBuilders.matchAllQuery())), false);
+        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
+
+    }
+    
+    @Test
+    public void testPutWarmer_wildcard() throws Exception {
+        
+        assertAcked(prepareCreate("foo"));
+        assertAcked(prepareCreate("foobar"));
+        assertAcked(prepareCreate("bar"));
+        assertAcked(prepareCreate("barbaz"));
+        ensureYellow();
+
+        verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foo*").setQuery(QueryBuilders.matchAllQuery())), false);
+        
+        assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
+        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
+        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
+        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer1").get().getWarmers().size(), equalTo(0));
+
+        verify(client().admin().indices().preparePutWarmer("warmer2").setSearchRequest(client().prepareSearch().setIndices().setQuery(QueryBuilders.matchAllQuery())), false);
+        
+        assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
+        assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
+        assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
+        assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("warmer2").get().getWarmers().size(), equalTo(1));
+        
+    }
+
+    @Test
+    public void testPutAlias() throws Exception {
+        assertAcked(prepareCreate("foobar"));
+        ensureYellow();
+        verify(client().admin().indices().prepareAliases().addAlias("foobar", "foobar_alias"), false);
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
+
+    }
+    
+    @Test
+    public void testPutAlias_wildcard() throws Exception {
+        
+        assertAcked(prepareCreate("foo"));
+        assertAcked(prepareCreate("foobar"));
+        assertAcked(prepareCreate("bar"));
+        assertAcked(prepareCreate("barbaz"));
+        ensureYellow();
+
+        verify(client().admin().indices().prepareAliases().addAlias("foo*", "foobar_alias"), false);
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foo").get().exists(), equalTo(true));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("bar").get().exists(), equalTo(false));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(false));
+
+        verify(client().admin().indices().prepareAliases().addAlias("*", "foobar_alias"), false);
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foo").get().exists(), equalTo(true));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("bar").get().exists(), equalTo(true));
+        assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(true));
+        
+    }
+    @Test
+    public void testDeleteMapping_typeWildcard() throws Exception {
+        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type1"), true);
+
+        assertAcked(prepareCreate("foo").addMapping("type1", "field", "type=string"));
+        assertAcked(prepareCreate("foobar").addMapping("type2", "field", "type=string"));
+        assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
+        assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
+        
+        ensureYellow();
+
+        assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
+        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));
+        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(true));
+        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(true));
+        
+        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type*"), false);
+        assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
+        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(false));
+        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(true));
+        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(true));
+
+        assertAcked(client().admin().indices().prepareDelete("foo*"));
+
+        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), true);
+
+        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type3","type4"), false);
+        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(false));
+        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(false));
+    }
+
     @Test
     public void testDeleteWarmer() throws Exception {
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
@@ -545,15 +643,15 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
 
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo").setName("test1"), true);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo").setNames("test1"), true);
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(1));
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foobar").setName("test1"), false);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foobar").setNames("test1"), false);
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
     }
 
     @Test
     public void testDeleteWarmer_wildcard() throws Exception {
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setName("test1"), true);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
                 "test1", new String[]{"type1"}, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
@@ -564,7 +662,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("barbaz").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
 
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setName("test1"), false);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setNames("test1"), false);
         assertThat(client().admin().indices().prepareGetWarmers("foo").setWarmers("test1").get().getWarmers().size(), equalTo(0));
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("test1").get().getWarmers().size(), equalTo(1));
@@ -572,9 +670,9 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
         assertAcked(client().admin().indices().prepareDelete("foo*"));
 
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setName("test1"), true);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("foo*").setNames("test1"), true);
 
-        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setName("test1"), false);
+        verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), false);
         assertThat(client().admin().indices().prepareGetWarmers("bar").setWarmers("test1").get().getWarmers().size(), equalTo(0));
         assertThat(client().admin().indices().prepareGetWarmers("barbaz").setWarmers("test1").get().getWarmers().size(), equalTo(0));
     }
@@ -622,12 +720,18 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type2"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type2"), notNullValue());
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type2"), notNullValue());
+        verify(client().admin().indices().preparePutMapping().setType("type3").setSource("field", "type=string"), false);
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type3"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type3"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type3"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
+        
 
         verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=string"), true);
 
         assertAcked(client().admin().indices().prepareClose("barbaz").get());
-        verify(client().admin().indices().preparePutMapping("barbaz").setType("type3").setSource("field", "type=string"), false);
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
+        verify(client().admin().indices().preparePutMapping("barbaz").setType("type4").setSource("field", "type=string"), false);
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type4"), notNullValue());
     }
 
     @Test

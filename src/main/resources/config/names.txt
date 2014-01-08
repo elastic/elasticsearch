@@ -122,10 +122,8 @@ Angela Del Toro
 Angler
 Ani-Mator
 Animus
-Animus
 Ankhi
 Annalee
-Anelle
 Anne-Marie Cortez
 Annex
 Annie Ghazikhanian
@@ -222,8 +220,6 @@ Astronomer
 Asylum
 Atalanta
 Atalon
-Atlas
-Atlas
 Atlas
 Athena
 Atleza
@@ -431,7 +427,6 @@ Brain Drain
 Brainchild
 Brand, Abigail
 Brant, Betty
-Brass
 Bres
 Bridge, George Washington
 Brigade
@@ -455,7 +450,6 @@ Bucky III
 Bug
 Bullet
 Bullseye
-Bulldozer
 Bulldozer
 Burner
 Burstarr
@@ -493,7 +487,6 @@ Captain Atlas‎
 Captain America
 Captain Barracuda
 Captain Britain
-Cap 'N Hawk
 Captain Fate
 Captain Germany
 Captain Marvel
@@ -604,7 +597,6 @@ Contrary
 Controller
 Cooper, Valerie
 Copperhead
-Copperhead
 Copycat
 Coral
 Corbo, Adrian
@@ -645,7 +637,6 @@ Crossbones
 Crossfire
 Crown
 Crucible
-Crusader
 Crusader
 Crusher
 Crystal
@@ -715,8 +706,6 @@ Demolition Man
 Destiny I
 Destiny
 Destroyer, The
-Destroyer, The
-Destroyer
 Destroyer
 Destroyer of Demons
 Devastator
@@ -795,7 +784,6 @@ Dromedan
 Droom, Doctor Anthony
 Double Helix
 Druid
-Druid
 Druig
 Drumm, Jericho
 du Paris, Bennet
@@ -818,7 +806,6 @@ Edwin Jarvis
 Eel
 Egghead
 Ego the Living Planet
-El Aguila
 El Muerto
 Elathan
 Electric Eve
@@ -830,7 +817,6 @@ Elektra
 Elektro
 Elf With A Gun
 Elfqueen
-Eliminator
 Eliminator
 Elixir
 Elsie-Dee
@@ -951,7 +937,6 @@ Foster, Jane
 Foster, Tom
 Foxfire
 Frank Castle
-Drake, Frank
 Frankenstein's Monster
 Frankie and Victoria
 Frankie Raye
@@ -966,7 +951,6 @@ Freedom Ring
 Frenzy
 Frey
 Frigga
-Frog-Man
 Frog-Man
 Frost, Adrienne
 Frost, Deacon
@@ -1001,7 +985,6 @@ Garrison, Sean
 Gatecrasher
 Gateway
 Gauntlet
-Gauntlet
 Gavel
 Gaza
 Gazelle
@@ -1020,12 +1003,9 @@ Georgianna Castleberry
 Ghost
 Ghost Dancer
 Ghost Girl
-Ghost Girl
 Ghost Maker
 Ghost Rider
-Ghost Rider
 Ghost Rider 2099
-Ghoul
 Ghoul
 Giant-Man
 Gibbon
@@ -1175,7 +1155,6 @@ Hellcat
 Helleyes
 Hellfire
 Hellion
-Hellion
 Hellrazor
 Hellstrom, Damion
 Hellstrom, Patsy
@@ -1272,8 +1251,6 @@ Infamnia
 Infant Terrible
 Infectia
 Inferno
-Inferno
-Inferno
 Infinity
 Shola Inkosi
 Interloper
@@ -1362,7 +1339,6 @@ Jumbo Carnation
 Junkpile
 Junta
 Justice
-Justice
 Justin Hammer
 Kaine
 Kala
@@ -1411,7 +1387,6 @@ Kimura
 Cessily Kincaid
 Jane Kincaid
 Kine, Benedict
-Hannibal King
 Kingpin
 King Bedlam
 Kingo Sunen
@@ -1505,7 +1480,6 @@ Lightbright
 Lightmaster
 Lighting Rod
 Lightspeed
-Lila Cheney
 Lilandra Neramani
 Lilith, the daughter of Dracula
 Lin Sun
@@ -1523,7 +1497,6 @@ Living Laser
 Living Lightning
 Living Monolith
 Living Mummy
-Living Pharaoh
 Living Pharaoh
 Living Planet
 Living Tribunal
@@ -1553,7 +1526,6 @@ Lord Pumpkin
 Lorelei
 Lorelei II
 Lorelei Travis
-Lorna Dane
 Lorvex
 Loss
 Lu, Chen
@@ -1612,7 +1584,6 @@ Magnum I
 Magnum, Moses
 Magnus
 Magus
-Magus
 Maha Yogi
 Mahkizmo
 Major Mapleleaf
@@ -1659,8 +1630,6 @@ Marrow
 Martha Johansson
 Martinex
 Marvel Boy
-Marvel Boy
-Marvel Boy
 Marvel Girl
 Marvel Man
 Mar-Vell
@@ -1680,7 +1649,6 @@ Master Man
 Master Menace
 Mastermind
 Mastermind of the UK
-Mastermind
 Master Mold
 Master Order
 Master Pandemonium
@@ -1716,7 +1684,6 @@ Meltdown
 Melter
 Mentallo
 Mentor
-Mentor
 Mentus
 Mephisto
 Mercurio
@@ -1728,7 +1695,6 @@ Metal Master
 Metalhead
 Meteor Man
 Meteorite
-Meteor Man
 Meteorite II
 Micro
 Microchip
@@ -1744,7 +1710,6 @@ Mikey
 Mikhail Rasputin
 Milan
 Miller, Layla
-Mimic
 Mimic
 Mimir
 Mindmeld
@@ -1764,9 +1729,7 @@ Mr. M
 Mister Machine
 Mister One and Mister Two
 Mister Sensitive
-Mister Sinister
 Mister X
-Misty Knight
 Mist Mistress
 Mockingbird
 MODAM
@@ -1778,7 +1741,6 @@ Moira MacTaggert
 Mojo
 Mole Man
 Molecule Man
-Molly Hayes
 Molten Man
 Mondo
 Mongoose
@@ -1891,7 +1853,6 @@ Kiden Nixon
 MN-E (Ultraverse)
 Nobilus
 Noble, Peter
-Nocturne
 Nocturne
 Noh-Varr
 Nomad
@@ -2019,7 +1980,6 @@ Piledriver
 Pipeline
 Piper
 Pip the Troll
-Piper
 Piranha
 Pisces
 Pistol
@@ -2197,7 +2157,6 @@ Riot Grrl
 Ripfire
 Rl'nnd
 Robertson, Robbie
-Robert Kelly
 Rocket Raccoon
 Rocket Racer
 Rock
@@ -2220,7 +2179,6 @@ Rune
 Runner
 Rush
 The Russian
-Rusty Collins
 Ryder
 John Ryker
 S'byll
@@ -2327,7 +2285,6 @@ Shiva
 Shiver Man
 Shocker
 Shockwave
-Shola Inkosi
 Shooting Star
 Shotgun
 Shriek
@@ -2409,7 +2366,6 @@ Solarr
 Solo
 Soldier X
 Solitaire
-Solo
 Songbird
 Son of Satan
 Soulfire
@@ -2489,7 +2445,6 @@ Stentor
 The Amazing Tanwir Ahmed
 The Stepford Cuckoos
 Stephen Colbert
-Stevie Hunter
 Steven Lang
 Stewart, Stanley
 Stick
@@ -2535,7 +2490,6 @@ Sunder
 Sundragon
 Sunfire
 Sunpyre
-Sunset Bain
 Sunspot
 Sunstreak
 Sunstroke
@@ -2547,7 +2501,6 @@ Supercharger
 Superia
 Super-Nova
 SuperPro
-Super Rabbit
 Super Sabre
 Super-Skrull
 Supernalia
@@ -2589,7 +2542,6 @@ Taurus
 Taylor, General Orwell
 Techno
 Tefral the Surveyor
-Tempest
 Tempest
 Tempo
 Tempus
@@ -2674,7 +2626,6 @@ Trainer, Carolyn
 Tran, Chloe
 T-Ray
 Tremolo
-Trevor Fitzroy
 Tri-Man
 Triathlon
 Trick Shot
@@ -2760,10 +2711,8 @@ Vavavoom
 Vector
 Vegas
 Veil
-Veil
 Velsing, Bram
 Vengeance
-Venom
 Venom
 Venomm
 Ventura, Sharon
@@ -2803,7 +2752,6 @@ John Walker
 Mary Walker
 Patsy Walker
 Wallflower
-Jennifer Walters
 War
 War V
 War Eagle
@@ -2893,7 +2841,6 @@ X-Cutioner
 X-Man
 X-Treme
 Xandu
-Charles Xavier
 Xavin
 Xemnu the Titan
 Xemu
@@ -2921,7 +2868,6 @@ Zarathos
 Zarek
 Zarrko, the Tomorrow Man
 Zartra
-Zebediah Killgrave
 Zeitgeist
 Zemo, Heinrich
 Zemo, Helmut
@@ -2931,7 +2877,6 @@ Zeus
 Ziggy Pig
 Zip-Zap
 Zodiak
-Arnim Zola
 Zom
 Zombie
 Zuras

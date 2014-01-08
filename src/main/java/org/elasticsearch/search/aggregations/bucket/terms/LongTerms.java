@@ -90,8 +90,8 @@ public class LongTerms extends InternalTerms {
 
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, InternalOrder order, ValueFormatter valueFormatter, int requiredSize, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, buckets);
+    public LongTerms(String name, InternalOrder order, ValueFormatter valueFormatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+        super(name, order, requiredSize, minDocCount, buckets);
         this.valueFormatter = valueFormatter;
     }
 
@@ -145,7 +145,10 @@ public class LongTerms extends InternalTerms {
         for (int i = 0; i < states.length; i++) {
             if (states[i]) {
                 List<LongTerms.Bucket> sameTermBuckets = (List<LongTerms.Bucket>) internalBuckets[i];
-                ordered.insertWithOverflow(sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler()));
+                final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
+                if (b.getDocCount() >= minDocCount) {
+                    ordered.insertWithOverflow(b);
+                }
             }
         }
         buckets.release();
@@ -163,6 +166,7 @@ public class LongTerms extends InternalTerms {
         this.order = InternalOrder.Streams.readOrder(in);
         this.valueFormatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = in.readVInt();
+        this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
         for (int i = 0; i < size; i++) {
@@ -178,6 +182,7 @@ public class LongTerms extends InternalTerms {
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeVInt(requiredSize);
+        out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeLong(((Bucket) bucket).term);

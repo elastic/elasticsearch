@@ -9,8 +9,8 @@
         "/_nodes/{node_id}/stats",
         "/_nodes/stats/{metric_family}",
         "/_nodes/{node_id}/stats/{metric_family}",
-        "/_nodes/stats/indices/{metric}/{fields}",
-        "/_nodes/{node_id}/stats/indices/{metric}/{fields}"
+        "/_nodes/stats/{metric_family}/{metric}"
+        "/_nodes/{node_id}/stats/{metric_family}/{metric}"
       ],
       "parts": {
         "fields" : {
@@ -25,7 +25,7 @@
         "metric" : {
           "type" : "enum",
           "options" : ["completion","docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
-          "description" : "Limit the information returned for `indices` family to a specific metric"
+          "description" : "Limit the information returned for `indices` family to a specific metric. Isn't used if `indices` (or `all`) metric family isn't specified."
         },
         "node_id": {
           "type" : "list",

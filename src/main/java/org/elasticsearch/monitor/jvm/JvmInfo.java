@@ -19,6 +19,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,10 +31,9 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.RuntimeMXBean;
+import java.lang.management.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -78,6 +79,20 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         info.classPath = runtimeMXBean.getClassPath();
         info.systemProperties = runtimeMXBean.getSystemProperties();
 
+        List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        info.gcCollectors = new String[gcMxBeans.size()];
+        for (int i = 0; i < gcMxBeans.size(); i++) {
+            GarbageCollectorMXBean gcMxBean = gcMxBeans.get(i);
+            info.gcCollectors[i] = gcMxBean.getName();
+        }
+
+        List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
+        info.memoryPools = new String[memoryPoolMXBeans.size()];
+        for (int i = 0; i < memoryPoolMXBeans.size(); i++) {
+            MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
+            info.memoryPools[i] = memoryPoolMXBean.getName();
+        }
+
         INSTANCE = info;
     }
 
@@ -103,6 +118,9 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     String classPath;
 
     Map<String, String> systemProperties;
+
+    String[] gcCollectors = Strings.EMPTY_ARRAY;
+    String[] memoryPools = Strings.EMPTY_ARRAY;
 
     private JvmInfo() {
     }
@@ -281,6 +299,9 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         builder.byteSizeField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, mem.directMemoryMax);
         builder.endObject();
 
+        builder.field(Fields.GC_COLLECTORS, gcCollectors);
+        builder.field(Fields.MEMORY_POOLS, memoryPools);
+
         builder.endObject();
         return builder;
     }
@@ -305,6 +326,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString NON_HEAP_MAX_IN_BYTES = new XContentBuilderString("non_heap_max_in_bytes");
         static final XContentBuilderString DIRECT_MAX = new XContentBuilderString("direct_max");
         static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
+        static final XContentBuilderString GC_COLLECTORS = new XContentBuilderString("gc_collectors");
+        static final XContentBuilderString MEMORY_POOLS = new XContentBuilderString("memory_pools");
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
@@ -334,6 +357,10 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         }
         mem = new Mem();
         mem.readFrom(in);
+        if (in.getVersion().after(Version.V_0_90_9)) {
+            gcCollectors = in.readStringArray();
+            memoryPools = in.readStringArray();
+        }
     }
 
     @Override
@@ -356,6 +383,10 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             out.writeString(entry.getValue());
         }
         mem.writeTo(out);
+        if (out.getVersion().after(Version.V_0_90_9)) {
+            out.writeStringArray(gcCollectors);
+            out.writeStringArray(memoryPools);
+        }
     }
 
     public static class Mem implements Streamable, Serializable {

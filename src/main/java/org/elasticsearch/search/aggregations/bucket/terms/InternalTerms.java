@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -78,15 +79,17 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
     protected InternalOrder order;
     protected int requiredSize;
+    protected long minDocCount;
     protected Collection<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, InternalOrder order, int requiredSize, Collection<Bucket> buckets) {
+    protected InternalTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
         super(name);
         this.order = order;
         this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
         this.buckets = buckets;
     }
 
@@ -156,7 +159,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
         for (Map.Entry<Text, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
-            ordered.insertWithOverflow(sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler()));
+            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
+            if (b.docCount >= minDocCount) {
+                ordered.insertWithOverflow(b);
+            }
         }
         Bucket[] list = new Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -166,23 +172,17 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         return reduced;
     }
 
-    protected void trimExcessEntries() {
-        if (requiredSize >= buckets.size()) {
-            return;
-        }
-
-        if (buckets instanceof List) {
-            buckets = ((List) buckets).subList(0, requiredSize);
-            return;
-        }
-
-        int i = 0;
-        for (Iterator<Bucket> iter  = buckets.iterator(); iter.hasNext();) {
-            iter.next();
-            if (i++ >= requiredSize) {
-                iter.remove();
+    final void trimExcessEntries() {
+        final List<Bucket> newBuckets = Lists.newArrayList();
+        for (Bucket b : buckets) {
+            if (newBuckets.size() >= requiredSize) {
+                break;
+            }
+            if (b.docCount >= minDocCount) {
+                newBuckets.add(b);
             }
         }
+        buckets = newBuckets;
     }
 
 }

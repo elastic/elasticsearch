@@ -921,7 +921,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(range("range").addRange("0-2", 0.0, 2.0)))
                 .execute().actionGet();
 

@@ -41,21 +41,23 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
+    private final long minDocCount;
     private final IncludeExclude includeExclude;
     private final String executionHint;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, IncludeExclude includeExclude, String executionHint) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
         super(name, StringTerms.TYPE.name(), valueSourceConfig);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
     }
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        return new UnmappedTermsAggregator(name, order, requiredSize, aggregationContext, parent);
+        return new UnmappedTermsAggregator(name, order, requiredSize, minDocCount, aggregationContext, parent);
     }
 
     private static boolean hasParentBucketAggregator(Aggregator parent) {
@@ -107,11 +109,11 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
                 final StringTermsAggregator.WithOrdinals aggregator = new StringTermsAggregator.WithOrdinals(name,
-                        factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
+                        factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
                 aggregationContext.registerReaderContextAware(aggregator);
                 return aggregator;
             } else {
-                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, includeExclude, aggregationContext, parent);
+                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
             }
         }
 
@@ -122,9 +124,9 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
         if (valuesSource instanceof NumericValuesSource) {
             if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
+                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
-            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, aggregationContext, parent);
+            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +

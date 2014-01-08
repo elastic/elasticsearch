@@ -159,6 +159,63 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
 
 <2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
 
+==== Minimum document count
+
+It is possible to only return buckets that have a document count that is greater than or equal to a configured limit through the `min_doc_count` option.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "prices" : {
+            "histogram" : { 
+                "field" : "price",
+                "interval" : 50,
+                "min_doc_count": 10
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above aggregation would only return buckets that contain 10 documents or more. Default value is `1`.
+
+NOTE:   The special value `0` can be used to add empty buckets to the response between the minimum and the maximum buckets. Here is an example of what the response could look like:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "prices": {
+            "0": {
+                "key": 0,
+                "doc_count": 2
+            },
+            "50": {
+                "key": 50,
+                "doc_count": 0
+            },
+            "150": {
+                "key": 150,
+                "doc_count": 3
+            },
+            "200": {
+                "key": 150,
+                "doc_count": 0
+            },
+            "250": {
+                "key": 150,
+                "doc_count": 0
+            },
+            "300": {
+                "key": 150,
+                "doc_count": 1
+            }
+        }
+   }
+}
+--------------------------------------------------
+
 ==== Response Format
 
 By default, the buckets are retuned as an ordered array. It is also possilbe to request the response as a hash instead keyed by the buckets keys:

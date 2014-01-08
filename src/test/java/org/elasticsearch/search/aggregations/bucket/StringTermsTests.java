@@ -66,7 +66,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
-    private String randomExecutionHint() {
+    public static String randomExecutionHint() {
         return randomFrom(Arrays.asList(null, TermsAggregatorFactory.EXECUTION_HINT_VALUE_MAP, TermsAggregatorFactory.EXECUTION_HINT_VALUE_ORDINALS));
     }
 
@@ -758,7 +758,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(terms("terms")))
                 .execute().actionGet();
 

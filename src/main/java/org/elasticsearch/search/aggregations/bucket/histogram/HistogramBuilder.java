@@ -32,7 +32,7 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
 
     private Long interval;
     private HistogramBase.Order order;
-    private Boolean computeEmptyBuckets;
+    private Long minDocCount;
 
     public HistogramBuilder(String name) {
         super(name, InternalHistogram.TYPE.name());
@@ -48,8 +48,8 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
         return this;
     }
 
-    public HistogramBuilder emptyBuckets(boolean computeEmptyBuckets) {
-        this.computeEmptyBuckets = computeEmptyBuckets;
+    public HistogramBuilder minDocCount(long minDocCount) {
+        this.minDocCount = minDocCount;
         return this;
     }
 
@@ -65,8 +65,8 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
             order.toXContent(builder, params);
         }
 
-        if (computeEmptyBuckets != null) {
-            builder.field("empty_buckets", computeEmptyBuckets);
+        if (minDocCount != null) {
+            builder.field("min_doc_count", minDocCount);
         }
 
         return builder;

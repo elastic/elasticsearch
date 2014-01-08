@@ -65,8 +65,8 @@ public class InternalHistogram extends AbstractHistogramBase<Histogram.Bucket> i
             return TYPE.name();
         }
 
-        public AbstractHistogramBase<?> create(String name, List<Histogram.Bucket> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
-            return new InternalHistogram(name, buckets, order, emptyBucketInfo, formatter, keyed);
+        public AbstractHistogramBase<?> create(String name, List<Histogram.Bucket> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
         }
 
         public Bucket createBucket(long key, long docCount, InternalAggregations aggregations) {
@@ -77,8 +77,8 @@ public class InternalHistogram extends AbstractHistogramBase<Histogram.Bucket> i
 
     public InternalHistogram() {} // for serialization
 
-    public InternalHistogram(String name, List<Histogram.Bucket> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
-        super(name, buckets, order, emptyBucketInfo, formatter, keyed);
+    public InternalHistogram(String name, List<Histogram.Bucket> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
     @Override

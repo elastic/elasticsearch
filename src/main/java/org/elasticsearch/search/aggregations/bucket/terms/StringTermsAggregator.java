@@ -18,30 +18,31 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.sun.corba.se.impl.naming.cosnaming.InterOperableNamingImpl;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.collect.Iterators2;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.*;
 
 /**
  * An aggregator of string values.
@@ -52,11 +53,12 @@ public class StringTermsAggregator extends BucketsAggregator {
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
+    private final long minDocCount;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                 InternalOrder order, int requiredSize, int shardSize,
+                                 InternalOrder order, int requiredSize, int shardSize, long minDocCount,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
 
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
@@ -64,6 +66,7 @@ public class StringTermsAggregator extends BucketsAggregator {
         this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
     }
@@ -94,9 +97,122 @@ public class StringTermsAggregator extends BucketsAggregator {
         }
     }
 
+    /** Returns an iterator over the field data terms. */
+    private static Iterator<BytesRef> terms(final BytesValues.WithOrdinals bytesValues, boolean reverse) {
+        final Ordinals.Docs ordinals = bytesValues.ordinals();
+        if (reverse) {
+            return new UnmodifiableIterator<BytesRef>() {
+
+                long i = ordinals.getMaxOrd() - 1;
+
+                @Override
+                public boolean hasNext() {
+                    return i >= Ordinals.MIN_ORDINAL;
+                }
+
+                @Override
+                public BytesRef next() {
+                    bytesValues.getValueByOrd(i--);
+                    return bytesValues.copyShared();
+                }
+
+            };
+        } else {
+            return new UnmodifiableIterator<BytesRef>() {
+
+                long i = Ordinals.MIN_ORDINAL;
+
+                @Override
+                public boolean hasNext() {
+                    return i < ordinals.getMaxOrd();
+                }
+
+                @Override
+                public BytesRef next() {
+                    bytesValues.getValueByOrd(i++);
+                    return bytesValues.copyShared();
+                }
+
+            };
+        }
+    }
+
     @Override
     public StringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
+
+        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
+            // we need to fill-in the blanks
+            List<BytesValues.WithOrdinals> valuesWithOrdinals = Lists.newArrayList();
+            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+                context.setNextReader(ctx);
+                final BytesValues values = valuesSource.bytesValues();
+                if (values instanceof BytesValues.WithOrdinals) {
+                    valuesWithOrdinals.add((BytesValues.WithOrdinals) values);
+                } else {
+                    // brute force
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                        final int valueCount = values.setDocument(docId);
+                        for (int i = 0; i < valueCount; ++i) {
+                            final BytesRef term = values.nextValue();
+                            if (includeExclude == null || includeExclude.accept(term)) {
+                                bucketOrds.add(term, values.currentValueHash());
+                            }
+                        }
+                    }
+                }
+            }
+
+            // With ordinals we can be smarter and add just as many terms as necessary to the hash table
+            // For instance, if sorting by term asc, we only need to get the first `requiredSize` terms as other terms would
+            // either be excluded by the priority queue or at reduce time.
+            if (valuesWithOrdinals.size() > 0) {
+                final boolean reverse = order == InternalOrder.TERM_DESC;
+                Comparator<BytesRef> comparator = BytesRef.getUTF8SortedAsUnicodeComparator();
+                if (reverse) {
+                    comparator = Collections.reverseOrder(comparator);
+                }
+                Iterator<? extends BytesRef>[] iterators = new Iterator[valuesWithOrdinals.size()];
+                for (int i = 0; i < valuesWithOrdinals.size(); ++i) {
+                    iterators[i] = terms(valuesWithOrdinals.get(i), reverse);
+                }
+                Iterator<BytesRef> terms = Iterators2.mergeSorted(Arrays.asList(iterators), comparator, true);
+                if (includeExclude != null) {
+                    terms = Iterators.filter(terms, new Predicate<BytesRef>() {
+                        @Override
+                        public boolean apply(BytesRef input) {
+                            return includeExclude.accept(input);
+                        }
+                    });
+                }
+                if (order == InternalOrder.COUNT_ASC) {
+                    // let's try to find `shardSize` terms that matched no hit
+                    // this one needs shardSize and not requiredSize because even though terms have a count of 0 here,
+                    // they might have higher counts on other shards
+                    for (int added = 0; added < shardSize && terms.hasNext(); ) {
+                        if (bucketOrds.add(terms.next()) >= 0) {
+                            ++added;
+                        }
+                    }
+                } else if (order == InternalOrder.COUNT_DESC) {
+                    // add terms until there are enough buckets
+                    while (bucketOrds.size() < requiredSize && terms.hasNext()) {
+                        bucketOrds.add(terms.next());
+                    }
+                } else if (order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC) {
+                    // add the `requiredSize` least terms
+                    for (int i = 0; i < requiredSize && terms.hasNext(); ++i) {
+                        bucketOrds.add(terms.next());
+                    }
+                } else {
+                    // other orders (aggregations) are not optimizable
+                    while (terms.hasNext()) {
+                        bucketOrds.add(terms.next());
+                    }
+                }
+            }
+        }
+
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
@@ -117,12 +233,13 @@ public class StringTermsAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new StringTerms(name, order, requiredSize, Arrays.asList(list));
+
+        return new StringTerms(name, order, requiredSize, minDocCount, Arrays.asList(list));
     }
 
     @Override
     public StringTerms buildEmptyAggregation() {
-        return new StringTerms(name, order, requiredSize, Collections.<InternalTerms.Bucket>emptyList());
+        return new StringTerms(name, order, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override
@@ -141,8 +258,8 @@ public class StringTermsAggregator extends BucketsAggregator {
         private LongArray ordinalToBucket;
 
         public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource, long esitmatedBucketCount,
-                InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, esitmatedBucketCount, order, requiredSize, shardSize, null, aggregationContext, parent);
+                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, esitmatedBucketCount, order, requiredSize, shardSize, minDocCount, null, aggregationContext, parent);
             this.valuesSource = valuesSource;
         }
 

@@ -51,7 +51,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false).get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetaData(true).get();
         MetaData metaData = clusterStateResponse.getState().getMetaData();
         RepositoriesMetaData repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
         assertThat(repositoriesMetaData, notNullValue());
@@ -66,7 +66,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false).get();
+        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetaData(true).get();
         metaData = clusterStateResponse.getState().getMetaData();
         repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
         assertThat(repositoriesMetaData, notNullValue());

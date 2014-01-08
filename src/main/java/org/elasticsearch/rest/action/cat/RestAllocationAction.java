@@ -64,7 +64,7 @@ public class RestAllocationAction extends AbstractCatAction {
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
+        clusterStateRequest.clear().routingTable(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 

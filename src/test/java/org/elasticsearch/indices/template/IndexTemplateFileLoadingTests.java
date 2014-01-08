@@ -84,7 +84,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
             createIndex(indexName);
             ensureYellow(); // ensuring yellow so the test fails faster if the template cannot be loaded
 
-            ClusterStateResponse stateResponse = client().admin().cluster().prepareState().setFilterIndices(indexName).get();
+            ClusterStateResponse stateResponse = client().admin().cluster().prepareState().setIndices(indexName).get();
             assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfShards(), is(10));
             assertThat(stateResponse.getState().getMetaData().indices().get(indexName).getNumberOfReplicas(), is(0));
         }

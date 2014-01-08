@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -37,7 +36,6 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -62,18 +60,18 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clear().routingTable(true).indices(indices);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         try {
-                            channel.sendResponse(RestTable.buildResponse(buildTable(request, concreteIndices, clusterStateResponse, indicesStatsResponse), request, channel));
+                            channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), request, channel));
                         } catch (Throwable e) {
                             onFailure(e);
                         }
@@ -178,15 +176,10 @@ public class RestShardsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, String[] concreteIndices, ClusterStateResponse state, IndicesStatsResponse stats) {
+    private Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
 
-        Set<String> indices = Sets.newHashSet(concreteIndices);
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
-            if (!indices.contains(shard.index())) {
-                continue;
-            }
-
             CommonStats shardStats = stats.asMap().get(shard);
 
             table.startRow();

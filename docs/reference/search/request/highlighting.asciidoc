@@ -531,7 +531,7 @@ to
 ===================================================================
 
 added[0.90.10]
-[[matched-fields]]
+[[phrase-limit]]
 ==== Phrase Limit
 The `fast-vector-highlighter` has a `phrase_limit` parameter that prevents
 it from analyzing too many phrases and eating tons of memory.  It defaults

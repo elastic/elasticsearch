@@ -756,7 +756,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(histogram("sub_histo").interval(1l)))
                 .execute().actionGet();
 

@@ -86,7 +86,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         String scriptLang = null;
         Map<String, Object> scriptParams = null;
         boolean keyed = false;
-        boolean computeEmptyBuckets = false;
+        long minDocCount = 1;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
         boolean preZoneAdjustLargeInterval = false;
@@ -131,10 +131,14 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("compute_empty_buckets".equals(currentFieldName) || "computeEmptyBuckets".equals(currentFieldName)) {
-                    computeEmptyBuckets = parser.booleanValue();
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
+                    minDocCount = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -199,17 +203,17 @@ public class DateHistogramParser implements Aggregator.Parser {
             if (searchScript != null) {
                 ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
                 config.parser(valueParser);
-                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
             }
 
             // falling back on the get field data context
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
@@ -218,7 +222,7 @@ public class DateHistogramParser implements Aggregator.Parser {
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
     }
 
     private static InternalOrder resolveOrder(String key, boolean asc) {

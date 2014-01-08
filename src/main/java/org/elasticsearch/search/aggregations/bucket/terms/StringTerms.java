@@ -83,8 +83,8 @@ public class StringTerms extends InternalTerms {
 
     StringTerms() {} // for serialization
 
-    public StringTerms(String name, InternalOrder order, int requiredSize, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, buckets);
+    public StringTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+        super(name, order, requiredSize, minDocCount, buckets);
     }
 
     @Override
@@ -97,6 +97,7 @@ public class StringTerms extends InternalTerms {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = in.readVInt();
+        this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
         for (int i = 0; i < size; i++) {
@@ -111,6 +112,7 @@ public class StringTerms extends InternalTerms {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVInt(requiredSize);
+        out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeBytesRef(((Bucket) bucket).termBytes);

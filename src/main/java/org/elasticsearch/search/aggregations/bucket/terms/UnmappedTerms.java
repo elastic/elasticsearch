@@ -53,8 +53,8 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, InternalOrder order, int requiredSize) {
-        super(name, order, requiredSize, BUCKETS);
+    public UnmappedTerms(String name, InternalOrder order, int requiredSize, long minDocCount) {
+        super(name, order, requiredSize, minDocCount, BUCKETS);
     }
 
     @Override
@@ -67,6 +67,7 @@ public class UnmappedTerms extends InternalTerms {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = in.readVInt();
+        this.minDocCount = in.readVLong();
         this.buckets = BUCKETS;
         this.bucketMap = BUCKETS_MAP;
     }
@@ -76,6 +77,7 @@ public class UnmappedTerms extends InternalTerms {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVInt(requiredSize);
+        out.writeVLong(minDocCount);
     }
 
     @Override

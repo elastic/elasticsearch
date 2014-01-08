@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -40,16 +41,18 @@ public class LongTermsAggregator extends BucketsAggregator {
     private final InternalOrder order;
     private final int requiredSize;
     private final int shardSize;
+    private final long minDocCount;
     private final NumericValuesSource valuesSource;
     private final LongHash bucketOrds;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource, long estimatedBucketCount,
-                               InternalOrder order, int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
+                               InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
         this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
     }
 
@@ -77,6 +80,21 @@ public class LongTermsAggregator extends BucketsAggregator {
     @Override
     public LongTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
+
+        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
+            // we need to fill-in the blanks
+            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+                context.setNextReader(ctx);
+                final LongValues values = valuesSource.longValues();
+                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    final int valueCount = values.setDocument(docId);
+                    for (int i = 0; i < valueCount; ++i) {
+                        bucketOrds.add(values.nextValue());
+                    }
+                }
+            }
+        }
+
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
@@ -103,12 +121,12 @@ public class LongTermsAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new LongTerms(name, order, valuesSource.formatter(), requiredSize, Arrays.asList(list));
+        return new LongTerms(name, order, valuesSource.formatter(), requiredSize, minDocCount, Arrays.asList(list));
     }
 
     @Override
     public LongTerms buildEmptyAggregation() {
-        return new LongTerms(name, order, valuesSource.formatter(), requiredSize, Collections.<InternalTerms.Bucket>emptyList());
+        return new LongTerms(name, order, valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override

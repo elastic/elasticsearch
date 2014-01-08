@@ -24,6 +24,6 @@ import org.elasticsearch.rest.RestRequest;
 /**
  *
  */
-public interface HttpRequest extends RestRequest {
+public abstract class HttpRequest extends RestRequest {
 
 }

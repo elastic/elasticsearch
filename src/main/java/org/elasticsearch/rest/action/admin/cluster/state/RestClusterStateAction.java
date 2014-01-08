@@ -34,6 +34,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 
 /**
@@ -48,6 +49,8 @@ public class RestClusterStateAction extends BaseRestHandler {
                                   SettingsFilter settingsFilter) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
 
         this.settingsFilter = settingsFilter;
     }
@@ -56,14 +59,25 @@ public class RestClusterStateAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
-        clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
-        clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
-        clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
-        clusterStateRequest.filteredIndices(Strings.splitStringByCommaToArray(request.param("filter_indices", null)));
-        clusterStateRequest.filteredIndexTemplates(request.paramAsStringArray("filter_index_templates", Strings.EMPTY_ARRAY));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("indices", "_all"));
+        boolean isAllIndicesOnly = indices.length == 1 && "_all".equals(indices[0]);
+        if (!isAllIndicesOnly) {
+            clusterStateRequest.indices(indices);
+        }
+
+        Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
+        boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
+        if (!isAllMetricsOnly) {
+            clusterStateRequest.nodes(metrics.contains("nodes"));
+            clusterStateRequest.routingTable(metrics.contains("routing_table"));
+            clusterStateRequest.metaData(metrics.contains("metadata"));
+            clusterStateRequest.blocks(metrics.contains("blocks"));
+            clusterStateRequest.indexTemplates(request.paramAsStringArray("index_templates", Strings.EMPTY_ARRAY));
+        }
+
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {

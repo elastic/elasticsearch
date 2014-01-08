@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +51,7 @@ public class RestMasterAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
+        clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
@@ -88,9 +89,10 @@ public class RestMasterAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest request, ClusterStateResponse state) {
         Table table = getTableWithHeader(request);
-        String masterId = state.getState().nodes().masterNodeId();
-        String masterIp = ((InetSocketTransportAddress) state.getState().nodes().get(masterId).address()).address().getAddress().getHostAddress();
-        String masterName = state.getState().nodes().masterNode().name();
+        DiscoveryNodes nodes = state.getState().nodes();
+        String masterId = nodes.masterNodeId();
+        String masterIp = ((InetSocketTransportAddress) nodes.get(masterId).address()).address().getAddress().getHostAddress();
+        String masterName = nodes.masterNode().name();
 
         table.startRow();
 

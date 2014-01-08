@@ -34,6 +34,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -174,7 +175,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  delete test template");
         assertThat(client.admin().indices().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices(Strings.EMPTY_ARRAY).get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(false));
 
         logger.info("--> restore cluster state");
@@ -183,7 +184,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices(Strings.EMPTY_ARRAY).get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(true));
     }
 
@@ -214,7 +215,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  delete test template");
         wipeTemplates("test-template");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices().get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(false));
 
         logger.info("--> try restoring cluster state from snapshot without global state");
@@ -222,7 +223,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices().get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(false));
 
         logger.info("--> restore cluster state");
@@ -230,7 +231,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices().get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(true));
 
         createIndex("test-idx");
@@ -252,7 +253,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  delete test template and index ");
         wipeIndices("test-idx");
         wipeTemplates("test-template");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices().get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(false));
 
         logger.info("--> try restoring index and cluster state from snapshot without global state");
@@ -262,7 +263,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         ensureGreen();
         logger.info("--> check that template wasn't restored but index was");
-        clusterStateResponse = client.admin().cluster().prepareState().setFilterRoutingTable(true).setFilterNodes(true).setFilterIndexTemplates("test-template").setFilterIndices().get();
+        clusterStateResponse = client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).setIndexTemplates("test-template").setIndices().get();
         assertThat(clusterStateResponse.getState().getMetaData().templates().containsKey("test-template"), equalTo(false));
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 

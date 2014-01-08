@@ -34,56 +34,64 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * Filters all data responses.
+     * Include all data
      */
-    public ClusterStateRequestBuilder setFilterAll() {
-        request.filterAll();
+    public ClusterStateRequestBuilder all() {
+        request.all();
         return this;
     }
 
-    public ClusterStateRequestBuilder setFilterBlocks(boolean filter) {
-        request.filterBlocks(filter);
+    /**
+     * Do not include any data
+     */
+    public ClusterStateRequestBuilder clear() {
+        request.clear();
+        return this;
+    }
+
+    public ClusterStateRequestBuilder setBlocks(boolean filter) {
+        request.blocks(filter);
         return this;
     }
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
-     * to <tt>false</tt>.
+     * to <tt>true</tt>.
      */
-    public ClusterStateRequestBuilder setFilterMetaData(boolean filter) {
-        request.filterMetaData(filter);
+    public ClusterStateRequestBuilder setMetaData(boolean filter) {
+        request.metaData(filter);
         return this;
     }
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
-     * to <tt>false</tt>.
+     * to <tt>true</tt>.
      */
-    public ClusterStateRequestBuilder setFilterNodes(boolean filter) {
-        request.filterNodes(filter);
+    public ClusterStateRequestBuilder setNodes(boolean filter) {
+        request.nodes(filter);
         return this;
     }
 
     /**
      * Should the cluster state result include teh {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
-     * to <tt>false</tt>.
+     * to <tt>true</tt>.
      */
-    public ClusterStateRequestBuilder setFilterRoutingTable(boolean filter) {
-        request.filterRoutingTable(filter);
+    public ClusterStateRequestBuilder setRoutingTable(boolean filter) {
+        request.routingTable(filter);
         return this;
     }
 
     /**
-     * When {@link #setFilterMetaData(boolean)} is not set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
+     * When {@link #setMetaData(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
      * for. Defaults to all indices.
      */
-    public ClusterStateRequestBuilder setFilterIndices(String... indices) {
-        request.filteredIndices(indices);
+    public ClusterStateRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
         return this;
     }
 
-    public ClusterStateRequestBuilder setFilterIndexTemplates(String... templates) {
-        request.filteredIndexTemplates(templates);
+    public ClusterStateRequestBuilder setIndexTemplates(String... templates) {
+        request.indexTemplates(templates);
         return this;
     }
 

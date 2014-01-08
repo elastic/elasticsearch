@@ -22,6 +22,7 @@
   - do:
       get:
         index: test_1
+        type: _all
         id:    中文
 
   - match: { _index:   test_1 }

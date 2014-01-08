@@ -36,8 +36,6 @@ import java.util.regex.Pattern;
  */
 public class RestApi {
 
-    private static final String ALL = "_all";
-
     private final String name;
     private List<String> methods = Lists.newArrayList();
     private List<String> paths = Lists.newArrayList();
@@ -123,18 +121,18 @@ public class RestApi {
         RestPath matchingRestPath = findMatchingRestPath(pathParams.keySet());
         String path = matchingRestPath.path;
         for (Map.Entry<String, String> paramEntry : matchingRestPath.params.entrySet()) {
-            //replace path placeholders with actual values
+            // replace path placeholders with actual values
             String value = pathParams.get(paramEntry.getValue());
             if (value == null) {
-                //there might be additional placeholder to replace, not available as input params
-                //it can only be {index} or {type} to be replaced with _all
-                if (paramEntry.getValue().equals("index") || paramEntry.getValue().equals("type")) {
-                    value = ALL;
-                } else {
-                    throw new IllegalArgumentException("path [" + path + "] contains placeholders that weren't replaced with proper values");
-                }
+                // if a value is missing, we got the wrong path or the test was
+                // specified incorrectly
+                // TODO: What if more than one path exists? for example: PUT
+                // index/type/_mapping vs. PUT index/_maping/type? Should we
+                // randomize?
+                throw new IllegalArgumentException("parameter [" + paramEntry.getValue() + "] missing");
+            } else {
+                path = path.replace(paramEntry.getKey(), value);
             }
-            path = path.replace(paramEntry.getKey(), value);
         }
         return path;
     }

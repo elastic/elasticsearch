@@ -196,6 +196,12 @@
             <version>2.3</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.joda</groupId>
+            <artifactId>joda-convert</artifactId>
+            <version>1.2</version>
+            <scope>compile</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.mvel</groupId>
@@ -491,6 +497,7 @@
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
                             <include>joda-time:joda-time</include>
+                            <include>org.joda:joda-convert</include>
                             <include>io.netty:netty</include>
                             <include>com.ning:compress-lzf</include>
                         </includes>

@@ -123,14 +123,20 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         boolean dirty = false;
 
         IndexMetaData indexMetaData = newClusterState.metaData().index(riverIndexName);
+
         // go over and create new river routing (with no node) for new types (rivers names)
-        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+        Iterator<ObjectCursor<MappingMetaData>> iterator = indexMetaData.mappings().values().iterator();
+        while (iterator.hasNext()) {
+            ObjectCursor<MappingMetaData> cursor = iterator.next();
             String mappingType = cursor.value.type(); // mapping type is the name of the river
             if (!currentState.routing().hasRiverByName(mappingType)) {
                 // no river, we need to add it to the routing with no node allocation
                 try {
                     GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").setPreference("_primary").get();
                     if (!getResponse.isExists()) {
+                        // Is there other mappings remaining?
+                        if (iterator.hasNext()) continue;
+
                         if (countDown.countDown()) {
                             logger.warn("no river _meta document found after {} attempts", RIVER_START_MAX_RETRIES);
                         } else {
@@ -153,6 +159,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                         }
                         return currentState;
                     }
+                    logger.debug("{}/{}/_meta document found.", riverIndexName, mappingType);
+
                     String riverType = XContentMapValues.nodeStringValue(getResponse.getSourceAsMap().get("type"), null);
                     if (riverType == null) {
                         logger.warn("no river type provided for [{}], ignoring...", riverIndexName);
@@ -173,6 +181,9 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 }
             }
         }
+
+
+
         // now, remove routings that were deleted
         // also, apply nodes that were removed and rivers were running on
         for (RiverRouting routing : currentState.routing()) {

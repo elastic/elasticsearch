@@ -35,13 +35,13 @@ public interface Bucket {
 
     Aggregations getAggregations();
 
-    static class Comparator<B extends Bucket> implements java.util.Comparator<B> {
+    static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 
         private final String aggName;
         private final String valueName;
         private final boolean asc;
 
-        public Comparator(String expression, boolean asc) {
+        public SubAggregationComparator(String expression, boolean asc) {
             this.asc = asc;
             int i = expression.indexOf('.');
             if (i < 0) {
@@ -53,7 +53,7 @@ public interface Bucket {
             }
         }
 
-        public Comparator(String aggName, String valueName, boolean asc) {
+        public SubAggregationComparator(String aggName, String valueName, boolean asc) {
             this.aggName = aggName;
             this.valueName = valueName;
             this.asc = asc;

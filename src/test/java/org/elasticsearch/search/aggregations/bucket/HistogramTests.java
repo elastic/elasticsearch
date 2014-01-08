@@ -555,7 +555,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field("values").script("_value + 1").interval(interval)
-                    .subAggregation(terms("values").order(Terms.Order.TERM_ASC)))
+                    .subAggregation(terms("values").order(Terms.Order.term(true))))
                 .execute().actionGet();
 
         assertSearchResponse(response);

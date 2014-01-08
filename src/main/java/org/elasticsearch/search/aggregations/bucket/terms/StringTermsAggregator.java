@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import com.sun.corba.se.impl.naming.cosnaming.InterOperableNamingImpl;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
@@ -27,12 +28,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
@@ -59,7 +62,7 @@ public class StringTermsAggregator extends BucketsAggregator {
 
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
-        this.order = order;
+        this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.includeExclude = includeExclude;
@@ -92,37 +95,26 @@ public class StringTermsAggregator extends BucketsAggregator {
         }
     }
 
-    // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
-    static class OrdinalBucket extends StringTerms.Bucket {
-
-        int bucketOrd;
-
-        public OrdinalBucket() {
-            super(new BytesRef(), 0, null);
-        }
-
-    }
-
     @Override
     public StringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator());
-        OrdinalBucket spare = null;
-        for (int i = 0; i < bucketOrds.size(); ++i) {
+        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
+        StringTerms.Bucket spare = null;
+        for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new OrdinalBucket();
+                spare = new StringTerms.Bucket(new BytesRef(), 0, null);
             }
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
+            spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdinalBucket bucket = (OrdinalBucket) ordered.pop();
+            final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }

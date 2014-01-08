@@ -40,7 +40,7 @@ public class StatsTests extends AbstractNumericTests {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true).subAggregation(stats("stats")))
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(stats("stats")))
                 .execute().actionGet();
 
         assertShardExecutionState(searchResponse, 0);

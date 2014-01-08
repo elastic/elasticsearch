@@ -72,6 +72,7 @@ public class TermsParser implements Aggregator.Parser {
         String exclude = null;
         int excludeFlags = 0; // 0 means no flags
         String executionHint = null;
+        long minDocCount = 1;
 
 
         XContentParser.Token token;
@@ -110,6 +111,8 @@ public class TermsParser implements Aggregator.Parser {
                     requiredSize = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
                     shardSize = parser.intValue();
+                } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
+                    minDocCount = parser.intValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -206,14 +209,14 @@ public class TermsParser implements Aggregator.Parser {
             if (!assumeUnique) {
                 config.ensureUnique(true);
             }
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             ValuesSourceConfig<?> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
             config.unmapped(true);
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
+            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
@@ -255,7 +258,7 @@ public class TermsParser implements Aggregator.Parser {
             config.ensureUnique(true);
         }
 
-        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, includeExclude, executionHint);
+        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

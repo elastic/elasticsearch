@@ -842,7 +842,7 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(ipRange("ip_range").field("ip").addRange("r1", "10.0.0.1", "10.0.0.10")))
                 .execute().actionGet();
 

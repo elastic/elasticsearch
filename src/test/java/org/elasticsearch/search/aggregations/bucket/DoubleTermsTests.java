@@ -600,7 +600,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(terms("terms")))
                 .execute().actionGet();
 

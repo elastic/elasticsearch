@@ -33,6 +33,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     private int size = -1;
     private int shardSize = -1;
+    private long minDocCount = -1;
     private Terms.ValueType valueType;
     private Terms.Order order;
     private String includePattern;
@@ -59,6 +60,14 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      */
     public TermsBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
+        return this;
+    }
+
+    /**
+     * Set the minimum document count terms should have in order to appear in the response.
+     */
+    public TermsBuilder minDocCount(long minDocCount) {
+        this.minDocCount = minDocCount;
         return this;
     }
 
@@ -134,6 +143,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         if (shardSize >= 0) {
             builder.field("shard_size", shardSize);
+        }
+        if (minDocCount >= 0) {
+            builder.field("min_doc_count", minDocCount);
         }
         if (valueType != null) {
             builder.field("value_type", valueType.name().toLowerCase(Locale.ROOT));

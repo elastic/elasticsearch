@@ -76,8 +76,8 @@ public class InternalDateHistogram extends AbstractHistogramBase<DateHistogram.B
         }
 
         @Override
-        public AbstractHistogramBase<?> create(String name, List<DateHistogram.Bucket> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
-            return new InternalDateHistogram(name, buckets, order, emptyBucketInfo, formatter, keyed);
+        public AbstractHistogramBase<?> create(String name, List<DateHistogram.Bucket> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
         }
 
         @Override
@@ -88,8 +88,8 @@ public class InternalDateHistogram extends AbstractHistogramBase<DateHistogram.B
 
     InternalDateHistogram() {} // for serialization
 
-    InternalDateHistogram(String name, List<DateHistogram.Bucket> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
-        super(name, buckets, order, emptyBucketInfo, formatter, keyed);
+    InternalDateHistogram(String name, List<DateHistogram.Bucket> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
     @Override

@@ -117,7 +117,7 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
 
         String type();
 
-        AbstractHistogramBase create(String name, List<B> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed);
+        AbstractHistogramBase create(String name, List<B> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed);
 
         Bucket createBucket(long key, long docCount, InternalAggregations aggregations);
 
@@ -128,14 +128,17 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
     private InternalOrder order;
     private ValueFormatter formatter;
     private boolean keyed;
+    private long minDocCount;
     private EmptyBucketInfo emptyBucketInfo;
 
     protected AbstractHistogramBase() {} // for serialization
 
-    protected AbstractHistogramBase(String name, List<B> buckets, InternalOrder order, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+    protected AbstractHistogramBase(String name, List<B> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
         super(name);
         this.buckets = buckets;
         this.order = order;
+        assert (minDocCount == 0) == (emptyBucketInfo != null);
+        this.minDocCount = minDocCount;
         this.emptyBucketInfo = emptyBucketInfo;
         this.formatter = formatter;
         this.keyed = keyed;
@@ -169,28 +172,36 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
 
-            if (emptyBucketInfo == null) {
+            if (minDocCount == 1) {
                 return aggregations.get(0);
             }
 
-            // we need to fill the gaps with empty buckets
             AbstractHistogramBase histo = (AbstractHistogramBase) aggregations.get(0);
             CollectionUtil.introSort(histo.buckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
             List<HistogramBase.Bucket> list = order.asc ? histo.buckets : Lists.reverse(histo.buckets);
             HistogramBase.Bucket prevBucket = null;
             ListIterator<HistogramBase.Bucket> iter = list.listIterator();
-            while (iter.hasNext()) {
-                // look ahead on the next bucket without advancing the iter
-                // so we'll be able to insert elements at the right position
-                HistogramBase.Bucket nextBucket = list.get(iter.nextIndex());
-                if (prevBucket != null) {
-                    long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.getKey());
-                    while (key != nextBucket.getKey()) {
-                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations));
-                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
+            if (minDocCount == 0) {
+                // we need to fill the gaps with empty buckets
+                while (iter.hasNext()) {
+                    // look ahead on the next bucket without advancing the iter
+                    // so we'll be able to insert elements at the right position
+                    HistogramBase.Bucket nextBucket = list.get(iter.nextIndex());
+                    if (prevBucket != null) {
+                        long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.getKey());
+                        while (key != nextBucket.getKey()) {
+                            iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations));
+                            key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                        }
+                    }
+                    prevBucket = iter.next();
+                }
+            } else {
+                while (iter.hasNext()) {
+                    if (iter.next().getDocCount() < minDocCount) {
+                        iter.remove();
                     }
                 }
-                prevBucket = iter.next();
             }
 
             if (order != InternalOrder.KEY_ASC && order != InternalOrder.KEY_DESC) {
@@ -222,7 +233,9 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
         for (int i = 0; i < allocated.length; i++) {
             if (allocated[i]) {
                 Bucket bucket = ((List<Bucket>) buckets[i]).get(0).reduce(((List<Bucket>) buckets[i]), reduceContext.cacheRecycler());
-                reducedBuckets.add(bucket);
+                if (bucket.getDocCount() >= minDocCount) {
+                    reducedBuckets.add(bucket);
+                }
             }
         }
         bucketsByKey.release();
@@ -230,7 +243,7 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
 
 
         // adding empty buckets in needed
-        if (emptyBucketInfo != null) {
+        if (minDocCount == 0) {
             CollectionUtil.introSort(reducedBuckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
             List<HistogramBase.Bucket> list = order.asc ? reducedBuckets : Lists.reverse(reducedBuckets);
             HistogramBase.Bucket prevBucket = null;
@@ -268,7 +281,8 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         order = InternalOrder.Streams.readOrder(in);
-        if (in.readBoolean()) {
+        minDocCount = in.readVLong();
+        if (minDocCount == 0) {
             emptyBucketInfo = EmptyBucketInfo.readFrom(in);
         }
         formatter = ValueFormatterStreams.readOptional(in);
@@ -286,10 +300,8 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
-        if (emptyBucketInfo == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
+        out.writeVLong(minDocCount);
+        if (minDocCount == 0) {
             EmptyBucketInfo.writeTo(emptyBucketInfo, out);
         }
         ValueFormatterStreams.writeOptional(formatter, out);

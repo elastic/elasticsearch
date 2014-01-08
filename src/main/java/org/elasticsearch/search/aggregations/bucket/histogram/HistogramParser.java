@@ -54,7 +54,7 @@ public class HistogramParser implements Aggregator.Parser {
         String scriptLang = null;
         Map<String, Object> scriptParams = null;
         boolean keyed = false;
-        boolean emptyBuckets = false;
+        long minDocCount = 1;
         InternalOrder order = (InternalOrder) InternalOrder.KEY_ASC;
         long interval = -1;
         boolean assumeSorted = false;
@@ -80,14 +80,14 @@ public class HistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("interval".equals(currentFieldName)) {
                     interval = parser.longValue();
+                } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
+                    minDocCount = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("empty_buckets".equals(currentFieldName) || "emptyBuckets".equals(currentFieldName)) {
-                    emptyBuckets = parser.booleanValue();
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
                 } else {
@@ -130,13 +130,13 @@ public class HistogramParser implements Aggregator.Parser {
         }
 
         if (field == null) {
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, emptyBuckets, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, emptyBuckets, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
@@ -146,7 +146,7 @@ public class HistogramParser implements Aggregator.Parser {
             config.formatter(new ValueFormatter.Number.Pattern(format));
         }
 
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, emptyBuckets, InternalHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
 
     }
 

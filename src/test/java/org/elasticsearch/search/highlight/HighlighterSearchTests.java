@@ -38,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -2554,7 +2555,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
     private <P extends QueryBuilder & BoostableQueryBuilder> void
             phraseBoostTestCaseForClauses(String highlighterType, float boost, QueryBuilder terms, P phrase) {
-        Matcher<String> highlightedMatcher = either(containsString("<em>highlight words together</em>")).or(
+        Matcher<String> highlightedMatcher = Matchers.<String>either(containsString("<em>highlight words together</em>")).or(
                 containsString("<em>highlight</em> <em>words</em> <em>together</em>"));
         SearchRequestBuilder search = client().prepareSearch("test").setHighlighterRequireFieldMatch(true)
                 .setHighlighterOrder("score").setHighlighterType(highlighterType)

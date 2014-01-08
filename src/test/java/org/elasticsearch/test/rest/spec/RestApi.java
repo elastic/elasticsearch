@@ -126,11 +126,6 @@ public class RestApi {
             if (value == null) {
                 // if a value is missing, we got the wrong path or the test was
                 // specified incorrectly
-                // TODO: Figure out if it is possible that two paths accept same
-                // number of parameters but are called differently so that
-                // really wrong path is returned. Maybe we should return all
-                // paths that have the required number of parameters and then
-                // check which one also has the correct ones?
                 // TODO: What if more than one path exists? for example: PUT
                 // index/type/_mapping vs. PUT index/_maping/type? Should we
                 // randomize?

@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +62,7 @@ public class RestNodesAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
+        clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
@@ -209,10 +210,11 @@ public class RestNodesAction extends AbstractCatAction {
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         boolean fullId = req.paramAsBoolean("full_id", false);
 
-        String masterId = state.getState().nodes().masterNodeId();
+        DiscoveryNodes nodes = state.getState().nodes();
+        String masterId = nodes.masterNodeId();
         Table table = getTableWithHeader(req);
 
-        for (DiscoveryNode node : state.getState().nodes()) {
+        for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
 

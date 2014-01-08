@@ -17,32 +17,45 @@ particular node by adding `local=true` to the  query string.
 [float]
 === Response Filters
 
-It is possible to filter the cluster state response using the following
-REST parameters:
-
-`filter_nodes`::
-	Set to `true` to filter out the `nodes` part of the
-	response.
-
-`filter_routing_table`:: 
-	Set to `true` to filter out the `routing_table`
-	part of the response.
-
-`filter_metadata`::
-	Set to `true` to filter out the `metadata` part of the
-	response.
-
-`filter_blocks`::
-	Set to `true` to filter out the `blocks` part of the
-	response.
-
-`filter_indices`::
-	When not filtering metadata, a comma separated list of
-	indices to include in the response.
-
-Example follows:
+As the cluster state can grow (depending on the number of shards and indices, your mapping, templates),
+it is possible to filter the cluster state response specifying the parts in the URL.
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/state?filter_nodes=true'
+$ curl -XGET 'http://localhost:9200/_cluster/state/{metrics}/{indices}'
 --------------------------------------------------
+
+`metrics` can be a comma-separated list of
+
+`nodes`::
+    Shows the `nodes` part of the response
+
+`routing_table`:: 
+    Shows the `routing_table` part of the response. If you supply a comma separated list of indices, the returned output will only contain the indices listed.
+
+`metadata`::
+    Shows the `metadata` part of the response. If you supply a comma separated list of indices, the returned output will only contain the indices listed.
+
+`blocks`::
+    Shows the `blocks` part of the response
+
+In addition the `index_templates` parameter can be specified, which returns the specified index templates only. This works only if the `metadata` is asked to be returned.
+
+A couple of example calls:
+
+[source,js]
+--------------------------------------------------
+# return only metadata and routing_table data for specified indices
+$ curl -XGET 'http://localhost:9200/_cluster/state/metadata,routing_table/foo,bar'
+
+# return everything for these two indices
+$ curl -XGET 'http://localhost:9200/_cluster/state/_all/foo,bar'
+
+# Return only blocks data
+$ curl -XGET 'http://localhost:9200/_cluster/state/blocks'
+
+# Return only metadata and a specific index_template
+# You should use the dedicated template endpoint for this
+$ curl -XGET 'http://localhost:9200/_cluster/state/metadata?index_templates=template_1'
+--------------------------------------------------
+

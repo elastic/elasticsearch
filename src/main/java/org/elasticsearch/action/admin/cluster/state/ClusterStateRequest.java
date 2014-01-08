@@ -32,20 +32,12 @@ import java.io.IOException;
  */
 public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterStateRequest> {
 
-    public final static String NONE = "_na";
-
-    private boolean filterRoutingTable = false;
-
-    private boolean filterNodes = false;
-
-    private boolean filterMetaData = false;
-
-    private boolean filterBlocks = false;
-
-    private String[] filteredIndices = Strings.EMPTY_ARRAY;
-
-    private String[] filteredIndexTemplates = Strings.EMPTY_ARRAY;
-
+    private boolean routingTable = true;
+    private boolean nodes = true;
+    private boolean metaData = true;
+    private boolean blocks = true;
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private String[] indexTemplates = Strings.EMPTY_ARRAY;
     private boolean local = false;
 
     public ClusterStateRequest() {
@@ -56,72 +48,77 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
         return null;
     }
 
-    public ClusterStateRequest filterAll() {
-        filterRoutingTable = true;
-        filterNodes = true;
-        filterMetaData = true;
-        filterBlocks = true;
-        filteredIndices = Strings.EMPTY_ARRAY;
-        filteredIndexTemplates = Strings.EMPTY_ARRAY;
+    public ClusterStateRequest all() {
+        routingTable = true;
+        nodes = true;
+        metaData = true;
+        blocks = true;
+        indices = Strings.EMPTY_ARRAY;
+        indexTemplates = Strings.EMPTY_ARRAY;
+        return this;
+    }
+    
+    public ClusterStateRequest clear() {
+        routingTable = false;
+        nodes = false;
+        metaData = false;
+        blocks = false;
+        indices = Strings.EMPTY_ARRAY;
+        indexTemplates = Strings.EMPTY_ARRAY;
         return this;
     }
 
-    public boolean filterRoutingTable() {
-        return filterRoutingTable;
+    public boolean routingTable() {
+        return routingTable;
     }
 
-    public ClusterStateRequest filterRoutingTable(boolean filterRoutingTable) {
-        this.filterRoutingTable = filterRoutingTable;
+    public ClusterStateRequest routingTable(boolean routingTable) {
+        this.routingTable = routingTable;
         return this;
     }
 
-    public boolean filterNodes() {
-        return filterNodes;
+    public boolean nodes() {
+        return nodes;
     }
 
-    public ClusterStateRequest filterNodes(boolean filterNodes) {
-        this.filterNodes = filterNodes;
+    public ClusterStateRequest nodes(boolean nodes) {
+        this.nodes = nodes;
         return this;
     }
 
-    public boolean filterMetaData() {
-        return filterMetaData;
+    public boolean metaData() {
+        return metaData;
     }
 
-    public ClusterStateRequest filterMetaData(boolean filterMetaData) {
-        this.filterMetaData = filterMetaData;
+    public ClusterStateRequest metaData(boolean metaData) {
+        this.metaData = metaData;
         return this;
     }
 
-    public boolean filterBlocks() {
-        return filterBlocks;
+    public boolean blocks() {
+        return blocks;
     }
 
-    public ClusterStateRequest filterBlocks(boolean filterBlocks) {
-        this.filterBlocks = filterBlocks;
+    public ClusterStateRequest blocks(boolean blocks) {
+        this.blocks = blocks;
         return this;
     }
 
-    public String[] filteredIndices() {
-        return filteredIndices;
+    public String[] indices() {
+        return indices;
     }
 
-    public ClusterStateRequest filterOutIndices() {
-        this.filteredIndices = new String[]{NONE};
+    public ClusterStateRequest indices(String... indices) {
+        this.indices = indices;
         return this;
     }
 
-    public ClusterStateRequest filteredIndices(String... filteredIndices) {
-        this.filteredIndices = filteredIndices;
-        return this;
+    public String[] indexTemplates() {
+        return this.indexTemplates;
     }
 
-    public String[] filteredIndexTemplates() {
-        return this.filteredIndexTemplates;
-    }
-
-    public ClusterStateRequest filteredIndexTemplates(String... filteredIndexTemplates) {
-        this.filteredIndexTemplates = filteredIndexTemplates;
+    public ClusterStateRequest indexTemplates(String... indexTemplates) {
+        this.indexTemplates = indexTemplates;
         return this;
     }
 
@@ -137,24 +134,24 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        filterRoutingTable = in.readBoolean();
-        filterNodes = in.readBoolean();
-        filterMetaData = in.readBoolean();
-        filterBlocks = in.readBoolean();
-        filteredIndices = in.readStringArray();
-        filteredIndexTemplates = in.readStringArray();
+        routingTable = in.readBoolean();
+        nodes = in.readBoolean();
+        metaData = in.readBoolean();
+        blocks = in.readBoolean();
+        indices = in.readStringArray();
+        indexTemplates = in.readStringArray();
         local = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(filterRoutingTable);
-        out.writeBoolean(filterNodes);
-        out.writeBoolean(filterMetaData);
-        out.writeBoolean(filterBlocks);
-        out.writeStringArray(filteredIndices);
-        out.writeStringArray(filteredIndexTemplates);
+        out.writeBoolean(routingTable);
+        out.writeBoolean(nodes);
+        out.writeBoolean(metaData);
+        out.writeBoolean(blocks);
+        out.writeStringArray(indices);
+        out.writeStringArray(indexTemplates);
         out.writeBoolean(local);
     }
 }

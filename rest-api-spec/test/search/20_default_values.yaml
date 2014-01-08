@@ -26,7 +26,8 @@
 
   - do:
       search:
-        type:   test
+        index: _all
+        type:  test
         body:
           query:
             match:

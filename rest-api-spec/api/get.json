@@ -18,8 +18,7 @@
         },
         "type": {
           "type" : "string",
-          "required" : false,
-          "default" : "_all",
+          "required" : true,
           "description" : "The type of the document (use `_all` to fetch the first document matching the ID across all types)"
         }
       },

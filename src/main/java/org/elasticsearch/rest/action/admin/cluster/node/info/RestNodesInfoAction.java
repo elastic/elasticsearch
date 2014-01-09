@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -43,6 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
+    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "network", "os", "plugin", "process", "settings", "thread_pool", "transport");
 
     @Inject
     public RestNodesInfoAction(Settings settings, Client client, RestController controller,
@@ -62,10 +64,20 @@ public class RestNodesInfoAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodeIds;
         Set<String> metrics;
-        // special case like /_nodes/fs (in this case fs are metrics and not the nodeId)
+
+        // special case like /_nodes/os (in this case os are metrics and not the nodeId)
+        // still, /_nodes/_local (or any other node id) should work and be treated as usual
+        // this means one must differentiate between allowed metrics and arbitrary node ids in the same place
         if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
-            nodeIds = new String[] { "_all" };
-            metrics = Strings.splitStringByCommaToSet(request.param("nodeId", "_all"));
+            Set<String> metricsOrNodeIds = Strings.splitStringByCommaToSet(request.param("nodeId", "_all"));
+            boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
+            if (isMetricsOnly) {
+                nodeIds = new String[] { "_all" };
+                metrics = metricsOrNodeIds;
+            } else {
+                nodeIds = metricsOrNodeIds.toArray(new String[]{});
+                metrics = Sets.newHashSet("_all");
+            }
         } else {
             nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId", "_all"));
             metrics = Strings.splitStringByCommaToSet(request.param("metrics", "_all"));

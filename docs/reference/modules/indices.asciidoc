@@ -27,7 +27,7 @@ buffer. It defaults to `4mb`.
 [[indices-ttl]]
 === TTL interval
 
-You can dynamically set the `indices.ttl.interval` allows to set how
+You can dynamically set the `indices.ttl.interval`, which allows to set how
 often expired documents will be automatically deleted. The default value
 is 60s.
 
@@ -40,7 +40,7 @@ See also <<mapping-ttl-field>>.
 [[recovery]]
 === Recovery
 
-The following settings can be set to manage recovery policy:
+The following settings can be set to manage the recovery policy:
 
 [horizontal]
 `indices.recovery.concurrent_streams`::
@@ -65,7 +65,7 @@ The following settings can be set to manage recovery policy:
 [[throttling]]
 === Store level throttling
 
-The following settings can be set to control store throttling:
+The following settings can be set to control the store throttling:
 
 [horizontal]
 `indices.store.throttle.type`::

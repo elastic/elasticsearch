@@ -17,10 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.store;
-
-import org.apache.lucene.store.BufferedIndexOutput;
-import org.apache.lucene.store.IndexOutput;
+package org.apache.lucene.store;
 
 import java.io.IOException;
 import java.util.zip.Checksum;
@@ -29,15 +26,19 @@ import java.util.zip.Checksum;
  */
 public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
 
-    private final IndexOutput out;
-
+    private final IndexOutput delegate;
+    private final BufferedIndexOutput bufferedDelegate;
     private final Checksum digest;
 
-    public BufferedChecksumIndexOutput(IndexOutput out, Checksum digest) {
-        // we add 8 to be bigger than the default BufferIndexOutput buffer size so any flush will go directly
-        // to the output without being copied over to the delegate buffer
-        super(BufferedIndexOutput.DEFAULT_BUFFER_SIZE + 64);
-        this.out = out;
+    public BufferedChecksumIndexOutput(IndexOutput delegate, Checksum digest) {
+        super(delegate instanceof BufferedIndexOutput ? ((BufferedIndexOutput) delegate).getBufferSize() : BufferedIndexOutput.DEFAULT_BUFFER_SIZE);
+        if (delegate instanceof BufferedIndexOutput) {
+            bufferedDelegate = (BufferedIndexOutput) delegate;
+            this.delegate = delegate;
+        } else {
+            this.delegate = delegate;
+            bufferedDelegate = null;
+        }
         this.digest = digest;
     }
 
@@ -46,7 +47,7 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
     }
 
     public IndexOutput underlying() {
-        return this.out;
+        return this.delegate;
     }
 
     // don't override it, base class method simple reads from input and writes to this output
@@ -59,14 +60,18 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
         try {
             super.close();
         } finally {
-            out.close();    
+            delegate.close();
         }
         
     }
 
     @Override
     protected void flushBuffer(byte[] b, int offset, int len) throws IOException {
-        out.writeBytes(b, offset, len);
+        if (bufferedDelegate != null) {
+            bufferedDelegate.flushBuffer(b, offset, len);
+        } else {
+            delegate.writeBytes(b, offset, len);
+        }
         digest.update(b, offset, len);
     }
 
@@ -77,8 +82,11 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
 
     @Override
     public void flush() throws IOException {
-        super.flush();
-        out.flush();
+        try {
+            super.flush();
+        } finally {
+            delegate.flush();
+        }
     }
 
     @Override
@@ -87,21 +95,21 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
         // but a checksum of the bytes written to this stream, which is the same for each
         // type of file in lucene
         super.seek(pos);
-        out.seek(pos);
+        delegate.seek(pos);
     }
 
     @Override
     public long length() throws IOException {
-        return out.length();
+        return delegate.length();
     }
 
     @Override
     public void setLength(long length) throws IOException {
-        out.setLength(length);
+        delegate.setLength(length);
     }
 
     @Override
     public String toString() {
-        return out.toString();
+        return delegate.toString();
     }
 }

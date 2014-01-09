@@ -83,7 +83,7 @@ public final class RateLimitedFSDirectory extends FilterDirectory{
         private final StoreRateLimiting.Listener rateListener;
 
         RateLimitedIndexOutput(final RateLimiter rateLimiter, final StoreRateLimiting.Listener rateListener, final IndexOutput delegate) {
-            // TODO if Lucene exposed in BufferedIndexOutput#getBufferSize, we could initialize it if the delegate is buffered
+            super(delegate instanceof BufferedIndexOutput ? ((BufferedIndexOutput) delegate).getBufferSize() : BufferedIndexOutput.DEFAULT_BUFFER_SIZE);
             if (delegate instanceof BufferedIndexOutput) {
                 bufferedDelegate = (BufferedIndexOutput) delegate;
                 this.delegate = delegate;
@@ -124,6 +124,11 @@ public final class RateLimitedFSDirectory extends FilterDirectory{
             } finally {
                 delegate.flush();
             }
+        }
+
+        @Override
+        public void setLength(long length) throws IOException {
+            delegate.setLength(length);
         }
 
         @Override

@@ -1,6 +1,6 @@
 {
   "info": {
-    "documentation": "http://elasticsearch.org/guide/",
+    "documentation": "http://www.elasticsearch.org/guide/",
     "methods": ["GET", "HEAD"],
     "url": {
       "path": "/",

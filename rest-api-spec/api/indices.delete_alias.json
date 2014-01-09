@@ -1,6 +1,6 @@
 {
   "indices.delete_alias": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-aliases.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_alias/{name}",

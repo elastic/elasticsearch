@@ -1,6 +1,6 @@
 {
   "indices.exists": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-indices-exists/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-get-settings.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}",

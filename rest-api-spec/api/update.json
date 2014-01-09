@@ -1,6 +1,6 @@
 {
   "update": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/update/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-update.html",
     "methods": ["POST"],
     "url": {
       "path": "/{index}/{type}/{id}/_update",

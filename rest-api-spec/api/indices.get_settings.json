@@ -1,6 +1,6 @@
 {
   "indices.get_settings": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-get-settings/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-get-mapping.html",
     "methods": ["GET"],
     "url": {
       "path": "/_settings",

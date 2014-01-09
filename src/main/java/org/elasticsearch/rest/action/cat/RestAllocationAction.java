@@ -184,6 +184,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);
+            table.addCell(null);
             table.addCell("UNASSIGNED");
             table.endRow();
         }

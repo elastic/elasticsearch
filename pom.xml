@@ -1072,7 +1072,51 @@
                     </execution>
                 </executions>
             </plugin>
-        </plugins>
+	    <plugin>
+	      <groupId>com.mycila</groupId>
+	      <artifactId>license-maven-plugin</artifactId>
+	      <version>2.3</version>
+	      <configuration>
+		<header>dev-tools/elasticsearch_license_header.txt</header>
+		<headerDefinitions>
+		  <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+		</headerDefinitions>
+		<properties>
+		  <owner>Mycila</owner>
+		  <year>${project.inceptionYear}</year>
+		  <email>mathieu.carbou@gmail.com</email>
+		</properties>
+		<excludes>
+		  <exclude>**/README*</exclude>
+		  <exclude>bin/**</exclude>
+		  <exclude>config/**</exclude>
+		  <exclude>dev-tools/**</exclude>
+		  <exclude>docs/**</exclude>
+		  <exclude>lib/**</exclude>
+		  <exclude>rest-api-spec/**</exclude>
+		  <exclude>src/deb/**</exclude>
+		  <exclude>src/rpm/**</exclude>
+		  <exclude>src/test/**</exclude>
+                  <exclude>**/*.asciidoc</exclude>
+                  <exclude>*.txt</exclude>
+                  <exclude>pom.xml</exclude>
+                  <exclude>src/main/java/jsr*/**</exclude>
+                  <exclude>src/main/java/org/joda/**</exclude>
+                  <exclude>src/main/resources/**</exclude>
+		</excludes>
+	      </configuration>
+<!--
+	      <executions>
+		<execution>
+		  <goals>
+		    <goal>check</goal>
+		  </goals>
+		</execution>
+	      </executions>
+-->
+	    </plugin>
+	  </plugins>
+	
         <pluginManagement>
             <plugins>
                 <!-- make m2e stfu -->

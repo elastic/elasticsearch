@@ -1,6 +1,6 @@
 {
   "percolate": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/percolate/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-percolate.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/_percolate",

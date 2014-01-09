@@ -44,7 +44,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of <tt>super</tt> is that
-     *  this instance may have more assertions, for example if it comes from MockRobinEngine which wraps the IndexSearcher into an
+     *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
      *  AssertingIndexSearcher. */
     private final IndexSearcher in;
 

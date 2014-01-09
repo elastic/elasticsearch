@@ -17,32 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.robin;
+package org.elasticsearch.index.engine.internal;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.settings.IndexSettings;
-
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  *
  */
-public class RobinIndexEngine extends AbstractIndexComponent implements IndexEngine {
-
-    public RobinIndexEngine(Index index) {
-        this(index, EMPTY_SETTINGS);
-    }
-
-    @Inject
-    public RobinIndexEngine(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
-    }
+public class InternalIndexEngineModule extends AbstractModule {
 
     @Override
-    public void close() {
+    protected void configure() {
+        bind(IndexEngine.class).to(InternalIndexEngine.class).asEagerSingleton();
     }
 }

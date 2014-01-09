@@ -117,7 +117,7 @@ public class NodesStressTest {
 
     public NodesStressTest build(Settings settings) throws Exception {
         settings = settingsBuilder()
-//                .put("index.engine.robin.refreshInterval", 1, TimeUnit.SECONDS)
+//                .put("index.refresh_interval", 1, TimeUnit.SECONDS)
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(settings)

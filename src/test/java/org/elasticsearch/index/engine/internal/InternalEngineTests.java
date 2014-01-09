@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.robin;
+package org.elasticsearch.index.engine.internal;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
@@ -84,7 +84,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RobinEngineTests extends ElasticsearchTestCase {
+public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -107,7 +107,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
-                .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool();
         store = createStore();
@@ -194,7 +194,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider<?> mergeSchedulerProvider) {
-        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
+        return new InternalEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 
@@ -207,7 +207,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         List<Segment> segments = engine.segments();
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(engine.segmentsStats().getCount(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true);
+        final boolean defaultCompound = defaultSettings.getAsBoolean(InternalEngine.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
@@ -237,7 +237,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, false).build());
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, false).build());
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -280,7 +280,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true).build());
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, true).build());
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
         engine.refresh(new Engine.Refresh("test").force(false));

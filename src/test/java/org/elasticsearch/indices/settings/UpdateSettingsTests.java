@@ -97,7 +97,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testRobinEngineGCDeletesSetting() throws InterruptedException {
+    public void testEngineGCDeletesSetting() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
         client().prepareDelete("test", "type", "1").get(); // sets version to 2

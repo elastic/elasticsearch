@@ -98,6 +98,7 @@ public class SearchSourceBuilder implements ToXContent {
     private long timeoutInMillis = -1;
 
     private List<String> fieldNames;
+    private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
@@ -569,6 +570,17 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Adds a field to load from the field data cache and return as part of the search request.
+     */
+    public SearchSourceBuilder fieldDataField(String name) {
+        if (fieldDataFields == null) {
+            fieldDataFields = new ArrayList<String>();
+        }
+        fieldDataFields.add(name);
+        return this;
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name   The name of the field
@@ -767,6 +779,14 @@ public class SearchSourceBuilder implements ToXContent {
                 }
                 builder.endArray();
             }
+        }
+
+        if (fieldDataFields != null) {
+            builder.startArray("fielddata_fields");
+            for (String fieldName : fieldDataFields) {
+                builder.value(fieldName);
+            }
+            builder.endArray();
         }
 
         if (partialFields != null) {

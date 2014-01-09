@@ -107,11 +107,11 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setFields("_source.type1.name").execute().actionGet();
+            getResult = client().prepareGet("test", "type1", "1").setFields("type1.name").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
             assertThat(getResult.getSourceAsBytes(), nullValue());
-            assertThat(getResult.getField("_source.type1.name").getValues().get(0).toString(), equalTo("test"));
+            assertThat(getResult.getField("type1.name").getValues().get(0).toString(), equalTo("test"));
         }
 
         logger.info("Get [type1/2] (should be empty)");

@@ -339,9 +339,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request. All index requests are still unsafe if applicable.
                     if ("index".equals(action)) {
-                        if (!allowExplicitIndex) {
-                            throw new ElasticsearchIllegalArgumentException("explicit index in bulk is not allowed");
-                        }
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .source(data.slice(from, nextMarker - from), contentUnsafe), payload);

@@ -32,7 +32,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.robin.RobinEngine;
+import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -52,7 +52,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public final class MockRobinEngine extends RobinEngine implements Engine {
+public final class MockInternalEngine extends InternalEngine implements Engine {
     public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<AssertingSearcher, RuntimeException>();
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
@@ -62,11 +62,11 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
     private final Class<? extends FilterDirectoryReader> wrapper;
 
     @Inject
-    public MockRobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                           IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer, Store store,
-                           SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider,
-                           MergeSchedulerProvider mergeScheduler, AnalysisService analysisService, SimilarityService similarityService,
-                           CodecService codecService) throws EngineException {
+    public MockInternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+                              IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer, Store store,
+                              SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider,
+                              MergeSchedulerProvider mergeScheduler, AnalysisService analysisService, SimilarityService similarityService,
+                              CodecService codecService) throws EngineException {
         super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.INDEX_SEED_SETTING, 0l);
@@ -86,7 +86,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
-                for (Entry<MockRobinEngine.AssertingSearcher, RuntimeException> entry : MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                for (Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                     logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId);
                 }
             }

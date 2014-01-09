@@ -136,7 +136,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
     @Override
     public IndexDeletionPolicy clone() {
        // Lucene IW makes a clone internally but since we hold on to this instance 
-       // the clone will just be the identity. See RobinEngine recovery why we need this.
+       // the clone will just be the identity. See InternalEngine recovery why we need this.
        return this;
     }
 

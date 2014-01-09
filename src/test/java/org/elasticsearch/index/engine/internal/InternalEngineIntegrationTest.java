@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.robin;
+package org.elasticsearch.index.engine.internal;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
@@ -45,14 +45,14 @@ import java.util.Collection;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
+public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
     public void testSettingLoadBloomFilterDefaultTrue() throws Exception {
-        Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
+        Field allowRamBytesUsed = InternalEngine.class.getDeclaredField("allowRamBytesUsed");
         allowRamBytesUsed.setAccessible(true);
-        allowRamBytesUsed.set(RobinEngine.class, Boolean.TRUE);
+        allowRamBytesUsed.set(InternalEngine.class, Boolean.TRUE);
 
         try {
             client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
@@ -87,16 +87,16 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
                 }
             });
         } finally {
-            allowRamBytesUsed.set(RobinEngine.class, Boolean.FALSE);
+            allowRamBytesUsed.set(InternalEngine.class, Boolean.FALSE);
         }
     }
 
     @Test
     @Slow
     public void testSettingLoadBloomFilterDefaultFalse() throws Exception {
-        Field allowRamBytesUsed = RobinEngine.class.getDeclaredField("allowRamBytesUsed");
+        Field allowRamBytesUsed = InternalEngine.class.getDeclaredField("allowRamBytesUsed");
         allowRamBytesUsed.setAccessible(true);
-        allowRamBytesUsed.set(RobinEngine.class, Boolean.TRUE);
+        allowRamBytesUsed.set(InternalEngine.class, Boolean.TRUE);
         try {
             client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1).put(CodecService.INDEX_CODEC_BLOOM_LOAD, false)).get();
             client().prepareIndex("test", "foo").setSource("field", "foo").get();
@@ -131,7 +131,7 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
                 }
             });
         } finally {
-            allowRamBytesUsed.set(RobinEngine.class, Boolean.FALSE);
+            allowRamBytesUsed.set(InternalEngine.class, Boolean.FALSE);
         }
 
     }
@@ -143,13 +143,13 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
         refresh();
         assertTotalCompoundSegments(1, 1, "test");
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, false)).get();
+                .setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, false)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(1, 2, "test");
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true)).get();
+                .setSettings(ImmutableSettings.builder().put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, true)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
         assertTotalCompoundSegments(2, 3, "test");
@@ -186,7 +186,7 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "0")
                 .put("gateway.type", "none")
-                .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
+                .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put("index.warmer.enabled", false)
                 .build()).get());
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().setJvm(true).get();

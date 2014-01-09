@@ -1,6 +1,6 @@
 {
   "indices.refresh": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-refresh/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-refresh.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_refresh",

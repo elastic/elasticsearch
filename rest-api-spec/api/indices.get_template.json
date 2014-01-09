@@ -1,6 +1,6 @@
 {
   "indices.get_template": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-templates.html",
     "methods": ["GET"],
     "url": {
       "path": "/_template/{name}",

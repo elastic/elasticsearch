@@ -1,6 +1,6 @@
 {
   "count": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/count/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-count.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_count",

@@ -1,6 +1,6 @@
 {
   "indices.get_warmer": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-warmers/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
     "methods": ["GET"],
     "url": {
       "path": "/{index}/_warmer",

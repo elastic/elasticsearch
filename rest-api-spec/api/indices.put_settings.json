@@ -1,6 +1,6 @@
 {
   "indices.put_settings": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-update-settings/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-update-settings.html",
     "methods": ["PUT"],
     "url": {
       "path": "/_settings",

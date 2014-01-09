@@ -344,6 +344,7 @@
                     <source>1.6</source>
                     <target>1.6</target>
                     <fork>true</fork>
+                    <maxmem>512m</maxmem>
                     <!-- REMOVE WHEN UPGRADE:
                          see https://jira.codehaus.org/browse/MCOMPILER-209 it's a bug where
                          incremental compilation doesn't work unless it's set to false causeing

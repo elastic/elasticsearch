@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.lucene.util.PriorityQueue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -117,60 +116,50 @@ public class RestApi {
      * Finds the best matching rest path given the current parameters and replaces
      * placeholders with their corresponding values received as arguments
      */
-    public String getFinalPath(Map<String, String> pathParams) {
-        RestPath matchingRestPath = findMatchingRestPath(pathParams.keySet());
-        String path = matchingRestPath.path;
-        for (Map.Entry<String, String> paramEntry : matchingRestPath.params.entrySet()) {
-            // replace path placeholders with actual values
-            String value = pathParams.get(paramEntry.getValue());
-            if (value == null) {
-                // if a value is missing, we got the wrong path or the test was
-                // specified incorrectly
-                // TODO: What if more than one path exists? for example: PUT
-                // index/type/_mapping vs. PUT index/_maping/type? Should we
-                // randomize?
-                throw new IllegalArgumentException("parameter [" + paramEntry.getValue() + "] missing");
-            } else {
+    public String[] getFinalPaths(Map<String, String> pathParams) {
+
+        List<RestPath> matchingRestPaths = findMatchingRestPaths(pathParams.keySet());
+        if (matchingRestPaths == null || matchingRestPaths.isEmpty()) {
+            throw new IllegalArgumentException("unable to find matching rest path for api [" + name + "] and params " + pathParams);
+        }
+
+        String[] paths = new String[matchingRestPaths.size()];
+        for (int i = 0; i < matchingRestPaths.size(); i++) {
+            RestPath restPath = matchingRestPaths.get(i);
+            String path = restPath.path;
+            for (Map.Entry<String, String> paramEntry : restPath.params.entrySet()) {
+                // replace path placeholders with actual values
+                String value = pathParams.get(paramEntry.getValue());
+                if (value == null) {
+                    throw new IllegalArgumentException("parameter [" + paramEntry.getValue() + "] missing");
+                }
                 path = path.replace(paramEntry.getKey(), value);
             }
+            paths[i] = path;
         }
-        return path;
+        return paths;
     }
 
     /**
-     * Finds the best matching rest path out of the available ones with the current api (based on REST spec).
+     * Finds the matching rest paths out of the available ones with the current api (based on REST spec).
      *
      * The best path is the one that has exactly the same number of placeholders to replace
      * (e.g. /{index}/{type}/{id} when the params are exactly index, type and id).
-     * Otherwise there might be additional placeholders, thus we use the path with the least additional placeholders.
-     * (e.g. get with only index and id as parameters, the closest (and only) path contains {type} too, which becomes _all)
      */
-    private RestPath findMatchingRestPath(Set<String> restParams) {
+    private List<RestPath> findMatchingRestPaths(Set<String> restParams) {
 
+        List<RestPath> matchingRestPaths = Lists.newArrayList();
         RestPath[] restPaths = buildRestPaths();
 
-        //We need to find the path that has exactly the placeholders corresponding to our params
-        //If there's no exact match we fallback to the closest one (with as less additional placeholders as possible)
-        //The fallback is needed for:
-        //1) get, get_source and exists with only index and id => /{index}/_all/{id} (
-        //2) search with only type => /_all/{type/_search
-        PriorityQueue<RestPath> restPathQueue = new PriorityQueue<RestPath>(1) {
-            @Override
-            protected boolean lessThan(RestPath a, RestPath b) {
-                return a.params.size() >= b.params.size();
-            }
-        };
         for (RestPath restPath : restPaths) {
-            if (restPath.params.values().containsAll(restParams)) {
-                restPathQueue.insertWithOverflow(restPath);
+            if (restPath.params.size() == restParams.size()) {
+                if (restPath.params.values().containsAll(restParams)) {
+                    matchingRestPaths.add(restPath);
+                }
             }
         }
 
-        if (restPathQueue.size() > 0) {
-            return restPathQueue.top();
-        }
-
-        throw new IllegalArgumentException("unable to find best path for api [" + name + "] and params " + restParams);
+        return matchingRestPaths;
     }
 
     private RestPath[] buildRestPaths() {

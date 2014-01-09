@@ -28,10 +28,6 @@ import org.apache.lucene.util.IntroSorter;
 public enum CollectionUtils {
     ;
 
-    private static int compare(long i, long j) {
-        return i < j ? -1 : (i == j ? 0 : 1);
-    }
-
     public static void sort(LongArrayList list) {
         sort(list.buffer, list.size());
     }
@@ -50,7 +46,7 @@ public enum CollectionUtils {
 
             @Override
             protected int compare(int i, int j) {
-                return CollectionUtils.compare(array[i], array[j]);
+                return Comparators.compare(array[i], array[j]);
             }
 
             @Override
@@ -60,7 +56,7 @@ public enum CollectionUtils {
 
             @Override
             protected int comparePivot(int j) {
-                return CollectionUtils.compare(pivot, array[j]);
+                return Comparators.compare(pivot, array[j]);
             }
 
         }.sort(0, len);

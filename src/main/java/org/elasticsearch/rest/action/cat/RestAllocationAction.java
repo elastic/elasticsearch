@@ -33,10 +33,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.fs.FsStats;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -116,6 +118,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("diskUsed", "text-align:right;desc:disk used (total, not just ES)");
         table.addCell("diskAvail", "text-align:right;desc:disk available");
         table.addCell("diskRatio", "text-align:right;desc:percent disk used");
+        table.addCell("host", "desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "desc:name of node");
         table.endHeaders();
@@ -159,7 +162,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
             float ratio = -1;
 
-            if (used >=0 && avail > 0) {
+            if (used >= 0 && avail > 0) {
                 ratio = used / (float) avail;
             }
 
@@ -167,8 +170,9 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(shardCount < 0 ? null : shardCount);
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
             table.addCell(avail < 0 ? null : new ByteSizeValue(avail));
-            table.addCell(ratio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", ratio*100.0));
-            table.addCell(node == null ? null : ((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
+            table.addCell(ratio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", ratio * 100.0));
+            table.addCell(node == null ? null : node.getHostName());
+            table.addCell(node == null ? null : node.getHostAddress());
             table.addCell(node == null ? "UNASSIGNED" : node.name());
             table.endRow();
         }

@@ -48,9 +48,6 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     private ImmutableMap<String, String> serviceAttributes;
 
-    @Nullable
-    private String hostname;
-
     private Version version;
     private Build build;
 
@@ -84,11 +81,10 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(@Nullable String hostname, Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
-        this.hostname = hostname;
         this.version = version;
         this.build = build;
         this.serviceAttributes = serviceAttributes;
@@ -108,7 +104,7 @@ public class NodeInfo extends NodeOperationResponse {
      */
     @Nullable
     public String getHostname() {
-        return this.hostname;
+        return getNode().getHostName();
     }
 
     /**
@@ -202,9 +198,6 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            hostname = in.readString();
-        }
         version = Version.readVersion(in);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
@@ -247,12 +240,6 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (hostname == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(hostname);
-        }
         out.writeVInt(version.id);
         Build.writeBuild(build, out);
         if (getServiceAttributes() == null) {

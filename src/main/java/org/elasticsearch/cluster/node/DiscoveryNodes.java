@@ -287,8 +287,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      *
      * @param node id of the node to discover
      * @return discovered node matching the given id
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
-     *          if more than one node matches the request or no nodes have been resolved
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if more than one node matches the request or no nodes have been resolved
      */
     public DiscoveryNode resolveNode(String node) {
         String[] resolvedNodeIds = resolveNodesIds(node);
@@ -332,7 +331,9 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                         }
                     }
                     for (DiscoveryNode node : this) {
-                        if (node.address().match(nodeId)) {
+                        if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
+                            resolvedNodesIds.add(node.id());
+                        } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
                             resolvedNodesIds.add(node.id());
                         }
                     }

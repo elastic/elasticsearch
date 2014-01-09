@@ -1,0 +1,32 @@
+---
+"Test get indices settings":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+              number_of_shards: 2
+              number_of_replicas: 3
+
+  - do:
+      indices.get_settings:
+        index: test-index
+
+  - match:
+      test-index.settings.index.number_of_replicas: "3"
+  - match:
+      test-index.settings.index.number_of_shards: "2"
+  - match:
+      test-index.settings.index.refresh_interval: "-1"
+
+  - do:
+      indices.get_settings:
+        index: _all
+        prefix: index.number
+
+  - match:
+      test-index.settings.index.number_of_replicas: "3"
+  - match:
+      test-index.settings.index.number_of_shards: "2"

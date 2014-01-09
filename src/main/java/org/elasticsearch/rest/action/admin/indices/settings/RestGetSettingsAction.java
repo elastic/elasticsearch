@@ -46,6 +46,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
+        controller.registerHandler(GET, "/{index}/{prefix}/_settings", this);
     }
 
     @Override

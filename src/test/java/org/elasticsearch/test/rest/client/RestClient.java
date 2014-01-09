@@ -174,7 +174,7 @@ public class RestClient implements Closeable {
 
         //the http method is randomized (out of the available ones with the chosen api)
         return httpRequestBuilder.method(RandomizedTest.randomFrom(restApi.getSupportedMethods(pathParts.keySet())))
-                .path(restApi.getFinalPath(pathParts));
+                .path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
     }
 
     private RestApi restApi(String apiName) {

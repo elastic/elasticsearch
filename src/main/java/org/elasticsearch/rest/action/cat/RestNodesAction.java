@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -221,7 +222,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.startRow();
 
-            table.addCell(fullId ? node.id() : node.id().substring(0, 4));
+            table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().id());
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());

@@ -49,13 +49,13 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete mapping action.
  */
-public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> implements NodeSettingsService.Listener {
+public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
     private final TransportFlushAction flushAction;
     private final TransportDeleteByQueryAction deleteByQueryAction;
     private final TransportRefreshAction refreshAction;
-    private volatile boolean destructiveRequiresName;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -67,8 +67,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
-        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
@@ -94,7 +93,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
-        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -158,14 +157,5 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 listener.onFailure(t);
             }
         });
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
-        }
     }
 }

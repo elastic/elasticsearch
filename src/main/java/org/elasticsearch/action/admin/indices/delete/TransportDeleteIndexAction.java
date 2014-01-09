@@ -38,10 +38,10 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> implements NodeSettingsService.Listener {
+public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> {
 
     private final MetaDataDeleteIndexService deleteIndexService;
-    private volatile boolean destructiveRequiresName;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -49,8 +49,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                                       NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.deleteIndexService = deleteIndexService;
-        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
@@ -75,7 +74,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -122,15 +121,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                     }
                 }
             });
-        }
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
         }
     }
 }

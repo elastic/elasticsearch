@@ -39,18 +39,17 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Open index action
  */
-public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> implements NodeSettingsService.Listener {
+public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
-    private volatile boolean destructiveRequiresName;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.indexStateService = indexStateService;
-        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
@@ -76,7 +75,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
-        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -105,14 +104,5 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
                 listener.onFailure(t);
             }
         });
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
-        }
     }
 }

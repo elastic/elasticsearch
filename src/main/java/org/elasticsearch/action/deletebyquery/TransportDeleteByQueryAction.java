@@ -39,22 +39,21 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  */
-public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> implements NodeSettingsService.Listener {
+public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    private volatile boolean destructiveRequiresName;
+    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction,
                                         NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
-        this.destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
     @Override
     protected void doExecute(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        DestructiveOperations.failDestructive(request.indices(), destructiveRequiresName);
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(request, listener);
     }
 
@@ -104,14 +103,5 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
         return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
-        }
     }
 }

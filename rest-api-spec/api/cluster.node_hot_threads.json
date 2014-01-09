@@ -1,6 +1,6 @@
 {
   "cluster.node_hot_threads": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-cluster-nodes-hot-threads/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-nodes-hot-threads.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/nodes/hot_threads",

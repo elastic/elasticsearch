@@ -1,6 +1,6 @@
 {
   "indices.put_alias": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-aliases.html",
     "methods": ["PUT"],
     "url": {
       "path": "/{index}/_alias/{name}",

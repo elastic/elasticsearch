@@ -1,6 +1,6 @@
 {
   "mlt": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/more-like-this/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-more-like-this.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/{id}/_mlt",

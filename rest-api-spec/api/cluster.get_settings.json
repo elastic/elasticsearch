@@ -1,6 +1,6 @@
 {
   "cluster.get_settings": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-update-settings/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-update-settings.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/settings",

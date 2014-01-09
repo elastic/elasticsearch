@@ -1,6 +1,6 @@
 {
   "clear_scroll": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/search/scroll/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-scroll.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/_search/scroll/{scroll_id}",

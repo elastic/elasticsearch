@@ -1,6 +1,6 @@
 {
   "bulk": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/bulk/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/_bulk",

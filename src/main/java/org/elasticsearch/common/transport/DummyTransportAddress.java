@@ -40,16 +40,6 @@ public class DummyTransportAddress implements TransportAddress {
     }
 
     @Override
-    public boolean match(String otherAddress) {
-        return false;
-    }
-
-    @Override
-    public boolean sameHost(TransportAddress otherAddress) {
-        return false;
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
     }
 

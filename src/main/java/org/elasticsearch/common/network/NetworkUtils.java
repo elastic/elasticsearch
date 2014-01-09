@@ -78,6 +78,28 @@ public abstract class NetworkUtils {
         return localAddress;
     }
 
+    public static String getLocalHostName(String defaultHostName) {
+        if (localAddress == null) {
+            return defaultHostName;
+        }
+        String hostName = localAddress.getHostName();
+        if (hostName == null) {
+            return defaultHostName;
+        }
+        return hostName;
+    }
+
+    public static String getLocalHostAddress(String defaultHostAddress) {
+        if (localAddress == null) {
+            return defaultHostAddress;
+        }
+        String hostAddress = localAddress.getHostAddress();
+        if (hostAddress == null) {
+            return defaultHostAddress;
+        }
+        return hostAddress;
+    }
+
     public static InetAddress getLocalhost(StackType ip_version) throws UnknownHostException {
         if (ip_version == StackType.IPv4)
             return InetAddress.getByName("127.0.0.1");
@@ -216,7 +238,7 @@ public abstract class NetworkUtils {
      * system properties (java.net.preferIPv4Stack and java.net.preferIPv6Addresses)
      *
      * @return StackType.IPv4 for an IPv4 only stack, StackYTypeIPv6 for an IPv6 only stack, and StackType.Unknown
-     *         if the type cannot be detected
+     * if the type cannot be detected
      */
     public static StackType getIpStackType() {
         boolean isIPv4StackAvailable = isStackAvailable(true);

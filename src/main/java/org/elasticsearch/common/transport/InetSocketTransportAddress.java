@@ -21,7 +21,6 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -66,36 +65,6 @@ public class InetSocketTransportAddress implements TransportAddress {
     @Override
     public short uniqueAddressTypeId() {
         return 1;
-    }
-
-    @Override
-    public boolean match(String otherAddress) {
-        if (address.getHostName() != null && Regex.simpleMatch(otherAddress, address.getHostName())) {
-            return true;
-        }
-        if (address.getAddress() != null) {
-            if (address.getAddress().getHostName() != null && Regex.simpleMatch(otherAddress, address.getAddress().getHostName())) {
-                return true;
-            }
-            if (address.getAddress().getHostAddress() != null && Regex.simpleMatch(otherAddress, address.getAddress().getHostAddress())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public boolean sameHost(TransportAddress other) {
-        if (!(other instanceof InetSocketTransportAddress)) {
-            return false;
-        }
-        InetSocketTransportAddress otherAddr = (InetSocketTransportAddress) other;
-        if (address.isUnresolved() || otherAddr.address().isUnresolved()) {
-            String hostName = address.getHostName();
-            String otherHostName = otherAddr.address().getHostName();
-            return !(hostName == null || otherHostName == null) && hostName.equals(otherHostName);
-        }
-        return otherAddr.address().getAddress().equals(address.getAddress());
     }
 
     public InetSocketAddress address() {

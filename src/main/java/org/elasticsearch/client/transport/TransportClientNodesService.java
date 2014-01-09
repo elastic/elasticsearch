@@ -374,7 +374,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     } else if (nodeInfo.getNodes().length != 0) {
                         // use discovered information but do keep the original transport address, so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = nodeInfo.getNodes()[0].getNode();
-                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
+                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), nodeWithInfo.getHostName(), nodeWithInfo.getHostAddress(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
                     } else {
                         // although we asked for one node, our target may not have completed initialization yet and doesn't have cluster nodes
                         logger.debug("node {} didn't return any discovery info, temporarily using transport discovery node", listedNode);

@@ -32,9 +32,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -137,6 +139,7 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("target", "text-align:right;desc:bytes of source shard")
                 .addCell("recovered", "text-align:right;desc:bytes recovered so far")
                 .addCell("%", "text-align:right;desc:percent recovered so far")
+                .addCell("host", "desc:node host where source shard lives")
                 .addCell("ip", "desc:node ip where source shard lives")
                 .addCell("node", "desc:node name where source shard lives")
                 .endHeaders();
@@ -148,8 +151,8 @@ public class RestRecoveryAction extends AbstractCatAction {
      * for displaying at the command line.
      *
      * @param request
-     * @param state Current cluster state.
-     * @param primarySizes A Map of {@code index + shardId} strings to store size for all primary shards.
+     * @param state              Current cluster state.
+     * @param primarySizes       A Map of {@code index + shardId} strings to store size for all primary shards.
      * @param recoveringReplicas A Set of {@link org.elasticsearch.action.admin.indices.status.ShardStatus} objects for each recovering replica to be displayed.
      * @return A table containing index, shardId, node, target size, recovered size and percentage for each recovering replica
      */
@@ -167,8 +170,9 @@ public class RestRecoveryAction extends AbstractCatAction {
             t.addCell(id);
             t.addCell(primarySize);
             t.addCell(replicaSize);
-            t.addCell(primarySize == null ? null : String.format(Locale.ROOT, "%1.1f%%", 100.0 * (float)replicaSize / primarySize));
-            t.addCell(node == null ? null : ((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
+            t.addCell(primarySize == null ? null : String.format(Locale.ROOT, "%1.1f%%", 100.0 * (float) replicaSize / primarySize));
+            t.addCell(node == null ? null : node.getHostName());
+            t.addCell(node == null ? null : node.getHostAddress());
             t.addCell(node == null ? null : node.name());
             t.endRow();
         }

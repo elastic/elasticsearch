@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +33,9 @@ public class DiscoveryNodeFilters {
     public static enum OpType {
         AND,
         OR
-    };
+    }
+
+    ;
 
     public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
         return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
@@ -68,16 +69,8 @@ public class DiscoveryNodeFilters {
             String attr = entry.getKey();
             String[] values = entry.getValue();
             if ("_ip".equals(attr)) {
-                if (!(node.address() instanceof InetSocketTransportAddress)) {
-                    if (opType == OpType.AND) {
-                        return false;
-                    } else {
-                        continue;
-                    }
-                }
-                InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
+                    if (Regex.simpleMatch(value, node.getHostAddress())) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -88,16 +81,8 @@ public class DiscoveryNodeFilters {
                     }
                 }
             } else if ("_host".equals(attr)) {
-                if (!(node.address() instanceof InetSocketTransportAddress)) {
-                    if (opType == OpType.AND) {
-                        return false;
-                    } else {
-                        continue;
-                    }
-                }
-                InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, inetAddress.address().getHostName())) {
+                    if (Regex.simpleMatch(value, node.getHostName())) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -106,7 +91,7 @@ public class DiscoveryNodeFilters {
                             return false;
                         }
                     }
-                    if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
+                    if (Regex.simpleMatch(value, node.getHostAddress())) {
                         if (opType == OpType.OR) {
                             return true;
                         }

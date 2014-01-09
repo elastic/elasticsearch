@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,36 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.search.fetch.fielddata;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
+ * Parses field name values from the {@code fielddata_fields} parameter in a
+ * search request.
  *
+ * <pre>
+ * {
+ *   "query": {...},
+ *   "fielddata_fields" : ["field1", "field2"]
+ * }
+ * </pre>
  */
-public class FieldsParseElement implements SearchParseElement {
-
+public class FieldDataFieldsParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_ARRAY) {
-            boolean added = false;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                String name = parser.text();
-                added = true;
-                context.fieldNames().add(name);
-            }
-            if (!added) {
-                context.emptyFieldNames();
-            }
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            String name = parser.text();
-            context.fieldNames().add(name);
-
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            String fieldName = parser.text();
+            context.fieldDataFields().add(new FieldDataFieldsContext.FieldDataField(fieldName));
         }
     }
 }

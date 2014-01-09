@@ -22,6 +22,7 @@ package org.elasticsearch.index.store;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
@@ -426,7 +427,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         public IndexOutput createOutput(String name, IOContext context, boolean raw) throws IOException {
             ensureOpen();
             Directory directory;
-            if (isChecksum(name)) {
+            // we want to write the segments gen file to the same directory *all* the time
+            // to make sure we don't create multiple copies of it
+            if (isChecksum(name) || IndexFileNames.SEGMENTS_GEN.equals(name)) {
                 directory = distributor.primary();
             } else {
                 directory = distributor.any();
@@ -441,7 +444,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     boolean computeChecksum = !raw;
                     if (computeChecksum) {
                         // don't compute checksum for segment based files
-                        if ("segments.gen".equals(name) || name.startsWith("segments")) {
+                        if (IndexFileNames.SEGMENTS_GEN.equals(name) || name.startsWith(IndexFileNames.SEGMENTS)) {
                             computeChecksum = false;
                         }
                     }
@@ -562,7 +565,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             for (String name : names) {
                 // write the checksums file when we sync on the segments file (committed)
-                if (!name.equals("segments.gen") && name.startsWith("segments")) {
+                if (!name.equals(IndexFileNames.SEGMENTS_GEN) && name.startsWith(IndexFileNames.SEGMENTS)) {
                     writeChecksums();
                     break;
                 }

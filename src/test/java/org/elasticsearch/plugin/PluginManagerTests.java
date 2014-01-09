@@ -213,6 +213,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
 
     private void singlePluginInstallAndRemove(String pluginShortName, String pluginCoordinates) throws IOException {
+        logger.info("--> trying to download and install [{}]", pluginShortName);
         PluginManager pluginManager = pluginManager(pluginCoordinates);
         try {
             pluginManager.downloadAndExtract(pluginShortName);
@@ -225,8 +226,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, notNullValue());
             assertThat(plugins.length, is(0));
+        } catch (IOException e) {
+            logger.warn("--> IOException raised while downloading plugin [{}].", e, pluginShortName);
+            throw e;
         } catch (ElasticsearchTimeoutException e) {
             logger.warn("--> timeout exception raised while downloading plugin [{}]. Skipping test.", pluginShortName);
+            throw e;
         }
     }
 

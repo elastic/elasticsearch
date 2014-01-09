@@ -28,7 +28,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -80,4 +79,17 @@ public class BulkRequestTests extends ElasticsearchTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
     }
 
+    @Test
+    public void testBulkAllowExplicitIndex() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
+        try {
+            new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), true, null, null, false);
+            assert false;
+        } catch (Exception e) {
+
+        }
+
+        bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
+        new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), true, "test", null, false);
+    }
 }

@@ -1,7 +1,4 @@
-{ "index": {
-    "_type": "type1",
-    "_id": "1"
-} }
+{ "index": {"_type": "type1","_id": "1"} }
 { "field1" : "value1" }
 { "delete" : { "_type" : "type1", "_id" : "2" } }
 { "create" : { "_type" : "type1", "_id" : "3" } }

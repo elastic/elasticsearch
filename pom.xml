@@ -1117,7 +1117,7 @@
                   </executions>
               -->
             </plugin>
-	    </plugins>	
+        </plugins>	
         <pluginManagement>
             <plugins>
                 <!-- make m2e stfu -->

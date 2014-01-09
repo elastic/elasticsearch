@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -65,12 +66,21 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         continue;
                     }
                     // check if its on the same host as the one we want to allocate to
-                    if (!checkNode.node().address().sameHost(node.node().address())) {
-                        continue;
+                    boolean checkNodeOnSameHost = false;
+                    if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
+                        if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
+                            checkNodeOnSameHost = true;
+                        }
+                    } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
+                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                            checkNodeOnSameHost = true;
+                        }
                     }
-                    for (MutableShardRouting assignedShard : assignedShards) {
-                        if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                            return Decision.NO;
+                    if (checkNodeOnSameHost) {
+                        for (MutableShardRouting assignedShard : assignedShards) {
+                            if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+                                return Decision.NO;
+                            }
                         }
                     }
                 }

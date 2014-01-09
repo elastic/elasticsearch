@@ -48,9 +48,6 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     private long timestamp;
 
     @Nullable
-    private String hostname;
-
-    @Nullable
     private NodeIndicesStats indices;
 
     @Nullable
@@ -83,13 +80,12 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node, long timestamp, @Nullable String hostname, @Nullable NodeIndicesStats indices,
+    public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
                      @Nullable NetworkStats network, @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http,
                      @Nullable FieldDataBreakerStats breaker) {
         super(node);
         this.timestamp = timestamp;
-        this.hostname = hostname;
         this.indices = indices;
         this.os = os;
         this.process = process;
@@ -108,7 +104,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
 
     @Nullable
     public String getHostname() {
-        return this.hostname;
+        return getNode().getHostName();
     }
 
     /**
@@ -193,9 +189,6 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         super.readFrom(in);
         timestamp = in.readVLong();
         if (in.readBoolean()) {
-            hostname = in.readString();
-        }
-        if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
         }
         if (in.readBoolean()) {
@@ -229,12 +222,6 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(timestamp);
-        if (hostname == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(hostname);
-        }
         if (indices == null) {
             out.writeBoolean(false);
         } else {
@@ -297,10 +284,8 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (!params.param("node_info_format", "default").equals("none")) {
             builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
-
-            if (getHostname() != null) {
-                builder.field("hostname", getHostname(), XContentBuilder.FieldCaseConversion.NONE);
-            }
+            builder.field("host", getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("ip", getNode().getAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
             if (!getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");

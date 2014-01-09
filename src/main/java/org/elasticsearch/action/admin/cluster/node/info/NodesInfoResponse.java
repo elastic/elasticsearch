@@ -79,10 +79,8 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
             builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeInfo.getNode().address().toString());
-
-            if (nodeInfo.getHostname() != null) {
-                builder.field("hostname", nodeInfo.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
-            }
+            builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", nodeInfo.getVersion());
             builder.field("build", nodeInfo.getBuild().hashShort());

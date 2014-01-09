@@ -23,12 +23,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -81,7 +84,8 @@ public class RestMasterAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")
-                .addCell("ip", "desc:node transport ip address ")
+                .addCell("host", "desc:host name")
+                .addCell("ip", "desc:ip address ")
                 .addCell("node", "desc:node name")
                 .endHeaders();
         return table;
@@ -90,16 +94,20 @@ public class RestMasterAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, ClusterStateResponse state) {
         Table table = getTableWithHeader(request);
         DiscoveryNodes nodes = state.getState().nodes();
-        String masterId = nodes.masterNodeId();
-        String masterIp = ((InetSocketTransportAddress) nodes.get(masterId).address()).address().getAddress().getHostAddress();
-        String masterName = nodes.masterNode().name();
 
         table.startRow();
-
-        table.addCell(masterId);
-        table.addCell(masterIp);
-        table.addCell(masterName);
-
+        DiscoveryNode master = nodes.get(nodes.masterNodeId());
+        if (master == null) {
+            table.addCell("-");
+            table.addCell("-");
+            table.addCell("-");
+            table.addCell("-");
+        } else {
+            table.addCell(master.getId());
+            table.addCell(master.getHostName());
+            table.addCell(master.getHostAddress());
+            table.addCell(master.getName());
+        }
         table.endRow();
 
         return table;

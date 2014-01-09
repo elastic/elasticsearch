@@ -31,8 +31,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -60,7 +62,7 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().routingTable(true).indices(indices);
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
@@ -191,11 +193,11 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
             if (shard.assignedToNode()) {
-                String ip = ((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress();
+                String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 StringBuilder name = new StringBuilder();
                 name.append(state.getState().nodes().get(shard.currentNodeId()).name());
                 if (shard.relocating()) {
-                    String reloIp = ((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getAddress().getHostAddress();
+                    String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
                     String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).name();
                     name.append(" -> ");
                     name.append(reloIp);

@@ -125,8 +125,9 @@ public class RestNodesAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("nodeId", "default:false;desc:unique node id");
         table.addCell("pid", "default:false;desc:process id");
+        table.addCell("host", "desc:host name");
         table.addCell("ip", "desc:ip address");
-        table.addCell("port", "desc:bound transport port");
+        table.addCell("port", "default:false;desc:bound transport port");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
@@ -222,8 +223,13 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(fullId ? node.id() : node.id().substring(0, 4));
             table.addCell(info == null ? null : info.getProcess().id());
-            table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
-            table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            table.addCell(node.getHostName());
+            table.addCell(node.getHostAddress());
+            if (node.address() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            } else {
+                table.addCell("-");
+            }
 
             table.addCell(info == null ? null : info.getVersion().number());
             table.addCell(info == null ? null : info.getBuild().hashShort());

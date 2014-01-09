@@ -1081,13 +1081,13 @@
                 <headerDefinitions>
                   <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
                 </headerDefinitions>
-<!-- not using it
-                <properties>
-                  <owner>Mycila</owner>
-                  <year>${project.inceptionYear}</year>
-                  <email>mathieu.carbou@gmail.com</email>
-                </properties>
--->
+                <!-- not using it
+                     <properties>
+                     <owner>Mycila</owner>
+                     <year>${project.inceptionYear}</year>
+                     <email>mathieu.carbou@gmail.com</email>
+                     </properties>
+                -->
                 <excludes>
                   <exclude>**/README*</exclude>
                   <exclude>bin/**</exclude>
@@ -1116,9 +1116,8 @@
                   </execution>
                   </executions>
               -->
-	    </plugin>
-	  </plugins>
-	
+            </plugin>
+	    </plugins>	
         <pluginManagement>
             <plugins>
                 <!-- make m2e stfu -->

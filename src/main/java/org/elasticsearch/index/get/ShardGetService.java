@@ -239,49 +239,24 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).fieldType().stored()) {
                             value = source.source.length();
                         } else {
-                            if (field.contains("_source.")) {
-                                if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                                }
-                                if (sourceAsMap == null) {
-                                    sourceAsMap = SourceLookup.sourceAsMap(source.source);
-                                }
-                                SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                                // we can't do this, only allow to run scripts against the source
-                                //searchScript.setNextReader(docIdAndVersion.reader);
-                                //searchScript.setNextDocId(docIdAndVersion.docId);
+                            if (searchLookup == null) {
+                                searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                                searchLookup.source().setNextSource(source.source);
+                            }
 
-                                // but, we need to inject the parsed source into the script, so it will be used...
-                                searchScript.setNextSource(sourceAsMap);
-
-                                try {
-                                    value = searchScript.run();
-                                } catch (RuntimeException e) {
-                                    if (logger.isTraceEnabled()) {
-                                        logger.trace("failed to execute get request script field [{}]", e, field);
-                                    }
-                                    // ignore
+                            FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
+                            if (x == null) {
+                                if (docMapper.objectMappers().get(field) != null) {
+                                    // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                                    throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                                 }
-                            } else {
-                                if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                                    searchLookup.source().setNextSource(source.source);
-                                }
-
-                                FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                                if (x == null) {
-                                    if (docMapper.objectMappers().get(field) != null) {
-                                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                                        throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                            } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
+                                List<Object> values = searchLookup.source().extractRawValues(field);
+                                if (!values.isEmpty()) {
+                                    for (int i = 0; i < values.size(); i++) {
+                                        values.set(i, x.valueForSearch(values.get(i)));
                                     }
-                                } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
-                                    List<Object> values = searchLookup.source().extractRawValues(field);
-                                    if (!values.isEmpty()) {
-                                        for (int i = 0; i < values.size(); i++) {
-                                            values.set(i, x.valueForSearch(values.get(i)));
-                                        }
-                                        value = values;
-                                    }
+                                    value = values;
                                 }
                             }
                         }
@@ -368,46 +343,26 @@ public class ShardGetService extends AbstractIndexShardComponent {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
-                if (field.contains("_source.") || field.contains("doc[")) {
+                FieldMappers x = docMapper.mappers().smartName(field);
+                if (x == null) {
+                    if (docMapper.objectMappers().get(field) != null) {
+                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                    }
+                } else if (!x.mapper().fieldType().stored()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                        searchLookup.source().setNextSource(source);
                         searchLookup.setNextReader(docIdAndVersion.context);
+                        searchLookup.source().setNextSource(source);
                         searchLookup.setNextDocId(docIdAndVersion.docId);
                     }
-                    SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                    searchScript.setNextReader(docIdAndVersion.context);
-                    searchScript.setNextDocId(docIdAndVersion.docId);
-                    try {
-                        value = searchScript.run();
-                    } catch (RuntimeException e) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("failed to execute get request script field [{}]", e, field);
-                        }
-                        // ignore
-                    }
-                } else {
-                    FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null) {
-                        if (docMapper.objectMappers().get(field) != null) {
-                            // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                            throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
-                        }
-                    } else if (!x.mapper().fieldType().stored()) {
-                        if (searchLookup == null) {
-                            searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                            searchLookup.setNextReader(docIdAndVersion.context);
-                            searchLookup.source().setNextSource(source);
-                            searchLookup.setNextDocId(docIdAndVersion.docId);
-                        }
 
-                        List<Object> values = searchLookup.source().extractRawValues(field);
-                        if (!values.isEmpty()) {
-                            for (int i = 0; i < values.size(); i++) {
-                                values.set(i, x.mapper().valueForSearch(values.get(i)));
-                            }
-                            value = values;
+                    List<Object> values = searchLookup.source().extractRawValues(field);
+                    if (!values.isEmpty()) {
+                        for (int i = 0; i < values.size(); i++) {
+                            values.set(i, x.mapper().valueForSearch(values.get(i)));
                         }
+                        value = values;
                     }
                 }
 

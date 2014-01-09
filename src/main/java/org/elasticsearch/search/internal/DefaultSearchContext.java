@@ -58,6 +58,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -122,6 +123,7 @@ public class DefaultSearchContext extends SearchContext {
     private boolean version = false; // by default, we don't return versions
 
     private List<String> fieldNames;
+    private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private PartialFieldsContext partialFields;
     private FetchSourceContext fetchSourceContext;
@@ -346,6 +348,17 @@ public class DefaultSearchContext extends SearchContext {
 
     public void rescore(RescoreSearchContext rescore) {
         this.rescore = rescore;
+    }
+
+    public boolean hasFieldDataFields() {
+        return fieldDataFields != null;
+    }
+
+    public FieldDataFieldsContext fieldDataFields() {
+        if (fieldDataFields == null) {
+            fieldDataFields = new FieldDataFieldsContext();
+        }
+        return this.fieldDataFields;
     }
 
     public boolean hasScriptFields() {

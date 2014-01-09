@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Priority;
@@ -199,7 +200,6 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addField("_source.obj1") // we also automatically detect _source in fields
                 .addScriptField("s_obj1", "_source.obj1")
                 .addScriptField("s_obj1_test", "_source.obj1.test")
                 .addScriptField("s_obj2", "_source.obj2")
@@ -209,11 +209,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        Map<String, Object> sObj1 = response.getHits().getAt(0).field("_source.obj1").value();
-        assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
-        sObj1 = response.getHits().getAt(0).field("s_obj1").value();
+        Map<String, Object> sObj1 = response.getHits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
@@ -422,5 +420,67 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
+    }
+
+    @Test
+    public void testFieldsPulledFromFieldData() throws Exception {
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("_source").field("enabled", false).endObject()
+                .startObject("string_field").field("type", "string").endObject()
+                .startObject("byte_field").field("type", "byte").endObject()
+                .startObject("short_field").field("type", "short").endObject()
+                .startObject("integer_field").field("type", "integer").endObject()
+                .startObject("long_field").field("type", "long").endObject()
+                .startObject("float_field").field("type", "float").endObject()
+                .startObject("double_field").field("type", "double").endObject()
+                .startObject("date_field").field("type", "date").endObject()
+                .startObject("boolean_field").field("type", "boolean").endObject()
+                .startObject("binary_field").field("type", "binary").endObject()
+                .endObject().endObject().endObject().string();
+
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("string_field", "foo")
+                .field("byte_field", (byte) 1)
+                .field("short_field", (short) 2)
+                .field("integer_field", 3)
+                .field("long_field", 4l)
+                .field("float_field", 5.0f)
+                .field("double_field", 6.0d)
+                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
+                .field("boolean_field", true)
+                .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addFieldDataField("string_field")
+                .addFieldDataField("byte_field")
+                .addFieldDataField("short_field")
+                .addFieldDataField("integer_field")
+                .addFieldDataField("long_field")
+                .addFieldDataField("float_field")
+                .addFieldDataField("double_field")
+                .addFieldDataField("date_field")
+                .addFieldDataField("boolean_field");
+        SearchResponse searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(9));
+
+        assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("integer_field").value(), equalTo((Object) 3l));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4l));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value().toString(), equalTo("T"));
+
     }
 }

@@ -418,6 +418,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a field data based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the field data cache
+     */
+    public SearchRequestBuilder addFieldDataField(String name) {
+        sourceBuilder().fieldDataField(name);
+        return this;
+    }
+
+    /**
      * Adds a script based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *

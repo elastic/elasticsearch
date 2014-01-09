@@ -83,7 +83,7 @@ to `false`.
 [float]
 === Native (Java) Scripts
 
-Even though `mvel` is pretty fast, allow to register native Java based
+Even though `mvel` is pretty fast, this allows to register native Java based
 scripts for faster execution.
 
 In order to allow for scripts, the `NativeScriptFactory` needs to be

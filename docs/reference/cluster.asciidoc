@@ -15,17 +15,17 @@ example, here are some sample executions of nodes info:
 [source,js]
 --------------------------------------------------
 # Local
-curl localhost:9200/_cluster/nodes/_local
+curl localhost:9200/_nodes/_local
 # Address
-curl localhost:9200/_cluster/nodes/10.0.0.3,10.0.0.4
-curl localhost:9200/_cluster/nodes/10.0.0.*
+curl localhost:9200/_nodes/10.0.0.3,10.0.0.4
+curl localhost:9200/_nodes/10.0.0.*
 # Names
-curl localhost:9200/_cluster/nodes/node_name_goes_here
-curl localhost:9200/_cluster/nodes/node_name_goes_*
+curl localhost:9200/_nodes/node_name_goes_here
+curl localhost:9200/_nodes/node_name_goes_*
 # Attributes (set something like node.rack: 2 in the config)
-curl localhost:9200/_cluster/nodes/rack:2
-curl localhost:9200/_cluster/nodes/ra*:2
-curl localhost:9200/_cluster/nodes/ra*:2*
+curl localhost:9200/_nodes/rack:2
+curl localhost:9200/_nodes/ra*:2
+curl localhost:9200/_nodes/ra*:2*
 --------------------------------------------------
 --
 

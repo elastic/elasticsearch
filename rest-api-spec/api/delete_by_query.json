@@ -1,6 +1,6 @@
 {
   "delete_by_query": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/delete-by-query/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-delete-by-query.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_query",

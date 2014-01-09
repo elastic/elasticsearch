@@ -1,6 +1,6 @@
 {
   "suggest": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/search/suggest/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-search.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_suggest",

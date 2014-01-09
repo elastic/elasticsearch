@@ -1,6 +1,6 @@
 {
   "mget": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/multi-get/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-multi-get.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_mget",

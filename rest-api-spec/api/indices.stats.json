@@ -1,6 +1,6 @@
 {
   "indices.stats": {
-    "documentation": "http://elasticsearch.org/guide/reference/api/admin-indices-stats/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-stats.html",
     "methods": ["GET"],
     "url": {
       "path": "/_stats",

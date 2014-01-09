@@ -275,27 +275,19 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
-        int size = root.size();
-        switch (size) {
-            case 0:
-                // if we don't have any keys throw an exception
-                throw new MapperParsingException("malformed mapping no root object found");
-            case 1:
-                break;
-            default:
-                // we always assume the first and single key is the mapping type root
-                throw new MapperParsingException("mapping must have the `type` as the root object");
+        if (root.size() == 0) {
+            // if we don't have any keys throw an exception
+            throw new MapperParsingException("malformed mapping no root object found");
         }
 
         String rootName = root.keySet().iterator().next();
-        if (type == null) {
-            type = rootName;
-        } else if (!type.equals(rootName)) {
-            // we always assume the first and single key is the mapping type root
-            throw new MapperParsingException("mapping must have the `type` as the root object. Got [" + rootName + "], expected [" + type + "]");
+        Tuple<String, Map<String, Object>> mapping;
+        if (type == null || type.equals(rootName)) {
+            mapping = new Tuple<String, Map<String, Object>>(rootName, (Map<String, Object>) root.get(rootName));
+        } else {
+            mapping = new Tuple<String, Map<String, Object>>(type, root);
         }
 
-
-        return new Tuple<String, Map<String, Object>>(type, (Map<String, Object>) root.get(rootName));
+        return mapping;
     }
 }

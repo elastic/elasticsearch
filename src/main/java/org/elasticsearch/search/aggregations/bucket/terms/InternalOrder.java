@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -41,14 +42,11 @@ class InternalOrder extends Terms.Order {
     public static final InternalOrder COUNT_DESC = new InternalOrder((byte) 1, "_count", false, new Comparator<Terms.Bucket>() {
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            long i = o2.getDocCount() - o1.getDocCount();
-            if (i == 0) {
-                i = o2.compareTo(o1);
-                if (i == 0) {
-                    i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                }
+            int cmp = - Comparators.compare(o1.getDocCount(), o2.getDocCount());
+            if (cmp == 0) {
+                cmp = o1.compareTerm(o2);
             }
-            return i > 0 ? 1 : -1;
+            return cmp;
         }
     });
 
@@ -59,7 +57,11 @@ class InternalOrder extends Terms.Order {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return -COUNT_DESC.comparator(null).compare(o1, o2);
+            int cmp = Comparators.compare(o1.getDocCount(), o2.getDocCount());
+            if (cmp == 0) {
+                cmp = o1.compareTerm(o2);
+            }
+            return cmp;
         }
     });
 
@@ -70,7 +72,7 @@ class InternalOrder extends Terms.Order {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return o2.compareTo(o1);
+            return - o1.compareTerm(o2);
         }
     });
 
@@ -81,7 +83,7 @@ class InternalOrder extends Terms.Order {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return -TERM_DESC.comparator(null).compare(o1, o2);
+            return o1.compareTerm(o2);
         }
     });
 

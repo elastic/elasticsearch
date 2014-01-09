@@ -79,15 +79,10 @@ public class DoubleTerms extends InternalTerms {
         }
 
         @Override
-        protected int compareTerm(Terms.Bucket other) {
-            if (term > other.getKeyAsNumber().doubleValue()) {
-                return 1;
-            }
-            if (term < other.getKeyAsNumber().doubleValue()) {
-                return -1;
-            }
-            return 0;
+        int compareTerm(Terms.Bucket other) {
+            return Double.compare(term, other.getKeyAsNumber().doubleValue());
         }
+
     }
 
     private ValueFormatter valueFormatter;

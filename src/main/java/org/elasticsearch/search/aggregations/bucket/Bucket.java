@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 
@@ -75,12 +76,7 @@ public interface Bucket {
         public int compare(B b1, B b2) {
             double v1 = value(b1);
             double v2 = value(b2);
-            if (v1 > v2) {
-                return asc ? 1 : -1;
-            } else if (v1 < v2) {
-                return asc ? -1 : 1;
-            }
-            return 0;
+            return Comparators.compare(v1, v2, asc);
         }
 
         private double value(B bucket) {

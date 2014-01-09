@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 
@@ -61,33 +62,25 @@ interface HistogramBase<B extends HistogramBase.Bucket> extends Aggregation, Ite
         public static final Order KEY_ASC = new InternalOrder((byte) 1, "_key", true, new Comparator<HistogramBase.Bucket>() {
             @Override
             public int compare(HistogramBase.Bucket b1, HistogramBase.Bucket b2) {
-                if (b1.getKey() > b2.getKey()) {
-                    return 1;
-                }
-                if (b1.getKey() < b2.getKey()) {
-                    return -1;
-                }
-                return 0;
+                return Comparators.compare(b1.getKey(), b2.getKey());
             }
         });
 
         public static final Order KEY_DESC = new InternalOrder((byte) 2, "_key", false, new Comparator<HistogramBase.Bucket>() {
             @Override
             public int compare(HistogramBase.Bucket b1, HistogramBase.Bucket b2) {
-                return -KEY_ASC.comparator().compare(b1, b2);
+                return - Comparators.compare(b1.getKey(), b2.getKey());
             }
         });
 
         public static final Order COUNT_ASC = new InternalOrder((byte) 3, "_count", true, new Comparator<HistogramBase.Bucket>() {
             @Override
             public int compare(HistogramBase.Bucket b1, HistogramBase.Bucket b2) {
-                if (b1.getDocCount() > b2.getDocCount()) {
-                    return 1;
+                int cmp = Comparators.compare(b1.getDocCount(), b2.getDocCount());
+                if (cmp == 0) {
+                    cmp = Comparators.compare(b1.getKey(), b2.getKey());
                 }
-                if (b1.getDocCount() < b2.getDocCount()) {
-                    return -1;
-                }
-                return 0;
+                return cmp;
             }
         });
 
@@ -95,7 +88,11 @@ interface HistogramBase<B extends HistogramBase.Bucket> extends Aggregation, Ite
         public static final Order COUNT_DESC = new InternalOrder((byte) 4, "_count", false, new Comparator<HistogramBase.Bucket>() {
             @Override
             public int compare(HistogramBase.Bucket b1, HistogramBase.Bucket b2) {
-                return -COUNT_ASC.comparator().compare(b1, b2);
+                int cmp = - Comparators.compare(b1.getDocCount(), b2.getDocCount());
+                if (cmp == 0) {
+                    cmp = Comparators.compare(b1.getKey(), b2.getKey());
+                }
+                return cmp;
             }
         });
 

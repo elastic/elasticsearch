@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
 import org.elasticsearch.script.SearchScript;
@@ -632,7 +633,7 @@ public abstract class FieldDataSource {
                     protected int compare(int i, int j) {
                         final long l1 = array[i];
                         final long l2 = array[j];
-                        return l1 < l2 ? -1 : l1 == l2 ? 0 : 1;
+                        return Comparators.compare(l1, l2);
                     }
                 };
 

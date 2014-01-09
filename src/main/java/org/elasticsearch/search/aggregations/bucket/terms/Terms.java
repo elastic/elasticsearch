@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -59,11 +60,14 @@ public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
         }
     }
 
-    static interface Bucket extends Comparable<Bucket>, org.elasticsearch.search.aggregations.bucket.Bucket {
+    static abstract class Bucket implements org.elasticsearch.search.aggregations.bucket.Bucket {
 
-        Text getKey();
+        public abstract Text getKey();
 
-        Number getKeyAsNumber();
+        public abstract Number getKeyAsNumber();
+
+        abstract int compareTerm(Terms.Bucket other);
+
     }
 
     Collection<Bucket> buckets();

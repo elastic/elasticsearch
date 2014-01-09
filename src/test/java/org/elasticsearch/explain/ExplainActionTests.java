@@ -151,15 +151,14 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("_source.obj1")
+                .setFields("obj1.field1", "obj1.field2")
                 .execute().actionGet();
         assertNotNull(response);
         assertTrue(response.isMatch());
-        assertThat(response.getGetResult().getFields().size(), equalTo(1));
-        Map<String, String> fields = (Map<String, String>) response.getGetResult().field("_source.obj1").getValue();
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get("field1"), equalTo("value1"));
-        assertThat(fields.get("field2"), equalTo("value2"));
+        String v1 = (String) response.getGetResult().field("obj1.field1").getValue();
+        String v2 = (String) response.getGetResult().field("obj1.field2").getValue();
+        assertThat(v1, equalTo("value1"));
+        assertThat(v2, equalTo("value2"));
     }
 
     @SuppressWarnings("unchecked")

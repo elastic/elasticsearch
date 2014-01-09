@@ -1,6 +1,8 @@
 [[mapping-boost-field]]
 === `_boost`
 
+deprecated[1.0.0.RC1,See <<function-score-instead-of-boost>>]
+
 Boosting is the process of enhancing the relevancy of a document or
 field. Field level mapping allows to define explicit boost level on a
 specific field. The boost field mapping (applied on the
@@ -30,3 +32,41 @@ following JSON document will be indexed with a boost value of `2.2`:
     "message" : "This is a tweet!"
 }
 --------------------------------------------------
+
+[[function-score-instead-of-boost]]
+==== Function score instead of boost
+
+Support for document boosting via the `_boost` field has been removed
+from Lucene and is deprecated in Elasticsearch as of v1.0.0.RC1. The
+implementation in Lucene resulted in unpredictable result when
+used with multiple fields or multi-value fields.
+
+Instead, the <<query-dsl-function-score-query>> can be used to achieve
+the desired functionality by boosting each document by the value in
+any field the document:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "function_score": {
+            "query": {  <1>
+                "match": {
+                    "title": "your main query"
+                }
+            },
+            "functions": [{
+                "script_score": { <2>
+                    "script": "doc['my_boost_field'].value"
+                }
+            }],
+            "score_mode": "multiply"
+        }
+    }
+}
+--------------------------------------------------
+<1> The original query, now wrapped in a `function_score` query.
+<2> This script returns the value in `my_boost_field`, which is then
+    multiplied by the query `_score` for each document.
+
+

@@ -120,6 +120,49 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void updateMappingWithoutType() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("doc")
+                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}")
+                .execute().actionGet();
+
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
+        assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
+                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"},\"date\":{\"type\":\"integer\"}}}}"));
+    }
+
+    @Test
+    public void updateMappingWithoutTypeMultiObjects() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("doc")
+                .setSource("{\"_source\":{\"enabled\":false},\"properties\":{\"date\":{\"type\":\"integer\"}}}")
+                .execute().actionGet();
+
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
+        assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
+                equalTo("{\"doc\":{\"_source\":{\"enabled\":false},\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
+    }
+
     @Test(expected = MergeMappingException.class)
     public void updateMappingWithConflicts() throws Exception {
 

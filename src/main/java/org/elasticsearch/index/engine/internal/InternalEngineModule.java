@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.robin;
+package org.elasticsearch.index.engine.internal;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.engine.Engine;
@@ -25,10 +25,10 @@ import org.elasticsearch.index.engine.Engine;
 /**
  *
  */
-public class RobinEngineModule extends AbstractModule {
+public class InternalEngineModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(Engine.class).to(RobinEngine.class).asEagerSingleton();
+        bind(Engine.class).to(InternalEngine.class).asEagerSingleton();
     }
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.test.engine.MockRobinEngine;
+import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.AfterClass;
@@ -131,27 +131,27 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         try {
             if (awaitBusy(new Predicate<Object>() {
                 public boolean apply(Object o) {
-                    return MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Entry<MockRobinEngine.AssertingSearcher, RuntimeException> entry : MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 

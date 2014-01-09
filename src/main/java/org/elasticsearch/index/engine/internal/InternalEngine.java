@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine.robin;
+package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
@@ -89,7 +89,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  *
  */
-public class RobinEngine extends AbstractIndexShardComponent implements Engine {
+public class InternalEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
@@ -119,7 +119,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private volatile IndexWriter indexWriter;
 
-    private final SearcherFactory searcherFactory = new RobinSearchFactory();
+    private final SearcherFactory searcherFactory = new SearchFactory();
     private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
@@ -159,11 +159,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private SegmentInfos lastCommittedSegmentInfos;
 
     @Inject
-    public RobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-                       IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
-                       Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
-                       MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
-                       AnalysisService analysisService, SimilarityService similarityService, CodecService codecService) throws EngineException {
+    public InternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+                          IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer,
+                          Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog,
+                          MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler,
+                          AnalysisService analysisService, SimilarityService similarityService, CodecService codecService) throws EngineException {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the engine");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
@@ -694,7 +694,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
-        return new RobinSearcher(source, searcher, manager);
+        return new EngineSearcher(source, searcher, manager);
     }
 
     @Override
@@ -1409,45 +1409,45 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         @Override
         public void onRefreshSettings(Settings settings) {
-            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
-            if (gcDeletesInMillis != RobinEngine.this.gcDeletesInMillis) {
-                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
-                RobinEngine.this.gcDeletesInMillis = gcDeletesInMillis;
+            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(InternalEngine.this.gcDeletesInMillis)).millis();
+            if (gcDeletesInMillis != InternalEngine.this.gcDeletesInMillis) {
+                logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(InternalEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
+                InternalEngine.this.gcDeletesInMillis = gcDeletesInMillis;
             }
 
-            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, RobinEngine.this.compoundOnFlush);
-            if (compoundOnFlush != RobinEngine.this.compoundOnFlush) {
-                logger.info("updating {} from [{}] to [{}]", RobinEngine.INDEX_COMPOUND_ON_FLUSH, RobinEngine.this.compoundOnFlush, compoundOnFlush);
-                RobinEngine.this.compoundOnFlush = compoundOnFlush;
+            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush);
+            if (compoundOnFlush != InternalEngine.this.compoundOnFlush) {
+                logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush, compoundOnFlush);
+                InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
 
-            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);
-            boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure);
-            String codecName = settings.get(INDEX_CODEC, RobinEngine.this.codecName);
+            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngine.this.indexConcurrency);
+            boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure);
+            String codecName = settings.get(INDEX_CODEC, InternalEngine.this.codecName);
             final boolean codecBloomLoad = settings.getAsBoolean(CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter());
             boolean requiresFlushing = false;
-            if (indexConcurrency != RobinEngine.this.indexConcurrency ||
-                    !codecName.equals(RobinEngine.this.codecName) ||
-                    failOnMergeFailure != RobinEngine.this.failOnMergeFailure ||
+            if (indexConcurrency != InternalEngine.this.indexConcurrency ||
+                    !codecName.equals(InternalEngine.this.codecName) ||
+                    failOnMergeFailure != InternalEngine.this.failOnMergeFailure ||
                     codecBloomLoad != codecService.isLoadBloomFilter()) {
                 rwl.readLock().lock();
                 try {
-                    if (indexConcurrency != RobinEngine.this.indexConcurrency) {
-                        logger.info("updating index.index_concurrency from [{}] to [{}]", RobinEngine.this.indexConcurrency, indexConcurrency);
-                        RobinEngine.this.indexConcurrency = indexConcurrency;
+                    if (indexConcurrency != InternalEngine.this.indexConcurrency) {
+                        logger.info("updating index.index_concurrency from [{}] to [{}]", InternalEngine.this.indexConcurrency, indexConcurrency);
+                        InternalEngine.this.indexConcurrency = indexConcurrency;
                         // we have to flush in this case, since it only applies on a new index writer
                         requiresFlushing = true;
                     }
-                    if (!codecName.equals(RobinEngine.this.codecName)) {
-                        logger.info("updating index.codec from [{}] to [{}]", RobinEngine.this.codecName, codecName);
-                        RobinEngine.this.codecName = codecName;
+                    if (!codecName.equals(InternalEngine.this.codecName)) {
+                        logger.info("updating index.codec from [{}] to [{}]", InternalEngine.this.codecName, codecName);
+                        InternalEngine.this.codecName = codecName;
                         // we want to flush in this case, so the new codec will be reflected right away...
                         requiresFlushing = true;
                     }
-                    if (failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
-                        logger.info("updating {} from [{}] to [{}]", RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure, failOnMergeFailure);
-                        RobinEngine.this.failOnMergeFailure = failOnMergeFailure;
+                    if (failOnMergeFailure != InternalEngine.this.failOnMergeFailure) {
+                        logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure, failOnMergeFailure);
+                        InternalEngine.this.failOnMergeFailure = failOnMergeFailure;
                     }
                     if (codecBloomLoad != codecService.isLoadBloomFilter()) {
                         logger.info("updating {} from [{}] to [{}]", CodecService.INDEX_CODEC_BLOOM_LOAD, codecService.isLoadBloomFilter(), codecBloomLoad);
@@ -1469,13 +1469,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return new SearcherManager(indexWriter, true, searcherFactory);
     }
 
-    static class RobinSearcher implements Searcher {
+    static class EngineSearcher implements Searcher {
 
         private final String source;
         private final IndexSearcher searcher;
         private final SearcherManager manager;
 
-        private RobinSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+        private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;
@@ -1542,7 +1542,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    class RobinSearchFactory extends SearcherFactory {
+    class SearchFactory extends SearcherFactory {
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {

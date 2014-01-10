@@ -139,9 +139,9 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         assertThat(response.nodesStats.getProcess().count, Matchers.greaterThan(0));
         // 0 happens when not supported on platform
         assertThat(response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
-        // these can be -1 if not supported
-        assertThat(response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThan(-1L));
-        assertThat(response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThan(-1L));
+        // these can be -1 if not supported on platform
+        assertThat(response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
     }
 }

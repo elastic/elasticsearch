@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
+import com.google.common.primitives.Longs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -82,7 +82,7 @@ public class LongTerms extends InternalTerms {
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return Comparators.compare(term, other.getKeyAsNumber().longValue());
+            return Longs.compare(term, other.getKeyAsNumber().longValue());
         }
     }
 

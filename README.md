@@ -5,18 +5,19 @@ The Phonetic Analysis plugin integrates phonetic token filter analysis with elas
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-phonetic/1.8.0`.
 
-|    Phonetic Analysis Plugin   | elasticsearch    | Release date |
-|-------------------------------|------------------|:------------:|
-| 1.9.0-SNAPSHOT (master)       | 0.90.8 -> master |              |
-| 1.8.0                         | 0.90.8 -> master |  2013-12-19  |
-| 1.7.0                         | 0.90.6 -> 0.90.7 |  2013-11-06  |
-| 1.6.0                         | 0.90.3 -> 0.90.5 |  2013-08-08  |
-| 1.5.0                         | 0.90.1 -> 0.90.2 |  2013-05-30  |
-| 1.4.0                         | 0.90.0           |  2013-04-29  |
-| 1.3.0                         | 0.90.0           |  2013-02-26  |
-| 1.2.0                         | 0.19.2 -> 0.20   |  2012-05-09  |
-| 1.1.0                         | 0.19.0 -> 0.19.1 |  2012-02-07  |
-| 1.0.0                         | 0.18             |  2012-01-07  |
+|    Phonetic Analysis Plugin   |    elasticsearch    | Release date |
+|-------------------------------|---------------------|:------------:|
+| 2.0.0.RC1-SNAPSHOT (master)   | 1.0.0.RC1 -> master |              |
+| 1.9.0-SNAPSHOT (1.x)          | 0.90.8 -> 0.90      |              |
+| 1.8.0                         | 0.90.8 -> 0.90      |  2013-12-19  |
+| 1.7.0                         | 0.90.6 -> 0.90.7    |  2013-11-06  |
+| 1.6.0                         | 0.90.3 -> 0.90.5    |  2013-08-08  |
+| 1.5.0                         | 0.90.1 -> 0.90.2    |  2013-05-30  |
+| 1.4.0                         | 0.90.0              |  2013-04-29  |
+| 1.3.0                         | 0.90.0              |  2013-02-26  |
+| 1.2.0                         | 0.19.2 -> 0.20      |  2012-05-09  |
+| 1.1.0                         | 0.19.0 -> 0.19.1    |  2012-02-07  |
+| 1.0.0                         | 0.18                |  2012-01-07  |
 
 
 A `phonetic` token filter that can be configured with different `encoder` types: 
@@ -50,7 +51,8 @@ should be replaced with the encoded one (set it to `true`), or added (set it to 
 Questions
 ---------
 
-If you have questions or comments please use the mailing list instead of Github Issues tracker: https://groups.google.com/group/elasticsearch
+If you have questions or comments please use the [mailing list](https://groups.google.com/group/elasticsearch) instead
+of Github Issues tracker.
 
 License
 -------

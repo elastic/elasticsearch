@@ -1,4 +1,4 @@
-Phonetic Analysis for ElasticSearch
+Phonetic Analysis for Elasticsearch
 ===================================
 
 The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
@@ -57,7 +57,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

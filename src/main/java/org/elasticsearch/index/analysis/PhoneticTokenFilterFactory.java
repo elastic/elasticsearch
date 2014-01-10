@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,17 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.analysis;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import org.apache.commons.codec.Encoder;
-import org.apache.commons.codec.language.Caverphone1;
-import org.apache.commons.codec.language.Caverphone2;
-import org.apache.commons.codec.language.ColognePhonetic;
-import org.apache.commons.codec.language.Metaphone;
-import org.apache.commons.codec.language.RefinedSoundex;
-import org.apache.commons.codec.language.Soundex;
+import org.apache.commons.codec.language.*;
 import org.apache.commons.codec.language.bm.Languages.LanguageSet;
 import org.apache.commons.codec.language.bm.NameType;
 import org.apache.commons.codec.language.bm.PhoneticEngine;
@@ -44,6 +38,9 @@ import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.util.Arrays;
+import java.util.HashSet;
 
 /**
  *

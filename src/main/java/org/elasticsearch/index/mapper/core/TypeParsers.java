@@ -146,6 +146,8 @@ public class TypeParsers {
                 builder.precisionStep(nodeIntegerValue(propNode));
             } else if (propName.equals("ignore_malformed")) {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
+            } else if (propName.equals("coerce")) {
+                builder.coerce(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("similarity")) {

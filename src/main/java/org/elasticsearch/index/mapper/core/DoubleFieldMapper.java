@@ -95,8 +95,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         public DoubleFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider,
-                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context), postingsProvider, 
+                    docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -124,11 +124,12 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     private String nullValueAsString;
 
     protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                                Double nullValue, Explicit<Boolean> ignoreMalformed,
+                                Double nullValue, Explicit<Boolean> ignoreMalformed,  Explicit<Boolean> coerce,
                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
                                 Settings indexSettings, MultiFields multiFields) {
-        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
@@ -288,7 +289,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.doubleValue();
+                                objValue = parser.doubleValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -303,7 +304,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                 }
                 value = objValue;
             } else {
-                value = parser.doubleValue();
+                value = parser.doubleValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

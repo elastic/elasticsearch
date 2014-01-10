@@ -145,6 +145,105 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testCoerceOption() throws Exception {
+        String [] nonFractionNumericFieldTypes={"integer","long","short"};
+        //Test co-ercion policies on all non-fraction numerics
+        for (String nonFractionNumericFieldType : nonFractionNumericFieldTypes) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                    .startObject("properties")
+                        .startObject("noErrorNoCoerceField").field("type", nonFractionNumericFieldType).field("ignore_malformed", true)
+                            .field("coerce", false).endObject()
+                        .startObject("noErrorCoerceField").field("type", nonFractionNumericFieldType).field("ignore_malformed", true)
+                            .field("coerce", true).endObject()
+                        .startObject("errorDefaultCoerce").field("type", nonFractionNumericFieldType).field("ignore_malformed", false).endObject()
+                        .startObject("errorNoCoerce").field("type", nonFractionNumericFieldType).field("ignore_malformed", false)
+                            .field("coerce", false).endObject()
+                    .endObject()
+                    .endObject().endObject().string();
+
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+            //Test numbers passed as strings
+            String invalidJsonNumberAsString="1";
+            ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("noErrorNoCoerceField", invalidJsonNumberAsString)
+                    .field("noErrorCoerceField", invalidJsonNumberAsString)
+                    .field("errorDefaultCoerce", invalidJsonNumberAsString)
+                    .endObject()
+                    .bytes());
+            assertThat(doc.rootDoc().getField("noErrorNoCoerceField"), nullValue());
+            assertThat(doc.rootDoc().getField("noErrorCoerceField"), notNullValue());
+            //Default is ignore_malformed=true and coerce=true
+            assertThat(doc.rootDoc().getField("errorDefaultCoerce"), notNullValue());
+            
+            //Test valid case of numbers passed as numbers
+            int validNumber=1;
+            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("noErrorNoCoerceField", validNumber)
+                    .field("noErrorCoerceField", validNumber)
+                    .field("errorDefaultCoerce", validNumber)
+                    .endObject()
+                    .bytes());
+            assertEquals(validNumber,doc.rootDoc().getField("noErrorNoCoerceField").numericValue().intValue());
+            assertEquals(validNumber,doc.rootDoc().getField("noErrorCoerceField").numericValue().intValue());
+            assertEquals(validNumber,doc.rootDoc().getField("errorDefaultCoerce").numericValue().intValue());
+            
+            //Test valid case of negative numbers passed as numbers
+            int validNegativeNumber=-1;
+            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("noErrorNoCoerceField", validNegativeNumber)
+                    .field("noErrorCoerceField", validNegativeNumber)
+                    .field("errorDefaultCoerce", validNegativeNumber)
+                    .endObject()
+                    .bytes());
+            assertEquals(validNegativeNumber,doc.rootDoc().getField("noErrorNoCoerceField").numericValue().intValue());
+            assertEquals(validNegativeNumber,doc.rootDoc().getField("noErrorCoerceField").numericValue().intValue());
+            assertEquals(validNegativeNumber,doc.rootDoc().getField("errorDefaultCoerce").numericValue().intValue());
+            
+
+            try {
+                defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("errorNoCoerce", invalidJsonNumberAsString)
+                        .endObject()
+                        .bytes());
+            } catch (MapperParsingException e) {
+                assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            }
+            
+            
+            //Test questionable case of floats passed to ints
+            float invalidJsonForInteger=1.9f;
+            int coercedFloatValue=1; //This is what the JSON parser will do to a float - truncate not round
+            doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("noErrorNoCoerceField", invalidJsonForInteger)
+                    .field("noErrorCoerceField", invalidJsonForInteger)
+                    .field("errorDefaultCoerce", invalidJsonForInteger)
+                    .endObject()
+                    .bytes());
+            assertThat(doc.rootDoc().getField("noErrorNoCoerceField"), nullValue());
+            assertEquals(coercedFloatValue,doc.rootDoc().getField("noErrorCoerceField").numericValue().intValue());
+            //Default is ignore_malformed=true and coerce=true
+            assertEquals(coercedFloatValue,doc.rootDoc().getField("errorDefaultCoerce").numericValue().intValue());
+            
+            try {
+                defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("errorNoCoerce", invalidJsonForInteger)
+                        .endObject()
+                        .bytes());
+            } catch (MapperParsingException e) {
+                assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            }
+        }
+    }
+    
+    
     public void testDocValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

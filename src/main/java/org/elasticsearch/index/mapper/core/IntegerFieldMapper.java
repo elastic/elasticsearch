@@ -92,7 +92,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         public IntegerFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues,
-                    nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+                    nullValue, ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -119,11 +119,11 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     private String nullValueAsString;
 
     protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                                 Integer nullValue, Explicit<Boolean> ignoreMalformed,
+                                 Integer nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                  SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                                  Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;
@@ -288,7 +288,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.intValue();
+                                objValue = parser.intValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -303,7 +303,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 }
                 value = objValue;
             } else {
-                value = parser.intValue();
+                value = parser.intValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

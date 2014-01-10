@@ -123,7 +123,7 @@ specific attributes.
 
 For example, lets say we have an awareness attribute called `zone`, and
 we know we are going to have two zones, `zone1` and `zone2`. Here is how
-we can force awareness one a node:
+we can force awareness on a node:
 
 [source,js]
 -------------------------------------------------------------------

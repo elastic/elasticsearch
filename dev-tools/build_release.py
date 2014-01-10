@@ -150,8 +150,8 @@ def create_release_branch(remote, src_branch, release):
 def process_file(file_path, line_callback):
   fh, abs_path = tempfile.mkstemp()
   modified = False
-  with open(abs_path,'w') as new_file:
-    with open(file_path) as old_file:
+  with open(abs_path,'w', encoding='utf-8') as new_file:
+    with open(file_path, encoding='utf-8') as old_file:
       for line in old_file:
         new_line = line_callback(line)
         modified = modified or (new_line != line)
@@ -267,7 +267,7 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 # Returns the next version string ie. 0.90.7
 def find_release_version(src_branch):
   run('git checkout %s' % src_branch)
-  with open('pom.xml') as file:
+  with open('pom.xml', encoding='utf-8') as file:
     for line in file:
       match = re.search(r'<version>(.+)-SNAPSHOT</version>', line)
       if match:
@@ -398,7 +398,7 @@ def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=Tru
 def print_sonartype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')
   if os.path.isfile(settings):
-     with open(settings) as settings_file:
+     with open(settings, encoding='utf-8') as settings_file:
        for line in settings_file:
          if line.strip() == '<id>sonatype-nexus-snapshots</id>':
            # moving out - we found the indicator no need to print the warning

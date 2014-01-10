@@ -397,6 +397,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         int count;
         int cpuPercent;
         long totalOpenFileDescriptors;
+        long minOpenFileDescriptors = Integer.MAX_VALUE;
+        long maxOpenFileDescriptors = Integer.MIN_VALUE;
 
         public void addNodeStats(NodeStats nodeStats) {
             if (nodeStats.getProcess() == null) {
@@ -407,7 +409,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 // with no sigar, this may not be available
                 cpuPercent += nodeStats.getProcess().cpu().getPercent();
             }
-            totalOpenFileDescriptors += nodeStats.getProcess().openFileDescriptors();
+            long fd = nodeStats.getProcess().openFileDescriptors();
+            totalOpenFileDescriptors += fd;
+            minOpenFileDescriptors = Math.min(minOpenFileDescriptors, fd);
+            maxOpenFileDescriptors = Math.max(maxOpenFileDescriptors, fd);
         }
 
         /**
@@ -424,11 +429,29 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return totalOpenFileDescriptors / count;
         }
 
+        public long getMaxOpenFileDescriptors() {
+            if (count == 0) {
+                return -1;
+            }
+            return maxOpenFileDescriptors;
+        }
+
+        public long getMinOpenFileDescriptors() {
+            if (count == 0) {
+                return -1;
+            }
+            return minOpenFileDescriptors;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             count = in.readVInt();
             cpuPercent = in.readVInt();
             totalOpenFileDescriptors = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_0_90_10)) {
+                minOpenFileDescriptors = in.readLong();
+                maxOpenFileDescriptors = in.readLong();
+            }
         }
 
         @Override
@@ -436,6 +459,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             out.writeVInt(count);
             out.writeVInt(cpuPercent);
             out.writeVLong(totalOpenFileDescriptors);
+            if (out.getVersion().onOrAfter(Version.V_0_90_10)) {
+                out.writeLong(minOpenFileDescriptors);
+                out.writeLong(maxOpenFileDescriptors);
+            }
         }
 
         public static ProcessStats readStats(StreamInput in) throws IOException {
@@ -447,13 +474,22 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         static final class Fields {
             static final XContentBuilderString CPU = new XContentBuilderString("cpu");
             static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-            static final XContentBuilderString AVG_OPEN_FD = new XContentBuilderString("avg_open_file_descriptors");
+            static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
+            static final XContentBuilderString MIN = new XContentBuilderString("min");
+            static final XContentBuilderString MAX = new XContentBuilderString("max");
+            static final XContentBuilderString AVG = new XContentBuilderString("avg");
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.CPU).field(Fields.PERCENT, cpuPercent).endObject();
-            builder.field(Fields.AVG_OPEN_FD, getAvgOpenFileDescriptors());
+            if (count > 0) {
+                builder.startObject(Fields.OPEN_FILE_DESCRIPTORS);
+                builder.field(Fields.MIN, getMinOpenFileDescriptors());
+                builder.field(Fields.MAX, getMaxOpenFileDescriptors());
+                builder.field(Fields.AVG, getAvgOpenFileDescriptors());
+                builder.endObject();
+            }
             return builder;
         }
     }

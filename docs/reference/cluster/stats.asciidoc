@@ -110,7 +110,11 @@ Will return, for example:
          "cpu": {
             "percent": 3
          },
-         "avg_open_file_descriptors": 218
+         "open_file_descriptors": {
+            "min": 200,
+            "max": 346,
+            "avg": 273
+         }
       },
       "jvm": {
          "max_uptime": "24s",

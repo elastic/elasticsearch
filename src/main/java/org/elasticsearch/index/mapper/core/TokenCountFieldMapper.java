@@ -79,7 +79,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         public TokenCountFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
-                    ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
+                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -115,11 +115,12 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     private NamedAnalyzer analyzer;
 
     protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
-            Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
             SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
             MultiFields multiFields) {
-        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, postingsProvider, docValuesProvider, similarity,
-                normsLoading, fieldDataSettings, indexSettings, multiFields);
+        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce, postingsProvider, docValuesProvider, 
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+
         this.analyzer = analyzer;
     }
 

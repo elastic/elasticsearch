@@ -92,8 +92,8 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context),
-                    postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
-                    context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -120,11 +120,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     private String nullValueAsString;
 
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
+                              Byte nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, 
+                              PostingsFormatProvider postingsProvider,
                               DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields) {
         super(names, precisionStep, boost, fieldType, docValues,
-                ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
+                ignoreMalformed, coerce, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
                 docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
@@ -293,7 +294,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = (byte) parser.shortValue();
+                                objValue = (byte) parser.shortValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -308,7 +309,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
                 value = objValue;
             } else {
-                value = (byte) parser.shortValue();
+                value = (byte) parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

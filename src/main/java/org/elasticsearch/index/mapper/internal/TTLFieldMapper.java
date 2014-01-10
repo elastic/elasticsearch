@@ -89,7 +89,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context),coerce(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -119,14 +119,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null, null, ImmutableSettings.EMPTY);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
-                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed,
+                Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty());
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
@@ -184,7 +184,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                 ttl = TimeValue.parseTimeValue(context.parser().text(), null).millis();
             } else {
-                ttl = context.parser().longValue();
+                ttl = context.parser().longValue(coerce.value());
             }
             if (ttl <= 0) {
                 throw new MapperParsingException("TTL value must be > 0. Illegal value provided [" + ttl + "]");

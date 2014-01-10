@@ -230,6 +230,8 @@ defaults to `true` or to the parent `object` type setting.
 
 |`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
 
+|`coerce` |Try convert strings to numbers and truncate fractions for integers. Defaults to `true`.
+
 |=======================================================================
 
 [float]

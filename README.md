@@ -1,4 +1,4 @@
-ICU Analysis for ElasticSearch
+ICU Analysis for Elasticsearch
 ==================================
 
 The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
@@ -7,8 +7,8 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |   ICU Analysis Plugin    | elasticsearch    | Release date |
 |--------------------------|------------------|:------------:|
-| 1.14.0-SNAPSHOT (master) | 0.90.8 -> master |              |
-| 1.13.0                   | 0.90.8 -> master |  2013-12-19  |
+| 1.14.0-SNAPSHOT (master) | 0.90.8 -> 0.90   |              |
+| 1.13.0                   | 0.90.8 -> 0.90   |  2013-12-19  |
 | 1.12.0                   | 0.90.6 -> 0.90.7 |  2013-11-06  |
 | 1.11.0                   | 0.90.3 -> 0.90.5 |  2013-08-08  |
 | 1.10.0                   | 0.90.1 -> 0.90.2 |  2013-05-30  |
@@ -176,7 +176,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

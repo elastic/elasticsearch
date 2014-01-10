@@ -93,7 +93,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         public ShortFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
-                    ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
+                    ignoreMalformed(context), coerce(context),postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -121,11 +121,11 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     private String nullValueAsString;
 
     protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                               Short nullValue, Explicit<Boolean> ignoreMalformed,
+                               Short nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
                                Settings indexSettings, MultiFields multiFields) {
-        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce, new NamedAnalyzer("_short/" + precisionStep,
                 new NumericIntegerAnalyzer(precisionStep)), new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
@@ -294,7 +294,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.shortValue();
+                                objValue = parser.shortValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -309,7 +309,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 }
                 value = objValue;
             } else {
-                value = parser.shortValue();
+                value = parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

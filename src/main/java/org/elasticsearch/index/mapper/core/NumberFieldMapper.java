@@ -77,6 +77,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
 
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<Boolean>(false, false);
+        public static final Explicit<Boolean> COERCE = new Explicit<Boolean>(true, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
@@ -85,6 +86,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         private Boolean ignoreMalformed;
 
+        private Boolean coerce;
+        
         public Builder(String name, FieldType fieldType) {
             super(name, fieldType);
         }
@@ -108,6 +111,22 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             }
             return Defaults.IGNORE_MALFORMED;
         }
+        
+        public T coerce(boolean coerce) {
+            this.coerce = coerce;
+            return builder;
+        }
+
+        protected Explicit<Boolean> coerce(BuilderContext context) {
+            if (coerce != null) {
+                return new Explicit<Boolean>(coerce, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<Boolean>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+            }
+            return Defaults.COERCE;
+        }
+        
     }
 
     protected int precisionStep;
@@ -116,6 +135,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected Explicit<Boolean> ignoreMalformed;
 
+    protected Explicit<Boolean> coerce;
+    
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
         @Override
         protected NumericTokenStream initialValue() {
@@ -145,7 +166,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     };
 
     protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                                Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
+                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, NamedAnalyzer indexAnalyzer,
                                 NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
                                 DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
                                 Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings,
@@ -159,6 +180,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             this.precisionStep = precisionStep;
         }
         this.ignoreMalformed = ignoreMalformed;
+        this.coerce = coerce;
     }
 
     @Override
@@ -334,6 +356,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
             }
+            if (nfmMergeWith.coerce.explicit()) {
+                this.coerce = nfmMergeWith.coerce;
+            }
         }
     }
 
@@ -476,6 +501,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
+        }
+        if (includeDefaults || coerce.explicit()) {
+            builder.field("coerce", coerce.value());
         }
     }
 

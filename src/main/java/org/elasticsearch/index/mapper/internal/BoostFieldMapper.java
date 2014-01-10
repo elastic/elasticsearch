@@ -125,7 +125,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED,
+        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty());
         this.nullValue = nullValue;
@@ -273,7 +273,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             }
             value = nullValue;
         } else {
-            value = context.parser().floatValue();
+            value = context.parser().floatValue(coerce.value());
         }
         return value;
     }

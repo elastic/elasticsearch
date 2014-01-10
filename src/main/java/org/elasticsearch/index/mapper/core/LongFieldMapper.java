@@ -92,7 +92,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         public LongFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
-                    ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -120,11 +120,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     private String nullValueAsString;
 
     protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                              Long nullValue, Explicit<Boolean> ignoreMalformed,
+                              Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                               SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
                               Settings indexSettings, MultiFields multiFields) {
-        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
         this.nullValue = nullValue;
@@ -279,7 +279,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.longValue();
+                                objValue = parser.longValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -294,7 +294,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 }
                 value = objValue;
             } else {
-                value = parser.longValue();
+                value = parser.longValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

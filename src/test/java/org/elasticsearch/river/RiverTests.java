@@ -22,6 +22,7 @@ package org.elasticsearch.river;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.river.dummy.DummyRiverModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -35,10 +36,10 @@ public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRiverStart() throws Exception {
-        final String riverName = "test_river";
+        final String riverName = "dummy-river-test";
         logger.info("-->  creating river [{}]", riverName);
         IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
-                .setSource("type", TestRiverModule.class.getCanonicalName()).get();
+                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
         assertTrue(indexResponse.isCreated());
 
         logger.info("-->  checking that river [{}] was created", riverName);
@@ -48,6 +49,5 @@ public class RiverTests extends ElasticsearchIntegrationTest {
                 return response.isExists();
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
-
     }
 }

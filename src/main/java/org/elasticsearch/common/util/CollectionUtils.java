@@ -22,6 +22,7 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
+import com.google.common.primitives.Longs;
 import org.apache.lucene.util.IntroSorter;
 
 /** Collections-related utility methods. */
@@ -46,7 +47,7 @@ public enum CollectionUtils {
 
             @Override
             protected int compare(int i, int j) {
-                return Comparators.compare(array[i], array[j]);
+                return Longs.compare(array[i], array[j]);
             }
 
             @Override
@@ -56,7 +57,7 @@ public enum CollectionUtils {
 
             @Override
             protected int comparePivot(int j) {
-                return Comparators.compare(pivot, array[j]);
+                return Longs.compare(pivot, array[j]);
             }
 
         }.sort(0, len);

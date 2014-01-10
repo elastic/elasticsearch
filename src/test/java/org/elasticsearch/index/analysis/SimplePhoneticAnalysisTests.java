@@ -45,10 +45,7 @@ public class SimplePhoneticAnalysisTests extends ElasticsearchTestCase {
     public void testPhoneticTokenFilterFactory() {
         Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml").build();
         AnalysisService analysisService = testSimpleConfiguration(settings);
-        TokenFilterFactory standardfilterFactory = analysisService.tokenFilter("standard");
-        System.err.println("standard filterfactory = " + standardfilterFactory);
         TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
-        System.err.println("filterfactory = " + filterFactory);
         MatcherAssert.assertThat(filterFactory, instanceOf(PhoneticTokenFilterFactory.class));
     }
 

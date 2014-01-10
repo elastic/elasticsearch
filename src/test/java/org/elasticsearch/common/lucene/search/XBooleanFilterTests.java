@@ -28,6 +28,7 @@ import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -452,21 +453,36 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
                     case 6:
                     case 5:
                         hasMust = true;
-                        clauses[i] = newFilterClause(field, value, MUST, random().nextBoolean());
-                        topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST));
+                        if (rarely()) {
+                            clauses[i] = new FilterClause(new EmptyFilter(), MUST);
+                            topLevel.add(new BooleanClause(new MatchNoDocsQuery(), MUST));
+                        } else {
+                            clauses[i] = newFilterClause(field, value, MUST, random().nextBoolean());
+                            topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST));
+                        }
                         break;
                     case 4:
                     case 3:
                     case 2:
                     case 1:
                         hasShould = true;
-                        clauses[i] = newFilterClause(field, value, SHOULD, random().nextBoolean());
-                        orQuery.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), SHOULD));
+                        if (rarely()) {
+                            clauses[i] = new FilterClause(new EmptyFilter(), SHOULD);
+                            orQuery.add(new BooleanClause(new MatchNoDocsQuery(), SHOULD));
+                        } else {
+                            clauses[i] = newFilterClause(field, value, SHOULD, random().nextBoolean());
+                            orQuery.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), SHOULD));
+                        }
                         break;
                     case 0:
                         hasMustNot = true;
-                        clauses[i] = newFilterClause(field, value, MUST_NOT, random().nextBoolean());
-                        topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST_NOT));
+                        if (rarely()) {
+                            clauses[i] = new FilterClause(new EmptyFilter(), MUST_NOT);
+                            topLevel.add(new BooleanClause(new MatchNoDocsQuery(), MUST_NOT));
+                        } else {
+                            clauses[i] = newFilterClause(field, value, MUST_NOT, random().nextBoolean());
+                            topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST_NOT));
+                        }
                         break;
 
                 }
@@ -528,6 +544,22 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         @Override
         public String toString() {
             return "SLOW(" + field + ":" + value + ")";
+        }
+    }
+
+    public final class EmptyFilter extends Filter {
+
+        @Override
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            return random().nextBoolean() ? new Empty() : null;
+        }
+
+        private class Empty extends DocIdSet {
+
+            @Override
+            public DocIdSetIterator iterator() throws IOException {
+                return null;
+            }
         }
     }
 

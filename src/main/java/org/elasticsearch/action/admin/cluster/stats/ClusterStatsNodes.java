@@ -397,8 +397,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         int count;
         int cpuPercent;
         long totalOpenFileDescriptors;
-        long minOpenFileDescriptors = Integer.MAX_VALUE;
-        long maxOpenFileDescriptors = Integer.MIN_VALUE;
+        long minOpenFileDescriptors = Long.MAX_VALUE;
+        long maxOpenFileDescriptors = Long.MIN_VALUE;
 
         public void addNodeStats(NodeStats nodeStats) {
             if (nodeStats.getProcess() == null) {
@@ -410,7 +410,11 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 cpuPercent += nodeStats.getProcess().cpu().getPercent();
             }
             long fd = nodeStats.getProcess().openFileDescriptors();
-            totalOpenFileDescriptors += fd;
+            if (fd > 0) {
+                // fd can be -1 if not supported on platform
+                totalOpenFileDescriptors += fd;
+            }
+            // we still do min max calc on -1, so we'll have an indication of it not being supported on one of the nodes.
             minOpenFileDescriptors = Math.min(minOpenFileDescriptors, fd);
             maxOpenFileDescriptors = Math.max(maxOpenFileDescriptors, fd);
         }

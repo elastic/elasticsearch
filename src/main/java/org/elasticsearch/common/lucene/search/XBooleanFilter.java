@@ -282,7 +282,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                 for (ResultClause fastOrClause : fastOrClauses) {
                     DocIdSetIterator clauseIterator = fastOrClause.iterator();
-                    if (it == null) {
+                    if (clauseIterator == null) {
                         continue;
                     }
                     if (iteratorMatch(clauseIterator, setDoc)) {

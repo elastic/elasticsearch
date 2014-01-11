@@ -38,14 +38,6 @@
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>elasticsearch</id>
-            <name>elasticsearch repo</name>
-            <url>http://elasticsearch.googlecode.com/svn/maven</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -384,8 +376,9 @@
                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
-                                <enable />
-                                <disable package="${tests.assertion.disabled}"/>  <!-- pass org.elasticsearch to run without assertions -->
+                                <enable/>
+                                <disable package="${tests.assertion.disabled}"/>
+                                <!-- pass org.elasticsearch to run without assertions -->
                             </assertions>
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
@@ -839,7 +832,7 @@
                                 </source>
                             </sources>
                         </mapping>
-                         <mapping>
+                        <mapping>
                             <directory>/usr/lib/sysctl.d/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
@@ -1056,7 +1049,8 @@
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include> <!-- inner classes -->
+                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <!-- inner classes -->
                                 <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
                             <excludes>
@@ -1091,7 +1085,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- forbidden-apis plugin -->
@@ -1106,7 +1100,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- exec-maven plugin -->
@@ -1120,7 +1114,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- copy-dependency plugin -->
@@ -1134,7 +1128,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>

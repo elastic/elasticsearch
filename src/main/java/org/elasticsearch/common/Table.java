@@ -35,6 +35,7 @@ public class Table {
     private List<Cell> headers = new ArrayList<Cell>();
     private List<List<Cell>> rows = new ArrayList<List<Cell>>();
     private Map<String, List<Cell>> map = Maps.newHashMap();
+    private Map<String, Cell> headerMap = Maps.newHashMap();
     private List<Cell> currentCells;
     private boolean inHeaders = false;
 
@@ -55,9 +56,13 @@ public class Table {
          *     header1 => [Cell, Cell, ...]
          *     header2 => [Cell, Cell, ...]
          *     header3 => [Cell, Cell, ...]
+         *
+         * Also populate map to look up headers by name.
+         *
          */
         for (Cell header : headers) {
             map.put(header.value.toString(), new ArrayList<Cell>());
+            headerMap.put(header.value.toString(), header);
         }
 
         return this;
@@ -147,6 +152,10 @@ public class Table {
 
     public Map<String, List<Cell>> getAsMap() {
         return this.map;
+    }
+
+    public Map<String, Cell> getHeaderMap() {
+        return this.headerMap;
     }
 
     public Cell findHeaderByName(String header) {

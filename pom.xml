@@ -38,14 +38,6 @@
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>elasticsearch</id>
-            <name>elasticsearch repo</name>
-            <url>http://elasticsearch.googlecode.com/svn/maven</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -385,8 +377,9 @@
                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
-                                <enable />
-                                <disable package="${tests.assertion.disabled}"/>  <!-- pass org.elasticsearch to run without assertions -->
+                                <enable/>
+                                <disable package="${tests.assertion.disabled}"/>
+                                <!-- pass org.elasticsearch to run without assertions -->
                             </assertions>
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
@@ -840,7 +833,7 @@
                                 </source>
                             </sources>
                         </mapping>
-                         <mapping>
+                        <mapping>
                             <directory>/usr/lib/sysctl.d/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
@@ -1060,7 +1053,8 @@
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include> <!-- inner classes -->
+                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <!-- inner classes -->
                                 <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
                             <excludes>
@@ -1074,27 +1068,28 @@
                 </executions>
             </plugin>
             <plugin>
-              <groupId>com.mycila</groupId>
-              <artifactId>license-maven-plugin</artifactId>
-              <version>2.5</version>
-              <configuration>
-                <header>dev-tools/elasticsearch_license_header.txt</header>
-                <headerDefinitions>
-                  <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                </headerDefinitions>
-                <includes>
-                    <include>src/main/java/org/elasticsearch/**/*.java</include>
-                    <include>src/test/java/org/elasticsearch/**/*.java</include>
-                </includes>
-                <excludes>
-                    <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>  <!-- Guice -->
-                    <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                    <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
-                    <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
-                    <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
-                    <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                </excludes>
-              </configuration>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>2.5</version>
+                <configuration>
+                    <header>dev-tools/elasticsearch_license_header.txt</header>
+                    <headerDefinitions>
+                        <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                    </headerDefinitions>
+                    <includes>
+                        <include>src/main/java/org/elasticsearch/**/*.java</include>
+                        <include>src/test/java/org/elasticsearch/**/*.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                        <!-- Guice -->
+                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                    </excludes>
+                </configuration>
                 <!--  We can't run by default since the package is broken with java 1.6
                       see https://github.com/mycila/license-maven-plugin/issues/35
                 <executions>
@@ -1106,7 +1101,7 @@
                 </executions>
                 -->
             </plugin>
-        </plugins>	
+        </plugins>
         <pluginManagement>
             <plugins>
                 <!-- make m2e stfu -->
@@ -1128,7 +1123,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- forbidden-apis plugin -->
@@ -1143,7 +1138,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- exec-maven plugin -->
@@ -1157,7 +1152,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- copy-dependency plugin -->
@@ -1171,7 +1166,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>

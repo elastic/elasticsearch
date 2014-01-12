@@ -286,7 +286,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                         }
                         break;
                 }
+            }
 
+            public boolean wrapTerms(String field) {
+                return true;
             }
         }
 

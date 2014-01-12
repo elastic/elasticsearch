@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.test.rest.section;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.RestTestExecutionContext;
@@ -26,9 +28,11 @@ import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.client.RestResponse;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -71,27 +75,31 @@ public class DoSection implements ExecutableSection {
     @Override
     public void execute(RestTestExecutionContext executionContext) throws IOException {
 
-        try {
-            executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBody());
+        if ("param".equals(catchParam)) {
+            //client should throw validation error before sending request
+            //lets just return without doing anything as we don't have any client to test here
+            logger.info("found [catch: param], no request sent");
+            return;
+        }
 
+        try {
+            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBody());
+            if (Strings.hasLength(catchParam)) {
+                String catchStatusCode;
+                if (catches.containsKey(catchParam)) {
+                    catchStatusCode = catches.get(catchParam).v1();
+                } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
+                    catchStatusCode = "4xx|5xx";
+                } else {
+                    throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+                }
+                fail(formatStatusCodeMessage(restResponse, catchStatusCode));
+            }
         } catch(RestException e) {
             if (!Strings.hasLength(catchParam)) {
                 fail(formatStatusCodeMessage(e.restResponse(), "2xx"));
-            }
-
-            if ("param".equals(catchParam)) {
-                //client should throw validation error before sending request
-                //lets just return without doing anything as we don't have any client to test here
-                logger.info("found [catch: param], no request sent");
-            } else if ("missing".equals(catchParam)) {
-                assertThat(formatStatusCodeMessage(e.restResponse(), "404"), e.statusCode(), equalTo(404));
-            } else if ("conflict".equals(catchParam)) {
-                assertThat(formatStatusCodeMessage(e.restResponse(), "409"), e.statusCode(), equalTo(409));
-            }  else if ("forbidden".equals(catchParam)) {
-                assertThat(formatStatusCodeMessage(e.restResponse(), "403"), e.statusCode(), equalTo(403));
-            } else if ("request".equals(catchParam)) {
-                //generic error response from ES
-                assertThat(formatStatusCodeMessage(e.restResponse(), "4xx|5xx"), e.statusCode(), greaterThanOrEqualTo(400));
+            } else if (catches.containsKey(catchParam)) {
+                assertStatusCode(e.restResponse());
             } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
                 assertThat(formatStatusCodeMessage(e.restResponse(), "4xx|5xx"), e.statusCode(), greaterThanOrEqualTo(400));
@@ -109,8 +117,23 @@ public class DoSection implements ExecutableSection {
         }
     }
 
+    private void assertStatusCode(RestResponse restResponse) {
+        Tuple<String, org.hamcrest.Matcher<Integer>> stringMatcherTuple = catches.get(catchParam);
+        assertThat(formatStatusCodeMessage(restResponse, stringMatcherTuple.v1()),
+                restResponse.getStatusCode(), stringMatcherTuple.v2());
+    }
+
     private String formatStatusCodeMessage(RestResponse restResponse, String expected) {
         return "expected [" + expected + "] status code but api [" + apiCallSection.getApi() + "] returned ["
                 + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBody() + "]";
+    }
+
+    private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = Maps.newHashMap();
+
+    static {
+        catches.put("missing", tuple("404", equalTo(404)));
+        catches.put("conflict", tuple("409", equalTo(409)));
+        catches.put("forbidden", tuple("403", equalTo(403)));
+        catches.put("request", tuple("4xx|5xx", greaterThanOrEqualTo(400)));
     }
 }

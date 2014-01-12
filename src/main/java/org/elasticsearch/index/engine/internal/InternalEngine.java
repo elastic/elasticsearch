@@ -40,6 +40,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -1126,8 +1127,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private long getReaderRamBytesUsed(AtomicReaderContext reader) {
-        assert reader.reader() instanceof SegmentReader;
-        return allowRamBytesUsed ? ((SegmentReader) reader.reader()).ramBytesUsed() : 0;
+        return allowRamBytesUsed ? SegmentReaderUtils.segmentReader(reader.reader()).ramBytesUsed() : 0;
     }
 
     @Override
@@ -1162,7 +1162,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
-                    SegmentCommitInfo info = ((SegmentReader) reader.reader()).getSegmentInfo();
+                    SegmentCommitInfo info = SegmentReaderUtils.segmentReader(reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
                     Segment segment = new Segment(info.info.name);
                     segment.search = true;
@@ -1336,7 +1336,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
      */
     private static boolean isMergedSegment(AtomicReader reader) {
         // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
+        final Map<String, String> diagnostics = SegmentReaderUtils.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH, IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
         return IndexWriter.SOURCE_MERGE.equals(source);
@@ -1635,5 +1635,4 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return ongoingRecoveries;
         }
     }
-
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +38,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -55,9 +54,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         final int numShards = between(1, 5);
+        final int numReplicas = randomIntBetween(0, 1);
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
@@ -80,33 +79,34 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 .endObject() // type
                 .endObject() // {}
                 .string();
-        final double exceptionRate;
-        final double exceptionOnOpenRate;
+        final double topLevelRate;
+        final double lowLevelRate;
         if (frequently()) {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    exceptionOnOpenRate =  1.0/between(5, 100);
-                    exceptionRate = 0.0d;
+                    lowLevelRate =  1.0/between(2, 10);
+                    topLevelRate = 0.0d;
                 } else {
-                    exceptionRate =  1.0/between(5, 100);
-                    exceptionOnOpenRate = 0.0d;
+                    topLevelRate =  1.0/between(2, 10);
+                    lowLevelRate = 0.0d;
                 }
             } else {
-                exceptionOnOpenRate =  1.0/between(5, 100);
-                exceptionRate =  1.0/between(5, 100);
+                lowLevelRate =  1.0/between(2, 10);
+                topLevelRate =  1.0/between(2, 10);
             }
         } else {
             // rarely no exception
-            exceptionRate = 0d;
-            exceptionOnOpenRate = 0d;
+            topLevelRate = 0d;
+            lowLevelRate = 0d;
         }
 
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("index.number_of_shards", numShards)
-                .put("index.number_of_replicas", randomIntBetween(0, 1))
-                .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-                .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate)
-                .put(MockDirectoryHelper.CHECK_INDEX_ON_CLOSE, true);
+                .put("index.number_of_replicas", numReplicas)
+                .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
+                .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
+                .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
@@ -137,14 +137,32 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         logger.info("Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
                 refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length,
                 refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
-        final int numSearches = atLeast(10);
+        final int numSearches = atLeast(50);
+        NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
+                .clear().setBreaker(true).execute().actionGet();
+        for (NodeStats stats : resp.getNodes()) {
+            assertThat("Breaker is set to 0", stats.getBreaker().getEstimated(), equalTo(0L));
+        }
 
         for (int i = 0; i < numSearches; i++) {
+            SearchRequestBuilder searchRequestBuilder = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery());
+            switch(randomIntBetween(0, 5)) {
+                case 5:
+                case 4:
+                case 3:
+                    searchRequestBuilder.addSort("test-str", SortOrder.ASC);
+                    // fall through - sometimes get both fields
+                case 2:
+                case 1:
+                default:
+                    searchRequestBuilder.addSort("test-num", SortOrder.ASC);
+
+            }
+            boolean success = false;
             try {
                 // Sort by the string and numeric fields, to load them into field data
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
-                        .addSort("test-str", SortOrder.ASC)
-                        .addSort("test-num", SortOrder.ASC).get();
+                searchRequestBuilder.get();
+                success = true;
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
             }
@@ -155,9 +173,10 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 // breaker adjustment code, it should show up here by the breaker
                 // estimate being either positive or negative.
                 client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet();
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().all().execute().actionGet();
-                for (NodeStats stats : resp.getNodes()) {
-                    assertThat("Breaker reset to 0", stats.getBreaker().getEstimated(), equalTo(0L));
+                NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+                for (NodeStats stats : nodeStats.getNodes()) {
+                    assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping, stats.getBreaker().getEstimated(), equalTo(0L));
                 }
             }
         }
@@ -217,9 +236,14 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                         }
                         break;
                 }
+            }
 
+            public boolean wrapTerms(String field) {
+                return field.startsWith("test");
             }
         }
+
+
 
         public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) {
             super(in, new ThrowingSubReaderWrapper(settings));

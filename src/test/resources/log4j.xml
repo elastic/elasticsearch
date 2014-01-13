@@ -25,10 +25,10 @@ governing permissions and limitations under the License. -->
 	</logger>
 
 	<logger name="org.elasticsearch.cloud.gce">
-		<level value="info" />
+		<level value="debug" />
 	</logger>
     <logger name="org.elasticsearch.discovery.gce">
-        <level value="info" />
+        <level value="debug" />
     </logger>
 
 	<root>

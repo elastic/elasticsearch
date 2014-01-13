@@ -6,132 +6,42 @@
       "path": "/_stats",
       "paths": [
         "/_stats",
+        "/_stats/{metric}",
         "/{index}/_stats",
-        "_stats/{metric_family}",
-        "/{index}/_stats/{metric_family}",
-        "/_stats/indexing",
-        "/{index}/_stats/indexing",
-        "/_stats/indexing/{indexing_types}",
-        "/_stats/search/{search_groups}",
-        "/{index}/_stats/search/{search_groups}",
-        "/_stats/fielddata/{fields}",
-        "/{index}/_stats/fielddata/{fields}"
+        "/{index}/_stats/{metric}"
       ],
       "parts": {
-        "fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return detailed information for, when returning the `search` statistics"
-        },
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
         },
-        "indexing_types" : {
+        "metric" : {
           "type" : "list",
-          "description" : "A comma-separated list of document types to include in the `indexing` statistics"
-        },
-        "metric_family" : {
-          "type" : "enum",
-          "options" : ["completion","docs", "fielddata", "filter_cache", "flush", "get", "groups", "id_cache", "percolate", "indexing", "merge", "refresh", "search", "store", "warmer"],
-          "description" : "Limit the information returned to a specific metric"
-        },
-        "search_groups" : {
-          "type" : "list",
-          "description" : "A comma-separated list of search groups to include in the `search` statistics"
+          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "refresh", "search", "segments", "store", "warmer"],
+          "description" : "Limit the information returned the specific metrics."
         }
       },
       "params": {
-        "all": {
-          "type" : "boolean",
-          "description" : "Return all available information"
-        },
-        "clear": {
-          "type" : "boolean",
-          "description" : "Reset the default level of detail"
-        },
-        "completion": {
-          "type" : "boolean",
-          "description" : "Return information about completion suggester stats"
-        },
         "completion_fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields for `completion` metric (supports wildcards)"
-        },
-        "docs": {
-          "type" : "boolean",
-          "description" : "Return information about indexed and deleted documents"
-        },
-        "fielddata": {
-          "type" : "boolean",
-          "description" : "Return information about field data"
+          "description" : "A comma-separated list of fields for `fielddata` and `suggest` index metric (supports wildcards)"
         },
         "fielddata_fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
+          "description" : "A comma-separated list of fields for `fielddata` index metric (supports wildcards)"
         },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields for `fielddata` and `completion` metric (supports wildcards)"
-        },
-        "filter_cache": {
-          "type" : "boolean",
-          "description" : "Return information about filter cache"
-        },
-        "flush": {
-          "type" : "boolean",
-          "description" : "Return information about flush operations"
-        },
-        "get": {
-          "type" : "boolean",
-          "description" : "Return information about get operations"
+          "description" : "A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
         },
         "groups": {
           "type" : "boolean",
-          "description" : "A comma-separated list of search groups for `search` statistics"
+          "description" : "A comma-separated list of search groups for `search` index metric"
         },
-        "id_cache": {
-          "type" : "boolean",
-          "description" : "Return information about ID cache"
-        },
-        "ignore_unavailable": {
-            "type" : "boolean",
-            "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
-        },
-        "allow_no_indices": {
-            "type" : "boolean",
-            "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
-        },
-        "expand_wildcards": {
-            "type" : "enum",
-            "options" : ["open","closed"],
-            "default" : "open",
-            "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "indexing": {
-          "type" : "boolean",
-          "description" : "Return information about indexing operations"
-        },
-        "merge": {
-          "type" : "boolean",
-          "description" : "Return information about merge operations"
-        },
-        "refresh": {
-          "type" : "boolean",
-          "description" : "Return information about refresh operations"
-        },
-        "search": {
-          "type" : "boolean",
-          "description" : "Return information about search operations; use the `groups` parameter to include information for specific search groups"
-        },
-        "store": {
-          "type" : "boolean",
-          "description" : "Return information about the size of the index"
-        },
-        "warmer": {
-          "type" : "boolean",
-          "description" : "Return information about warmers"
+        "types" : {
+          "type" : "list",
+          "description" : "A comma-separated list of document types for the `indexing` index metric"
         }
-      }
     },
     "body": null
   }

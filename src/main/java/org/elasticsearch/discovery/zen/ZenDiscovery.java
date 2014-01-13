@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -62,7 +62,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -168,7 +167,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     protected void doStart() throws ElasticsearchException {
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        final String nodeId = getNodeUUID(settings);
+        final String nodeId = DiscoveryService.generateNodeId(settings);
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);
@@ -902,14 +901,4 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
     }
-
-    private final String getNodeUUID(Settings settings) {
-        String seed = settings.get("discovery.id.seed");
-        if (seed != null) {
-            logger.trace("using stable discover node UUIDs with seed: [{}]", seed);
-            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
-        }
-        return Strings.randomBase64UUID();
-    }
-
 }

@@ -492,6 +492,11 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public Map<String, Settings> getGroups(String settingPrefix) throws SettingsException {
+        return getGroups(settingPrefix, false);
+    }
+
+    @Override
+    public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }
@@ -503,6 +508,9 @@ public class ImmutableSettings implements Settings {
                 String nameValue = setting.substring(settingPrefix.length());
                 int dotIndex = nameValue.indexOf('.');
                 if (dotIndex == -1) {
+                    if (ignoreNonGrouped) {
+                        continue;
+                    }
                     throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting [" + setting + "] because of a missing '.'");
                 }
                 String name = nameValue.substring(0, dotIndex);

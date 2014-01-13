@@ -185,6 +185,10 @@ public final class TestCluster implements Iterable<Client> {
 
     }
 
+    public String getClusterName() {
+        return clusterName;
+    }
+
     private static boolean isLocalTransportConfigured() {
         if ("local".equals(System.getProperty("es.node.mode", "network"))) {
            return true;
@@ -360,7 +364,7 @@ public final class TestCluster implements Iterable<Client> {
         return "node_" + id;
     }
 
-    synchronized Client client() {
+    public synchronized Client client() {
         ensureOpen();
         /* Randomly return a client to one of the nodes in the cluster */
         return getOrBuildRandomNode().client(random);

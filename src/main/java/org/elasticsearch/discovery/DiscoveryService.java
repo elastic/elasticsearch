@@ -22,11 +22,13 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -60,17 +62,19 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         discovery.addListener(listener);
         try {
             discovery.start();
-            try {
-                logger.trace("waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
-                if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
-                    logger.trace("initial state set from discovery");
-                    initialStateReceived = true;
-                } else {
-                    initialStateReceived = false;
-                    logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
+            if (initialStateTimeout.millis() > 0) {
+                try {
+                    logger.trace("waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
+                    if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                        logger.trace("initial state set from discovery");
+                        initialStateReceived = true;
+                    } else {
+                        initialStateReceived = false;
+                        logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
+                    }
+                } catch (InterruptedException e) {
+                    // ignore
                 }
-            } catch (InterruptedException e) {
-                // ignore
             }
         } finally {
             discovery.removeListener(listener);
@@ -107,7 +111,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should not publish this state to the master as well! (the master is sending it...).
-     *
+     * <p/>
      * The {@link org.elasticsearch.discovery.Discovery.AckListener} allows to acknowledge the publish
      * event based on the response gotten from all nodes
      */
@@ -115,5 +119,13 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         if (lifecycle.started()) {
             discovery.publish(clusterState, ackListener);
         }
+    }
+
+    public static String generateNodeId(Settings settings) {
+        String seed = settings.get("discovery.id.seed");
+        if (seed != null) {
+            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
+        }
+        return Strings.randomBase64UUID();
     }
 }

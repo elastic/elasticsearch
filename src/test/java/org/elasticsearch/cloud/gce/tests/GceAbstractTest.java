@@ -20,28 +20,14 @@
 package org.elasticsearch.cloud.gce.tests;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cloud.gce.GceComputeService;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.transport.netty.NettyTransport;
-import org.junit.After;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
-import org.junit.Before;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+public abstract class GceAbstractTest extends ElasticsearchIntegrationTest {
 
-public abstract class GceAbstractTest {
-
-    private static List<Node> nodes;
     private Class<? extends GceComputeService> mock;
 
     public GceAbstractTest(Class<? extends GceComputeService> mock) {
@@ -49,63 +35,22 @@ public abstract class GceAbstractTest {
         this.mock = mock;
     }
 
-    @Before
-    public void setUp() {
-        nodes = new ArrayList<Node>();
-
-        File dataDir = new File("./target/es/data");
-        if(dataDir.exists()) {
-            FileSystemUtils.deleteRecursively(dataDir, true);
-        }
-    }
-
-    @After
-    public void tearDown() {
-        // Cleaning nodes after test
-        for (Node node : nodes) {
-            node.close();
-        }
-    }
-
-    protected Client getClient() {
-        // Create a TransportClient on node 1 and 2
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put("cluster.name", "gce").build();
-
-        TransportClient client = new TransportClient(settings);
-
-        for (Node node : nodes) {
-            NettyTransport nettyTransport = ((InternalNode) node).injector().getInstance(NettyTransport.class);
-            TransportAddress transportAddress = nettyTransport.boundAddress().publishAddress();
-            client.addTransportAddress(transportAddress);
-        }
-
-        return client;
-    }
-
     protected void checkNumberOfNodes(int expected) {
-        NodesInfoResponse nodeInfos = getClient().admin().cluster().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
         Assert.assertNotNull(nodeInfos.getNodes());
         Assert.assertEquals(expected, nodeInfos.getNodes().length);
     }
 
     protected void nodeBuilder(String filteredTags) {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
-                //.put("gateway.type", "local")
-                .put("path.data", "./target/es/data")
-                .put("path.logs", "./target/es/logs")
-                .put("path.work", "./target/es/work")
+        ImmutableSettings.Builder nodeSettings = ImmutableSettings.settingsBuilder()
                 .put("cloud.gce.api.impl", mock)
-                .put("cloud.gce.refresh_interval", "5s")
-                .put("node.name", (nodes.size()+1) + "#" + mock.getSimpleName());
+                .put("cloud.gce.refresh_interval", "5s");
         if (filteredTags != null) {
-            builder.put("discovery.gce.tags", filteredTags);
+            nodeSettings.put("discovery.gce.tags", filteredTags);
         } else {
-            builder.put("discovery.gce.tags", "");
+            nodeSettings.put("discovery.gce.tags", "");
         }
-
-        Node node = NodeBuilder.nodeBuilder().settings(builder).node();
-        nodes.add(node);
+        cluster().startNode(nodeSettings);
     }
 }

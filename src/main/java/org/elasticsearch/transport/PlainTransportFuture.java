@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchInterruptedException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
@@ -44,7 +44,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         try {
             return get();
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e.getCause();
@@ -61,7 +62,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         } catch (TimeoutException e) {
             throw new ElasticsearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e.getCause();

@@ -71,9 +71,13 @@ public class RestSpec {
         RestSpec restSpec = new RestSpec();
         for (String path : paths) {
             for (File jsonFile : FileUtils.findJsonSpec(optionalPathPrefix, path)) {
-                XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
-                RestApi restApi = new RestApiParser().parse(parser);
-                restSpec.addApi(restApi);
+                try {
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
+                    RestApi restApi = new RestApiParser().parse(parser);
+                    restSpec.addApi(restApi);
+                } catch (IOException ex) {
+                    throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
+                }
             }
         }
         return restSpec;

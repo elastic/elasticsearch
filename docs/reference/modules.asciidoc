@@ -17,7 +17,7 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
-include::modules/tribe_node.asciidoc[]
+include::modules/tribe.asciidoc[]
 
 include::modules/plugins.asciidoc[]
 

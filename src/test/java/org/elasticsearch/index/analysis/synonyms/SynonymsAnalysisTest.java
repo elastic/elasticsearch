@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -49,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SynonymsAnalysisTest {
+public class SynonymsAnalysisTest extends ElasticsearchTestCase {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
     private AnalysisService analysisService;

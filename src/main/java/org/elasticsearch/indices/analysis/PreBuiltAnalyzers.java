@@ -131,16 +131,22 @@ public enum PreBuiltAnalyzers {
         }
     },
 
-    PATTERN {
+    PATTERN(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
+            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
+                return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
+            }
             return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
-    STANDARD_HTML_STRIP {
+    STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
+            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
+                return new StandardHtmlStripAnalyzer(version.luceneVersion, CharArraySet.EMPTY_SET);
+            }
             return new StandardHtmlStripAnalyzer(version.luceneVersion);
         }
     },

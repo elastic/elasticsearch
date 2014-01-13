@@ -98,7 +98,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private int maxInputLength = Defaults.DEFAULT_MAX_INPUT_LENGTH;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
+            builder = this;
         }
 
         public Builder payloads(boolean payloads) {
@@ -299,6 +300,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         + "] at position " + i + " is a reserved character");
             }
         }
+
+        System.out.println(names.indexName());
         return new SuggestField(names.indexName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
     }
 

@@ -42,6 +42,8 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -52,7 +54,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
-
 
     @Override
     public Settings indexSettings() {
@@ -496,10 +497,10 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(3));
-        assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), equalTo(3));
-        assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().get(0).reason(), startsWith("primary shard is not allocated"));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), startsWith("Indices don't have primary shards"));
     }
 
     @Test

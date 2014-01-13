@@ -26,8 +26,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
@@ -38,34 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @Ignore
 public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest {
-
-
-    @After
-    public final void wipeAfter() {
-        wipeRepositories();
-    }
-
-    @Before
-    public final void wipeBefore() {
-        wipeRepositories();
-    }
-
-    /**
-     * Deletes repositories, supports wildcard notation.
-     */
-    public static void wipeRepositories(String... repositories) {
-        // if nothing is provided, delete all
-        if (repositories.length == 0) {
-            repositories = new String[]{"*"};
-        }
-        for (String repository : repositories) {
-            try {
-                client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
-            } catch (RepositoryMissingException ex) {
-                // ignore
-            }
-        }
-    }
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;

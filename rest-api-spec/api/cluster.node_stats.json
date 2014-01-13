@@ -7,25 +7,21 @@
       "paths": [
         "/_nodes/stats",
         "/_nodes/{node_id}/stats",
-        "/_nodes/stats/{metric_family}",
-        "/_nodes/{node_id}/stats/{metric_family}",
-        "/_nodes/stats/{metric_family}/{metric}",
-        "/_nodes/{node_id}/stats/{metric_family}/{metric}"
+        "/_nodes/stats/{metric}",
+        "/_nodes/{node_id}/stats/{metric}",
+        "/_nodes/stats/{metric}/{index_metric}",
+        "/_nodes/{node_id}/stats/{metric}/{index_metric}"
       ],
       "parts": {
-        "fields" : {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return detailed information for, when returning the `indices` metric family (supports wildcards)"
-        },
-        "metric_family" : {
-          "type" : "enum",
-          "options" : ["all","fs","http","indices","jvm","network","os","process","thread_pool","transport"],
-          "description" : "Limit the information returned to a certain metric family"
-        },
         "metric" : {
-          "type" : "enum",
-          "options" : ["completion","docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
-          "description" : "Limit the information returned for `indices` family to a specific metric. Isn't used if `indices` (or `all`) metric family isn't specified."
+          "type" : "list",
+          "options" : ["_all", "breaker", "fs", "http", "indices", "jvm", "network", "os", "process", "thread_pool", "transport"],
+          "description" : "Limit the information returned to the specified metrics"
+        },
+        "index_metric" : {
+          "type" : "list",
+          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "refresh", "search", "segments", "store", "warmer"],
+          "description" : "Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
         },
         "node_id": {
           "type" : "list",
@@ -33,9 +29,25 @@
         }
       },
       "params": {
+        "completion_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` and `suggest` index metric (supports wildcards)"
+        },
+        "fielddata_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` index metric (supports wildcards)"
+        },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
+          "description" : "A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
+        },
+        "groups": {
+          "type" : "boolean",
+          "description" : "A comma-separated list of search groups for `search` index metric"
+        },
+        "types" : {
+          "type" : "list",
+          "description" : "A comma-separated list of document types for the `indexing` index metric"
         }
       }
     },

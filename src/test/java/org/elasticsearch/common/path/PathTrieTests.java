@@ -122,6 +122,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
         assertThat(params.get("x"), equalTo("a"));
         assertThat(params.get("y"), equalTo("b"));
         assertThat(params.get("z"), equalTo("c"));
+        params.clear();
         assertThat(trie.retrieve("/a/_y/c", params), equalTo("test2"));
         assertThat(params.get("x"), equalTo("a"));
         assertThat(params.get("k"), equalTo("c"));

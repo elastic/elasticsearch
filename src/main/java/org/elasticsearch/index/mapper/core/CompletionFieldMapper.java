@@ -300,8 +300,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         + "] at position " + i + " is a reserved character");
             }
         }
-
-        System.out.println(names.indexName());
         return new SuggestField(names.indexName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
     }
 

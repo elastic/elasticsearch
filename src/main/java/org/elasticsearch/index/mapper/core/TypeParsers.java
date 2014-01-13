@@ -244,6 +244,9 @@ public class TypeParsers {
             Map<String, Object> multiFieldsPropNodes = (Map<String, Object>) propNode;
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
+                if (!(multiFieldEntry.getValue() instanceof Map)) {
+                    throw new MapperParsingException("Illegal field [" + multiFieldName + "], only fields can be specified inside fields");
+                }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
 

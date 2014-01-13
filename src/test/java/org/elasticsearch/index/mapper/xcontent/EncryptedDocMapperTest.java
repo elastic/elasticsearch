@@ -28,14 +28,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.*;
  * Note that we have converted /org/elasticsearch/index/mapper/xcontent/testContentLength.txt
  * to a /org/elasticsearch/index/mapper/xcontent/encrypted.pdf with password `12345678`.
  */
-public class EncryptedDocMapperTest {
+public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {
@@ -111,7 +111,7 @@ public class EncryptedDocMapperTest {
         assertThat(doc.getField(docMapper.mappers().smartName("file2.content_length").mapper().names().indexName()).numericValue().longValue(), is(344L));
     }
 
-    @Test(expectedExceptions = MapperParsingException.class)
+    @Test(expected = MapperParsingException.class)
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
         DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"),
                 ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(),

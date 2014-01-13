@@ -25,22 +25,21 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
  */
-@Test
-public class DateAttachmentMapperTests {
+public class DateAttachmentMapperTests extends ElasticsearchTestCase {
 
     private DocumentMapperParser mapperParser;
 
-    @BeforeClass
+    @Before
     public void setupMapperParser() {
         mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());

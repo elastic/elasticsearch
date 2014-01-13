@@ -26,25 +26,24 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-@Test
-public class SimpleAttachmentMapperTests {
+public class SimpleAttachmentMapperTests extends ElasticsearchTestCase {
 
     private DocumentMapperParser mapperParser;
 
-    @BeforeClass
+    @Before
     public void setupMapperParser() {
         mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());

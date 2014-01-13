@@ -29,20 +29,20 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/38
  */
-public class MetadataMapperTest {
+public class MetadataMapperTest extends ElasticsearchTestCase {
 
     protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
         DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null);
@@ -96,7 +96,7 @@ public class MetadataMapperTest {
         checkMeta("htmlWithoutDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, 300L);
     }
 
-    @Test(expectedExceptions = MapperParsingException.class)
+    @Test(expected = MapperParsingException.class)
     public void testWithEmptyDate() throws Exception {
         checkMeta("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
     }

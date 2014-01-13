@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Licensed to ElasticSearch under one or more contributor
+<!-- Licensed to Elasticsearch under one or more contributor
 license agreements. See the NOTICE file distributed with this work for additional
-information regarding copyright ownership. ElasticSearch licenses this file to you
+information regarding copyright ownership. Elasticsearch licenses this file to you
 under the Apache License, Version 2.0 (the "License"); you may not use this
 file except in compliance with the License. You may obtain a copy of the
 License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by
@@ -47,12 +47,25 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <elasticsearch.version>0.90.3</elasticsearch.version>
+        <elasticsearch.version>0.90.10</elasticsearch.version>
         <google.gce.version>v1beta15-rev3-1.15.0-rc</google.gce.version>
         <google.api.version>1.15.0-rc</google.api.version>
+        <lucene.version>4.6.0</lucene.version>
+        <tests.jvms>1</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
+        <tests.client.ratio></tests.client.ratio>
+        <es.logger.level>INFO</es.logger.level>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Elasticsearch -->
         <dependency>
             <groupId>org.elasticsearch</groupId>
@@ -90,9 +103,10 @@ governing permissions and limitations under the License. -->
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.11</version>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>test-jar</type>
             <scope>test</scope>
         </dependency>
 

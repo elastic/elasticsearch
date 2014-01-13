@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ElasticsearchInterruptedException;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.BlockingQueue;
@@ -44,7 +43,8 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
                 try {
                     ((SizeBlockingQueue) queue).forcePut(r);
                 } catch (InterruptedException e) {
-                    throw new ElasticsearchInterruptedException(e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                    throw new ElasticsearchIllegalStateException("forced execution, but got interrupted", e);
                 }
                 return;
             }

@@ -34,9 +34,9 @@ import java.util.concurrent.TimeUnit;
 public interface ActionFuture<T> extends Future<T> {
 
     /**
-     * Similar to {@link #get()}, just wrapping the {@link InterruptedException} with
-     * {@link org.elasticsearch.ElasticsearchInterruptedException}, and throwing the actual
-     * cause of the {@link java.util.concurrent.ExecutionException}.
+     * Similar to {@link #get()}, just catching the {@link InterruptedException} with
+     * restoring the interrupted state on the thread and throwing an {@link org.elasticsearch.ElasticsearchIllegalStateException},
+     * and throwing the actual cause of the {@link java.util.concurrent.ExecutionException}.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
@@ -45,9 +45,9 @@ public interface ActionFuture<T> extends Future<T> {
     T actionGet() throws ElasticsearchException;
 
     /**
-     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
-     * {@link org.elasticsearch.ElasticsearchInterruptedException}, and throwing the actual
-     * cause of the {@link java.util.concurrent.ExecutionException}.
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} with
+     * restoring the interrupted state on the thread and throwing an {@link org.elasticsearch.ElasticsearchIllegalStateException},
+     * and throwing the actual cause of the {@link java.util.concurrent.ExecutionException}.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
@@ -56,9 +56,9 @@ public interface ActionFuture<T> extends Future<T> {
     T actionGet(String timeout) throws ElasticsearchException;
 
     /**
-     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
-     * {@link org.elasticsearch.ElasticsearchInterruptedException}, and throwing the actual
-     * cause of the {@link java.util.concurrent.ExecutionException}.
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} with
+     * restoring the interrupted state on the thread and throwing an {@link org.elasticsearch.ElasticsearchIllegalStateException},
+     * and throwing the actual cause of the {@link java.util.concurrent.ExecutionException}.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
@@ -69,9 +69,9 @@ public interface ActionFuture<T> extends Future<T> {
     T actionGet(long timeoutMillis) throws ElasticsearchException;
 
     /**
-     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
-     * {@link org.elasticsearch.ElasticsearchInterruptedException}, and throwing the actual
-     * cause of the {@link java.util.concurrent.ExecutionException}.
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} with
+     * restoring the interrupted state on the thread and throwing an {@link org.elasticsearch.ElasticsearchIllegalStateException},
+     * and throwing the actual cause of the {@link java.util.concurrent.ExecutionException}.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
@@ -80,9 +80,9 @@ public interface ActionFuture<T> extends Future<T> {
     T actionGet(long timeout, TimeUnit unit) throws ElasticsearchException;
 
     /**
-     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
-     * {@link org.elasticsearch.ElasticsearchInterruptedException}, and throwing the actual
-     * cause of the {@link java.util.concurrent.ExecutionException}.
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} with
+     * restoring the interrupted state on the thread and throwing an {@link org.elasticsearch.ElasticsearchIllegalStateException},
+     * and throwing the actual cause of the {@link java.util.concurrent.ExecutionException}.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is

@@ -49,14 +49,6 @@ index :
         stopwords : [test1, test2, test3]
 --------------------------------------------------
 
-[[analyzers-stopwords]]
-=== Stopwords
-
-The `stopwords` parameter can be used to provide a custom set of stopwords. As
-certain analyzers use a default list of stopwords while others don't, please
-check out the individual analyzer sections. In case you want the analyzer to
-use no stopwords at all, simply provide `stopwords: _none_`
-
 Below is a list of the built in analyzers.
 
 include::analyzers/standard-analyzer.asciidoc[]

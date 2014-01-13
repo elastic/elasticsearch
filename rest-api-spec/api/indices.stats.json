@@ -38,6 +38,12 @@
           "type" : "boolean",
           "description" : "A comma-separated list of search groups for `search` index metric"
         },
+        "level": {
+          "type" : "enum",
+          "description": "Return stats aggregated at cluster, index or shard level",
+          "options" : ["cluster", "indices", "shards"],
+          "default" : "indices"
+        },
         "types" : {
           "type" : "list",
           "description" : "A comma-separated list of document types for the `indexing` index metric"

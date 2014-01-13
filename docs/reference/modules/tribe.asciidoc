@@ -1,0 +1,60 @@
+[[modules-tribe]]
+== Tribe node
+
+The _tribes_ feature allows a _tribe node_ to act as a federated client across
+multiple clusters.
+
+WARNING: This feature is EXPERIMENTAL -- use at your own risk.
+
+The tribe node works by retrieving the cluster state from all connected
+clusters and merging them into a global cluster state. With this information
+at hand, it is able to perform read and write operations against the nodes in
+all clusters as if they were local.
+
+The `elasticsearch.yml` config file for a tribe node just needs to list the
+clusters that should be joined, for instance:
+
+[source,yaml]
+--------------------------------
+tribe:
+    t1: <1>
+        cluster.name:   cluster_one
+    t2: <1>
+        cluster.name:   cluster_two
+--------------------------------
+<1> `t1` and `t2` are aribitrary names representing the connection to each
+    cluster.
+
+The example above configures connections to two clusters, name `t1` and `t2`
+respectively.  The tribe node will create a <<modules-node,node client>> to
+connect each cluster using <<multicast,multicast discovery>> by default. Any
+other settings for the connection can be configured under `tribe.{name}`, just
+like the `cluster.name` in the example.
+
+The merged global cluster state means that almost all operations work in the
+same way as a single cluster: distributed search, suggest, percolation,
+indexing, etc.
+
+However, there are a few exceptions:
+
+* The merged view cannot handle indices with the same name in multiple
+  clusters. It will pick one of them and discard the other.
+
+* Master level read operations (eg <<cluster-state>>, <<cluster-health>>)
+  need to have the `local` flag set to `true` as the tribe node does not
+  have a single master node.
+
+* Master level write operations (eg <<indices-create-index>>) are not
+  allowed. These should be performed on a single cluster.
+
+The tribe node can be configured to block all write operations and all
+metadata operations with:
+
+[source,yaml]
+--------------------------------
+tribe:
+    blocks:
+        write:    true
+        metadata: true
+--------------------------------
+

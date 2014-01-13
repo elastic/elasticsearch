@@ -22,6 +22,7 @@ package org.elasticsearch.tribe;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchInterruptedException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -161,24 +162,47 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            // ignore
+            throw new ElasticsearchInterruptedException(e.getMessage(), e);
         }
         for (InternalNode node : nodes) {
-            node.start();
+            try {
+                node.start();
+            } catch (Throwable e) {
+                // calling close is safe for non started nodes, we can just iterate over all
+                for (InternalNode otherNode : nodes) {
+                    try {
+                        otherNode.close();
+                    } catch (Throwable t) {
+                        logger.warn("failed to close node {} on failed start", otherNode, t);
+                    }
+                }
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
+                throw new ElasticsearchException(e.getMessage(), e);
+            }
         }
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
         for (InternalNode node : nodes) {
-            node.stop();
+            try {
+                node.stop();
+            } catch (Throwable t) {
+                logger.warn("failed to stop node {}", t, node);
+            }
         }
     }
 
     @Override
     protected void doClose() throws ElasticsearchException {
         for (InternalNode node : nodes) {
-            node.close();
+            try {
+                node.close();
+            } catch (Throwable t) {
+                logger.warn("failed to close node {}", t, node);
+            }
         }
     }
 

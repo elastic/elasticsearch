@@ -51,6 +51,9 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      */
     void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
 
+    /**
+     * Remove an initial block to be set on the first cluster state created.
+     */
     void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
 
     /**

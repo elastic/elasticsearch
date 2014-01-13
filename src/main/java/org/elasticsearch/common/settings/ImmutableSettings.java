@@ -497,6 +497,9 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
+        if (!Strings.hasLength(settingPrefix)) {
+            throw new ElasticsearchIllegalArgumentException("illegal setting prefix " + settingPrefix);
+        }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }

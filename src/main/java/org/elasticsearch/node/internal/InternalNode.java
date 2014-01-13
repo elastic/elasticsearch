@@ -142,6 +142,7 @@ public final class InternalNode implements Node {
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();
+        // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings());
 
         CompressorFactory.configure(settings);

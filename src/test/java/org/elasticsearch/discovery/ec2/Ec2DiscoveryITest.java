@@ -20,22 +20,31 @@
 package org.elasticsearch.discovery.ec2;
 
 
-import org.elasticsearch.node.NodeBuilder;
-import org.junit.Ignore;
+import org.elasticsearch.cloud.aws.AbstractAwsTest;
+import org.elasticsearch.cloud.aws.AbstractAwsTest.AwsTest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
  * Just an empty Node Start test to check eveything if fine when
  * starting.
- * This test is marked as ignored.
- * If you want to run your own test, please modify first test/resources/elasticsearch.yml file
- * with your own AWS credentials
+ * This test requires AWS to run.
  */
-public class Ec2DiscoveryITest {
+@AwsTest
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
+public class Ec2DiscoveryITest extends AbstractAwsTest {
 
-    @Test @Ignore
+    @Test
     public void testStart() {
-        NodeBuilder.nodeBuilder().node();
+        Settings nodeSettings = settingsBuilder()
+                .put("cloud.enabled", true)
+                .put("discovery.type", "ec2")
+                .build();
+        cluster().startNode(nodeSettings);
     }
 
 }

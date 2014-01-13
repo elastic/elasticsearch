@@ -1,88 +1,23 @@
-Mapper Attachments Type for ElasticSearch
+Mapper Attachments Type for Elasticsearch
 =========================================
 
-The mapper attachments plugin adds the `attachment` type to ElasticSearch using [Apache Tika](http://lucene.apache.org/tika/).
+The mapper attachments plugin adds the `attachment` type to Elasticsearch using [Apache Tika](http://lucene.apache.org/tika/).
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/1.9.0`.
 
-<table>
-	<thead>
-		<tr>
-			<td>Attachment Mapper Plugin</td>
-			<td>ElasticSearch</td>
-			<td>Tika</td>
-			<td>Release date</td>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>1.10.0-SNAPSHOT (master)</td>
-			<td>0.90.3 -> master</td>
-			<td>1.4</td>
-			<td></td>
-		</tr>
-        <tr>
-			<td>1.9.0</td>
-			<td>0.90.3 -> master</td>
-			<td>1.4</td>
-			<td>20/08/2013</td>
-		</tr>
-		<tr>
-			<td>1.8.0</td>
-			<td>0.90.3 -> master</td>
-			<td>1.2</td>
-			<td>07/08/2013</td>
-		</tr>
-		<tr>
-			<td>1.7.0</td>
-			<td>0.90 -> 0.90.2</td>
-			<td>1.2</td>
-			<td>26/02/2013</td>
-		</tr>
-		<tr>
-			<td>1.6.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>1.2</td>
-			<td>28/09/2012</td>
-		</tr>
-		<tr>
-			<td>1.5.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>1.2</td>
-			<td>19/09/2012</td>
-		</tr>
-		<tr>
-			<td>1.4.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>1.1</td>
-			<td>25/03/2012</td>
-		</tr>
-		<tr>
-			<td>1.3.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>1.0</td>
-			<td>07/03/2012</td>
-		</tr>
-		<tr>
-			<td>1.2.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>1.0</td>
-			<td>15/02/2012</td>
-		</tr>
-		<tr>
-			<td>1.1.0</td>
-			<td>0.19 -> 0.20</td>
-			<td>0.10</td>
-			<td>07/02/2012</td>
-		</tr>
-		<tr>
-			<td>1.0.0</td>
-			<td>0.18</td>
-			<td>0.10</td>
-			<td>05/12/2011</td>
-		</tr>
-	</tbody>
-</table>
+|   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
+|-----------------------------|-----------------------|--------|:------------:|
+| 1.10.0-SNAPSHOT (master)    | 0.90.3 -> 0.90        |  1.4   |              |
+| 1.9.0                       | 0.90.3 -> 0.90        |  1.4   |  2013-08-20  |
+| 1.8.0                       | 0.90.3 -> 0.90        |  1.2   |  2013-08-07  |
+| 1.7.0                       | 0.90.0 -> 0.90.2      |  1.2   |  2013-02-26  |
+| 1.6.0                       | 0.19 -> 0.20          |  1.2   |  2012-09-28  |
+| 1.5.0                       | 0.19 -> 0.20          |  1.2   |  2012-09-19  |
+| 1.4.0                       | 0.19 -> 0.20          |  1.1   |  2012-03-25  |
+| 1.3.0                       | 0.19 -> 0.20          |  1.0   |  2012-03-07  |
+| 1.2.0                       | 0.19 -> 0.20          |  1.0   |  2012-02-15  |
+| 1.1.0                       | 0.19 -> 0.20          |  1.0   |  2012-02-07  |
+| 1.0.0                       | 0.18                  |  0.10  |  2011-12-05  |
 
 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
@@ -181,7 +116,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

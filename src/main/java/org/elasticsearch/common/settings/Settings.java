@@ -110,6 +110,11 @@ public interface Settings extends ToXContent {
     Map<String, Settings> getGroups(String settingPrefix) throws SettingsException;
 
     /**
+     * Returns group settings for the given setting prefix.
+     */
+    Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException;
+
+    /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */

@@ -35,10 +35,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
+import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
@@ -47,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.Builder;
@@ -77,8 +73,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
-
-    private static final AtomicLong nodeIdGenerator = new AtomicLong();
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
@@ -112,7 +106,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-            this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(),
+            this.localNode = new DiscoveryNode(settings.get("name"), DiscoveryService.generateNodeId(settings), transportService.boundAddress().publishAddress(),
                     discoveryNodeService.buildAttributes(), version);
 
             clusterGroup.members().add(this);

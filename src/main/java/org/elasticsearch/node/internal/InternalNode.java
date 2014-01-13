@@ -93,6 +93,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.tribe.TribeModule;
+import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -122,6 +124,7 @@ public final class InternalNode implements Node {
 
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
+        tuple = new Tuple<Settings, Environment>(TribeService.processSettings(tuple.v1()), tuple.v2());
 
         Version version = Version.CURRENT;
 
@@ -139,7 +142,7 @@ public final class InternalNode implements Node {
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();
-        this.environment = tuple.v2();
+        this.environment = new Environment(this.settings());
 
         CompressorFactory.configure(settings);
 
@@ -178,6 +181,7 @@ public final class InternalNode implements Node {
         modules.add(new PercolatorModule());
         modules.add(new ResourceWatcherModule());
         modules.add(new RepositoriesModule());
+        modules.add(new TribeModule());
 
         injector = modules.createInjector();
 
@@ -232,6 +236,7 @@ public final class InternalNode implements Node {
         }
         injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
+        injector.getInstance(TribeService.class).start();
 
         logger.info("started");
 
@@ -246,6 +251,7 @@ public final class InternalNode implements Node {
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("stopping ...");
 
+        injector.getInstance(TribeService.class).stop();
         injector.getInstance(BulkUdpService.class).stop();
         injector.getInstance(ResourceWatcherService.class).stop();
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -296,7 +302,9 @@ public final class InternalNode implements Node {
         logger.info("closing ...");
 
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("bulk.udp");
+        stopWatch.start("tribe");
+        injector.getInstance(TribeService.class).close();
+        stopWatch.stop().start("bulk.udp");
         injector.getInstance(BulkUdpService.class).close();
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {

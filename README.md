@@ -1,111 +1,31 @@
-AWS Cloud Plugin for ElasticSearch
+AWS Cloud Plugin for Elasticsearch
 ==================================
 
 The AWS Cloud plugin allows to use AWS EC2 API for the unicast discovery mechanism as well as using S3 as a shared gateway.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.16.0`.
 
-<table>
-	<thead>
-		<tr>
-			<td>AWS Cloud Plugin</td>
-			<td>Elasticsearch</td>
-			<td>Release date</td>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>1.17.0-SNAPSHOT (master)</td>
-			<td>0.90.4 -> master</td>
-			<td></td>
-		</tr>
-		<tr>
-			<td>1.16.0</td>
-			<td>0.90.4 -> master</td>
-			<td>2013-11-26</td>
-		</tr>
-		<tr>
-			<td>1.15.0</td>
-			<td>0.90.4 -> master</td>
-			<td>2013-09-16</td>
-		</tr>
-		<tr>
-			<td>1.14.0</td>
-			<td>0.90.3</td>
-			<td>2013-08-09</td>
-		</tr>
-		<tr>
-			<td>1.13.0</td>
-			<td>broken</td>
-			<td>2013-08-09</td>
-		</tr>
-		<tr>
-			<td>1.12.0</td>
-			<td>0.90 -> 0.90.2</td>
-			<td>2013-05-31</td>
-		</tr>
-		<tr>
-			<td>1.11.0</td>
-			<td>0.90 -> 0.90.2</td>
-            <td>2013-02-26</td>
-		</tr>
-		<tr>
-			<td>1.10.0</td>
-			<td>0.19</td>
-            <td>2012-12-05</td>
-		</tr>
-		<tr>
-			<td>1.9.0</td>
-			<td>0.19</td>
-            <td>2012-08-25</td>
-		</tr>
-		<tr>
-			<td>1.8.0</td>
-			<td>0.19</td>
-            <td>2012-06-27</td>
-		</tr>
-		<tr>
-			<td>1.7.0</td>
-			<td>0.19</td>
-            <td>2012-06-20</td>
-		</tr>
-		<tr>
-			<td>1.6.0</td>
-			<td>0.19</td>
-            <td>2012-06-01</td>
-		</tr>
-		<tr>
-			<td>1.5.0</td>
-			<td>0.19</td>
-            <td>2012-03-07</td>
-		</tr>
-		<tr>
-			<td>1.4.0</td>
-			<td>0.19</td>
-            <td>2012-03-03</td>
-		</tr>
-		<tr>
-			<td>1.3.0</td>
-			<td>0.19</td>
-            <td>2012-02-07</td>
-		</tr>
-		<tr>
-			<td>1.2.0</td>
-			<td>0.18</td>
-            <td>2012-01-02</td>
-		</tr>
-		<tr>
-			<td>1.1.0</td>
-			<td>0.18</td>
-            <td>2012-01-02</td>
-		</tr>
-		<tr>
-			<td>1.0.0</td>
-			<td>0.18</td>
-            <td>2011-12-05</td>
-		</tr>
-	</tbody>
-</table>
+|      AWS Cloud Plugin      |    elasticsearch    | Release date |
+|----------------------------|---------------------|:------------:|
+| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |              |
+| 1.17.0-SNAPSHOT (1.x)      | 0.90.4 -> 0.90      |              |
+| 1.16.0                     | 0.90.4 -> 0.90      |  2013-11-26  |
+| 1.15.0                     | 0.90.4 -> 0.90      |  2013-09-16  |
+| 1.14.0                     | 0.90.3              |  2013-08-09  |
+| 1.13.0                     | broken              |  2013-08-09  |
+| 1.12.0                     | 0.90 -> 0.90.2      |  2013-05-31  |
+| 1.11.0                     | 0.90 -> 0.90.2      |  2013-02-26  |
+| 1.10.0                     | 0.19                |  2012-12-05  |
+| 1.9.0                      | 0.19                |  2012-08-25  |
+| 1.8.0                      | 0.19                |  2012-06-27  |
+| 1.7.0                      | 0.19                |  2012-06-20  |
+| 1.6.0                      | 0.19                |  2012-06-01  |
+| 1.5.0                      | 0.19                |  2012-03-07  |
+| 1.4.0                      | 0.19                |  2012-03-03  |
+| 1.3.0                      | 0.19                |  2012-02-07  |
+| 1.2.0                      | 0.18                |  2012-01-02  |
+| 1.1.0                      | 0.18                |  2012-01-02  |
+| 1.0.0                      | 0.18                |  2011-12-05  |
 
 ## Generic Configuration
 
@@ -184,7 +104,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

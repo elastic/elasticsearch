@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway.s3;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
 import org.elasticsearch.cluster.ClusterName;
@@ -53,7 +53,7 @@ public class S3Gateway extends BlobStoreGateway {
 
         String bucket = componentSettings.get("bucket");
         if (bucket == null) {
-            throw new ElasticSearchIllegalArgumentException("No bucket defined for s3 gateway");
+            throw new ElasticsearchIllegalArgumentException("No bucket defined for s3 gateway");
         }
 
         String region = componentSettings.get("region");
@@ -98,7 +98,7 @@ public class S3Gateway extends BlobStoreGateway {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         super.doClose();
         concurrentStreamPool.shutdown();
     }

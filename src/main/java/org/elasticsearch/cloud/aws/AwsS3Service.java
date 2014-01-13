@@ -25,8 +25,8 @@ import com.amazonaws.auth.*;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +58,7 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
         } else if ("https".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTPS);
         } else {
-            throw new ElasticSearchIllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
+            throw new ElasticsearchIllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
         String account = componentSettings.get("access_key", settings.get("cloud.account"));
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
@@ -70,7 +70,7 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
             try {
                 proxyPort = Integer.parseInt(portString, 10);
             } catch (NumberFormatException ex) {
-                throw new ElasticSearchIllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
+                throw new ElasticsearchIllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
             }
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
@@ -126,7 +126,7 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
             } else if ("sa-east-1".equals(region)) {
                 endpoint = "s3-sa-east-1.amazonaws.com";
             } else {
-                throw new ElasticSearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
+                throw new ElasticsearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }
             if (endpoint != null) {
                 logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
@@ -138,15 +138,15 @@ public class AwsS3Service extends AbstractLifecycleComponent<AwsS3Service> {
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         if (client != null) {
             client.shutdown();
         }

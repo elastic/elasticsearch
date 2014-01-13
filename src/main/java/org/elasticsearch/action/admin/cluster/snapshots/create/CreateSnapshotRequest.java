@@ -45,6 +45,7 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -69,6 +70,8 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     private String[] indices = EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strict();
+
+    private boolean partial = false;
 
     private Settings settings = EMPTY_SETTINGS;
 
@@ -187,7 +190,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     }
 
     /**
-     * Retuns a list of indices that should be included into the snapshot
+     * Returns a list of indices that should be included into the snapshot
      *
      * @return list of indices
      */
@@ -212,6 +215,27 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      */
     public CreateSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+
+    /**
+     * Returns true if indices with unavailable shards should be be partially snapshotted.
+     *
+     * @return the desired behaviour regarding indices options
+     */
+    public boolean partial() {
+        return partial;
+    }
+
+    /**
+     * Set to true to allow indices with unavailable shards to be partially snapshotted.
+     *
+     * @param partial true if indices with unavailable shards should be be partially snapshotted.
+     * @return this request
+     */
+    public CreateSnapshotRequest partial(boolean partial) {
+        this.partial = partial;
         return this;
     }
 
@@ -315,6 +339,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
 
     /**
      * Returns true if global state should be stored as part of the snapshot
+     *
      * @return true if global state should be stored as part of the snapshot
      */
     public boolean includeGlobalState() {
@@ -353,17 +378,15 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                     throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                assert entry.getValue() instanceof String;
-                ignoreUnavailable = Boolean.valueOf(entry.getValue().toString());
+                ignoreUnavailable = nodeBooleanValue(entry.getValue());
             } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                assert entry.getValue() instanceof String;
-                allowNoIndices = Boolean.valueOf(entry.getValue().toString());
+                allowNoIndices = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                assert entry.getValue() instanceof String;
-                expandWildcardsOpen = Boolean.valueOf(entry.getValue().toString());
+                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                assert entry.getValue() instanceof String;
-                expandWildcardsClosed = Boolean.valueOf(entry.getValue().toString());
+                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
+            } else if (name.equals("partial")) {
+                partial(nodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticsearchIllegalArgumentException("malformed settings section, should indices an inner object");
@@ -450,6 +473,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         settings = readSettingsFromStream(in);
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
+        partial = in.readBoolean();
     }
 
     @Override
@@ -462,5 +486,6 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         writeSettingsToStream(settings, out);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
+        out.writeBoolean(partial);
     }
 }

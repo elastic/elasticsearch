@@ -80,3 +80,4 @@ setup:
   - do:
       search:
         index: test_index3
+

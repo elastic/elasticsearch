@@ -112,6 +112,22 @@ public class PathTrieTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testSamePathConcreteResolution() {
+        PathTrie<String> trie = new PathTrie<String>();
+        trie.insert("{x}/{y}/{z}", "test1");
+        trie.insert("{x}/_y/{k}", "test2");
+
+        Map<String, String> params = newHashMap();
+        assertThat(trie.retrieve("/a/b/c", params), equalTo("test1"));
+        assertThat(params.get("x"), equalTo("a"));
+        assertThat(params.get("y"), equalTo("b"));
+        assertThat(params.get("z"), equalTo("c"));
+        assertThat(trie.retrieve("/a/_y/c", params), equalTo("test2"));
+        assertThat(params.get("x"), equalTo("a"));
+        assertThat(params.get("k"), equalTo("c"));
+    }
+
+    @Test
     public void testNamedWildcardAndLookupWithWildcard() {
         PathTrie<String> trie = new PathTrie<String>();
         trie.insert("x/{test}", "test1");

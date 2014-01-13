@@ -44,6 +44,7 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -397,17 +398,13 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                     throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                assert entry.getValue() instanceof String;
-                ignoreUnavailable = Boolean.valueOf(entry.getValue().toString());
+                ignoreUnavailable = nodeBooleanValue(entry.getValue());
             } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                assert entry.getValue() instanceof String;
-                allowNoIndices = Boolean.valueOf(entry.getValue().toString());
+                allowNoIndices = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                assert entry.getValue() instanceof String;
-                expandWildcardsOpen = Boolean.valueOf(entry.getValue().toString());
+                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                assert entry.getValue() instanceof String;
-                expandWildcardsClosed = Boolean.valueOf(entry.getValue().toString());
+                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticsearchIllegalArgumentException("malformed settings section, should indices an inner object");

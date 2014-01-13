@@ -101,7 +101,8 @@ supports <<search-multi-index-type,multi index syntax>>. The snapshot request al
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exists to be ignored during snapshot
 creation. By default, when `ignore_unavailable` option is not set and an index is missing the snapshot request will fail.
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
-the snapshot.
+the snapshot. By default, entire snapshot will fail if one or more indices participating in the snapshot don't have
+all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or

@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;

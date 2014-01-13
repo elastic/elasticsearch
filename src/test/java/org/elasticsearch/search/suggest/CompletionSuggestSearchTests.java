@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -28,10 +29,8 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +57,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -404,6 +402,58 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(FIELD)
                 .field("type", "multi_field")
                 .field("path", "just_name")
+                .startObject("fields")
+                .startObject(FIELD).field("type", "string").endObject()
+                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject()
+                .endObject())
+                .get();
+        assertThat(putMappingResponse.isAcknowledged(), is(true));
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, "suggs");
+
+        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+        ).execute().actionGet();
+        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
+    }
+
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "path_type issue")
+    // If the path_type is set to `just_name` and the multi field is updated (for example another multi field is added)
+    // then if the path isn't specified again the path_type isn't taken into account and full path names are generated.
+    public void testThatUpgradeToMultiFieldWorks_pathMergeIssue() throws Exception {
+        Settings.Builder settingsBuilder = createDefaultSettings();
+        final XContentBuilder mapping = jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "multi_field")
+                .field("path", "just_name")
+                .startObject("fields")
+                .startObject(FIELD).field("type", "string").endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
+        ensureYellow();
+        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "multi_field")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
                 .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()

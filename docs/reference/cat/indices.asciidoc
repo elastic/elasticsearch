@@ -7,14 +7,22 @@ information *spans nodes*.
 [source,shell]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices/twi*?v'
-health index    pri rep docs docs/del size/pri size/total
-green  twitter    2   0  627        7      2mb        2mb
-green  twitter2   2   0  628        0    2.5mb      2.5mb
+health index    pri rep docs.count docs.deleted store.size pri.store.size
+green  twitter    5   1      11434            0       64mb           32mb
+green  twitter2   2   0       2030            0      5.8mb          5.8mb
 --------------------------------------------------
 
 We can tell quickly how many shards make up an index, the number of
 docs, deleted docs, primary store size, and total store size (all
 shards including replicas).
+
+[float]
+[[pri-flag]]
+=== Primaries
+
+The index stats by default will show them for all of an index's
+shards, including replicas.  A `pri` flag can be supplied to enable
+the view of relevant stats in the context of only the primaries.
 
 [float]
 [[examples]]
@@ -25,7 +33,8 @@ Which indices are yellow?
 [source,shell]
 --------------------------------------------------
 % curl localhost:9200/_cat/indices | grep ^yell
-yellow foo          5 1   4 0    17kb    17kb
+yellow wiki     2 1  6401 1115 151.4mb 151.4mb
+yellow twitter  5 1 11434    0    32mb    32mb
 --------------------------------------------------
 
 What's my largest index by disk usage not including replicas?
@@ -33,7 +42,16 @@ What's my largest index by disk usage not including replicas?
 [source,shell]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk7
-green  twitter      2 0 627 7 2123797 2123797
-green  wiki         2 0  59 0  575904  575904
-yellow foo          5 1   4 0   17447   17447
+green wiki     2 0  6401 1115 158843725 158843725
+green twitter  5 1 11434    0  67155614  33577857
+green twitter2 2 0  2030    0   6125085   6125085
+--------------------------------------------------
+
+How many merge operations have the shards for the `wiki` completed?
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/indices/wiki?pri&v&h=health,index,prirep,docs.count,mt'
+health index docs.count mt pri.mt
+green  wiki        9646 16     16
 --------------------------------------------------

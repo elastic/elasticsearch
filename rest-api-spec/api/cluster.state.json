@@ -21,12 +21,6 @@
         }
       },
       "params": {
-        "level": {
-          "type" : "enum",
-          "description": "Report cluster state at cluster, index or shard level",
-          "options" : ["cluster", "indices", "shards"],
-          "default" : "cluster"
-        },
         "local": {
           "type": "boolean",
           "description": "Return local information, do not retrieve the state from master node (default: false)"

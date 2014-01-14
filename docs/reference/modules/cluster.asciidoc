@@ -206,7 +206,8 @@ The `include`, `exclude` and `require` values can have generic simple
 matching wildcards, for example, `value1*`. A special attribute name
 called `_ip` can be used to match on node ip values. In addition `_host`
 attribute can be used to match on either the node's hostname or its ip
-address.
+address. Similarly `_name` and `_id` attributes can be used to match on
+node name and node id accordingly.
 
 Obviously a node can have several attributes associated with it, and
 both the attribute name and value are controlled in the setting. For

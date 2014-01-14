@@ -54,7 +54,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                             if (tripped.get()) {
                                 assertThat("tripped too many times", true, equalTo(false));
                             } else {
-                                assert tripped.compareAndSet(false, true);
+                                assertThat(tripped.compareAndSet(false, true), equalTo(true));
                             }
                         } catch (Throwable e2) {
                             lastException.set(e2);
@@ -86,7 +86,6 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
             breaker.addEstimateBytesAndMaybeBreak(3);
             fail("should never reach this");
         } catch (CircuitBreakingException cbe) {
-            assert true;
         }
 
         // shouldn't throw an exception
@@ -102,7 +101,6 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
             breaker.addEstimateBytesAndMaybeBreak(0);
             fail("should never reach this");
         } catch (CircuitBreakingException cbe) {
-            assert true;
         }
     }
 }

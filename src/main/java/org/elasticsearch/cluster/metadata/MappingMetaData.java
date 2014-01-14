@@ -529,9 +529,7 @@ public class MappingMetaData {
             out.writeBoolean(false);
         }
         out.writeString(mappingMd.timestamp().format());
-        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-            out.writeBoolean(mappingMd.hasParentField());
-        }
+        out.writeBoolean(mappingMd.hasParentField());
     }
 
     @Override
@@ -569,12 +567,7 @@ public class MappingMetaData {
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
         Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString());
-        final boolean hasParentField;
-        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-            hasParentField = in.readBoolean();
-        } else {
-            hasParentField = true; // We assume here that the type has a parent field, which is confirm with the behaviour of <= 0.90.5
-        }
+        final boolean hasParentField = in.readBoolean();
         return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
     }
 

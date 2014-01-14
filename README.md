@@ -7,7 +7,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |     Python Lang Plugin     |    elasticsearch    |  jython  |Release date |
 |----------------------------|---------------------|----------|:------------:|
-| 1.3.0-SNAPSHOT             | 0.90                |  2.5.2   |              |
+| 1.3.0-SNAPSHOT             | 0.90                |  2.5.3   |              |
 | 1.2.0                      | 0.90                |  2.5.2   |  2013-02-26  |
 | 1.1.0                      | 0.19 -> 0.20        |  2.5.2   |  2012-02-07  |
 | 1.0.0                      | 0.18                |  2.5.2   |  2011-12-05  |

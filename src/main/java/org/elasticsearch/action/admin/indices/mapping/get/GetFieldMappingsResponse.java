@@ -71,6 +71,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject("mappings");
             for (Map.Entry<String, ImmutableMap<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
                 builder.startObject(typeEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
@@ -80,6 +81,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
                 builder.endObject();
             }
+            builder.endObject();
             builder.endObject();
         }
         return builder;

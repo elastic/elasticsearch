@@ -43,9 +43,11 @@ import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.OrFilterBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TypeFilterBuilder;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -117,17 +119,20 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
             public void onResponse(FlushResponse flushResponse) {
   
                 // get all types that need to be deleted.
-                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = state.metaData().findMappings(
+                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = clusterService.state().metaData().findMappings(
                         request.indices(), request.types()
                 );
                 // create OrFilter with type filters within to account for different types
-                OrFilterBuilder filterBuilder = new OrFilterBuilder();
+                BoolFilterBuilder filterBuilder = new BoolFilterBuilder();
                 Set<String> types = new HashSet<String>();
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> typesMeta : result) {
                     for (ObjectObjectCursor<String, MappingMetaData> type : typesMeta.value) {
-                        filterBuilder.add(new TypeFilterBuilder(type.key));
+                        filterBuilder.should(new TypeFilterBuilder(type.key));
                         types.add(type.key);
                     }
+                }
+                if (types.size() == 0) {
+                    throw new TypeMissingException(new Index("_all"), request.types(), "No index has the type.");
                 }
                 request.types(types.toArray(new String[types.size()]));
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder()

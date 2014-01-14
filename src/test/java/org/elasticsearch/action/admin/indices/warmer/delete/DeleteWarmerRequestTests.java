@@ -33,29 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DeleteWarmerRequestTests extends ElasticsearchTestCase {
 
     @Test
-    public void testDeleteWarmerTimeoutBwComp_Pre0906Format() throws Exception {
-        DeleteWarmerRequest outRequest = new DeleteWarmerRequest("warmer1");
-        outRequest.timeout(TimeValue.timeValueMillis(1000));
-
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(Version.V_0_90_0);
-        outRequest.writeTo(out);
-
-        ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        esBuffer.setVersion(Version.V_0_90_0);
-        DeleteWarmerRequest inRequest = new DeleteWarmerRequest();
-        inRequest.readFrom(esBuffer);
-
-        assertThat(inRequest.names()[0], equalTo("warmer1"));
-        //timeout is default as we don't read it from the received buffer
-        assertThat(inRequest.timeout().millis(), equalTo(new DeleteWarmerRequest().timeout().millis()));
-
-    }
-
-    @Test
-    public void testDeleteWarmerTimeoutBwComp_Post0906Format() throws Exception {
+    public void testDeleteWarmerTimeout() throws Exception {
         DeleteWarmerRequest outRequest = new DeleteWarmerRequest("warmer1");
         outRequest.timeout(TimeValue.timeValueMillis(1000));
 

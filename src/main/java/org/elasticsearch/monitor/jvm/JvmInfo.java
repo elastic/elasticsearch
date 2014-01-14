@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -357,10 +356,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         }
         mem = new Mem();
         mem.readFrom(in);
-        if (in.getVersion().after(Version.V_0_90_9)) {
-            gcCollectors = in.readStringArray();
-            memoryPools = in.readStringArray();
-        }
+        gcCollectors = in.readStringArray();
+        memoryPools = in.readStringArray();
     }
 
     @Override
@@ -383,10 +380,8 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
             out.writeString(entry.getValue());
         }
         mem.writeTo(out);
-        if (out.getVersion().after(Version.V_0_90_9)) {
-            out.writeStringArray(gcCollectors);
-            out.writeStringArray(memoryPools);
-        }
+        out.writeStringArray(gcCollectors);
+        out.writeStringArray(memoryPools);
     }
 
     public static class Mem implements Streamable, Serializable {

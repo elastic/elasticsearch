@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
@@ -199,12 +198,7 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         }
 
         fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
-
-        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-            nowInMillis = in.readVLong();
-        } else {
-            nowInMillis = System.currentTimeMillis();
-        }
+        nowInMillis = in.readVLong();
     }
 
     @Override
@@ -224,9 +218,6 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         }
 
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
-
-        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-            out.writeVLong(nowInMillis);
-        }
+        out.writeVLong(nowInMillis);
     }
 }

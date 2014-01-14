@@ -21,13 +21,16 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
@@ -325,21 +328,32 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
-        // backwards compat test!
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        Version version = Version.CURRENT;
+        int iters = atLeast(10);
+        for (int i = 0; i < iters; i++) {
+            try {
+                // backwards compat test!
+                assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
+                        .setSettings(SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_VERSION_CREATED, version.id));
+                assertThat(version.onOrAfter(Version.V_1_0_0), equalTo(false));
+                indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+                        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
-        assertHitCount(searchResponse, 1l);
-        try {
-            client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
-            fail("SearchPhaseExecutionException should have been thrown");
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
+                assertHitCount(searchResponse, 1l);
+                try {
+                    client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
+                    fail("SearchPhaseExecutionException should have been thrown");
+                } catch (SearchPhaseExecutionException e) {
+                    assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                }
+                wipeIndices("test");
+            } catch (MapperParsingException ex) {
+                assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0), equalTo(true));
+                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
+            }
+            version = randomVersion();
         }
     }
 

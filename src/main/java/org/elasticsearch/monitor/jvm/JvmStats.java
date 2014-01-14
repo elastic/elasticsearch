@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -822,11 +821,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             heapUsed = in.readVLong();
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
-
-            if (in.getVersion().onOrAfter(Version.V_0_90_7)) {
-                heapMax = in.readVLong();
-            }
-
+            heapMax = in.readVLong();
             pools = new MemoryPool[in.readVInt()];
             for (int i = 0; i < pools.length; i++) {
                 pools[i] = MemoryPool.readMemoryPool(in);
@@ -839,11 +834,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             out.writeVLong(heapUsed);
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
-
-            if (out.getVersion().onOrAfter(Version.V_0_90_7)) {
-                out.writeVLong(heapMax);
-            }
-
+            out.writeVLong(heapMax);
             out.writeVInt(pools.length);
             for (MemoryPool pool : pools) {
                 pool.writeTo(out);

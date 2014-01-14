@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -127,7 +126,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
         indices = in.readStringArray();
         indicesOptions =  IndicesOptions.readIndicesOptions(in);
         types = in.readStringArray();
-        readTimeout(in, Version.V_0_90_6);
+        readTimeout(in);
     }
 
     @Override
@@ -136,6 +135,6 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArrayNullable(types);
-        writeTimeout(out, Version.V_0_90_6);
+        writeTimeout(out);
     }
 }

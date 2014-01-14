@@ -32,33 +32,11 @@ import java.io.ByteArrayOutputStream;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class PutWarmerRequestTests extends ElasticsearchTestCase {
 
     @Test
-    public void testPutWarmerTimeoutBwComp_Pre0906Format() throws Exception {
-        PutWarmerRequest outRequest = new PutWarmerRequest("warmer1");
-        outRequest.timeout(TimeValue.timeValueMillis(1000));
-
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(Version.V_0_90_0);
-        outRequest.writeTo(out);
-
-        ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        esBuffer.setVersion(Version.V_0_90_0);
-        PutWarmerRequest inRequest = new PutWarmerRequest();
-        inRequest.readFrom(esBuffer);
-
-        assertThat(inRequest.name(), equalTo("warmer1"));
-        //timeout is default as we don't read it from the received buffer
-        assertThat(inRequest.timeout().millis(), equalTo(new PutWarmerRequest().timeout().millis()));
-    }
-
-    @Test
-    public void testPutWarmerTimeoutBwComp_Post0906Format() throws Exception {
+    public void testPutWarmerTimeout() throws Exception {
         PutWarmerRequest outRequest = new PutWarmerRequest("warmer1");
         outRequest.timeout(TimeValue.timeValueMillis(1000));
 

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.script.python;
 
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.script.ExecutableScript;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.After;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,16 +32,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-@Test
-public class PythonScriptMultiThreadedTest {
+public class PythonScriptMultiThreadedTest extends ElasticsearchTestCase {
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    @After
+    public void close() {
+        // We need to clear some system properties
+        System.clearProperty("python.cachedir.skip");
+        System.clearProperty("python.console.encoding");
+    }
 
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {

@@ -5,3 +5,4 @@
 /target
 .DS_Store
 *.iml
+.local-execution-hints.log

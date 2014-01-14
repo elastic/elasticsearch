@@ -98,7 +98,7 @@ public class RestCountAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
+        table.addCell("epoch", "desc:seconds since 1970-01-01 00:00:00, that the count was executed");
         table.addCell("timestamp", "desc:time that the count was executed");
         table.addCell("count", "desc:the document count");
         table.endHeaders();
@@ -109,7 +109,7 @@ public class RestCountAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest request, CountResponse response) {
         Table table = getTableWithHeader(request);
-        long time = System.currentTimeMillis();
+        long time = System.currentTimeMillis() / 1000;
         table.startRow();
         table.addCell(time);
         table.addCell(dateFormat.print(time));

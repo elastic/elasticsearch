@@ -81,7 +81,7 @@ public class RestHealthAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
         t.startHeaders();
-        t.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
+        t.addCell("epoch", "desc:seconds since 1970-01-01 00:00:00, that the count was executed");
         t.addCell("timestamp", "desc:time that the count was executed");
         t.addCell("cluster", "desc:cluster name");
         t.addCell("status", "desc:health status");
@@ -100,7 +100,7 @@ public class RestHealthAction extends AbstractCatAction {
     private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
 
     private Table buildTable(final ClusterHealthResponse health, final RestRequest request) {
-        long time = System.currentTimeMillis();
+        long time = System.currentTimeMillis() / 1000;
         Table t = getTableWithHeader(request);
         t.startRow();
         t.addCell(time);

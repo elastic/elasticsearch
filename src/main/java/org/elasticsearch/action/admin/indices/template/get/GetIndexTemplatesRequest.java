@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -76,21 +75,12 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
-            names = in.readStringArray();
-        } else {
-            names = new String[1];
-            names[0] = in.readString();
-        }
+        names = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
-            out.writeStringArray(names);
-        } else {
-            out.writeString(names.length == 0 ? "*" : names[0]);
-        }
+        out.writeStringArray(names);
     }
 }

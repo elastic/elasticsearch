@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -152,11 +151,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache = IdCacheStats.readIdCacheStats(in);
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
-        if (in.getVersion().after(Version.V_1_0_0_RC1)) {
-            peroclate = PercolateStats.readPercolateStats(in);
-        } else {
-            peroclate = new PercolateStats();
-        }
+        peroclate = PercolateStats.readPercolateStats(in);
     }
 
     @Override
@@ -170,9 +165,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache.writeTo(out);
         completion.writeTo(out);
         segments.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_1_0_0_RC1)) {
-            peroclate.writeTo(out);
-        }
+        peroclate.writeTo(out);
     }
 
     public static ClusterStatsIndices readIndicesStats(StreamInput in) throws IOException {

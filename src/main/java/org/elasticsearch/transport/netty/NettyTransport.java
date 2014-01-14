@@ -114,6 +114,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     final String publishHost;
 
+    final int publishPort;
+
     final boolean compress;
 
     final TimeValue connectTimeout;
@@ -179,6 +181,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
         this.bindHost = componentSettings.get("bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
         this.publishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+        this.publishPort = componentSettings.getAsInt("publish_port", settings.getAsInt("transport.publish_port", 0));
         this.compress = settings.getAsBoolean(TransportSettings.TRANSPORT_TCP_COMPRESS, false);
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
@@ -381,8 +384,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
+        int publishPort = this.publishPort;
+        if (0 == publishPort) {
+            publishPort = boundAddress.getPort();
+        }
         try {
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }

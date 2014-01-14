@@ -23,32 +23,34 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ExecutableScript;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
  */
-@Test
-public class PythonScriptEngineTests {
+public class PythonScriptEngineTests extends ElasticsearchTestCase {
 
     private PythonScriptEngineService se;
 
-    @BeforeClass
+    @Before
     public void setup() {
         se = new PythonScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    @AfterClass
+    @After
     public void close() {
+        // We need to clear some system properties
+        System.clearProperty("python.cachedir.skip");
+        System.clearProperty("python.console.encoding");
         se.close();
     }
 
@@ -95,6 +97,7 @@ public class PythonScriptEngineTests {
 
     @Test
     public void testAccessListInScript() {
+
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();

@@ -27,9 +27,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -80,10 +82,10 @@ public class TransportGetSettingsAction extends TransportMasterNodeOperationActi
             }
 
             Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-            if (request.prefix() != null) {
+            if (!CollectionUtils.isEmpty(request.names())) {
                 ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    if (entry.getKey().startsWith(request.prefix())) {
+                    if (Regex.simpleMatch(request.names(), entry.getKey())) {
                         settingsBuilder.put(entry.getKey(), entry.getValue());
                     }
                 }

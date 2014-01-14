@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_mapping",
-      "paths": ["/_mapping", "/{index}/_mapping", "/{index}/{type}/_mapping"],
+      "paths": ["/_mapping", "/{index}/_mapping", "/_mapping/{type}", "/{index}/_mapping/{type}"],
       "parts": {
         "index": {
           "type" : "list",

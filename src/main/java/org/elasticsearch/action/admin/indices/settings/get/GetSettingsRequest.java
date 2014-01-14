@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -34,7 +35,7 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
-    private String prefix;
+    private String[] names = Strings.EMPTY_ARRAY;
 
     public GetSettingsRequest indices(String... indices) {
         this.indices = indices;
@@ -54,18 +55,22 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
         return indicesOptions;
     }
 
-    public String prefix() {
-        return prefix;
+    public String[] names() {
+        return names;
     }
 
-    public GetSettingsRequest prefix(String prefix) {
-        this.prefix = prefix;
+    public GetSettingsRequest names(String... names) {
+        this.names = names;
         return this;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (names == null) {
+            validationException = ValidateActions.addValidationError("names may not be null", validationException);
+        }
+        return validationException;
     }
 
     @Override
@@ -73,7 +78,7 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        prefix = in.readOptionalString();
+        names = in.readStringArray();
     }
 
     @Override
@@ -81,6 +86,6 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(prefix);
+        out.writeStringArray(names);
     }
 }

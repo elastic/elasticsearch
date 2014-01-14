@@ -49,6 +49,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     @Inject
     public RestGetAliasesAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
+        controller.registerHandler(GET, "/_alias/", this);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias", this);
@@ -56,7 +57,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
+        final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
@@ -68,7 +69,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
             public void onResponse(GetAliasesResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    if (response.getAliases().isEmpty()) {
+                    // empty body, if indices were specified but no aliases were
+                    if (indices.length > 0 && response.getAliases().isEmpty()) {
+                        channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
+                        return;
+                    } else if (response.getAliases().isEmpty()) {
                         String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
                         builder.startObject()
                                 .field("error", message)

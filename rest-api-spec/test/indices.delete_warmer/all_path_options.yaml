@@ -49,12 +49,7 @@ setup:
         name: test_warmer1
 
   - do:
-      catch: missing
-      indices.get_warmer:  { index: _all, name: 'test_warmer1' }
-
-  - do:
-      indices.get_warmer:  { index: _all, name: 'test_warmer2' }
-
+      indices.get_warmer:  {}
 
   - match: {test_index1.warmers.test_warmer2.source.query.match_all: {}}
   - match: {test_index2.warmers.test_warmer2.source.query.match_all: {}}
@@ -68,12 +63,7 @@ setup:
         name: test_warmer1
 
   - do:
-      catch: missing
-      indices.get_warmer:  { index: _all, name: 'test_warmer1' }
-
-  - do:
-      indices.get_warmer:  { index: _all, name: 'test_warmer2' }
-
+      indices.get_warmer:  {}
 
   - match: {test_index1.warmers.test_warmer2.source.query.match_all: {}}
   - match: {test_index2.warmers.test_warmer2.source.query.match_all: {}}
@@ -146,7 +136,7 @@ setup:
 ---
 "check delete with index list and _all warmers":
   - do:
-      indices.delete_warmer: 
+      indices.delete_warmer:
         index: "test_index1,test_index2"
         name: _all
 

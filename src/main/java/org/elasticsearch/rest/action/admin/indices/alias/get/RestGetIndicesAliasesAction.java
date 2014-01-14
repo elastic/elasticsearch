@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,6 +38,7 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -50,16 +52,19 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_aliases", this);
         controller.registerHandler(GET, "/{index}/_aliases", this);
+        controller.registerHandler(GET, "/{index}/_aliases/{name}", this);
+        controller.registerHandler(GET, "/_aliases/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .routingTable(false)
-                .nodes(false)
-                .indices(indices);
+                                .routingTable(false)
+                                .nodes(false)
+                                .indices(indices);
 
         clusterStateRequest.listenerThreaded(false);
 
@@ -71,20 +76,22 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
+                    final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
                     for (IndexMetaData indexMetaData : metaData) {
                         builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
                         builder.startObject("aliases");
-                        for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                            AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
-                        }
-                        builder.endObject();
 
+                        for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                            if (isAllAliasesRequested || Regex.simpleMatch(aliases, cursor.value.alias())) {
+                                AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
+                            }
+                        }
+
+                        builder.endObject();
                         builder.endObject();
                     }
 
                     builder.endObject();
-
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
@@ -101,4 +108,5 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
             }
         });
     }
+
 }

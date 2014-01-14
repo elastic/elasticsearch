@@ -54,8 +54,8 @@ public class GetSettingsRequestBuilder extends MasterNodeOperationRequestBuilder
         return this;
     }
 
-    public GetSettingsRequestBuilder setPrefix(String prefix) {
-        request.prefix(prefix);
+    public GetSettingsRequestBuilder setNames(String... names) {
+        request.names(names);
         return this;
     }
 

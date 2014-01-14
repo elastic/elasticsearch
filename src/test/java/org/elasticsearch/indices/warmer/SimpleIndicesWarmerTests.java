@@ -231,6 +231,36 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         assertThat(getWarmerRuns(), equalTo(warmerRunsAfterDisabling));
     }
 
+    @Test
+    public void gettingAllWarmersUsingAllAndWildcardsShouldWork() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
+                .execute().actionGet();
+        ensureGreen();
+
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+
+        PutWarmerResponse anotherPutWarmerResponse = client().admin().indices().preparePutWarmer("second_custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(anotherPutWarmerResponse.isAcknowledged(), equalTo(true));
+
+        GetWarmersResponse getWarmersResponse = client().admin().indices().prepareGetWarmers("*").addWarmers("*").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("_all").addWarmers("_all").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("t*").addWarmers("c*").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("test").addWarmers("custom_warmer", "second_custom_warmer").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+    }
+
     private long getWarmerRuns() {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setWarmer(true).execute().actionGet();
         return indicesStatsResponse.getIndex("test").getPrimaries().warmer.total();

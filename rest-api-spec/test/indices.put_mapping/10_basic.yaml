@@ -22,10 +22,10 @@
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.test_type.properties.text1.type:     string}
-  - match: {test_index.test_type.properties.text1.analyzer: whitespace}
-  - match: {test_index.test_type.properties.text2.type:     string}
-  - match: {test_index.test_type.properties.text2.analyzer: whitespace}
+  - match: {test_index.mappings.test_type.properties.text1.type:     string}
+  - match: {test_index.mappings.test_type.properties.text1.analyzer: whitespace}
+  - match: {test_index.mappings.test_type.properties.text2.type:     string}
+  - match: {test_index.mappings.test_type.properties.text2.analyzer: whitespace}
 
   - do:
       indices.put_mapping:
@@ -56,7 +56,7 @@
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.test_type.properties.text1.type:     string}
-  - match: {test_index.test_type.properties.text1.fields.text_raw.index: not_analyzed}
-  - match: {test_index.test_type.properties.text2.type:     string}
-  - match: {test_index.test_type.properties.text2.fields.text_raw.index: not_analyzed}
+  - match: {test_index.mappings.test_type.properties.text1.type:     string}
+  - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.index: not_analyzed}
+  - match: {test_index.mappings.test_type.properties.text2.type:     string}
+  - match: {test_index.mappings.test_type.properties.text2.fields.text_raw.index: not_analyzed}

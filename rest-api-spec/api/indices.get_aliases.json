@@ -4,11 +4,15 @@
     "methods": ["GET"],
     "url": {
       "path": "/_aliases",
-      "paths": ["/_aliases", "/{index}/_aliases"],
+      "paths": ["/_aliases", "/{index}/_aliases", "/{index}/_aliases/{name}", "/_aliases/{name}" ],
       "parts": {
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index names to filter aliases"
+        },
+        "name": {
+          "type" : "list",
+          "description" : "A comma-separated list of alias names to filter"
         }
       },
       "params": {

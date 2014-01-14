@@ -1,32 +1,167 @@
 ---
-"Test get indices settings":
+setup:
   - do:
-      indices.create:
-        index: test-index
-        body:
-          settings:
-            index:
-              refresh_interval: -1
-              number_of_shards: 2
-              number_of_replicas: 3
-
+        indices.create:
+          index: test_1
   - do:
-      indices.get_settings:
-        index: test-index
+        indices.create:
+          index: test_2
 
-  - match:
-      test-index.settings.index.number_of_replicas: "3"
-  - match:
-      test-index.settings.index.number_of_shards: "2"
-  - match:
-      test-index.settings.index.refresh_interval: "-1"
+---
+"Get /_settings":
 
-  - do:
-      indices.get_settings:
+ - do:
+    indices.get_settings: {}
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_replicas: "1"}
+
+---
+"Get /{index}/_settings":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+
+---
+"Get /{index}/_settings/_all":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  _all
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/*":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  '*'
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name,name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  index.number_of_shards,index.number_of_replicas
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name*}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  'index.number_of_s*'
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2
+
+---
+"Get /_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /_all/_settings/{name}":
+
+ - do:
+    indices.get_settings:
         index: _all
-        prefix: index.number
+        name: index.number_of_shards
 
-  - match:
-      test-index.settings.index.number_of_replicas: "3"
-  - match:
-      test-index.settings.index.number_of_shards: "2"
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+
+---
+"Get /*/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: '*'
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /{index}/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2
+
+---
+"Get /index,index/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1,test_2
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /index*/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: '*2'
+        name: index.number_of_shards
+
+ - match: { test_2.settings.index.number_of_shards: "5"}
+ - is_false: test_1
+ - is_false: test_2.settings.index.number_of_replicas

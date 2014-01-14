@@ -3,8 +3,8 @@
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
     "methods": ["GET"],
     "url": {
-      "path": "/{index}/_warmer",
-      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "path": "/_warmer",
+      "paths": [ "/_warmer", "/{index}/_warmer", "/{index}/_warmer/{name}", "/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
       "parts": {
         "index": {
           "type" : "list",

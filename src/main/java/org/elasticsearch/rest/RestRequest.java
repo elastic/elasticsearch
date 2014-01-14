@@ -158,4 +158,13 @@ public abstract class RestRequest implements ToXContent.Params {
         }
         return Strings.splitStringByCommaToArray(value);
     }
+
+    public String[] paramAsStringArrayOrEmptyIfAll(String key) {
+        String[] params = paramAsStringArray(key, Strings.EMPTY_ARRAY);
+        if (Strings.isAllOrWildcard(params)) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return params;
+    }
+
 }

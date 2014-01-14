@@ -160,15 +160,12 @@ public class XContentMapValues {
                 continue;
             }
 
-            boolean exactIncludeMatch; // true if the current position was specifically mentioned
-            boolean pathIsPrefixOfAnInclude; // true if potentially a sub scope can be included
+            boolean exactIncludeMatch = false; // true if the current position was specifically mentioned
+            boolean pathIsPrefixOfAnInclude = false; // true if potentially a sub scope can be included
             if (includes.length == 0) {
                 // implied match anything
                 exactIncludeMatch = true;
-                pathIsPrefixOfAnInclude = false;
             } else {
-                exactIncludeMatch = false;
-                pathIsPrefixOfAnInclude = false;
                 for (String include : includes) {
                     // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
                     // note, this does not work well with middle matches, like obj1.*.obj3

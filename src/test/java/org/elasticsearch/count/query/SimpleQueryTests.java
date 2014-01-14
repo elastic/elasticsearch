@@ -131,25 +131,6 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testOmitTermFreqsAndPositions() throws Exception {
-        // backwards compat test!
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
-
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
-
-        CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).get();
-        assertHitCount(countResponse, 1l);
-        try {
-            client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)).get();
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
-        }
-    }
-
-    @Test
     public void queryStringAnalyzedWildcard() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
 

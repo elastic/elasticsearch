@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,17 +41,24 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+
 /**
  *
  */
 public class MapperTestUtils {
 
     public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), newAnalysisService(), new PostingsFormatService(new Index("test")),
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(), new PostingsFormatService(new Index("test")),
                 new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
     }
 
     public static DocumentMapperParser newParser(Settings indexSettings) {
+        ImmutableSettings.Builder indexSettingsBuilder  = ImmutableSettings.builder().put(indexSettings);
+        if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
+            indexSettingsBuilder.put(SETTING_VERSION_CREATED, Version.CURRENT);
+        }
         return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(indexSettings), new PostingsFormatService(new Index("test")),
                 new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
     }
@@ -59,7 +68,11 @@ public class MapperTestUtils {
     }
 
     public static MapperService newMapperService(Index index, Settings indexSettings) {
-        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, new DummyCircuitBreakerService()),
+        ImmutableSettings.Builder indexSettingsBuilder  = ImmutableSettings.builder().put(indexSettings);
+        if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
+            indexSettingsBuilder.put(SETTING_VERSION_CREATED, Version.CURRENT);
+        }
+        return new MapperService(index, indexSettingsBuilder.build(), new Environment(), newAnalysisService(), new IndexFieldDataService(index, new DummyCircuitBreakerService()),
                 new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService());
     }
 

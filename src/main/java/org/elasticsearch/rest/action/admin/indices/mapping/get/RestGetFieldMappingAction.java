@@ -49,17 +49,18 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public RestGetFieldMappingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
+        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
+        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
+        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         boolean local = request.paramAsBooleanOptional("local", false);
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
-
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).types(types).local(local).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));

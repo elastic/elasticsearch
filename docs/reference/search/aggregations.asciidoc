@@ -83,7 +83,7 @@ sub-aggregations will be computed for each of the range buckets that are defined
 ==== Values Source
 
 Some aggregations work on values extracted from the aggregated documents. Typically, the values will be extracted from
-a sepcific document field which is set under the `field` settings for the aggrations. It is also possible to define a
+a specific document field which is set under the `field` settings for the aggregations. It is also possible to define a
 <<modules-scripting,`script`>> that will generate the values (per document).
 
 When both `field` and `script` settings are configured for the aggregation, the script will be treated as a

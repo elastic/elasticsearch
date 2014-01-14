@@ -107,8 +107,10 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         public PythonExecutableScript(PyCode code, Map<String, Object> vars) {
             this.code = code;
             this.pyVars = new PyStringMap();
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+            if (vars != null) {
+                for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                    pyVars.__setitem__(entry.getKey(), Py.java2py(entry.getValue()));
+                }
             }
         }
 

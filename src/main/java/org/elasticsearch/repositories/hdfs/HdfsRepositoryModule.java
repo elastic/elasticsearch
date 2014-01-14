@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.repositories.hdfs;
 
 import org.elasticsearch.common.inject.AbstractModule;

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -320,9 +319,7 @@ public class ShardStateAction extends AbstractComponent {
             super.readFrom(in);
             shardRouting = readShardRoutingEntry(in);
             reason = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readString();
-            }
+            indexUUID = in.readString();
         }
 
         @Override
@@ -330,9 +327,7 @@ public class ShardStateAction extends AbstractComponent {
             super.writeTo(out);
             shardRouting.writeTo(out);
             out.writeString(reason);
-            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeString(indexUUID);
-            }
+            out.writeString(indexUUID);
         }
 
         @Override

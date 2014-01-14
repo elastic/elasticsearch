@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,9 +86,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrBefore(Version.V_0_90_3)) {
-            out.writeBoolean(false); // refresh flag
-        }
         out.writeBoolean(full);
         out.writeBoolean(force);
     }
@@ -97,9 +93,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrBefore(Version.V_0_90_3)) {
-            in.readBoolean(); // refresh flag
-        }
         full = in.readBoolean();
         force = in.readBoolean();
     }

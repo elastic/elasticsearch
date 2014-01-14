@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -571,18 +570,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
                     score = in.readFloat();
-                    if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
-                        highlighted = in.readOptionalText();
-                    }
+                    highlighted = in.readOptionalText();
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
                     out.writeFloat(score);
-                    if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
-                        out.writeOptionalText(highlighted);
-                    }
+                    out.writeOptionalText(highlighted);
                 }
 
                 @Override

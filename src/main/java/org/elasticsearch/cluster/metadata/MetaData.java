@@ -1338,9 +1338,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         public static MetaData readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readLong();
-            if (in.getVersion().after(Version.V_0_90_7)) {
-                builder.uuid = in.readString();
-            }
+            builder.uuid = in.readString();
             builder.transientSettings(readSettingsFromStream(in));
             builder.persistentSettings(readSettingsFromStream(in));
             int size = in.readVInt();
@@ -1362,9 +1360,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
             out.writeLong(metaData.version);
-            if (out.getVersion().after(Version.V_0_90_7)) {
-                out.writeString(metaData.uuid);
-            }
+            out.writeString(metaData.uuid);
             writeSettingsToStream(metaData.transientSettings(), out);
             writeSettingsToStream(metaData.persistentSettings(), out);
             out.writeVInt(metaData.indices.size());

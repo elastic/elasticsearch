@@ -129,7 +129,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
         names = in.readStringArray();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readTimeout(in, Version.V_0_90_6);
+        readTimeout(in);
     }
 
     @Override
@@ -138,6 +138,6 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
         out.writeStringArrayNullable(names);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeTimeout(out, Version.V_0_90_6);
+        writeTimeout(out);
     }
 }

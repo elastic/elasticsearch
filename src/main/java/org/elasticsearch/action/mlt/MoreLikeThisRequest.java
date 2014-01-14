@@ -21,7 +21,6 @@ package org.elasticsearch.action.mlt;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -592,9 +591,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         searchSize = in.readVInt();
         searchFrom = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_0_90_1)) {
-            routing = in.readOptionalString();
-        }
+        routing = in.readOptionalString();
     }
 
     @Override
@@ -662,8 +659,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         out.writeVInt(searchSize);
         out.writeVInt(searchFrom);
-        if (out.getVersion().onOrAfter(Version.V_0_90_1)) {
-            out.writeOptionalString(routing);
-        }
+        out.writeOptionalString(routing);
     }
 }

@@ -7,14 +7,14 @@
       "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
       "parts": {
         "index": {
-          "type" : "string",
+          "type" : "list",
           "required" : true,
-          "description" : "The name of the index with an alias"
+          "description" : "A comma-separated list of index names (supports wildcards); use `_all` for all indices"
         },
         "name": {
-          "type" : "string",
+          "type" : "list",
           "required" : true,
-          "description" : "The name of the alias to be deleted"
+          "description" : "A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
         }
       },
       "params": {

@@ -7,9 +7,8 @@
       "paths": ["/{index}/_alias/{name}", "/_alias/{name}", "/{index}/_aliases/{name}", "/_aliases/{name}"],
       "parts": {
         "index": {
-          "type" : "string",
-          "required" : true,
-          "description" : "The name of the index with an alias"
+          "type" : "list",
+          "description" : "A comma-separated list of index names the alias should point to (supports wildcards); use `_all` or omit to perform the operation on all indices."
         },
         "name": {
           "type" : "string",

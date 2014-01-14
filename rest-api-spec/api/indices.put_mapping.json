@@ -8,8 +8,7 @@
       "parts": {
         "index": {
           "type" : "list",
-          "required" : false,
-          "description" : "A comma-separated list of index names; use `_all` to perform the operation on all indices"
+          "description" : "A comma-separated list of index names the mapping should be added to (supports wildcards); use `_all` or omit to add the mapping on all indices."
         },
         "type": {
           "type" : "string",

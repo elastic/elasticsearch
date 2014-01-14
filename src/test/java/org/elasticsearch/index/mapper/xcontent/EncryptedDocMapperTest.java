@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -47,7 +47,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -62,7 +62,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
                     .field("file2", pdf)
                 .endObject().bytes();
 
-        Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), equalTo("kimchy"));
@@ -80,7 +80,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedFirst() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -95,7 +95,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
                 .field("file2", html)
                 .endObject().bytes();
 
-        Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), nullValue());
@@ -115,7 +115,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
         DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"),
                 ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(),
-                new AnalysisService(new Index("test")), null, null);
+                new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -130,7 +130,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
                 .field("file2", html)
                 .endObject().bytes();
 
-        Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), nullValue());

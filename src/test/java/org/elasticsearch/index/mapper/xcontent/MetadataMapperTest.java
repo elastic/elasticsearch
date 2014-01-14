@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 public class MetadataMapperTest extends ElasticsearchTestCase {
 
     protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
@@ -61,7 +61,7 @@ public class MetadataMapperTest extends ElasticsearchTestCase {
                     .endObject()
                 .endObject().bytes();
 
-        Document doc =  docMapper.parse(json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().smartName("file.name").mapper().names().indexName()), equalTo(filename));
         if (expectedDate == null) {

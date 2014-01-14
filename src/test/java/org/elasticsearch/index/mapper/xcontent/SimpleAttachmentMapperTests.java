@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -45,7 +45,7 @@ public class SimpleAttachmentMapperTests extends ElasticsearchTestCase {
 
     @Before
     public void setupMapperParser() {
-        mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
+        mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 
@@ -57,7 +57,7 @@ public class SimpleAttachmentMapperTests extends ElasticsearchTestCase {
 
         BytesReference json = jsonBuilder().startObject().field("_id", 1).field("file", html).endObject().bytes();
 
-        Document doc = docMapper.parse(json).rootDoc();
+        ParseContext.Document doc = docMapper.parse(json).rootDoc();
 
         assertThat(doc.get(docMapper.mappers().smartName("file.content_type").mapper().names().indexName()), equalTo("application/xhtml+xml"));
         assertThat(doc.get(docMapper.mappers().smartName("file.title").mapper().names().indexName()), equalTo("XHTML test document"));

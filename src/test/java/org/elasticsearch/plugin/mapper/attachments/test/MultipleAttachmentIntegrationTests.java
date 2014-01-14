@@ -26,12 +26,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.fieldQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -72,10 +72,11 @@ public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegration
         index("test", "person", jsonBuilder().startObject().field("file1", html).field("file2", pdf).field("hello","world").endObject());
         refresh();
 
-        CountResponse countResponse = client().count(countRequest("test").query(fieldQuery("file1", "World"))).actionGet();
+
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryString("World").defaultField("file1")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
 
-        countResponse = client().count(countRequest("test").query(fieldQuery("hello", "World"))).actionGet();
+        countResponse = client().prepareCount("test").setQuery(queryString("World").defaultField("hello")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));
     }
 

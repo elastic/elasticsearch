@@ -338,6 +338,7 @@ def download_and_verify(release, files, plugins=None, base_url='https://download
       print('  Verifying checksum %s' % (checksum_file))
       run('cd %s && sha1sum -c %s' % (tmp_dir, os.path.basename(checksum_file)))
     smoke_test_release(release, downloaded_files, get_tag_hash('v%s' % release), plugins)
+    print('  SUCCESS')
   finally:
     shutil.rmtree(tmp_dir)
 
@@ -570,6 +571,7 @@ if __name__ == '__main__':
       run('git branch -D %s' %  (release_branch(release_version)))
   else:
     print("Skipping build - smoketest only against version %s" % smoke_test_version)
+    run_mvn('clean') # clean the env!
     
   if smoke_test_version:
     fetch(remote)

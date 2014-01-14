@@ -117,7 +117,8 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("shards", "text-align:right;desc:number of shards on node");
         table.addCell("diskUsed", "text-align:right;desc:disk used (total, not just ES)");
         table.addCell("diskAvail", "text-align:right;desc:disk available");
-        table.addCell("diskRatio", "text-align:right;desc:percent disk used");
+        table.addCell("diskTotal", "text-align:right;desc:total capacity of all volumes");
+        table.addCell("diskPercent", "text-align:right;desc:percent disk used");
         table.addCell("host", "desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "desc:name of node");
@@ -143,34 +144,25 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
-            long used = -1;
-            long avail = -1;
-
-            Iterator<FsStats.Info> diskIter = nodeStats.getFs().iterator();
-            while (diskIter.hasNext()) {
-                FsStats.Info disk = diskIter.next();
-                used += disk.getTotal().bytes() - disk.getAvailable().bytes();
-                avail += disk.getAvailable().bytes();
-            }
-
-            String nodeId = node.id();
-
             int shardCount = -1;
-            if (allocs.containsKey(nodeId)) {
+            if (allocs.containsKey(node.id())) {
                 shardCount = allocs.lget();
             }
 
-            float ratio = -1;
+            long used = nodeStats.getFs().getTotal().getTotal().bytes() - nodeStats.getFs().getTotal().getAvailable().bytes();
+            long avail = nodeStats.getFs().getTotal().getAvailable().bytes();
 
+            short diskPercent = -1;
             if (used >= 0 && avail > 0) {
-                ratio = used / (float) avail;
+                diskPercent = (short) (used * 100 / (used + avail));
             }
 
             table.startRow();
             table.addCell(shardCount < 0 ? null : shardCount);
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
             table.addCell(avail < 0 ? null : new ByteSizeValue(avail));
-            table.addCell(ratio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", ratio * 100.0));
+            table.addCell(nodeStats.getFs().getTotal().getTotal());
+            table.addCell(diskPercent < 0 ? null : diskPercent);
             table.addCell(node == null ? null : node.getHostName());
             table.addCell(node == null ? null : node.getHostAddress());
             table.addCell(node == null ? "UNASSIGNED" : node.name());
@@ -180,6 +172,7 @@ public class RestAllocationAction extends AbstractCatAction {
         if (allocs.containsKey("UNASSIGNED")) {
             table.startRow();
             table.addCell(allocs.lget());
+            table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);

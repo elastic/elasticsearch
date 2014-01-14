@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Test;
 
@@ -30,11 +31,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -204,5 +206,27 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info(" --> Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
         logger.info(" --> Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+    }
+
+    /**
+     * Test case for #4: https://github.com/elasticsearch/elasticsearch-lang-python/issues/4
+     * Update request that uses python script with no parameters fails with NullPointerException
+     * @throws Exception
+     */
+    @Test
+    public void testPythonEmptyParameters() throws Exception {
+        wipeIndices("test");
+        createIndex("test");
+        index("test", "type1", "1", jsonBuilder().startObject().field("myfield", "foo").endObject());
+        refresh();
+
+        client().prepareUpdate("test", "type1", "1").setScriptLang("python").setScript("ctx[\"_source\"][\"myfield\"]=\"bar\"")
+            .execute().actionGet();
+        refresh();
+
+        Object value = get("test", "type1", "1").getSourceAsMap().get("myfield");
+        assertThat(value instanceof String, is(true));
+
+        assertThat((String) value, CoreMatchers.equalTo("bar"));
     }
 }

@@ -1,31 +1,14 @@
-Azure Cloud Plugin for Elasticearch
+Azure Cloud Plugin for Elasticsearch
 ====================================
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0.alpha1`.
 
-<table>
-	<thead>
-		<tr>
-			<td>Azure Cloud Plugin</td>
-			<td>ElasticSearch</td>
-			<td>Release date</td>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>1.0.0-SNAPSHOT (master)</td>
-			<td>0.90.6</td>
-			<td></td>
-		</tr>
-		<tr>
-			<td>1.0.0.alpha1</td>
-			<td>0.90.6</td>
-			<td>2013-11-06</td>
-		</tr>
-	</tbody>
-</table>
+|     Azure Cloud Plugin     |    elasticsearch    | Release date |
+|----------------------------|---------------------|:------------:|
+| 1.0.0-SNAPSHOT (master)    | 0.90.6 -> 0.90      |              |
+| 1.0.0.alpha1               | 0.90.6 -> 0.90      |  2013-11-06  |
 
 
 Azure Virtual Machine Discovery
@@ -346,7 +329,7 @@ License
 
 This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

@@ -81,6 +81,7 @@ Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
 from the same file concurrently. It is not recommended on Windows
 because of a bug in the SUN Java implementation.
 
+[[mmapfs]]
 [float]
 ==== MMap FS
 

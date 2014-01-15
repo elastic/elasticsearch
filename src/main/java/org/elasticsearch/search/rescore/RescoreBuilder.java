@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.rescore;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+
+import java.io.IOException;
 
 public class RescoreBuilder implements ToXContent {
 
@@ -44,16 +44,20 @@ public class RescoreBuilder implements ToXContent {
         return this;
     }
 
+    public Integer windowSize() {
+        return windowSize;
+    }
+
+    public boolean isEmpty() {
+        return rescorer == null;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (rescorer != null) {
-            builder.startObject("rescore");
-            if (windowSize != null) {
-                builder.field("window_size", windowSize);
-            }
-            rescorer.toXContent(builder, params);
-            builder.endObject();
+        if (windowSize != null) {
+            builder.field("window_size", windowSize);
         }
+        rescorer.toXContent(builder, params);
         return builder;
     }
 

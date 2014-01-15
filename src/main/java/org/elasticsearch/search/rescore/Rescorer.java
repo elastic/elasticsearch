@@ -54,13 +54,15 @@ public interface Rescorer {
     /**
      * Executes an {@link Explanation} phase on the rescorer.
      *
-     * @param topLevelDocId  the global / top-level document ID to explain
-     * @param context        the current {@link SearchContext}
-     * @param rescoreContext TODO
+     * @param topLevelDocId the global / top-level document ID to explain
+     * @param context the explanation for the results being fed to this rescorer
+     * @param rescoreContext context for this rescorer
+     * @param sourceExplanation explanation of the source of the documents being fed into this rescore
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+            Explanation sourceExplanation) throws IOException;
 
     /**
      * Parses the {@link RescoreSearchContext} for this impelementation

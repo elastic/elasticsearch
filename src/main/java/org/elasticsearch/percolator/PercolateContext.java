@@ -399,12 +399,12 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public RescoreSearchContext rescore() {
+    public List<RescoreSearchContext> rescore() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void rescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreSearchContext rescore) {
         throw new UnsupportedOperationException();
     }
 

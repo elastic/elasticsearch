@@ -794,13 +794,66 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * @param rescorer rescorer configuration
+     * @return this for chaining
+     */
     public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
-        rescoreBuilder().rescorer(rescorer);
+        sourceBuilder().clearRescorers();
+        return addRescorer(rescorer);
+    }
+
+    /**
+     * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * @param rescorer rescorer configuration
+     * @param window rescore window
+     * @return this for chaining
+     */
+    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+        sourceBuilder().clearRescorers();
+        return addRescorer(rescorer, window);
+    }
+
+    /**
+     * Adds a new rescorer.
+     * @param rescorer rescorer configuration
+     * @return this for chaining
+     */
+    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
+        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
         return this;
     }
 
+    /**
+     * Adds a new rescorer.
+     * @param rescorer rescorer configuration
+     * @param window rescore window
+     * @return this for chaining
+     */
+    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+        return this;
+    }
+
+    /**
+     * Clears all rescorers from the builder.
+     * @return this for chaining
+     */
+    public SearchRequestBuilder clearRescorers() {
+        sourceBuilder().clearRescorers();
+        return this;
+    }
+
+    /**
+     * Sets the rescore window for all rescorers that don't specify a window when added.
+     * @param window rescore window
+     * @return this for chaining
+     */
     public SearchRequestBuilder setRescoreWindow(int window) {
-        rescoreBuilder().windowSize(window);
+        sourceBuilder().defaultRescoreWindowSize(window);
         return this;
     }
 
@@ -980,9 +1033,4 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private SuggestBuilder suggestBuilder() {
         return sourceBuilder().suggest();
     }
-
-    private RescoreBuilder rescoreBuilder() {
-        return sourceBuilder().rescore();
-    }
-
 }

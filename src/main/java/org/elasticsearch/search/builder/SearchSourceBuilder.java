@@ -48,6 +48,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -114,7 +115,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private SuggestBuilder suggestBuilder;
 
-    private RescoreBuilder rescoreBuilder;
+    private List<RescoreBuilder> rescoreBuilders;
+    private Integer defaultRescoreWindowSize;
 
     private ObjectFloatOpenHashMap<String> indexBoost = null;
 
@@ -439,6 +441,16 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Set the rescore window size for rescores that don't specify their window.
+     * @param defaultRescoreWindowSize
+     * @return
+     */
+    public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
+        this.defaultRescoreWindowSize = defaultRescoreWindowSize;
+        return this;
+    }
+
+    /**
      * Sets a raw (xcontent / json) addAggregation.
      */
     public SearchSourceBuilder aggregations(Map aggregations) {
@@ -473,11 +485,17 @@ public class SearchSourceBuilder implements ToXContent {
         return suggestBuilder;
     }
 
-    public RescoreBuilder rescore() {
-        if (rescoreBuilder == null) {
-            rescoreBuilder = new RescoreBuilder();
+    public SearchSourceBuilder addRescorer(RescoreBuilder rescoreBuilder) {
+        if (rescoreBuilders == null) {
+            rescoreBuilders = new ArrayList<RescoreBuilder>();
         }
-        return rescoreBuilder;
+        rescoreBuilders.add(rescoreBuilder);
+        return this;
+    }
+
+    public SearchSourceBuilder clearRescorers() {
+        rescoreBuilders = null;
+        return this;
     }
 
     /**
@@ -898,8 +916,36 @@ public class SearchSourceBuilder implements ToXContent {
             suggestBuilder.toXContent(builder, params);
         }
 
-        if (rescoreBuilder != null) {
-            rescoreBuilder.toXContent(builder, params);
+        if (rescoreBuilders != null) {
+            // Strip empty rescoreBuilders from the request
+            Iterator<RescoreBuilder> itr = rescoreBuilders.iterator();
+            while (itr.hasNext()) {
+                if (itr.next().isEmpty()) {
+                    itr.remove();
+                }
+            }
+
+            // Now build the request taking care to skip empty lists and only send the object form
+            // if there is just one builder.
+            if (rescoreBuilders.size() == 1) {
+                builder.startObject("rescore");
+                rescoreBuilders.get(0).toXContent(builder, params);
+                if (rescoreBuilders.get(0).windowSize() == null && defaultRescoreWindowSize != null) {
+                    builder.field("window_size", defaultRescoreWindowSize);
+                }
+                builder.endObject();
+            } else if (!rescoreBuilders.isEmpty()) {
+                builder.startArray("rescore");
+                for (RescoreBuilder rescoreBuilder : rescoreBuilders) {
+                    builder.startObject();
+                    rescoreBuilder.toXContent(builder, params);
+                    if (rescoreBuilder.windowSize() == null && defaultRescoreWindowSize != null) {
+                        builder.field("window_size", defaultRescoreWindowSize);
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
         }
 
         if (stats != null) {

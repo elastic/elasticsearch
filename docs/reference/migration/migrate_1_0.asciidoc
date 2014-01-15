@@ -1,8 +1,11 @@
 [[breaking-changes]]
 = Breaking changes in 1.0
 
+[partintro]
+--
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 1.0:
+--
 
 == System and settings
 

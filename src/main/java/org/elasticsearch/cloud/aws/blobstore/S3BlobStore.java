@@ -108,7 +108,11 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             if (prevListing != null) {
                 list = client.listNextBatchOfObjects(prevListing);
             } else {
-                list = client.listObjects(bucket, path.buildAsString("/") + "/");
+                String keyPath = path.buildAsString("/");
+                if (!keyPath.isEmpty()) {
+                    keyPath = keyPath + "/";
+                }
+                list = client.listObjects(bucket, keyPath);
                 multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
             }
             for (S3ObjectSummary summary : list.getObjectSummaries()) {

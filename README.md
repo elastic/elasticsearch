@@ -99,6 +99,43 @@ The following are a list of settings (prefixed with `gateway.s3`) that can furth
 
 The `gateway.s3.concurrent_streams` allow to throttle the number of streams (per node) opened against the shared gateway performing the snapshot operation. It defaults to `5`.
 
+## S3 Repository
+
+The S3 repository is using S3 to store snapshot. The following settings are supported:
+
+* `bucket`: The name of the bucket to be used for snapshots. (Mandatory)
+* `region`: The region where bucket is located. Defaults to US Standard
+* `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
+* `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
+* `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+* `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
+
+## Testing
+
+Integrations tests in this plugin require working AWS configuration and therefore disabled by default. To enable tests prepare a config file elasticsearch.yml with the following content:
+
+```
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+
+repositories:
+    s3:
+        bucket: "bucket_name"
+        region: "us-west-2"
+
+```
+
+Replaces `access_key`, `secret_key`, `bucket` and `region` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified bucket.
+
+To run test:
+
+```sh
+mvn -Dtests.aws=true -Des.config=/path/to/config/file/elasticsearch.yml clean test
+```
+
+
 License
 -------
 

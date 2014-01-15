@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.alias.delete;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
@@ -35,15 +36,16 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     public RestIndexDeleteAliasesAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
+        controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final String index = request.param("index");
-        String alias = request.param("name");
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        indicesAliasesRequest.removeAlias(index, alias);
+        indicesAliasesRequest.removeAlias(indices, aliases);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
 
         client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestResponseActionListener<IndicesAliasesResponse>(request, channel, logger));

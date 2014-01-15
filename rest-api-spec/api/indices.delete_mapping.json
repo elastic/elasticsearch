@@ -4,17 +4,17 @@
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/_mapping",
-      "paths": ["/{index}/{type}/_mapping", "/{index}/{type}"],
+      "paths": ["/{index}/{type}/_mapping", "/{index}/{type}", "/{index}/_mapping/{type}", "/{index}/{type}/_mappings", "/{index}/_mappings/{type}"],
       "parts": {
         "index": {
           "type" : "list",
           "required" : true,
-          "description" : "A comma-separated list of index names; use `_all` for all indices"
+          "description" : "A comma-separated list of index names (supports wildcards); use `_all` for all indices"
         },
         "type": {
-          "type" : "string",
+          "type" : "list",
           "required" : true,
-          "description" : "The name of the document type to delete"
+          "description" : "A comma-separated list of document types to delete (supports wildcards); use `_all` to delete all document types in the specified indices."
         }
       },
       "params": {

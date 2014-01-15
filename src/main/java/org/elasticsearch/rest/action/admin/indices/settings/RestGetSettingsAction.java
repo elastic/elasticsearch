@@ -46,34 +46,39 @@ public class RestGetSettingsAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
-        controller.registerHandler(GET, "/{index}/{prefix}/_settings", this);
+        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
+        controller.registerHandler(GET, "/_settings/{name}", this);
+        controller.registerHandler(GET, "/{index}/_setting/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
+        final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
                 .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
-                .prefix(request.param("prefix"));
+                .names(names);
 
         client.admin().indices().getSettings(getSettingsRequest, new ActionListener<GetSettingsResponse>() {
 
             @Override
             public void onResponse(GetSettingsResponse getSettingsResponse) {
                 try {
-                    boolean foundAny = false;
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
+                        // no settings, jump over it to shorten the response data
+                        if (cursor.value.getAsMap().isEmpty()) {
+                            continue;
+                        }
                         builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                        foundAny = true;
                         builder.startObject(Fields.SETTINGS);
                         cursor.value.toXContent(builder, request);
                         builder.endObject();
                         builder.endObject();
                     }
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {
                     onFailure(e);
                 }

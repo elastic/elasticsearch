@@ -253,7 +253,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("test")
                 .addPartialField("partial1", "obj1.arr1.*", null)
-                .addPartialField("partial2", null, "obj1.*")
+                .addPartialField("partial2", null, "obj1")
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 

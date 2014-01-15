@@ -11,7 +11,8 @@ following types are supported: `arabic`, `armenian`, `basque`,
 
 All analyzers support setting custom `stopwords` either internally in
 the config, or by using an external stopwords file by setting
-`stopwords_path`.
+`stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
+more details.
 
 The following analyzers support setting custom `stem_exclusion` list:
 `arabic`, `armenian`, `basque`, `brazilian`, `bulgarian`, `catalan`,

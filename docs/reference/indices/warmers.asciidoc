@@ -112,25 +112,55 @@ curl -XPUT localhost:9200/test/type1/_warmer/warmer_1 -d '{
 }'
 --------------------------------------------------
 
-[float]
-[[removing]]
-=== Delete Warmer
-
-Removing a warmer can be done against an index (or alias / indices)
-based on its name. The provided name can be a simple wildcard expression
-or omitted to remove all warmers. Some samples:
+All options:
 
 [source,js]
 --------------------------------------------------
-# delete warmer named warmer_1 on test index
-curl -XDELETE localhost:9200/test/_warmer/warmer_1 
 
-# delete all warmers that start with warm on test index
-curl -XDELETE localhost:9200/test/_warmer/warm* 
+PUT _warmer/{warmer_name}        
 
-# delete all warmers for test index
-curl -XDELETE localhost:9200/test/_warmer/
+PUT /{index}/_warmer/{warmer_name}  
+    
+PUT /{index}/{type}/_warmer/{warmer_name}        
+
 --------------------------------------------------
+    
+
+where
+
+[horizontal]
+`{index}`:: `* | _all | glob pattern | name1, name2, …`
+    
+`{type}`:: `* | _all | glob pattern | name1, name2, …`
+
+Instead of `_warmer` you can also use the plural `_warmers`.
+
+
+
+[float]
+[[removing]]
+=== Delete Warmers
+
+Warmers can be deleted using the following endpoint:
+
+
+
+[source,js]
+--------------------------------------------------
+
+[DELETE] /{index}/_warmer/{name}  
+          
+--------------------------------------------------
+    
+
+where
+
+[horizontal]
+`{index}`:: `* | _all | glob pattern | name1, name2, …`
+    
+`{name}`:: `* | _all | glob pattern | name1, name2, …`
+
+Instead of `_warmer` you can also use the plural `_warmers`.
 
 [float]
 [[warmer-retrieving]]

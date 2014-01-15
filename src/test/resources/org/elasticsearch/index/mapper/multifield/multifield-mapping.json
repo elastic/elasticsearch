@@ -6,51 +6,44 @@
                 "path": "full",
                 "fields": {
                     "file": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "file": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     },
                     "date": {
-                        "type": "multi_field",
+                        "type": "date",
                         "fields": {
-                            "date": { "type": "date" },
                             "string": { "type": "string" }
                         }
                     },
                     "title": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "title": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     },
                     "name": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "name": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     },
                     "author": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "author": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     },
                     "keywords": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "keywords": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     },
                     "content_type": {
-                        "type": "multi_field",
+                        "type": "string",
                         "fields": {
-                            "content_type": { "type": "string" },
                             "suggest": { "type": "string" }
                         }
                     }

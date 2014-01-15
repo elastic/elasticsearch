@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -220,14 +219,9 @@ public class AttachmentMapper implements Mapper {
                         String propName = entry1.getKey();
                         Object propNode = entry1.getValue();
 
-                        // Check if we have a multifield here
-                        boolean isMultifield = false;
                         boolean isString = false;
                         if (propNode != null && propNode instanceof Map) {
                             Object oType = ((Map<String, Object>) propNode).get("type");
-                            if (oType != null && oType.equals(MultiFieldMapper.CONTENT_TYPE)) {
-                                isMultifield = true;
-                            }
                             if (oType != null && oType.equals(StringFieldMapper.CONTENT_TYPE)) {
                                 isString = true;
                             }
@@ -235,22 +229,22 @@ public class AttachmentMapper implements Mapper {
 
                         if (name.equals(propName)) {
                             // that is the content
-                            builder.content(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
+                            builder.content(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
                         } else if ("date".equals(propName)) {
                             // If a specific format is already defined here, we should use it
-                            builder.date(parserContext.typeParser(isMultifield ? MultiFieldMapper.CONTENT_TYPE : isString ? StringFieldMapper.CONTENT_TYPE : DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
+                            builder.date(parserContext.typeParser(isString ? StringFieldMapper.CONTENT_TYPE : DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
                         } else if ("title".equals(propName)) {
-                            builder.title(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("title", (Map<String, Object>) propNode, parserContext));
+                            builder.title(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("title", (Map<String, Object>) propNode, parserContext));
                         } else if ("name".equals(propName)) {
-                            builder.name(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("name", (Map<String, Object>) propNode, parserContext));
+                            builder.name(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("name", (Map<String, Object>) propNode, parserContext));
                         } else if ("author".equals(propName)) {
-                            builder.author(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("author", (Map<String, Object>) propNode, parserContext));
+                            builder.author(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("author", (Map<String, Object>) propNode, parserContext));
                         } else if ("keywords".equals(propName)) {
-                            builder.keywords(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("keywords", (Map<String, Object>) propNode, parserContext));
+                            builder.keywords(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("keywords", (Map<String, Object>) propNode, parserContext));
                         } else if ("content_type".equals(propName)) {
-                            builder.contentType(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("content_type", (Map<String, Object>) propNode, parserContext));
+                            builder.contentType(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("content_type", (Map<String, Object>) propNode, parserContext));
                         } else if ("content_length".equals(propName)) {
-                            builder.contentLength(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE: IntegerFieldMapper.CONTENT_TYPE).parse("content_length", (Map<String, Object>) propNode, parserContext));
+                            builder.contentLength(parserContext.typeParser(IntegerFieldMapper.CONTENT_TYPE).parse("content_length", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }

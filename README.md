@@ -1,4 +1,4 @@
-Azure Cloud Plugin for ElasticSearch
+Azure Cloud Plugin for Elasticearch
 ====================================
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
@@ -80,7 +80,19 @@ cd /tmp
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure-private.key -out azure-certificate.pem
 chmod 600 azure-private.key
 openssl x509 -outform der -in azure-certificate.pem -out azure-certificate.cer
+
+# Generate a keystore (azurekeystore.pkcs12)
+# Transform private key to PEM format
+openssl pkcs8 -topk8 -nocrypt -in azure-private.key -inform PEM -out azure-pk.pem -outform PEM
+# Transform certificate to PEM format
+openssl x509 -inform der -in azure-certificate.cer -out azure-cert.pem
+cat azure-cert.pem azure-pk.pem > azure.pem.txt
+# You MUST enter a password!
+openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ```
+
+Upload the generated key to Azure platform. **Important**: when prompted for a password,
+you need to enter a non empty one.
 
 See this [guide](http://www.windowsazure.com/en-us/manage/linux/how-to-guides/ssh-into-linux/) to have
 more details on how to create keys for Azure.
@@ -115,7 +127,7 @@ sudo npm install azure-cli -g
 azure account download
 
 # Import this file (we have downloaded it to /tmp)
-# Note, it will create needed files in ~/.azure
+# Note, it will create needed files in ~/.azure. You can remove azure.publishsettings when done.
 azure account import /tmp/azure.publishsettings
 ```
 
@@ -188,8 +200,8 @@ Now, your first instance is started. You need to install Elasticsearch on it.
 
 
 ```sh
-# First, copy your azure certificate on this machine
-scp /tmp/azure.publishsettings azure-elasticsearch-cluster.cloudapp.net:/tmp
+# First, copy your keystore on this machine
+scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/elasticsearch
 
 # Then, connect to your instance using SSH
 ssh azure-elasticsearch-cluster.cloudapp.net
@@ -233,48 +245,6 @@ This command should give you a JSON result:
   },
   "tagline" : "You Know, for Search"
 }
-```
-
-### Install nodejs and Azure tools
-
-```sh
-# Install node (aka download and compile source)
-sudo apt-get update
-sudo apt-get install python-software-properties python g++ make
-sudo add-apt-repository ppa:chris-lea/node.js
-sudo apt-get update
-sudo apt-get install nodejs
-
-# Install Azure tools
-sudo npm install azure-cli -g
-
-# Install your azure certficate
-azure account import /tmp/azure.publishsettings
-
-# Remove tmp file
-rm /tmp/azure.publishsettings
-```
-
-### Generate a keystore
-
-```sh
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure-private.key -out azure-certificate.pem
-chmod 600 azure-private.key
-openssl x509 -outform der -in azure-certificate.pem -out azure-certificate.cer
-# Transform private key to PEM format
-openssl pkcs8 -topk8 -nocrypt -in azure-private.key -inform PEM -out azure-pk.pem -outform PEM
-# Transform certificate to PEM format
-openssl x509 -inform der -in azure-certificate.cer -out azure-cert.pem
-cat azure-cert.pem azure-pk.pem > azure.pem.txt
-# You MUST enter a password!
-openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
-```
-
-Upload the generated key to Azure platform. **Important**: when prompted for a password,
-you need to enter a non empty one.
-
-```sh
-azure service cert create azure-elasticsearch-cluster azure-certificate.cer
 ```
 
 ### Install elasticsearch cloud azure plugin

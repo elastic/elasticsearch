@@ -1,32 +1,25 @@
-JavaScript lang Plugin for ElasticSearch
+JavaScript lang Plugin for Elasticsearch
 ==================================
 
 The JavaScript language plugin allows to have `javascript` as the language of scripts to execute.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/1.4.0`.
 
-    -----------------------------------------------
-    | JavaScript Plugin        | ElasticSearch    |
-    -----------------------------------------------
-    | 1.5.0-SNAPSHOT (master)  | 0.90 -> master   |
-    -----------------------------------------------
-    | 1.4.0                    | 0.90 -> master   |
-    -----------------------------------------------
-    | 1.3.0                    | 0.90             |
-    -----------------------------------------------
-    | 1.2.0                    | 0.19 -> 0.20     |
-    -----------------------------------------------
-    | 1.1.0                    | 0.19             |
-    -----------------------------------------------
-    | 1.0.0                    | 0.18             |
-    -----------------------------------------------
+|   JavaScript Lang Plugin    |    elasticsearch    |  rhino   | Release date |
+|-----------------------------|---------------------|----------|:------------:|
+| 1.5.0-SNAPSHOT (master)     | 0.90                |  1.7R4   |              |
+| 1.4.0                       | 0.90                |  1.7R4   |  2013-06-05  |
+| 1.3.0                       | 0.90                |  1.7R4   |  2013-02-26  |
+| 1.2.0                       | 0.19 -> 0.20        |  1.7R4   |  2012-06-23  |
+| 1.1.0                       | 0.19                |  1.7R3   |  2012-02-07  |
+| 1.0.0                       | 0.18                |  1.7R3   |  2011-12-05  |
 
 License
 -------
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

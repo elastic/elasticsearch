@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -36,16 +36,16 @@ public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleC
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         logger.debug("starting Azure Api Mock");
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         logger.debug("stopping Azure Api Mock");
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 }

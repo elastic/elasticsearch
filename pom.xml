@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Licensed to ElasticSearch under one or more contributor
+<!-- Licensed to Elasticsearch under one or more contributor
 license agreements. See the NOTICE file distributed with this work for additional
 information regarding copyright ownership. ElasticSearch licenses this file to you
 under the Apache License, Version 2.0 (the "License"); you may not use this
@@ -17,9 +17,9 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-azure</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>2.0.0.RC1-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <description>Azure Cloud plugin for ElasticSearch</description>
+    <description>Azure Cloud plugin for Elasticsearch</description>
     <inceptionYear>2013</inceptionYear>
     <licenses>
         <license>
@@ -42,7 +42,7 @@ governing permissions and limitations under the License. -->
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.10</elasticsearch.version>
+        <elasticsearch.version>1.0.0.RC1-SNAPSHOT</elasticsearch.version>
         <lucene.version>4.6.0</lucene.version>
         <tests.output>onerror</tests.output>
         <tests.jvms>1</tests.jvms>

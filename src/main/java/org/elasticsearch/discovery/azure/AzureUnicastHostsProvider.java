@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.cloud.azure.Instance;
@@ -135,7 +135,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
                 if (networkAddress == null) {
                     // We have a bad parameter here or not enough information from azure
-                    throw new ElasticSearchIllegalArgumentException("can't find any " + host_type.name() + " address");
+                    throw new ElasticsearchIllegalArgumentException("can't find any " + host_type.name() + " address");
                 } else {
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
                     // we only limit to 1 addresses, makes no sense to ping 100 ports

@@ -72,6 +72,18 @@ on all data and master nodes. The following settings are supported:
 
 
 [float]
+===== Read-only URL Repository
+
+The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by shared file
+system repository  is using shared file system to store snapshot. The URL specified in the `url` parameter should
+point to the root of the shared filesystem repository. The following settings are supported:
+
+[horizontal]
+`url`:: Location of the snapshots. Mandatory.
+`concurrent_streams`:: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`
+
+
+[float]
 === Snapshot
 
 A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
@@ -170,7 +182,7 @@ http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendRepl
 -----------------------------------
 $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
     "indices": "index_1,index_2",
-    "ignore_unavailable": "missing",
+    "ignore_unavailable": "true",
     "include_global_state": false,
     "rename_pattern": "index_(.)+",
     "rename_replacement": "restored_index_$1"

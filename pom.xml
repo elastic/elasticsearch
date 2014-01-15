@@ -31,7 +31,13 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.1</elasticsearch.version>
+        <elasticsearch.version>0.90.10</elasticsearch.version>
+        <lucene.version>4.6.0</lucene.version>
+        <tests.jvms>1</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
+        <tests.client.ratio></tests.client.ratio>
+        <es.logger.level>INFO</es.logger.level>
     </properties>
 
     <repositories>
@@ -42,6 +48,13 @@
     </repositories>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
@@ -65,9 +78,10 @@
         </dependency>
 
         <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>6.3.1</version>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <type>test-jar</type>
             <scope>test</scope>
         </dependency>
 
@@ -98,13 +112,95 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <version>2.0.12</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>junit4</goal>
+                        </goals>
+                        <configuration>
+                            <heartbeat>20</heartbeat>
+                            <jvmOutputAction>pipe,warn</jvmOutputAction>
+                            <leaveTemporary>true</leaveTemporary>
+                            <listeners>
+                                <report-ant-xml mavenExtensions="true"
+                                                dir="${project.build.directory}/surefire-reports"/>
+                                <report-text
+                                        showThrowable="true"
+                                        showStackTraces="true"
+                                        showOutput="${tests.output}"
+                                        showStatusOk="false"
+                                        showStatusError="true"
+                                        showStatusFailure="true"
+                                        showStatusIgnored="true"
+                                        showSuiteSummary="true"
+                                        timestamps="false"/>
+                                <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                            </listeners>
+                            <assertions>
+                                <enable/>
+                            </assertions>
+                            <parallelism>${tests.jvms}</parallelism>
+                            <balancers>
+                                <execution-times>
+                                    <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
+                                </execution-times>
+                            </balancers>
+                            <includes>
+                                <include>**/*Tests.class</include>
+                                <include>**/*Test.class</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/Abstract*.class</exclude>
+                                <exclude>**/*StressTest.class</exclude>
+                            </excludes>
+                            <jvmArgs>
+                                <param>-Xmx512m</param>
+                                <param>-XX:MaxDirectMemorySize=512m</param>
+                                <param>-Des.logger.prefix=</param>
+                            </jvmArgs>
+                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                            <sysouts>${tests.verbose}</sysouts>
+                            <seed>${tests.seed}</seed>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <systemProperties>
+                                <!-- RandomizedTesting library system properties -->
+                                <tests.iters>${tests.iters}</tests.iters>
+                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                                <tests.failfast>${tests.failfast}</tests.failfast>
+                                <tests.class>${tests.class}</tests.class>
+                                <tests.method>${tests.method}</tests.method>
+                                <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.badapples>${tests.badapples}</tests.badapples>
+                                <tests.weekly>${tests.weekly}</tests.weekly>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
+                                <tests.integration>${tests.integration}</tests.integration>
+                                <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
+                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
+                                <es.node.mode>${es.node.mode}</es.node.mode>
+                                <es.logger.level>${es.logger.level}</es.logger.level>
+                                <java.awt.headless>true</java.awt.headless>
+                            </systemProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.11</version>
+                <version>2.15</version>
                 <configuration>
-                    <includes>
-                        <include>**/*Tests.java</include>
-                    </includes>
+                    <skipTests>true</skipTests>
                 </configuration>
             </plugin>
             <plugin>

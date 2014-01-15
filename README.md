@@ -7,7 +7,8 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |   JavaScript Lang Plugin    |    elasticsearch    |  rhino   | Release date |
 |-----------------------------|---------------------|----------|:------------:|
-| 1.5.0-SNAPSHOT (master)     | 0.90                |  1.7R4   |              |
+| 2.0.0.RC1-SNAPSHOT (master) | 1.0.0.RC1 -> master |  1.7R4   |              |
+| 1.5.0-SNAPSHOT (1.x)        | 0.90                |  1.7R4   |              |
 | 1.4.0                       | 0.90                |  1.7R4   |  2013-06-05  |
 | 1.3.0                       | 0.90                |  1.7R4   |  2013-02-26  |
 | 1.2.0                       | 0.19 -> 0.20        |  1.7R4   |  2012-06-23  |

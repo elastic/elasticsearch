@@ -4,7 +4,7 @@
 [partintro]
 --
 This section discusses the changes that you need to be aware of when migrating
-your application to Elasticsearch 1.0:
+your application to Elasticsearch 1.0.
 --
 
 == System and settings
@@ -267,8 +267,9 @@ use `1970` as the default.
 
 == Parameters
 
-* Geo queries used to use `miles` as the default unit.  And we all know what
-  happened at NASA because of that decision.  The new default unit is
+* Geo queries used to use `miles` as the default unit.  And we
+  http://en.wikipedia.org/wiki/Mars_Climate_Orbiter[all know what
+  happened at NASA] because of that decision.  The new default unit is
   https://github.com/elasticsearch/elasticsearch/issues/4515[`meters`].
 
 * For all queries that support _fuzziness_, the `min_similarity`, `fuzziness`

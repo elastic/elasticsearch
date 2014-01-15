@@ -17,7 +17,7 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-gce</artifactId>
-    <version>2.0.0.RC1-SNAPSHOT</version>
+    <version>2.0.0.RC1</version>
 
     <description>Google Compute Engine Cloud plugin for ElasticSearch</description>
     <inceptionYear>2013</inceptionYear>
@@ -47,7 +47,7 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <elasticsearch.version>1.0.0.RC1-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.0.0.RC1</elasticsearch.version>
         <google.gce.version>v1beta15-rev3-1.15.0-rc</google.gce.version>
         <google.api.version>1.15.0-rc</google.api.version>
         <lucene.version>4.6.0</lucene.version>

@@ -24,7 +24,39 @@ field data after a certain time of inactivity. Defaults to `-1`. For
 example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
-=== Field data formats
+[float]
+[[fielddata-circuit-breaker]]
+=== Field data circuit breaker
+The field data circuit breaker allows Elasticsearch to estimate the amount of
+memory a field will required to be loaded into memory. It can then prevent the
+field data loading by raising and exception. By default the limit is configured
+to 80% of the maximum JVM heap. It can be configured with the following
+parameters:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`indices.fielddata.breaker.limit` |Maximum size of estimated field data
+to allow loading. Defaults to 80% of the maximum JVM heap.
+|`indices.fielddata.breaker.overhead` |A constant that all field data
+estimations are multiplied with to determine a final estimation. Defaults to
+1.03
+|=======================================================================
+
+Both the `indices.fielddata.breaker.limit` and
+`indices.fielddata.breaker.overhead` can be changed dynamically using the
+cluster update settings API.
+
+[float]
+[[fielddata-monitoring]]
+=== Monitoring field data
+
+You can monitor memory usage for field data as well as the field data circuit
+breaker using
+<<cluster-nodes-stats,Nodes Stats API>>
+
+[[fielddata-formats]]
+== Field data formats
 
 The field data format controls how field data should be stored.
 
@@ -236,34 +268,3 @@ The `frequency` and `regex` filters can be combined:
     }
 }
 --------------------------------------------------
-
-[float]
-[[field-data-circuit-breaker]]
-=== Field data circuit breaker
-The field data circuit breaker allows Elasticsearch to estimate the amount of
-memory a field will required to be loaded into memory. It can then prevent the
-field data loading by raising and exception. By default it is configured with
-no limit (-1 bytes), but is automatically set to `indices.fielddata.cache.size`
-if set. It can be configured with the following parameters:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`indices.fielddata.breaker.limit` |Maximum size of estimated field data
-to allow loading. Defaults to 80% of the maximum JVM heap.
-|`indices.fielddata.breaker.overhead` |A constant that all field data
-estimations are multiplied with to determine a final estimation. Defaults to
-1.03
-|=======================================================================
-
-Both the `indices.fielddata.breaker.limit` and
-`indices.fielddata.breaker.overhead` can be changed dynamically using the
-cluster update settings API.
-
-[float]
-[[field-data-monitoring]]
-=== Monitoring field data
-
-You can monitor memory usage for field data as well as the field data circuit
-breaker using
-<<cluster-nodes-stats,Nodes Stats API>>

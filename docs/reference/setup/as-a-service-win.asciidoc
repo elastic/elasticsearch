@@ -1,7 +1,7 @@
 [[setup-service-win]]
 == Running as a Service on Windows
 
-Windows users can configure Elasticsearch to run as a service to run in the background or start automatically 
+Windows users can configure Elasticsearch to run as a service to run in the background or start automatically
 at startup without any user interaction.
 This can be achieved through `service.bat` script under `bin/` folder which allows one to install,
 remove, manage or configure the service and potentially start and stop the service, all from the command-line.
@@ -47,6 +47,7 @@ The service 'elasticsearch-service-x64' has been installed.
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as oppose to a server JVM which
 offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
+[float]
 === Customizing service settings
 
 There are two ways to customize the service settings:

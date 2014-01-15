@@ -162,6 +162,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         ImmutableMap.Builder<ShardId, RestoreMetaData.ShardRestoreStatus> shards = ImmutableMap.builder();
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
+                            // Make sure that index was fully snapshotted - don't restore
+                            if (failed(snapshot, index)) {
+                                throw new SnapshotRestoreException(snapshotId, "index [" + index + "] wasn't fully snapshotted - cannot restore");
+                            }
                             RestoreSource restoreSource = new RestoreSource(snapshotId, index);
                             String renamedIndex = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
@@ -391,6 +395,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    private boolean failed(Snapshot snapshot, String index) {
+        for (SnapshotShardFailure failure : snapshot.shardFailures()) {
+            if (index.equals(failure.index())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean failed(Snapshot snapshot, String index, int shard) {
+        for (SnapshotShardFailure failure : snapshot.shardFailures()) {
+            if (index.equals(failure.index()) && shard == failure.shardId()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Adds restore completion listener
      * <p/>
@@ -427,16 +449,17 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     /**
      * Checks if a repository is currently in use by one of the snapshots
+     *
      * @param clusterState cluster state
-     * @param repository repository id
+     * @param repository   repository id
      * @return true if repository is currently in use by one of the running snapshots
      */
     public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
         MetaData metaData = clusterState.metaData();
         RestoreMetaData snapshots = metaData.custom(RestoreMetaData.TYPE);
         if (snapshots != null) {
-            for(RestoreMetaData.Entry snapshot : snapshots.entries()) {
-                if(repository.equals(snapshot.snapshotId().getRepository())) {
+            for (RestoreMetaData.Entry snapshot : snapshots.entries()) {
+                if (repository.equals(snapshot.snapshotId().getRepository())) {
                     return true;
                 }
             }

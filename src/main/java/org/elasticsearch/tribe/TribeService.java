@@ -22,7 +22,7 @@ package org.elasticsearch.tribe;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchInterruptedException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -150,8 +150,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.error("{}", t, source);
-                latch.countDown();
+                try {
+                    logger.error("{}", t, source);
+                } finally {
+                    latch.countDown();
+                }
             }
 
             @Override
@@ -162,7 +165,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Interrupted while starting [" + this.getClass().getSimpleName()+ "]", e);
         }
         for (InternalNode node : nodes) {
             try {

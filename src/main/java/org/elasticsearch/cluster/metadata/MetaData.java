@@ -279,7 +279,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return ImmutableOpenMap.of();
         }
 
-        boolean matchAllAliases = aliases.length == 0;
+        boolean matchAllAliases = matchAllAliases(aliases);
         ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
@@ -297,6 +297,15 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
         }
         return mapBuilder.build();
+    }
+    
+    private boolean matchAllAliases(final String[] aliases) {
+        for (String alias : aliases) {
+            if (alias.equals("_all")) {
+                return true;
+            }
+        }
+        return aliases.length == 0;
     }
 
     /**
@@ -331,6 +340,12 @@ public class MetaData implements Iterable<IndexMetaData> {
         return false;
     }
 
+    /*
+     * Finds all mappings for types and concrete indices. Types are expanded to
+     * include all types that match the glob patterns in the types array. Empty
+     * types array, null or {"_all"} will be expanded to all types available for
+     * the given indices.
+     */
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
         assert types != null;
         assert concreteIndices != null;
@@ -343,7 +358,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
-            if (types.length == 0) {
+            if (isAllTypes(types)) {
                 indexMapBuilder.put(index, indexMetaData.getMappings()); // No types specified means get it all
 
             } else {
@@ -361,12 +376,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] warmers) {
-        assert warmers != null;
+    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
+        assert uncheckedWarmers != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
+        // special _all check to behave the same like not specifying anything for the warmers (not for the indices)
+        final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
 
         ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
@@ -945,7 +962,18 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @return true if the provided array maps to all indices, false otherwise
      */
     public boolean isAllIndices(String[] aliasesOrIndices) {
-        return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllIndices(aliasesOrIndices);
+        return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllPattern(aliasesOrIndices);
+    }
+    
+    /**
+     * Identifies whether the array containing type names given as argument refers to all types
+     * The empty or null array identifies all types
+     *
+     * @param types the array containing index names
+     * @return true if the provided array maps to all indices, false otherwise
+     */
+    public boolean isAllTypes(String[] types) {
+        return types == null || types.length == 0 || isExplicitAllPattern(types);
     }
 
     /**
@@ -955,7 +983,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    public boolean isExplicitAllIndices(String[] aliasesOrIndices) {
+    public boolean isExplicitAllPattern(String[] aliasesOrIndices) {
         return aliasesOrIndices != null && aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0]);
     }
 

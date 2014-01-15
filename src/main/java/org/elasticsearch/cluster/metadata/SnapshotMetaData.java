@@ -203,7 +203,8 @@ public class SnapshotMetaData implements MetaData.Custom {
         STARTED((byte) 1),
         SUCCESS((byte) 2),
         FAILED((byte) 3),
-        ABORTED((byte) 4);
+        ABORTED((byte) 4),
+        MISSING((byte) 5);
 
         private byte value;
 
@@ -216,7 +217,43 @@ public class SnapshotMetaData implements MetaData.Custom {
         }
 
         public boolean completed() {
-            return this == SUCCESS || this == FAILED;
+            switch (this) {
+                case INIT:
+                    return false;
+                case STARTED:
+                    return false;
+                case SUCCESS:
+                    return true;
+                case FAILED:
+                    return true;
+                case ABORTED:
+                    return false;
+                case MISSING:
+                    return true;
+                default:
+                    assert false;
+                    return true;
+            }
+        }
+
+        public boolean failed() {
+            switch (this) {
+                case INIT:
+                    return false;
+                case STARTED:
+                    return false;
+                case SUCCESS:
+                    return false;
+                case FAILED:
+                    return true;
+                case ABORTED:
+                    return true;
+                case MISSING:
+                    return true;
+                default:
+                    assert false;
+                    return false;
+            }
         }
 
         public static State fromValue(byte value) {
@@ -231,6 +268,8 @@ public class SnapshotMetaData implements MetaData.Custom {
                     return FAILED;
                 case 4:
                     return ABORTED;
+                case 5:
+                    return MISSING;
                 default:
                     throw new ElasticsearchIllegalArgumentException("No snapshot state for value [" + value + "]");
             }

@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ElasticsearchInterruptedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
@@ -276,7 +275,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
+            logger.debug("Interrupted closing index [{}]", e, index().name());
+            Thread.currentThread().interrupt();
         }
     }
 

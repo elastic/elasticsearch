@@ -16,21 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.rest.action.admin.indices.alias.delete;
 
-package org.elasticsearch;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.rest.RestStatus;
+
+import java.util.Arrays;
 
 /**
- * The same as {@link InterruptedException} simply a runtime one.
- *
  *
  */
-public class ElasticsearchInterruptedException extends ElasticsearchException {
+public class AliasesMissingException extends ElasticsearchException {
 
-    public ElasticsearchInterruptedException(String message) {
-        super(message);
+    private final String[] names;
+
+    public AliasesMissingException(String... names) {
+        super("aliases [" +  Arrays.toString(names) + "] missing");
+        this.names = names;
     }
 
-    public ElasticsearchInterruptedException(String message, Throwable cause) {
-        super(message, cause);
+    public String[] names() {
+        return this.names;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

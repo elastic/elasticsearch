@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -53,12 +54,15 @@ public class RestGetMappingAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mapping", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
+        controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
+        controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
+        controller.registerHandler(GET, "/_mapping/{type}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
+        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         boolean local = request.paramAsBooleanOptional("local", false);
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types).local(local);
@@ -74,7 +78,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                     if (mappingsByIndex.isEmpty()) {
                         if (indices.length != 0 && types.length != 0) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types[0])));
+                            channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
                         } else if (indices.length != 0) {
                             channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
                         } else if (types.length != 0) {
@@ -87,11 +91,16 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }
 
                     for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
+                        if (indexEntry.value.isEmpty()) {
+                            continue;
+                        }
                         builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
+                        builder.startObject(Fields.MAPPINGS);
                         for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                             builder.field(typeEntry.key);
                             builder.map(typeEntry.value.sourceAsMap());
                         }
+                        builder.endObject();
                         builder.endObject();
                     }
 
@@ -111,5 +120,9 @@ public class RestGetMappingAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static class Fields {
+        static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
     }
 }

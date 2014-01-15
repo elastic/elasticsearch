@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.junit.After;
@@ -189,6 +190,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             wipeIndices("_all");
             wipeTemplates();
             randomIndexTemplate();
+            wipeRepositories();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -237,6 +239,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             wipeIndices("_all"); // wipe after to make sure we fail in the test that
             // didn't ack the delete
             wipeTemplates();
+            wipeRepositories();
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
@@ -362,6 +365,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 try {
                     client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
                 } catch (IndexTemplateMissingException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    /**
+     * Deletes repositories, supports wildcard notation.
+     */
+    public static void wipeRepositories(String... repositories) {
+        if (cluster().size() > 0) {
+            // if nothing is provided, delete all
+            if (repositories.length == 0) {
+                repositories = new String[]{"*"};
+            }
+            for (String repository : repositories) {
+                try {
+                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                } catch (RepositoryMissingException ex) {
                     // ignore
                 }
             }

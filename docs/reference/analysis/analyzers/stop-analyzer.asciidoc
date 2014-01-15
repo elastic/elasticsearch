@@ -12,10 +12,11 @@ The following are settings that can be set for a `stop` analyzer type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
-|`stopwords` |A list of stopword to initialize the stop filter with.
+|`stopwords` |A list of stopwords to initialize the stop filter with.
 Defaults to the english stop words.
-
 |`stopwords_path` |A path (either relative to `config` location, or
 absolute) to a stopwords file configuration.
 |=======================================================================
+
+Use `stopwords: _none_` to explicitly specify an 'empty' stopword list.
 

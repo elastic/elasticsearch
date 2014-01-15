@@ -48,9 +48,11 @@ public class RestGetWarmerAction extends BaseRestHandler {
     @Inject
     public RestGetWarmerAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-
+        controller.registerHandler(GET, "/_warmer", this);
+        controller.registerHandler(GET, "/_warmer/{name}", this);
         controller.registerHandler(GET, "/{index}/_warmer", this);
         controller.registerHandler(GET, "/{index}/_warmer/{name}", this);
+        controller.registerHandler(GET, "/{index}/_warmers/{name}", this);
         controller.registerHandler(GET, "/{index}/{type}/_warmer/{name}", this);
     }
 
@@ -70,7 +72,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
             public void onResponse(GetWarmersResponse response) {
                 try {
                     if (indices.length > 0 && response.warmers().isEmpty()) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
                         return;
                     }
 

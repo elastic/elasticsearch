@@ -58,6 +58,12 @@ Once it's done it will print all the remaining steps.
 """
 env = os.environ
 
+PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
+           ('paramedic', 'karmi/elasticsearch-paramedic'),
+           ('segmentspy', 'polyfractal/elasticsearch-segmentspy'),
+           ('inquisitor', 'polyfractal/elasticsearch-inquisitor'),
+           ('head', 'mobz/elasticsearch-head')]
+
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
 
 def log(msg):
@@ -117,10 +123,11 @@ def verify_mvn_java_version(version, mvn):
 
 # Returns the hash of the current git HEAD revision
 def get_head_hash():
-  return get_hash('HEAD')
+  return os.popen(' git rev-parse --verify HEAD 2>&1').read().strip()
 
-def get_hash(version):
-  return os.popen('git rev-parse --verify %s 2>&1' % (version)).read().strip()
+# Returns the hash of the given tag revision
+def get_tag_hash(tag):
+  return os.popen('git show-ref --tags %s --hash 2>&1' % (tag)).read().strip()
 
 # Returns the name of the current branch
 def get_current_branch():
@@ -132,6 +139,10 @@ verify_mvn_java_version('1.6', MVN)
 # Utility that returns the name of the release branch for a given version
 def release_branch(version):
   return 'release_branch_%s' % version
+
+# runs get fetch on the given remote
+def fetch(remote):
+  run('git fetch %s' % remote)
 
 # Creates a new release branch from the given source branch
 # and rebases the source branch from the remote before creating
@@ -309,7 +320,7 @@ def generate_checksums(files):
     res = res + [os.path.join(directory, checksum_file), release_file]
   return res
 
-def download_and_verify(release, files, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
+def download_and_verify(release, files, plugins=None, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
   print('Downloading and verifying release %s from %s' % (release, base_url))
   tmp_dir = tempfile.mkdtemp()
   try:
@@ -326,11 +337,12 @@ def download_and_verify(release, files, base_url='https://download.elasticsearch
       urllib.request.urlretrieve(url, checksum_file)
       print('  Verifying checksum %s' % (checksum_file))
       run('cd %s && sha1sum -c %s' % (tmp_dir, os.path.basename(checksum_file)))
-    smoke_test_release(release, downloaded_files, get_hash('v%s' % release))
+    smoke_test_release(release, downloaded_files, get_tag_hash('v%s' % release), plugins)
+    print('  SUCCESS')
   finally:
     shutil.rmtree(tmp_dir)
 
-def smoke_test_release(release, files, expected_hash):
+def smoke_test_release(release, files, expected_hash, plugins):
   for release_file in files:
     if not os.path.isfile(release_file):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
@@ -344,9 +356,20 @@ def smoke_test_release(release, files, expected_hash):
       continue # nothing to do here 
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
+    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release),'bin/plugin')
+    plugin_names = {}
+    for name, plugin  in plugins:
+      print('  Install plugin [%s] from [%s]' % (name, plugin))
+      run('%s %s %s' % (es_plugin_path, '-install', plugin))
+      plugin_names[name] = True
+
+    if release.startswith("0.90."):
+      background = '' # 0.90.x starts in background automatically
+    else:
+      background = '-d'
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -d'
-         % (java_exe(), es_run_path))
+    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false %s'
+         % (java_exe(), es_run_path, background))
     conn = HTTPConnection('127.0.0.1', 9200, 20);
     wait_for_node_startup()
     try:
@@ -360,9 +383,25 @@ def smoke_test_release(release, files, expected_hash):
           if version['build_snapshot']:
             raise RuntimeError('Expected non snapshot version')
           if version['build_hash'].strip() !=  expected_hash:
-            raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (get_head_hash(), version['build_hash']))
+            raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Running REST Spec tests against package [%s]' % release_file)
           run_mvn('test -Dtests.rest=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9200"))
+          print('  Verify if plugins are listed in _nodes')
+          conn.request('GET', '/_nodes?plugin=true&pretty=true')
+          res = conn.getresponse()
+          if res.status == 200:
+            nodes = json.loads(res.read().decode("utf-8"))['nodes']
+            for _, node in nodes.items():
+              node_plugins = node['plugins']
+              for node_plugin in node_plugins:
+                if not plugin_names.get(node_plugin['name'], False):
+                  raise RuntimeError('Unexpeced plugin %s' % node_plugin['name'])
+                del plugin_names[node_plugin['name']]
+            if plugin_names:
+              raise RuntimeError('Plugins not loaded %s' % list(plugin_names.keys()))
+
+          else:
+           raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
         else:
           raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
       finally:
@@ -471,14 +510,11 @@ if __name__ == '__main__':
   print('Preparing Release from branch [%s] running tests: [%s] dryrun: [%s]' % (src_branch, run_tests, dry_run))
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
-  release_version = find_release_version(src_branch)
-
-  if not smoke_test_version and not dry_run:
-    smoke_test_version = release_version
-  elif smoke_test_version:
-    print("Skipping build - smoketest only against version %s" % smoke_test_version)
 
   if build:
+    release_version = find_release_version(src_branch)
+    if not dry_run:
+      smoke_test_version = release_version
     head_hash = get_head_hash()
     run_mvn('clean') # clean the env!
     print('  Release version: [%s]' % release_version)
@@ -497,11 +533,14 @@ if __name__ == '__main__':
       print(''.join(['-' for _ in range(80)]))
       print('Building Release candidate')
       input('Press Enter to continue...')
-      print('  Running maven builds now and publish to sonartype- run-tests [%s]' % run_tests)
+      if not dry_run:
+        print('  Running maven builds now and publish to sonartype - run-tests [%s]' % run_tests)
+      else:
+        print('  Running maven builds now run-tests [%s]' % run_tests)
       build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
       artifacts = get_artifacts(release_version)
       artifacts_and_checksum = generate_checksums(artifacts)
-      smoke_test_release(release_version, artifacts, get_head_hash())
+      smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)
       print(''.join(['-' for _ in range(80)]))
       print('Finish Release -- dry_run: %s' % dry_run)
       input('Press Enter to continue...')
@@ -530,5 +569,10 @@ if __name__ == '__main__':
         run('git tag -d v%s' % release_version)
       # we delete this one anyways
       run('git branch -D %s' %  (release_branch(release_version)))
+  else:
+    print("Skipping build - smoketest only against version %s" % smoke_test_version)
+    run_mvn('clean') # clean the env!
+    
   if smoke_test_version:
-    download_and_verify(smoke_test_version, artifact_names(smoke_test_version))
+    fetch(remote)
+    download_and_verify(smoke_test_version, artifact_names(smoke_test_version), plugins=PLUGINS)

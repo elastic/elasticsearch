@@ -148,7 +148,7 @@ public class Version implements Serializable {
     public static final int V_1_0_0_Beta2_ID = /*00*/1000002;
     public static final Version V_1_0_0_Beta2 = new Version(V_1_0_0_Beta2_ID, false, org.apache.lucene.util.Version.LUCENE_46);
     public static final int V_1_0_0_RC1_ID = /*00*/1000051;
-    public static final Version V_1_0_0_RC1 = new Version(V_1_0_0_RC1_ID, true, org.apache.lucene.util.Version.LUCENE_46);
+    public static final Version V_1_0_0_RC1 = new Version(V_1_0_0_RC1_ID, false, org.apache.lucene.util.Version.LUCENE_46);
 
     public static final Version CURRENT = V_1_0_0_RC1;
 

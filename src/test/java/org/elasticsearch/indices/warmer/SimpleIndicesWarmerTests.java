@@ -175,10 +175,10 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         try {
-            client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("foo").execute().actionGet(1000);
+            client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("foo").execute().actionGet(1000);
             assert false : "warmer foo should not exist";
         } catch (IndexWarmerMissingException ex) {
-            assertThat(ex.name(), equalTo("foo"));
+            assertThat(ex.names()[0], equalTo("foo"));
         }
     }
 
@@ -199,7 +199,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         assertThat(entry.value.size(), equalTo(1));
         assertThat(entry.value.iterator().next().name(), equalTo("custom_warmer"));
 
-        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer").get();
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").get();
         assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
 
         getWarmersResponse = client().admin().indices().prepareGetWarmers("test").get();
@@ -229,6 +229,36 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "test", "2").setSource("foo2", "bar2").setRefresh(true).execute().actionGet();
 
         assertThat(getWarmerRuns(), equalTo(warmerRunsAfterDisabling));
+    }
+
+    @Test
+    public void gettingAllWarmersUsingAllAndWildcardsShouldWork() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
+                .execute().actionGet();
+        ensureGreen();
+
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+
+        PutWarmerResponse anotherPutWarmerResponse = client().admin().indices().preparePutWarmer("second_custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(anotherPutWarmerResponse.isAcknowledged(), equalTo(true));
+
+        GetWarmersResponse getWarmersResponse = client().admin().indices().prepareGetWarmers("*").addWarmers("*").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("_all").addWarmers("_all").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("t*").addWarmers("c*").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
+
+        getWarmersResponse = client().admin().indices().prepareGetWarmers("test").addWarmers("custom_warmer", "second_custom_warmer").get();
+        assertThat(getWarmersResponse.warmers().size(), is(1));
     }
 
     private long getWarmerRuns() {

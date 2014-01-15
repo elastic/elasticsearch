@@ -29,9 +29,9 @@ example, can be set to `5m` for a 5 minute expiry.
 === Field data circuit breaker
 The field data circuit breaker allows Elasticsearch to estimate the amount of
 memory a field will required to be loaded into memory. It can then prevent the
-field data loading by raising and exception. By default it is configured with
-no limit (-1 bytes), but is automatically set to `indices.fielddata.cache.size`
-if set. It can be configured with the following parameters:
+field data loading by raising and exception. By default the limit is configured
+to 80% of the maximum JVM heap. It can be configured with the following
+parameters:
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -268,4 +268,3 @@ The `frequency` and `regex` filters can be combined:
     }
 }
 --------------------------------------------------
-

@@ -9,3 +9,4 @@
 /.project
 /.classpath
 *.vmoptions
+.local-execution-hints.log

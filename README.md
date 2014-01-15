@@ -3,11 +3,12 @@ AWS Cloud Plugin for Elasticsearch
 
 The AWS Cloud plugin allows to use AWS EC2 API for the unicast discovery mechanism as well as using S3 as a shared gateway.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.16.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.0.0.RC1`.
 
 |      AWS Cloud Plugin      |    elasticsearch    | Release date |
 |----------------------------|---------------------|:------------:|
-| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |              |
+| 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |              |
+| 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-10-15  |
 | 1.17.0-SNAPSHOT (1.x)      | 0.90.4 -> 0.90      |              |
 | 1.16.0                     | 0.90.4 -> 0.90      |  2013-11-26  |
 | 1.15.0                     | 0.90.4 -> 0.90      |  2013-09-16  |

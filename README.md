@@ -27,6 +27,9 @@ multicast environments). Here is a simple sample configuration:
             service_name: your_azure_cloud_service_name
     discovery:
             type: azure
+
+    # recommended
+    # path.data: /mnt/resource/elasticsearch/data
 ```
 
 How to start (short story)
@@ -256,6 +259,9 @@ And add the following lines:
             service_name: your_azure_cloud_service_name
     discovery:
             type: azure
+
+# Recommended
+    path.data: /mnt/resource/elasticsearch/data
 ```
 
 Restart elasticsearch:

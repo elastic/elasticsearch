@@ -29,6 +29,7 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -76,6 +77,8 @@ public class QueryParseContext {
     }
 
     private final Index index;
+
+    private boolean propagateNoCache = false;
 
     IndexQueryParserService indexQueryParser;
 
@@ -157,6 +160,9 @@ public class QueryParseContext {
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
         if (filter == null) {
             return null;
+        }
+        if (this.propagateNoCache || filter instanceof NoCacheFilter) {
+            return filter;
         }
         if (cacheKey != null) {
             filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
@@ -241,7 +247,7 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
         }
-        Filter result = filterParser.parse(this);
+        Filter result = executeFilterParser(filterParser);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
@@ -254,12 +260,17 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
         }
+        return executeFilterParser(filterParser);
+    }
+
+    private Filter executeFilterParser(FilterParser filterParser) throws IOException {
+        final boolean propagateNoCache = this.propagateNoCache; // first safe the state that we need to restore
+        this.propagateNoCache = false; // parse the subfilter with caching, that's fine
         Filter result = filterParser.parse(this);
-        // don't move to the nextToken in this case...
-//        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-//            // if we are at END_OBJECT, move to the next one...
-//            parser.nextToken();
-//        }
+        // now make sure we set propagateNoCache to true if it is true already or if the result is
+        // an instance of NoCacheFilter or if we used to be true! all filters above will
+        // be not cached ie. wrappers of this filter!
+        this.propagateNoCache |= (result instanceof NoCacheFilter) || propagateNoCache;
         return result;
     }
 

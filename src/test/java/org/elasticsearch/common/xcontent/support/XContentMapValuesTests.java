@@ -407,6 +407,8 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 .startObject("obj1")
                 .startObject("obj2")
                 .startObject("obj3")
+                .startObject("obj4")
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -414,24 +416,30 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
         // implicit include
         Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
-        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2"});
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj3"});
 
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), Matchers.equalTo(0));
+        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
+        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
 
         // explicit include
-        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1"}, new String[]{"*.obj2"});
+        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1"}, new String[]{"*.obj3"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), Matchers.equalTo(0));
+        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
+        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
 
         // wild card include
-        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, new String[]{"*.obj3"});
+        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, new String[]{"*.obj4"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
-        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), Matchers.equalTo(0));
+        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(1));
+        assertThat(((Map<String, Object>)((Map<String, Object>) filteredSource.get("obj1")).get("obj2")), hasKey("obj3"));
+        assertThat(((Map) ((Map) ((Map) filteredSource.get("obj1")).get("obj2")).get("obj3")).size(), equalTo(0));
     }
 
     @SuppressWarnings({"unchecked"})
@@ -452,69 +460,5 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
         assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
-    }
-
-    @SuppressWarnings({"unchecked"})
-    @Test
-    public void testExcludingChildObjectsWithEmptyIncludes() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startObject("obj1")
-                .startObject("obj2")
-                .endObject()
-                .endObject()
-                .startObject("obj3")
-                .endObject()
-                .endObject();
-
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
-        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2"});
-
-        assertThat(filteredSource.size(), equalTo(2));
-        assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
-        assertThat(filteredSource, hasKey("obj3"));
-        assertThat(((Map) filteredSource.get("obj3")).size(), equalTo(0));
-    }
-
-    @SuppressWarnings({"unchecked"})
-    @Test
-    public void testExcludingChildObjectsWithSpecifiedIncludes() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startObject("obj1")
-                .startObject("obj2")
-                .endObject()
-                .endObject()
-                .startObject("obj3")
-                .startObject("obj4")
-                .endObject()
-                .endObject()
-                .endObject();
-
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
-        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1", "obj3"}, new String[]{"*.obj2"});
-
-        assertThat(filteredSource.size(), equalTo(2));
-        assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
-        assertThat(filteredSource, hasKey("obj3"));
-        assertThat(((Map) filteredSource.get("obj3")).size(), equalTo(1));
-        assertThat(((Map<String, Object>) filteredSource.get("obj3")), hasKey("obj4"));
-        assertThat(((Map) ((Map) filteredSource.get("obj3")).get("obj4")).size(), equalTo(0));
-
-        mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
-        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1"}, new String[]{"*.obj2"});
-
-        assertThat(filteredSource.size(), equalTo(1));
-        assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
-
-        mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
-        filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj3"}, new String[]{"*.obj2"});
-
-        assertThat(filteredSource.size(), equalTo(1));
-        assertThat(filteredSource, hasKey("obj3"));
-        assertThat(((Map) filteredSource.get("obj3")).size(), equalTo(1));
-        assertThat(((Map<String, Object>) filteredSource.get("obj3")), hasKey("obj4"));
-        assertThat(((Map) ((Map) filteredSource.get("obj3")).get("obj4")).size(), equalTo(0));
     }
 }

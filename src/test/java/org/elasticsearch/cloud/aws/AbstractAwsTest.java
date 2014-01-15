@@ -45,8 +45,10 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
      *          secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
      *          region: "us-west"
      *
-     * discovery:
-     #      type: ec2
+     * repositories:
+     *      s3:
+     *          bucket: "bucket_name"
+     *
      * </pre>
      */
     @Documented

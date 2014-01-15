@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.rescore;
 
-import java.io.IOException;
-import java.util.Map;
-
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +28,8 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
-import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.util.Map;
 
 /**
  */
@@ -54,13 +53,13 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) throws ElasticsearchException {
-        final RescoreSearchContext ctx = context.rescore();
-        final Rescorer rescorer = ctx.rescorer();
         try {
-            rescorer.rescore(context.queryResult().topDocs(), context, ctx);
+            for (RescoreSearchContext ctx : context.rescore()) {
+                ctx.rescorer().rescore(context.queryResult().topDocs(), context, ctx);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
-        }    
+        }
     }
   
     

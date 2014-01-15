@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.explain;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.SearchParseElement;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.rescore.Rescorer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,14 +59,10 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         try {
             final int topLevelDocId = hitContext.hit().docId();
-            Explanation explanation;
+            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             
-            if (context.rescore() != null) {
-                RescoreSearchContext ctx = context.rescore();
-                Rescorer rescorer = ctx.rescorer();
-                explanation = rescorer.explain(topLevelDocId, context, ctx);
-            } else {
-                explanation = context.searcher().explain(context.query(), topLevelDocId);
+            for (RescoreSearchContext rescore : context.rescore()) {
+                explanation = rescore.rescorer().explain(topLevelDocId, context, rescore, explanation);
             }
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(explanation);

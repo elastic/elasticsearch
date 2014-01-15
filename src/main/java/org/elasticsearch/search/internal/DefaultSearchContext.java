@@ -70,6 +70,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -160,7 +161,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private SuggestionSearchContext suggest;
 
-    private RescoreSearchContext rescore;
+    private List<RescoreSearchContext> rescore;
 
     private SearchLookup searchLookup;
 
@@ -342,12 +343,18 @@ public class DefaultSearchContext extends SearchContext {
         this.suggest = suggest;
     }
 
-    public RescoreSearchContext rescore() {
-        return this.rescore;
+    public List<RescoreSearchContext> rescore() {
+        if (rescore == null) {
+            return Collections.emptyList();
+        }
+        return rescore;
     }
 
-    public void rescore(RescoreSearchContext rescore) {
-        this.rescore = rescore;
+    public void addRescore(RescoreSearchContext rescore) {
+        if (this.rescore == null) {
+            this.rescore = new ArrayList<RescoreSearchContext>();
+        }
+        this.rescore.add(rescore);
     }
 
     public boolean hasFieldDataFields() {

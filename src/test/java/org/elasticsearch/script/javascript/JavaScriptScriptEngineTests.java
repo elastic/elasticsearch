@@ -23,31 +23,31 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ExecutableScript;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
  */
-public class JavaScriptScriptEngineTests {
+public class JavaScriptScriptEngineTests extends ElasticsearchTestCase {
 
     private JavaScriptScriptEngineService se;
 
-    @BeforeClass
+    @Before
     public void setup() {
         se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    @AfterClass
+    @After
     public void close() {
         se.close();
     }

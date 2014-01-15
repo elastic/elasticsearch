@@ -134,11 +134,11 @@ public abstract class SearchContext implements Releasable {
     public abstract void suggest(SuggestionSearchContext suggest);
 
     /**
-     * @return the rescore context or null if rescoring wasn't specified or isn't supported
+     * @return list of all rescore contexts.  empty if there aren't any.
      */
-    public abstract RescoreSearchContext rescore();
+    public abstract List<RescoreSearchContext> rescore();
 
-    public abstract void rescore(RescoreSearchContext rescore);
+    public abstract void addRescore(RescoreSearchContext rescore);
 
     public abstract boolean hasFieldDataFields();
 

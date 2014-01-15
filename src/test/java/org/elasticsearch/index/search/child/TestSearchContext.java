@@ -205,12 +205,12 @@ class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public RescoreSearchContext rescore() {
+    public List<RescoreSearchContext> rescore() {
         return null;
     }
 
     @Override
-    public void rescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreSearchContext rescore) {
     }
 
     @Override

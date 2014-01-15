@@ -32,6 +32,16 @@ public class RescoreParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                parseSingleRescoreContext(parser, context);
+            }
+        } else {
+            parseSingleRescoreContext(parser, context);
+        }
+    }
+
+    private void parseSingleRescoreContext(XContentParser parser, SearchContext context) throws Exception {
         String fieldName = null;
         RescoreSearchContext rescoreContext = null;
         Integer windowSize = null;
@@ -62,7 +72,7 @@ public class RescoreParseElement implements SearchParseElement {
         if (windowSize != null) {
             rescoreContext.setWindowSize(windowSize.intValue());
         }
-        context.rescore(rescoreContext);
+        context.addRescore(rescoreContext);
     }
 
 }

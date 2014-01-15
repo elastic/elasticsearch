@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 
 import java.util.AbstractSet;
 import java.util.Collection;
@@ -70,8 +71,8 @@ public class DfsPhase implements SearchPhase {
                 termsSet.clear();
             }
             context.query().extractTerms(new DelegateSet(termsSet));
-            if (context.rescore() != null) {
-                context.rescore().rescorer().extractTerms(context, context.rescore(), new DelegateSet(termsSet));
+            for (RescoreSearchContext rescoreContext : context.rescore()) {
+                rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));
             }
 
             Term[] terms = termsSet.toArray(Term.class);

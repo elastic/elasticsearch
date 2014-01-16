@@ -21,7 +21,6 @@ package org.elasticsearch.test.rest.section;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import java.io.File;
 import java.util.List;
 import java.util.Set;
 
@@ -54,7 +53,7 @@ public class RestTestSuite {
     //describes the rest test suite (e.g. index/10_with_id)
     //useful also to reproduce failures (RestReproduceInfoPrinter)
     public String getDescription() {
-        return api + File.separator + name;
+        return api + "/" + name;
     }
 
     public SetupSection getSetupSection() {

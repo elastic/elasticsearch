@@ -64,14 +64,14 @@ public class AliasResolveRoutingTests extends ElasticsearchIntegrationTest {
         assertThat(clusterService().state().metaData().resolveIndexRouting("0", "alias10"), equalTo("0"));
         try {
             clusterService().state().metaData().resolveIndexRouting("1", "alias10");
-            assert false : "should fail";
+            fail("should fail");
         } catch (ElasticsearchIllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
             clusterService().state().metaData().resolveIndexRouting(null, "alias0");
-            assert false : "should fail";
+            fail("should fail");
         } catch (ElasticsearchIllegalArgumentException ex) {
             // Expected
         }

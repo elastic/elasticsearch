@@ -184,7 +184,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     currentCluster = buildAndPutCluster(currentClusterScope, true);
                     break;
                 default:
-                    assert false : "Unknown Scope: [" + currentClusterScope + "]";
+                    fail("Unknown Scope: [" + currentClusterScope + "]");
             }
             currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
             wipeIndices("_all");

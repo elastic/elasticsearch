@@ -129,7 +129,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> trying to index into a closed index ...");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }
@@ -177,7 +177,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> trying to index into a closed index ...");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }

@@ -54,7 +54,7 @@ public class UpdateSettingsValidationTests extends ElasticsearchIntegrationTest 
 
         try {
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.refresh_interval", "")).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException ex) {
             logger.info("Error message: [{}]", ex.getMessage());
         }

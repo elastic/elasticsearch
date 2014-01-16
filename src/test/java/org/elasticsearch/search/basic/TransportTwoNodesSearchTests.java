@@ -351,7 +351,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
             assertThat(searchResponse.getTotalShards(), equalTo(3));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(3));
-            assert false : "search should fail";
+            fail("search should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
             // all is well

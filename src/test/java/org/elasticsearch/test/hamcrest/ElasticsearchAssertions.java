@@ -56,6 +56,7 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -161,7 +162,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
-        assert number > 0;
+        assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
         assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
@@ -324,7 +325,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assert Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion());
+        assertTrue(Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion()));
         assertVersionSerializable(ElasticsearchTestCase.randomVersion(), streamable);
     }
 

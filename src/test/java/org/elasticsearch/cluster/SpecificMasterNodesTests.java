@@ -47,7 +47,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
-            assert false : "should not be able to find master";
+            fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
@@ -61,7 +61,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
 
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
-            assert false : "should not be able to find master";
+            fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
@@ -78,7 +78,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
-            assert false : "should not be able to find master";
+            fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }

@@ -50,7 +50,7 @@ public class SimpleIndicesBoostSearchTests extends ElasticsearchIntegrationTest 
 
         try {
             client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();
-            assert false : "should fail";
+            fail("should fail");
         } catch (Exception e) {
             // ignore, no indices
         }

@@ -394,7 +394,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         BytesRef previous = null;
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final int docID = topDocs.scoreDocs[i].doc;
-            assert parents.get(docID);
+            assertTrue("expected " + docID + " to be a parent", parents.get(docID));
             BytesRef cmpValue = null;
             for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
                 String[] vals = searcher.doc(child).getValues("text");

@@ -1,10 +1,10 @@
 {
-  "cluster.create_snapshot": {
+  "snapshot.restore": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-    "methods": ["PUT", "POST"],
+    "methods": ["POST"],
     "url": {
-      "path": "/_snapshot/{repository}/{snapshot}",
-      "paths": ["/_snapshot/{repository}/{snapshot}", "/_snapshot/{repository}/{snapshot}/_create"],
+      "path": "/_snapshot/{repository}/{snapshot}/_restore",
+      "paths": ["/_snapshot/{repository}/{snapshot}/_restore"],
       "parts": {
         "repository": {
           "type": "string",
@@ -27,7 +27,7 @@
         }
       }
     },
-      "description" : "The snapshot definition",
+      "description" : "Details of what to restore",
       "required" : false
   }
 }

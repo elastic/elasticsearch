@@ -1,7 +1,7 @@
 ---
 "node_info test":
   - do:
-      cluster.node_info: {}
+      nodes.info: {}
 
   - is_true: nodes
   - is_true: cluster_name

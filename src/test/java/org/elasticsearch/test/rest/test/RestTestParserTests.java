@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.test;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
 import org.elasticsearch.test.rest.section.DoSection;
@@ -497,5 +498,39 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         assertThat(doSection.getApiCallSection().getApi(), equalTo("update"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(4));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
+    }
+
+    @Test(expected = RestTestParseException.class)
+    public void testParseTestDuplicateTestSections() throws Exception {
+        parser = YamlXContent.yamlXContent.createParser(
+                "---\n" +
+                        "\"Missing document (script)\":\n" +
+                        "\n" +
+                        "  - do:\n" +
+                        "      catch:      missing\n" +
+                        "      update:\n" +
+                        "          index:  test_1\n" +
+                        "          type:   test\n" +
+                        "          id:     1\n" +
+                        "          body:   { doc: { foo: bar } }\n" +
+                        "\n" +
+                        "---\n" +
+                        "\"Missing document (script)\":\n" +
+                        "\n" +
+                        "\n" +
+                        "  - do:\n" +
+                        "      catch:      missing\n" +
+                        "      update:\n" +
+                        "          index:  test_1\n" +
+                        "          type:   test\n" +
+                        "          id:     1\n" +
+                        "          body:\n" +
+                        "            script: \"ctx._source.foo = bar\"\n" +
+                        "            params: { bar: 'xxx' }\n" +
+                        "\n"
+        );
+
+        RestTestSuiteParser testParser = new RestTestSuiteParser();
+        testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
     }
 }

@@ -1,10 +1,10 @@
 {
-  "cluster.get_repository": {
+  "snapshot.delete_repository": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-    "methods": ["GET"],
+    "methods": ["DELETE"],
     "url": {
-      "path": "/_snapshot",
-      "paths": ["/_snapshot", "/_snapshot/{repository}"],
+      "path": "/_snapshot/{repository}",
+      "paths": ["/_snapshot/{repository}"],
       "parts": {
         "repository": {
           "type": "list",
@@ -15,6 +15,10 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Explicit operation timeout for connection to master node"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
         }
       }
     },

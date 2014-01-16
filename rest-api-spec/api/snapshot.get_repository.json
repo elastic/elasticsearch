@@ -1,18 +1,14 @@
 {
-  "cluster.delete_snapshot": {
+  "snapshot.get_repository": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-    "methods": ["DELETE"],
+    "methods": ["GET"],
     "url": {
-      "path": "/_snapshot/{repository}/{snapshot}",
-      "paths": ["/_snapshot/{repository}/{snapshot}"],
+      "path": "/_snapshot",
+      "paths": ["/_snapshot", "/_snapshot/{repository}"],
       "parts": {
         "repository": {
-          "type": "string",
-          "description": "A repository name"
-        },
-        "snapshot": {
-          "type": "string",
-          "description": "A snapshot name"
+          "type": "list",
+          "description": "A comma-separated list of repository names"
         }
       },
       "params": {

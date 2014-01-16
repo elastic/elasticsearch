@@ -1,5 +1,5 @@
 {
-  "cluster.get_snapshot": {
+  "snapshot.get": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
     "methods": ["GET"],
     "url": {

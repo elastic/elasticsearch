@@ -208,6 +208,9 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             this.restTestExecutionContext = new RestTestExecutionContext(host, port, restSpec);
             this.rootDescription = createRootDescription(getRootSuiteTitle());
             this.restTestCandidates = collectTestCandidates(rootDescription);
+        } catch (InitializationError e) {
+          stopTestCluster();
+            throw e;
         } catch (Throwable e) {
             stopTestCluster();
             throw new InitializationError(e);
@@ -219,8 +222,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
      * The descriptions will be part of a tree containing api/yaml file/test section/eventual multiple iterations.
      * The test candidates will be instead flattened out to the leaves level (iterations), the part that needs to be run.
      */
-    protected List<RestTestCandidate> collectTestCandidates(Description rootDescription)
-            throws RestTestParseException, IOException {
+    protected List<RestTestCandidate> collectTestCandidates(Description rootDescription) throws InitializationError, IOException {
 
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
@@ -238,6 +240,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         final boolean fixedSeed = testSectionRandomnessOverride != null;
         final boolean hasRepetitions = iterations > 1;
 
+        List<Throwable> parseExceptions = Lists.newArrayList();
         List<RestTestCandidate> testCandidates = Lists.newArrayList();
         RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
         for (String api : apis) {
@@ -249,7 +252,15 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             Collections.shuffle(yamlFiles, runnerRandomness.getRandom());
 
             for (File yamlFile : yamlFiles) {
-                RestTestSuite restTestSuite = restTestSuiteParser.parse(restTestExecutionContext.esVersion(), api, yamlFile);
+                RestTestSuite restTestSuite;
+                try {
+                    restTestSuite = restTestSuiteParser.parse(restTestExecutionContext.esVersion(), api, yamlFile);
+                } catch (RestTestParseException e) {
+                    parseExceptions.add(e);
+                    //we continue so that we collect all parse errors and show them all at once
+                    continue;
+                }
+
                 Description testSuiteDescription = createTestSuiteDescription(restTestSuite);
                 apiDescription.addChild(testSuiteDescription);
 
@@ -299,6 +310,10 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                     }
                 }
             }
+        }
+
+        if (!parseExceptions.isEmpty()) {
+            throw new InitializationError(parseExceptions);
         }
 
         return testCandidates;

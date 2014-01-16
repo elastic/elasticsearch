@@ -158,18 +158,6 @@ setup:
  - is_false: test_2.warmers.warmer_3
 
 ---
-"Get /{index}/_warmer/{name}":
-
- - do:
-    indices.get_warmer:
-        index: test_2
-        name: warmer_2
-
- - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
- - is_false: test_1
- - is_false: test_2.warmers.warmer_3
-
----
 "Get /index,index/_warmer/{name}":
 
  - do:

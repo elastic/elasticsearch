@@ -1,6 +1,6 @@
 {
-  "cat": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
+  "cat.indices": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-indices.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/indices",

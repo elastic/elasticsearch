@@ -1,5 +1,5 @@
 {
-  "cat": {
+  "cat.help": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
     "methods": ["GET"],
     "url": {

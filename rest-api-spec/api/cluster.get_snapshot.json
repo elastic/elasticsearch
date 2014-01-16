@@ -1,14 +1,18 @@
 {
-  "cluster.repositories.get": {
+  "cluster.get_snapshot": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_snapshot",
-      "paths": ["/_snapshot", "/_snapshot/{repository}"],
+      "path": "/_snapshot/{repository}/{snapshot}",
+      "paths": ["/_snapshot/{repository}/{snapshot}"],
       "parts": {
         "repository": {
           "type": "list",
           "description": "A comma-separated list of repository names"
+        },
+        "snapshot": {
+          "type": "list",
+          "description": "A comma-separated list of snapshot names"
         }
       },
       "params": {

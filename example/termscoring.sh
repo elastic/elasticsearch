@@ -2,7 +2,7 @@
 
 # Init an index that includes wordcount for the field that we will be searching on:
 
-curl -XPUT "http://localhost:9200/termscore" -d'
+curl -s -XPUT "http://localhost:9200/termscore" -d'
 {
    "settings": {
       "number_of_shards": 1,
@@ -29,21 +29,21 @@ curl -XPUT "http://localhost:9200/termscore" -d'
    }
 }'
 
-curl -XPOST "http://localhost:9200/termscore/doc" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc" -d'
 {
    "text": "John Smith is the main villain in the Matrix."
 }'
 
-curl -XPOST "http://localhost:9200/termscore/doc" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc" -d'
 {
    "text": "John \"Hannibal\" Smith is the leader of the A-team."
 }'
 
-curl -XPOST "http://localhost:9200/termscore/_refresh" 
+curl -s -XPOST "http://localhost:9200/termscore/_refresh"
 
 # search for people that are named John Smith:
 
-curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 {
    "query": {
       "function_score": {
@@ -81,26 +81,26 @@ curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
    }
 }'
 
-curl -XPOST "http://localhost:9200/termscore/doc" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc" -d'
 {
    "text": "I am Sam. I am Sam. Sam I am. That Sam-I-am.    That Sam-I-am! I do not like that Sam-I-am. Do you like green eggs and ham? I do not like them, Sam-I-am.I do not like green eggs and ham."
 }'
 
-curl -XPOST "http://localhost:9200/termscore/doc" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc" -d'
 {
    "text": "Would you like them Here or there? I would not like them here or there. I would not like them anywhere. I do not like green eggs and ham. I do not like them, Sam-I-am."
 }'
 
-curl -XPOST "http://localhost:9200/termscore/doc" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc" -d'
 {
    "text": "Would you like them in a house? Would you like them with a mouse? I do not like them in a house. I do not like them with a mouse. I do not like them here or there. I do not like them anywhere. I do not like green eggs and ham. I do not like them, Sam-I-am."
 }'
 
-curl -XPOST "http://localhost:9200/termscore/_refresh" 
+curl -s -XPOST "http://localhost:9200/termscore/_refresh"
 
 # Search for "I am Sam" with cosine similarity:
 
-curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 {
    "script_fields": {
       "i-tf": {
@@ -157,7 +157,7 @@ curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 
 # Search for "I am Sam" with naive tf-ifd score:
 
-curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 {
    "script_fields": {
       "i-tf": {
@@ -209,7 +209,7 @@ curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 
 # Search for "I am Sam" with language model scoring:
 
-curl -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
+curl -s -XPOST "http://localhost:9200/termscore/doc/_search?pretty" -d'
 {
    "script_fields": {
       "i-tf": {

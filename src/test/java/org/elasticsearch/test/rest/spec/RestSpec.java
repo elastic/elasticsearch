@@ -40,12 +40,7 @@ public class RestSpec {
     }
 
     void addApi(RestApi restApi) {
-        if ("info".equals(restApi.getName())) {
-            //TODO info and ping should really be two different api in the rest spec
-            //info (GET|HEAD /) needs to be manually split into 1) info: GET /  2) ping: HEAD /
-            restApiMap.put("info", new RestApi(restApi, "info", "GET"));
-            restApiMap.put("ping", new RestApi(restApi, "ping", "HEAD"));
-        } else if ("get".equals(restApi.getName())) {
+        if ("get".equals(restApi.getName())) {
             //TODO get_source endpoint shouldn't be present in the rest spec for the get api
             //as get_source is already a separate api
             List<String> paths = Lists.newArrayList();

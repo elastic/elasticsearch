@@ -1,0 +1,15 @@
+{
+  "cluster.tasks": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-pending.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/pending_tasks",
+      "paths": ["/_cluster/pending_tasks"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

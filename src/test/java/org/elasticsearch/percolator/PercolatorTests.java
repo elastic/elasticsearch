@@ -1145,6 +1145,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             }
             controlMap.get(value).add(i);
         }
+        List<Integer> usedValues = new ArrayList<Integer>(controlMap.keySet());
         refresh();
 
         // Only retrieve the score
@@ -1166,7 +1167,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         }
 
         // Sort the queries by the score
-        runs = randomInt(27);
         for (int i = 0; i < runs; i++) {
             int size = randomIntBetween(1, 10);
             PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
@@ -1188,9 +1188,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         }
 
 
-        runs = randomInt(27);
         for (int i = 0; i < runs; i++) {
-            int value = randomInt(10);
+            int value = usedValues.get(randomInt(usedValues.size() - 1));
             NavigableSet<Integer> levels = controlMap.get(value);
             int size = randomIntBetween(1, levels.size());
             PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")

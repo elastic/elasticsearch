@@ -58,6 +58,15 @@
         "_source_include": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal","external"],
+          "description" : "Specific version type"
         }
       }
     },

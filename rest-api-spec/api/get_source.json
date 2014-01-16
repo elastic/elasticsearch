@@ -50,6 +50,14 @@
         "routing": {
           "type" : "string",
           "description" : "Specific routing value"
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal","external"],
+          "description" : "Specific version type"
         }
       }
     },

@@ -23,6 +23,7 @@ import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestApiParser;
 import org.junit.Test;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -45,6 +46,10 @@ public class RestApiParserTests extends AbstractParserTests {
         assertThat(restApi.getPathParts().get(0), equalTo("id"));
         assertThat(restApi.getPathParts().get(1), equalTo("index"));
         assertThat(restApi.getPathParts().get(2), equalTo("type"));
+        assertThat(restApi.getParams().size(), equalTo(4));
+        assertThat(restApi.getParams(), contains("consistency", "op_type", "parent", "refresh"));
+        assertThat(restApi.isBodySupported(), equalTo(true));
+        assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
     @Test
@@ -60,7 +65,62 @@ public class RestApiParserTests extends AbstractParserTests {
         assertThat(restApi.getPaths().get(1), equalTo("/_template/{name}"));
         assertThat(restApi.getPathParts().size(), equalTo(1));
         assertThat(restApi.getPathParts().get(0), equalTo("name"));
+        assertThat(restApi.getParams().size(), equalTo(0));
+        assertThat(restApi.isBodySupported(), equalTo(false));
+        assertThat(restApi.isBodyRequired(), equalTo(false));
     }
+
+    @Test
+    public void testParseRestSpecCountApi() throws Exception {
+        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_COUNT_API);
+        RestApi restApi = new RestApiParser().parse(parser);
+        assertThat(restApi, notNullValue());
+        assertThat(restApi.getName(), equalTo("count"));
+        assertThat(restApi.getMethods().size(), equalTo(2));
+        assertThat(restApi.getMethods().get(0), equalTo("POST"));
+        assertThat(restApi.getMethods().get(1), equalTo("GET"));
+        assertThat(restApi.getPaths().size(), equalTo(3));
+        assertThat(restApi.getPaths().get(0), equalTo("/_count"));
+        assertThat(restApi.getPaths().get(1), equalTo("/{index}/_count"));
+        assertThat(restApi.getPaths().get(2), equalTo("/{index}/{type}/_count"));
+        assertThat(restApi.getPathParts().size(), equalTo(2));
+        assertThat(restApi.getPathParts().get(0), equalTo("index"));
+        assertThat(restApi.getPathParts().get(1), equalTo("type"));
+        assertThat(restApi.getParams().size(), equalTo(1));
+        assertThat(restApi.getParams().get(0), equalTo("ignore_unavailable"));
+        assertThat(restApi.isBodySupported(), equalTo(true));
+        assertThat(restApi.isBodyRequired(), equalTo(false));
+    }
+
+    private static final String REST_SPEC_COUNT_API = "{\n" +
+            "  \"count\": {\n" +
+            "    \"documentation\": \"http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-count.html\",\n" +
+            "    \"methods\": [\"POST\", \"GET\"],\n" +
+            "    \"url\": {\n" +
+            "      \"path\": \"/_count\",\n" +
+            "      \"paths\": [\"/_count\", \"/{index}/_count\", \"/{index}/{type}/_count\"],\n" +
+            "      \"parts\": {\n" +
+            "        \"index\": {\n" +
+            "          \"type\" : \"list\",\n" +
+            "          \"description\" : \"A comma-separated list of indices to restrict the results\"\n" +
+            "        },\n" +
+            "        \"type\": {\n" +
+            "          \"type\" : \"list\",\n" +
+            "          \"description\" : \"A comma-separated list of types to restrict the results\"\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"params\": {\n" +
+            "        \"ignore_unavailable\": {\n" +
+            "          \"type\" : \"boolean\",\n" +
+            "          \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
+            "        } \n" +
+            "      }\n" +
+            "    },\n" +
+            "    \"body\": {\n" +
+            "      \"description\" : \"A query to restrict the results specified with the Query DSL (optional)\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n";
 
     private static final String REST_SPEC_GET_TEMPLATE_API = "{\n" +
             "  \"indices.get_template\": {\n" +
@@ -122,44 +182,9 @@ public class RestApiParserTests extends AbstractParserTests {
             "          \"type\" : \"string\",\n" +
             "          \"description\" : \"ID of the parent document\"\n" +
             "        },\n" +
-            "        \"percolate\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"description\" : \"Percolator queries to execute while indexing the document\"\n" +
-            "        },\n" +
             "        \"refresh\": {\n" +
             "          \"type\" : \"boolean\",\n" +
             "          \"description\" : \"Refresh the index after performing the operation\"\n" +
-            "        },\n" +
-            "        \"replication\": {\n" +
-            "          \"type\" : \"enum\",\n" +
-            "          \"options\" : [\"sync\",\"async\"],\n" +
-            "          \"default\" : \"sync\",\n" +
-            "          \"description\" : \"Specific replication type\"\n" +
-            "        },\n" +
-            "        \"routing\": {\n" +
-            "          \"type\" : \"string\",\n" +
-            "          \"description\" : \"Specific routing value\"\n" +
-            "        },\n" +
-            "        \"timeout\": {\n" +
-            "          \"type\" : \"time\",\n" +
-            "          \"description\" : \"Explicit operation timeout\"\n" +
-            "        },\n" +
-            "        \"timestamp\": {\n" +
-            "          \"type\" : \"time\",\n" +
-            "          \"description\" : \"Explicit timestamp for the document\"\n" +
-            "        },\n" +
-            "        \"ttl\": {\n" +
-            "          \"type\" : \"duration\",\n" +
-            "          \"description\" : \"Expiration time for the document\"\n" +
-            "        },\n" +
-            "        \"version\" : {\n" +
-            "          \"type\" : \"number\",\n" +
-            "          \"description\" : \"Explicit version number for concurrency control\"\n" +
-            "        },\n" +
-            "        \"version_type\": {\n" +
-            "          \"type\" : \"enum\",\n" +
-            "          \"options\" : [\"internal\",\"external\"],\n" +
-            "          \"description\" : \"Specific version type\"\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +

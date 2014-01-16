@@ -35,7 +35,7 @@ your application to Elasticsearch 1.0.
 * The `cluster.routing.allocation` settings (`disable_allocation`,
   `disable_new_allocation` and `disable_replica_location`) have been
   <<modules-cluster,replaced by the single setting>>:
-
++
 [source,yaml]
 ---------------
 cluster.routing.allocation.enable: all|primaries|new_primaries|none
@@ -128,7 +128,7 @@ rules:
 
 * The response format always has the index name, then the section, then the
   element name, for instance:
-
++
 [source,json]
 ---------------
 {
@@ -282,7 +282,7 @@ use `1970` as the default.
 
 * An index name (or pattern) is now required for destructive operations like
   deleting indices:
-
++
 [source,sh]
 ---------------
 # v0.90 - delete all indices:
@@ -314,7 +314,7 @@ by disabling wildcard expansion on destructive actions.
 
 * Settings, like `index.analysis.analyzer.default` are now returned as proper
   nested JSON objects, which makes them easier to work with programatically:
-
++
 [source,json]
 ---------------
 {

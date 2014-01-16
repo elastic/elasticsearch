@@ -1,12 +1,12 @@
 {
-  "cat": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
+  "cat.allocation": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-allocation.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/allocation",
-      "paths": ["/_cat/allocation", "/_cat/allocation/{nodes}"],
+      "paths": ["/_cat/allocation", "/_cat/allocation/{node_id}"],
       "parts": {
-        "nodes": {
+        "node_id": {
           "type": "list",
           "description": "A comma-separated list of node IDs or names to limit the returned information"
         }

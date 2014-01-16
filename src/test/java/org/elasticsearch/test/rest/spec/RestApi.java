@@ -39,23 +39,32 @@ public class RestApi {
     private List<String> methods = Lists.newArrayList();
     private List<String> paths = Lists.newArrayList();
     private List<String> pathParts = Lists.newArrayList();
+    private List<String> params = Lists.newArrayList();
+    private BODY body = BODY.NOT_SUPPORTED;
+
+    public static enum BODY {
+        NOT_SUPPORTED, OPTIONAL, REQUIRED
+    }
 
     RestApi(String name) {
         this.name = name;
     }
 
     RestApi(RestApi restApi, String name, String... methods) {
-        this.name = name;
-        this.methods = Arrays.asList(methods);
-        paths.addAll(restApi.getPaths());
-        pathParts.addAll(restApi.getPathParts());
+        this(restApi, name, restApi.getPaths(), Arrays.asList(methods));
     }
 
     RestApi(RestApi restApi, List<String> paths) {
-        this.name = restApi.getName();
-        this.methods = restApi.getMethods();
+        this(restApi, restApi.getName(), paths, restApi.getMethods());
+    }
+
+    private RestApi(RestApi restApi, String name, List<String> paths, List<String> methods) {
+        this.name = name;
         this.paths.addAll(paths);
-        pathParts.addAll(restApi.getPathParts());
+        this.methods.addAll(methods);
+        this.pathParts.addAll(restApi.getPathParts());
+        this.params.addAll(restApi.getParams());
+        this.body = restApi.body;
     }
 
     public String getName() {
@@ -112,6 +121,30 @@ public class RestApi {
         this.pathParts.add(pathPart);
     }
 
+    public List<String> getParams() {
+        return params;
+    }
+
+    void addParam(String param) {
+        this.params.add(param);
+    }
+
+    void setBodyOptional() {
+        this.body = BODY.OPTIONAL;
+    }
+
+    void setBodyRequired() {
+        this.body = BODY.REQUIRED;
+    }
+
+    public boolean isBodySupported() {
+        return body != BODY.NOT_SUPPORTED;
+    }
+
+    public boolean isBodyRequired() {
+        return body == BODY.REQUIRED;
+    }
+
     /**
      * Finds the best matching rest path given the current parameters and replaces
      * placeholders with their corresponding values received as arguments
@@ -120,14 +153,14 @@ public class RestApi {
 
         List<RestPath> matchingRestPaths = findMatchingRestPaths(pathParams.keySet());
         if (matchingRestPaths == null || matchingRestPaths.isEmpty()) {
-            throw new IllegalArgumentException("unable to find matching rest path for api [" + name + "] and params " + pathParams);
+            throw new IllegalArgumentException("unable to find matching rest path for api [" + name + "] and path params " + pathParams);
         }
 
         String[] paths = new String[matchingRestPaths.size()];
         for (int i = 0; i < matchingRestPaths.size(); i++) {
             RestPath restPath = matchingRestPaths.get(i);
             String path = restPath.path;
-            for (Map.Entry<String, String> paramEntry : restPath.params.entrySet()) {
+            for (Map.Entry<String, String> paramEntry : restPath.parts.entrySet()) {
                 // replace path placeholders with actual values
                 String value = pathParams.get(paramEntry.getValue());
                 if (value == null) {
@@ -144,7 +177,7 @@ public class RestApi {
      * Finds the matching rest paths out of the available ones with the current api (based on REST spec).
      *
      * The best path is the one that has exactly the same number of placeholders to replace
-     * (e.g. /{index}/{type}/{id} when the params are exactly index, type and id).
+     * (e.g. /{index}/{type}/{id} when the path params are exactly index, type and id).
      */
     private List<RestPath> findMatchingRestPaths(Set<String> restParams) {
 
@@ -152,8 +185,8 @@ public class RestApi {
         RestPath[] restPaths = buildRestPaths();
 
         for (RestPath restPath : restPaths) {
-            if (restPath.params.size() == restParams.size()) {
-                if (restPath.params.values().containsAll(restParams)) {
+            if (restPath.parts.size() == restParams.size()) {
+                if (restPath.parts.values().containsAll(restParams)) {
                     matchingRestPaths.add(restPath);
                 }
             }
@@ -175,15 +208,15 @@ public class RestApi {
 
         final String path;
         //contains param to replace (e.g. {index}) and param key to use for lookup in the current values map (e.g. index)
-        final Map<String, String> params;
+        final Map<String, String> parts;
 
         RestPath(String path) {
             this.path = path;
-            this.params = extractParams(path);
+            this.parts = extractParts(path);
         }
 
-        private static Map<String,String> extractParams(String input) {
-            Map<String, String> params = Maps.newHashMap();
+        private static Map<String,String> extractParts(String input) {
+            Map<String, String> parts = Maps.newHashMap();
             Matcher matcher = PLACEHOLDERS_PATTERN.matcher(input);
             while (matcher.find()) {
                 //key is e.g. {index}
@@ -193,9 +226,9 @@ public class RestApi {
                 }
                 //to be replaced with current value found with key e.g. index
                 String value = matcher.group(2);
-                params.put(key, value);
+                parts.put(key, value);
             }
-            return params;
+            return parts;
         }
     }
 }

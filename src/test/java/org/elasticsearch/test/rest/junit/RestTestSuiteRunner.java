@@ -539,8 +539,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         logger.debug("deleting all templates");
         //delete templates by wildcard was only added in 0.90.6
         //httpResponse = restTestExecutionContext.callApi("indices.delete_template", "name", "*");
-        RestResponse restResponse = restTestExecutionContext.callApiInternal("cluster.state", "filter_nodes", "true",
-                "filter_routing_table", "true", "filter_blocks", "true");
+        RestResponse restResponse = restTestExecutionContext.callApiInternal("cluster.state", "metric", "metadata");
         assertThat(restResponse.getStatusCode(), equalTo(200));
         Object object = restResponse.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));

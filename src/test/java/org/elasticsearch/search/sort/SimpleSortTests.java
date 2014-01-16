@@ -308,7 +308,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse result = client().prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true).addSort("field1", SortOrder.ASC).execute().actionGet();
 
         for (SearchHit hit : result.getHits()) {
-            assert !Float.isNaN(hit.getScore());
+            assertFalse(Float.isNaN(hit.getScore()));
         }
     }
 

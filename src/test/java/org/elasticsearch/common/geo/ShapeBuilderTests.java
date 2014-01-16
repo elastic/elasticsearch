@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
-import static org.junit.Assert.assertEquals;
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -155,7 +154,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(-40.0, -50.0)
                 .point(40.0, -50.0)
             .close().build();
-            assert false : "Polygon self-intersection";
+            fail("Polygon self-intersection");
         } catch (Throwable e) {}
         
     }

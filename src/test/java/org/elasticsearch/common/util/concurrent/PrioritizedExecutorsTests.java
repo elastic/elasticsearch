@@ -171,7 +171,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
                 try {
                     block.await();
                 } catch (InterruptedException e) {
-                    assert false;
+                    fail();
                 }
             }
 

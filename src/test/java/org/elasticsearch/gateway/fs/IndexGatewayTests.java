@@ -81,7 +81,7 @@ public class IndexGatewayTests extends ElasticsearchIntegrationTest {
 
 
     protected boolean isPersistentStorage() {
-        assert storeType != null;
+        assertNotNull(storeType);
         return "fs".equals(settings.get().get("index.store.type"));
     }
 

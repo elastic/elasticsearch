@@ -176,7 +176,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         try {
             client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("foo").execute().actionGet(1000);
-            assert false : "warmer foo should not exist";
+            fail("warmer foo should not exist");
         } catch (IndexWarmerMissingException ex) {
             assertThat(ex.names()[0], equalTo("foo"));
         }
@@ -327,8 +327,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
     }
 
     static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46 :
-                "remove me when LUCENE-5373 is fixed";
+        assertTrue("remove me when LUCENE-5373 is fixed", Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46);
     }
 
     @Ignore("enable me when LUCENE-5373 is fixed, see assertion above")

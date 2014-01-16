@@ -187,7 +187,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
@@ -202,7 +202,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").execute().actionGet().isExists();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -220,7 +220,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").execute().actionGet().isExists();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -244,7 +244,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> check failure with different routing");
         try {
             client().prepareIndex("test", "type1", "1").setRouting("1").setSource("field", "value1", "routing_field", "0").setRefresh(true).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(MapperParsingException.class));
         }
@@ -254,7 +254,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").execute().actionGet().isExists();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -284,7 +284,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").execute().actionGet().isExists();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -314,7 +314,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").execute().actionGet().isExists();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -344,7 +344,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying get with id [1], with no routing, should fail");
         try {
             client().prepareGet("test", "type1", "1").get();
-            assert false;
+            fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
         }
@@ -360,7 +360,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareExplain("test", "type1", "2")
                     .setQuery(QueryBuilders.matchAllQuery()).get();
-            assert false;
+            fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
         }
@@ -372,7 +372,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareTermVector("test", "type1", "1").get();
-            assert false;
+            fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
         }
@@ -384,7 +384,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareUpdate("test", "type1", "1").setDoc("field1", "value1").get();
-            assert false;
+            fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
         }

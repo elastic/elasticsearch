@@ -53,35 +53,35 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
         // Close all explicitly
         try {
             client().admin().indices().prepareClose("_all").execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*").execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("test*").execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*", "-test1").execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*", "-test1", "+test1").execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 

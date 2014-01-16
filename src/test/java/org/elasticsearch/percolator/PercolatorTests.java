@@ -1533,7 +1533,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         }
         String[] strings = new String[matches.length];
         for (int i = 0; i < matches.length; i++) {
-            assert index.equals(matches[i].getIndex().string());
+            assertEquals(index, matches[i].getIndex().string());
             strings[i] = matches[i].getId().string();
         }
         return strings;

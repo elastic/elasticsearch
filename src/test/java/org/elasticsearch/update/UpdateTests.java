@@ -289,7 +289,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
-            assert false;
+            fail();
         } catch (DocumentMissingException e) {
             // all is well
         }

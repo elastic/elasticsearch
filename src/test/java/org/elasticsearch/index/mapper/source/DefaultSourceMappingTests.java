@@ -137,7 +137,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
             mapper = MapperTestUtils.newParser().parse(null, null, defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
             // all is well
         }
@@ -145,7 +145,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
             mapper = MapperTestUtils.newParser().parse(null, "{}", defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("malformed mapping no root object found"));
             // all is well

@@ -84,7 +84,7 @@ public class SimpleIdCacheTests extends ElasticsearchTestCase {
         writer.commit();
 
         final String parentUid = parent.get("_uid");
-        assert parentUid != null;
+        assertNotNull(parentUid);
         writer.deleteDocuments(new Term("_uid", parentUid));
 
         writer.close();

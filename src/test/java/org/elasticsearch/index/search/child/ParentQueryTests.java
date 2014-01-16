@@ -122,7 +122,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                         parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<String, Float>());
                     }
                     if (!markChildAsDeleted && !filterMe) {
-                        assert !childIdToScore.containsKey(child);
+                        assertFalse("child ["+ child + "] already has a score", childIdToScore.containsKey(child));
                         childIdToScore.put(child, 1f);
                         childIdToParentId.put(Integer.valueOf(child), parentDocId);
                     }

@@ -134,7 +134,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         logger.info("make sure master level write operations fail... (we don't really have a master)");
         try {
             tribeClient.admin().indices().prepareCreate("tribe_index").setMasterNodeTimeout("10ms").get();
-            assert false;
+            fail();
         } catch (MasterNotDiscoveredException e) {
             // all is well!
         }

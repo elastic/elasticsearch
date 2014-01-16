@@ -87,7 +87,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
         
         try {
             DateFieldMapper.parseLocale("de_DE_DE_DE");
-            assert false;
+            fail();
         } catch(ElasticsearchIllegalArgumentException ex) {
             // expected
         }

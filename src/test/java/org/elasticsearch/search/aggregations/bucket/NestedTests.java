@@ -83,7 +83,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
             }
             totalChildren += numChildren[i];
         }
-        assert totalChildren > 0;
+        assertTrue(totalChildren > 0);
 
         for (int i = 0; i < numParents; i++) {
             XContentBuilder source = jsonBuilder()

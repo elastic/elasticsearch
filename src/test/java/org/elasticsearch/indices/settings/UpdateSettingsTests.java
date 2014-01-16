@@ -45,7 +45,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                             .put("index.cache.filter.type", "none") // this one can't
                     )
                     .execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
             // all is well
         }

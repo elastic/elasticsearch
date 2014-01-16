@@ -135,7 +135,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
                     executed3.set(true);
                 }
             });
-            assert false : "should be rejected...";
+            fail("should be rejected...");
         } catch (EsRejectedExecutionException e) {
             // all is well
         }

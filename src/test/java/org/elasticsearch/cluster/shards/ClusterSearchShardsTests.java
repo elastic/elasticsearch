@@ -116,7 +116,7 @@ public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
                 seenTest2 = true;
                 assertThat(group.getShards().length, equalTo(2));
             } else {
-                assert false;
+                fail();
             }
         }
         assertThat(seenTest1, equalTo(true));

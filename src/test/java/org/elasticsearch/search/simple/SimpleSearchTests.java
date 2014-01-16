@@ -42,14 +42,14 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
     public void testSearchNullIndex() {
         try {
             client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
 
         }
 
         try {
             client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
 
         }

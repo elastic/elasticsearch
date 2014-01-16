@@ -64,7 +64,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                 break;
             }
         }
-        assert excludedNodeId != null;
+        assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
@@ -109,7 +109,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                 break;
             }
         }
-        assert excludedNodeId != null;
+        assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
                 .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();

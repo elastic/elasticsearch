@@ -292,9 +292,9 @@ public class AckTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        assert fromNodeId != null;
-        assert toNodeId != null;
-        assert shardToBeMoved != null;
+        assertNotNull(fromNodeId);
+        assertNotNull(toNodeId);
+        assertNotNull(shardToBeMoved);
 
         logger.info("==> going to move shard [{}] from [{}] to [{}]", shardToBeMoved, fromNodeId, toNodeId);
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);

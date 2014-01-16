@@ -810,7 +810,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(1l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -819,7 +819,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(3l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -839,7 +839,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -861,7 +861,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(1l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -870,7 +870,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(3l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -892,7 +892,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -912,7 +912,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Engine.Delete delete = new Engine.Delete("test", "1", newUid("1")).version(1l);
         try {
             engine.delete(delete);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -921,7 +921,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         delete = new Engine.Delete("test", "1", newUid("1")).version(3l);
         try {
             engine.delete(delete);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -935,7 +935,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(2l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -965,7 +965,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         Engine.Delete delete = new Engine.Delete("test", "1", newUid("1")).version(1l);
         try {
             engine.delete(delete);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -974,7 +974,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         delete = new Engine.Delete("test", "1", newUid("1")).version(3l);
         try {
             engine.delete(delete);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -992,7 +992,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(2l);
         try {
             engine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }
@@ -1016,7 +1016,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         create = new Engine.Create(null, newUid("1"), doc);
         try {
             engine.create(create);
-            assert false;
+            fail();
         } catch (DocumentAlreadyExistsException e) {
             // all is well
         }
@@ -1034,7 +1034,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         create = new Engine.Create(null, newUid("1"), doc);
         try {
             engine.create(create);
-            assert false;
+            fail();
         } catch (DocumentAlreadyExistsException e) {
             // all is well
         }
@@ -1060,7 +1060,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc).version(1l).origin(REPLICA);
         try {
             replicaEngine.index(index);
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
             // all is well
         }

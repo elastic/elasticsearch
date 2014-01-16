@@ -104,7 +104,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("str_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -113,7 +113,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("int_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -122,7 +122,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("byte_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -131,7 +131,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("date_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -140,7 +140,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("double_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -149,7 +149,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("float_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -158,7 +158,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("long_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }
@@ -167,7 +167,7 @@ public class FieldLevelBoostTests extends ElasticsearchTestCase {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("short_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
-            assert false;
+            fail();
         } catch (MapperParsingException ex) {
             // Expected
         }

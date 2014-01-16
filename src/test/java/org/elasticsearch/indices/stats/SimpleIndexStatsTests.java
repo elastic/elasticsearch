@@ -377,7 +377,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
                 builder.setTranslog(set);
                 break;
             default:
-                assert false : "new flag? " + flag;
+                fail("new flag? " + flag);
                 break;
         }
     }
@@ -417,7 +417,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
             case Translog:
                 return response.getTranslog() != null;
             default:
-                assert false : "new flag? " + flag;
+                fail("new flag? " + flag);
                 return false;
         }
     }

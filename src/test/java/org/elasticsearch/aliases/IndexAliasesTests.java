@@ -73,7 +73,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 //        try {
 //            logger.info("--> indexing against [alias1], should fail");
 //            client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
-//            assert false : "index [alias1] should not exists";
+//            fail("index [alias1] should not exists");
 //        } catch (IndexMissingException e) {
 //            assertThat(e.index().name(), equalTo("alias1"));
 //        } 
@@ -111,7 +111,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             logger.info("--> aliasing index [test] with [alias1] and filter [t]");
             admin().indices().prepareAliases().addAlias("test", "alias1", "{ t }").execute().actionGet();
-            assert false;
+            fail();
         } catch (Exception e) {
             // all is well
         }

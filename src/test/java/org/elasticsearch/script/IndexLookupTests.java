@@ -618,7 +618,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
             } else if (result instanceof Long) {
                 assertThat(((Long) result).intValue(), equalTo(value));
             } else {
-                assert false;
+                fail();
             }
         }
     }

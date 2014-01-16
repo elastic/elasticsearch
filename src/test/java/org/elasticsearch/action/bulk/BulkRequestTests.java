@@ -84,7 +84,7 @@ public class BulkRequestTests extends ElasticsearchTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         try {
             new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), true, null, null, false);
-            assert false;
+            fail();
         } catch (Exception e) {
 
         }

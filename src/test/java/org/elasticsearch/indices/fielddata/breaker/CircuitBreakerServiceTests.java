@@ -75,7 +75,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                         .execute().actionGet();
                 fail("should not reach this point");
             } catch (SearchPhaseExecutionException e) {
-                assert true;
             }
 
         } finally {
@@ -133,7 +132,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                         .execute().actionGet();
                 fail("should not reach this point");
             } catch (SearchPhaseExecutionException e) {
-                assert true;
             }
 
         } finally {

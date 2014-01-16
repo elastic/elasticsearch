@@ -107,7 +107,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                     .point(-10, 10)
                     .point(10, -10)
                     .close().build();
-            assert false : "Self intersection not detected";
+            fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
 
@@ -126,7 +126,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                     .point(-5, -5).point(-5, 11).point(5, 11).point(5, -5)
                     .close().close().build();
 
-            assert false : "Self intersection not detected";
+            fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
 
@@ -141,7 +141,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                     .point(-5, -6).point(5, -6).point(5, -4).point(-5, -4)
                     .close()
                     .close().build();
-            assert false : "Intersection of holes not detected";
+            fail("Intersection of holes not detected");
         } catch (InvalidShapeException e) {
         }
 
@@ -156,7 +156,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                     .point(10, 20)
                     .point(10, -10)
                     .close().build();
-            assert false : "Self intersection not detected";
+            fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
 
@@ -173,7 +173,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 //                .polygon()
 //                    .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
 //                .close().build();
-//            assert false : "Polygon intersection not detected";
+//            fail("Polygon intersection not detected";
 //        } catch (InvalidShapeException e) {}
 
         // Multipolygon: polygon with hole and polygon within the whole
@@ -203,7 +203,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 //                    .point(-4, -4).point(-4, 6).point(4, 6).point(4, -4)
 //                .close()
 //                .build();
-//            assert false : "Polygon intersection not detected";
+//            fail("Polygon intersection not detected";
 //        } catch (InvalidShapeException e) {}
 
     }
@@ -211,9 +211,9 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     @Test
     public void testShapeRelations() throws Exception {
 
-        assert intersectSupport : "Intersect relation is not supported";
-        assert disjointSupport : "Disjoint relation is not supported";
-        assert withinSupport : "within relation is not supported";
+        assertTrue( "Intersect relation is not supported", intersectSupport);
+        assertTrue("Disjoint relation is not supported", disjointSupport);
+        assertTrue("within relation is not supported", withinSupport);
 
 
         String mapping = XContentFactory.jsonBuilder()
@@ -416,7 +416,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, false, null, null).execute().actionGet();
 
         for (BulkItemResponse item : bulk.getItems()) {
-            assert !item.isFailed() : "unable to index data";
+            assertFalse("unable to index data", item.isFailed());
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();

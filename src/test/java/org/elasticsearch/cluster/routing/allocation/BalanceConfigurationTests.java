@@ -317,7 +317,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
             @Override
             public void addListener(Listener listener) {
-                assert listeners[0] == null;
+                assertNull("addListener was called twice while only one time was expected", listeners[0]);
                 listeners[0] = listener;
             }
 

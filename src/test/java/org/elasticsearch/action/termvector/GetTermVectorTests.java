@@ -72,7 +72,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         }
 
     }
-    
+
     @Test
     public void testExistingFieldWithNoTermVectorsNoNPE() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -99,7 +99,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         assertThat(actionGet.isExists(), Matchers.equalTo(true));
 
     }
-    
+
     @Test
     public void testExistingFieldButNotInDocNPE() throws Exception {
 
@@ -125,7 +125,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         assertThat(actionGet.isExists(), Matchers.equalTo(true));
 
     }
-    
+
 
 
     @Test
@@ -380,7 +380,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
     @Test
     public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws ElasticsearchException, IOException {
-        
+
         //create the test document
         int encoding = randomIntBetween(0, 2);
         String encodingString = "";
@@ -426,7 +426,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             List<BytesRef> curPayloads = payloads.get(term);
             assertThat(term, curPayloads, Matchers.notNullValue());
-            assert docsAndPositions != null;
+            assertNotNull(docsAndPositions);
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
                 if (docsAndPositions.getPayload()!=null){

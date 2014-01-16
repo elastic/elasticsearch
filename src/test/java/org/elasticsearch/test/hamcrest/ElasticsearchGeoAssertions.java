@@ -19,20 +19,19 @@
 
 package org.elasticsearch.test.hamcrest;
 
+import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.spatial4j.core.shape.jts.JtsPoint;
+import com.vividsolutions.jts.geom.*;
+import org.junit.Assert;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.MultiLineString;
-import com.vividsolutions.jts.geom.MultiPoint;
-import com.vividsolutions.jts.geom.MultiPolygon;
-import com.vividsolutions.jts.geom.Polygon;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class ElasticsearchGeoAssertions {
 
@@ -100,7 +99,7 @@ public class ElasticsearchGeoAssertions {
     }
 
     public static void assertEquals(Coordinate c1, Coordinate c2) {
-        assert (c1.x == c2.x && c1.y == c2.y): "expected coordinate " + c1 + " but found " + c2;
+        assertTrue("expected coordinate " + c1 + " but found " + c2, c1.x == c2.x && c1.y == c2.y);
     }
 
     private static boolean isRing(Coordinate[] c) {
@@ -108,7 +107,7 @@ public class ElasticsearchGeoAssertions {
     }
     
     public static void assertEquals(Coordinate[] c1, Coordinate[] c2) {
-        assert (c1.length == c1.length) : "expected " + c1.length + " coordinates but found " + c2.length;
+        Assert.assertEquals(c1.length, c2.length);
 
         if(isRing(c1) && isRing(c2)) {
             c1 = fixedOrderedRing(c1, true);
@@ -125,7 +124,7 @@ public class ElasticsearchGeoAssertions {
     }
 
     public static void assertEquals(Polygon p1, Polygon p2) {
-        assert (p1.getNumInteriorRing() == p2.getNumInteriorRing()) : "expect " + p1.getNumInteriorRing() + " interior ring but found " + p2.getNumInteriorRing();
+        Assert.assertEquals(p1.getNumInteriorRing(), p2.getNumInteriorRing());
 
         assertEquals(p1.getExteriorRing(), p2.getExteriorRing());
 
@@ -137,7 +136,7 @@ public class ElasticsearchGeoAssertions {
     }
 
     public static void assertEquals(MultiPolygon p1, MultiPolygon p2) {
-        assert p1.getNumGeometries() == p2.getNumGeometries(): "expected " + p1.getNumGeometries() + " geometries but found " + p2.getNumGeometries();
+        Assert.assertEquals(p1.getNumGeometries(), p2.getNumGeometries());
 
         // TODO: This test do not check all permutations. So the Test fails
         // if the inner polygons are not ordered the same way in both Multipolygons
@@ -156,7 +155,7 @@ public class ElasticsearchGeoAssertions {
             assertEquals((Polygon) s1, (Polygon) s2);
 
         } else if (s1 instanceof MultiPoint && s2 instanceof MultiPoint) {
-            assert s1.equals(s2): "Expected " + s1 + " but found " + s2;
+            Assert.assertEquals(s1, s2);
 
         } else if (s1 instanceof MultiPolygon && s2 instanceof MultiPolygon) {
             assertEquals((MultiPolygon) s1, (MultiPolygon) s2);
@@ -176,14 +175,14 @@ public class ElasticsearchGeoAssertions {
         } else if(s1 instanceof JtsPoint && s2 instanceof JtsPoint) {
             JtsPoint p1 = (JtsPoint) s1;
             JtsPoint p2 = (JtsPoint) s2;
-            assert p1.equals(p1): "expected " + p1 + " but found " + p2;
+            Assert.assertEquals(p1, p2);
         } else {
             throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
         }
     }
 
     private static Geometry unwrap(Shape shape) {
-        assert (shape instanceof JtsGeometry): "shape is not a JTSGeometry";
+        assertThat(shape, instanceOf(JtsGeometry.class));
         return ((JtsGeometry)shape).getGeom();
     }
 

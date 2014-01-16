@@ -1,5 +1,5 @@
 {
-  "info": {
+  "ping": {
     "documentation": "http://www.elasticsearch.org/guide/",
     "methods": ["HEAD"],
     "url": {

@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.parser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.TestSection;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -87,7 +88,10 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
                 //after skipChildren we are at the end of the skipped object, need to move on
                 parser.nextToken();
             } else {
-                restTestSuite.addTestSection(parseContext.parseTestSection());
+                TestSection testSection = parseContext.parseTestSection();
+                if (!restTestSuite.addTestSection(testSection)) {
+                    throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getDescription() + "]");
+                }
             }
         }
 

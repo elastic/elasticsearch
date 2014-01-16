@@ -16,11 +16,11 @@ The result of the above delete operation is:
 [source,js]
 --------------------------------------------------
 {
-    "ok" : true,
+    "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
-    "found" : true
+    "_version" : 2
 }
 --------------------------------------------------
 

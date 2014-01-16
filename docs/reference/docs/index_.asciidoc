@@ -106,11 +106,11 @@ near real time aspects of search operations. If no version is provided,
 then the operation is executed without any version checks.
 
 By default, internal versioning is used that starts at 1 and increments
-with each update. Optionally, the version number can be supplemented
-with an external value (for example, if maintained in a database). To
-enable this functionality, `version_type` should be set to `external`.
-The value provided must be a numeric, long value greater than 0, and
-less than around 9.2e+18. When using the external version type, instead
+with each update, deletes included. Optionally, the version number can be
+supplemented with an external value (for example, if maintained in a
+database). To enable this functionality, `version_type` should be set to
+`external`. The value provided must be a numeric, long value greater than 0,
+and less than around 9.2e+18. When using the external version type, instead
 of checking for a matching version number, the system checks to see if
 the version number passed to the index request is greater than the
 version of the currently stored document. If true, the document will be

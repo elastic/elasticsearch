@@ -130,18 +130,6 @@ setup:
  - is_false: test_2.settings.index.number_of_replicas
 
 ---
-"Get /{index}/_settings/{name}":
-
- - do:
-    indices.get_settings:
-        index: test_1
-        name: index.number_of_shards
-
- - match: { test_1.settings.index.number_of_shards: "5"}
- - is_false: test_1.settings.index.number_of_replicas
- - is_false: test_2
-
----
 "Get /index,index/_settings/{name}":
 
  - do:

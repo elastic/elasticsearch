@@ -41,10 +41,6 @@
         "operation_threading": {
           "description" : "TODO: ?"
         },
-        "refresh": {
-          "type" : "boolean",
-          "description" : "Specify whether the index should be refreshed after performing the operation (default: true)"
-        },
         "wait_for_merge": {
           "type" : "boolean",
           "description" : "Specify whether the request should block until the merge process is finished (default: true)"

@@ -33,10 +33,6 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "refresh": {
-          "type" : "boolean",
-          "description" : "Refresh the index after performing the operation"
         }
       }
     },

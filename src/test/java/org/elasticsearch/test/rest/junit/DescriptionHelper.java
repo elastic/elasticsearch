@@ -49,20 +49,20 @@ public final class DescriptionHelper {
     }
 
     static Description createTestSuiteDescription(RestTestSuite restTestSuite) {
-        //e.g. "indices_open (10_basic)", which leads to 10_basic being returned by Description#getDisplayName
+        //e.g. "indices.open (10_basic)", which leads to 10_basic being shown by IDEs
         String name = restTestSuite.getApi() + " (" + restTestSuite.getName() + ")";
         return Description.createSuiteDescription(name);
     }
 
     static Description createTestSectionWithRepetitionsDescription(RestTestSuite restTestSuite, TestSection testSection) {
-        //e.g. "indices_open/10_basic (Basic test for index open/close)", which leads to
-        //"Basic test for index open/close" being returned by Description#getDisplayName
+        //e.g. "indices.open/10_basic (Basic test for index open/close)", which leads to
+        //"Basic test for index open/close" being shown by IDEs
         String name = restTestSuite.getDescription() + " (" + testSection.getName() + ")";
         return Description.createSuiteDescription(name);
     }
 
     static Description createTestSectionIterationDescription(RestTestSuite restTestSuite, TestSection testSection, Map<String, Object> args) {
-        //e.g. "Basic test for index open/close {#0} (indices_open/10_basic)" some IDEs might strip out the part between parentheses
+        //e.g. "Basic test for index open/close {#0} (indices.open/10_basic)" some IDEs might strip out the part between parentheses
         String name = testSection.getName() + formatMethodArgs(args) + " ("  + restTestSuite.getDescription() + ")";
         return Description.createSuiteDescription(name);
     }

@@ -1,10 +1,10 @@
 {
-  "cat.indices": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-indices.html",
+  "cat.recovery": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-recovery.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/indices",
-      "paths": ["/_cat/indices", "/_cat/indices/{index}"],
+      "path": "/_cat/recovery",
+      "paths": ["/_cat/recovery", "/_cat/recovery/{index}"],
       "parts": {
         "index": {
           "type" : "list",
@@ -32,11 +32,6 @@
         "help": {
           "type": "boolean",
           "description": "Return help information",
-          "default": false
-        },
-        "pri" : {
-          "type": "boolean",
-          "description": "Set to true to return stats only for primary shards",
           "default": false
         },
         "v": {

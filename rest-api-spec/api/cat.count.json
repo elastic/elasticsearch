@@ -1,10 +1,10 @@
 {
-  "cat.indices": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-indices.html",
+  "cat.count": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-count.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/indices",
-      "paths": ["/_cat/indices", "/_cat/indices/{index}"],
+      "path": "/_cat/count",
+      "paths": ["/_cat/count", "/_cat/count/{index}"],
       "parts": {
         "index": {
           "type" : "list",
@@ -12,11 +12,6 @@
         }
       },
       "params": {
-        "bytes": {
-          "type": "enum",
-          "description" : "The unit in which to display byte values",
-          "options": [ "b", "k", "m", "g" ]
-        },
         "local": {
           "type" : "boolean",
           "description" : "Return local information, do not retrieve the state from master node (default: false)"
@@ -32,11 +27,6 @@
         "help": {
           "type": "boolean",
           "description": "Return help information",
-          "default": false
-        },
-        "pri" : {
-          "type": "boolean",
-          "description": "Set to true to return stats only for primary shards",
           "default": false
         },
         "v": {

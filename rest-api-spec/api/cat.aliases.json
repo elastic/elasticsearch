@@ -1,12 +1,12 @@
 {
-  "cat": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
+  "cat.aliases": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-aliases.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/aliases",
-      "paths": ["/_cat/aliases", "/_cat/aliases/{alias}"],
+      "paths": ["/_cat/aliases", "/_cat/aliases/{name}"],
       "parts": {
-        "alias": {
+        "name": {
           "type" : "list",
           "description" : "A comma-separated list of alias names to return"
         }

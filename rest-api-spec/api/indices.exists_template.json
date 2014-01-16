@@ -1,0 +1,18 @@
+{
+  "indices.exists_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-templates.html",
+    "methods": ["HEAD"],
+    "url": {
+      "path": "/_template/{name}",
+      "paths": ["/_template/{name}"],
+      "parts": {
+        "name": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the template"
+        }
+      }
+    },
+    "body": null
+  }
+}

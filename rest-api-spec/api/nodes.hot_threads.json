@@ -1,9 +1,9 @@
 {
-  "cluster.node_hot_threads": {
+  "nodes.hot_threads": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-nodes-hot-threads.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/nodes/hot_threads",
+      "path": "/_nodes/hot_threads",
       "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{node_id}/hotthreads", "/_cluster/nodes/{node_id}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{node_id}/hotthreads", "/_nodes/{node_id}/hot_threads"],
       "parts": {
         "node_id": {

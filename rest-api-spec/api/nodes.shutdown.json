@@ -1,5 +1,5 @@
 {
-  "cluster.node_shutdown": {
+  "nodes.shutdown": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-nodes-shutdown.html",
     "methods": ["POST"],
     "url": {

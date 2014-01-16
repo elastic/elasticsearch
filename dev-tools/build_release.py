@@ -557,6 +557,7 @@ if __name__ == '__main__':
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
         * announce the release on the website / blog post
         * tweet about the release
+        * announce the release in the google group/mailinglist
       """
       print(pending_msg % { 'version' : release_version} )
       success = True

@@ -18,13 +18,18 @@
  */
 package org.elasticsearch.index.search.child;
 
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.IdentityHashMap;
 
 /**
  * Forked from {@link QueryWrapperFilter} to make sure the weight is only created once.
@@ -32,12 +37,12 @@ import java.io.IOException;
  *
  * @elasticsearch.internal
  */
-public class CustomQueryWrappingFilter extends NoCacheFilter {
+public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasable {
 
     private final Query query;
 
     private IndexSearcher searcher;
-    private Weight weight;
+    private IdentityHashMap<AtomicReader, DocIdSet> docIdSets;
 
     /** Constructs a filter which only matches documents matching
      * <code>query</code>.
@@ -55,24 +60,43 @@ public class CustomQueryWrappingFilter extends NoCacheFilter {
 
     @Override
     public DocIdSet getDocIdSet(final AtomicReaderContext context, final Bits acceptDocs) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        if (weight == null) {
+        final SearchContext searchContext = SearchContext.current();
+        if (docIdSets == null) {
             assert searcher == null;
             IndexSearcher searcher = searchContext.searcher();
-            weight = searcher.createNormalizedWeight(query);
+            docIdSets = new IdentityHashMap<AtomicReader, DocIdSet>();
             this.searcher = searcher;
+            searchContext.addReleasable(this);
+
+            final Weight weight = searcher.createNormalizedWeight(query);
+            for (final AtomicReaderContext leaf : searcher.getTopReaderContext().leaves()) {
+                final DocIdSet set = DocIdSets.toCacheable(leaf.reader(), new DocIdSet() {
+                    @Override
+                    public DocIdSetIterator iterator() throws IOException {
+                        return weight.scorer(leaf, true, false, null);
+                    }
+                    @Override
+                    public boolean isCacheable() { return false; }
+                });
+                docIdSets.put(leaf.reader(), set);
+            }
         } else {
             assert searcher == SearchContext.current().searcher();
         }
+        final DocIdSet set = docIdSets.get(context.reader());
+        if (set != null && acceptDocs != null) {
+            return BitsFilteredDocIdSet.wrap(set, acceptDocs);
+        }
+        return set;
+    }
 
-        return new DocIdSet() {
-            @Override
-            public DocIdSetIterator iterator() throws IOException {
-                return weight.scorer(context, true, false, acceptDocs);
-            }
-            @Override
-            public boolean isCacheable() { return false; }
-        };
+    @Override
+    public boolean release() throws ElasticsearchException {
+        // We need to clear the docIdSets, otherwise this is leaved unused
+        // DocIdSets around and can potentially become a memory leak.
+        docIdSets = null;
+        searcher = null;
+        return true;
     }
 
     @Override
@@ -82,9 +106,15 @@ public class CustomQueryWrappingFilter extends NoCacheFilter {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof CustomQueryWrappingFilter))
-            return false;
-        return this.query.equals(((CustomQueryWrappingFilter)o).query);
+        if (o == this) {
+            return true;
+        }
+        if (o != null && o instanceof CustomQueryWrappingFilter &&
+                this.query.equals(((CustomQueryWrappingFilter)o).query)) {
+            return true;
+        }
+
+        return false;
     }
 
     @Override

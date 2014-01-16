@@ -33,6 +33,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.search.child.ScoreType;
@@ -2222,6 +2223,61 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .get();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testParentChildQueriesViaScrollApi() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("child")
+                .setSource(
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
+                                .endObject().endObject()).execute().actionGet();
+
+
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "parent", "p" + i).setSource("{}").execute().actionGet();
+            client().prepareIndex("test", "child", "c" + i).setSource("{}").setParent("p" + i).execute().actionGet();
+        }
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        QueryBuilder[] queries = new QueryBuilder[]{
+                hasChildQuery("child", matchAllQuery()),
+                filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery())),
+                hasParentQuery("parent", matchAllQuery()),
+                filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery())),
+                topChildrenQuery("child", matchAllQuery()).factor(10)
+        };
+
+        for (QueryBuilder query : queries) {
+            SearchResponse scrollResponse = client().prepareSearch("test")
+                    .setScroll(TimeValue.timeValueSeconds(30))
+                    .setSize(1)
+                    .addField("_id")
+                    .setQuery(query)
+                    .setSearchType("scan")
+                    .execute()
+                    .actionGet();
+
+            assertThat(scrollResponse.getFailedShards(), equalTo(0));
+            assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
+
+            int scannedDocs = 0;
+            do {
+                scrollResponse = client()
+                        .prepareSearchScroll(scrollResponse.getScrollId())
+                        .setScroll(TimeValue.timeValueSeconds(30)).execute().actionGet();
+                assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
+                scannedDocs += scrollResponse.getHits().getHits().length;
+            } while (scrollResponse.getHits().getHits().length > 0);
+            assertThat(scannedDocs, equalTo(10));
+        }
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

@@ -1,7 +1,7 @@
 ---
 "Nodes stats":
   - do:
-      cluster.node_stats:
+      nodes.stats:
         metric: [ indices, transport ]
 
   - is_true: cluster_name

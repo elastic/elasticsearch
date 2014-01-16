@@ -1,14 +1,14 @@
 {
-  "cluster.delete_repository": {
+  "snapshot.create_repository": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-    "methods": ["DELETE"],
+    "methods": ["PUT", "POST"],
     "url": {
       "path": "/_snapshot/{repository}",
       "paths": ["/_snapshot/{repository}"],
       "parts": {
         "repository": {
-          "type": "list",
-          "description": "A comma-separated list of repository names"
+          "type": "string",
+          "description": "A repository name"
         }
       },
       "params": {
@@ -22,6 +22,7 @@
         }
       }
     },
-    "body": null
+      "description" : "The repository definition",
+      "required" : true
   }
 }

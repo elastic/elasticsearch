@@ -60,7 +60,6 @@ import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.rest.junit.DescriptionHelper.*;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -537,17 +536,8 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
     @SuppressWarnings("unchecked")
     public void wipeTemplates() throws IOException, RestException {
         logger.debug("deleting all templates");
-        //delete templates by wildcard was only added in 0.90.6
-        //httpResponse = restTestExecutionContext.callApi("indices.delete_template", "name", "*");
-        RestResponse restResponse = restTestExecutionContext.callApiInternal("cluster.state", "metric", "metadata");
+        RestResponse restResponse = restTestExecutionContext.callApiInternal("indices.delete_template", "name", "*");
         assertThat(restResponse.getStatusCode(), equalTo(200));
-        Object object = restResponse.evaluate("metadata.templates");
-        assertThat(object, instanceOf(Map.class));
-        Set<String> templates = ((Map<String, Object>) object).keySet();
-        for (String template : templates) {
-            restResponse = restTestExecutionContext.callApiInternal("indices.delete_template", "name", template);
-            assertThat(restResponse.getStatusCode(), equalTo(200));
-        }
     }
 
     private void stopTestCluster() {

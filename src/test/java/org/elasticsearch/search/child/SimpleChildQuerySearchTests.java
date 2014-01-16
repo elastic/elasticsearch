@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -2045,6 +2045,60 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+    }
+
+    @Test
+    public void testParentChildCaching() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                                .put("index.refresh_interval", -1)
+                ).get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).get();
+
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
+        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
+        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
+        client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).get();
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
+        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
+        client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();
+        client().prepareIndex("test", "child", "c5").setParent("p3").setSource("c_field", "blue").get();
+        client().prepareIndex("test", "child", "c6").setParent("p4").setSource("c_field", "blue").get();
+        client().admin().indices().prepareFlush("test").get();
+        client().admin().indices().prepareRefresh("test").get();
+
+        for (int i = 0; i < 2; i++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(filteredQuery(matchAllQuery(), boolFilter()
+                            .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
+                            .must(matchAllFilter())
+                            .cache(true)))
+                    .get();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        }
+
+
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "blue").get();
+        client().admin().indices().prepareRefresh("test").get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), boolFilter()
+                        .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
+                        .must(matchAllFilter())
+                        .cache(true)))
+                .get();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

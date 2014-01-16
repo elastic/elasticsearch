@@ -1,5 +1,5 @@
 {
-  "cluster.snapshots.restore": {
+  "cluster.restore_snapshot": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
     "methods": ["POST"],
     "url": {

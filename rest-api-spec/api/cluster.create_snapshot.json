@@ -1,10 +1,10 @@
 {
-  "cluster.snapshots.delete": {
+  "cluster.create_snapshot": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-    "methods": ["DELETE"],
+    "methods": ["PUT", "POST"],
     "url": {
       "path": "/_snapshot/{repository}/{snapshot}",
-      "paths": ["/_snapshot/{repository}/{snapshot}"],
+      "paths": ["/_snapshot/{repository}/{snapshot}", "/_snapshot/{repository}/{snapshot}/_create"],
       "parts": {
         "repository": {
           "type": "string",
@@ -19,9 +19,15 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Explicit operation timeout for connection to master node"
+        },
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Should this request wait until the operation has completed before returning",
+          "default": false
         }
       }
     },
-    "body": null
+      "description" : "The snapshot definition",
+      "required" : false
   }
 }

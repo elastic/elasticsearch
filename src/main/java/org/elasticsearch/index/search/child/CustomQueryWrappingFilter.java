@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.io.IOException;
  *
  * @elasticsearch.internal
  */
-public class CustomQueryWrappingFilter extends Filter {
+public class CustomQueryWrappingFilter extends NoCacheFilter {
 
     private final Query query;
 

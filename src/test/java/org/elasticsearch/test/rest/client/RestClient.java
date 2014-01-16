@@ -158,7 +158,18 @@ public class RestClient implements Closeable {
     private HttpRequestBuilder callApiBuilder(String apiName, Map<String, String> params, String body) {
         RestApi restApi = restApi(apiName);
 
-        HttpRequestBuilder httpRequestBuilder = httpRequestBuilder().body(body);
+        HttpRequestBuilder httpRequestBuilder = httpRequestBuilder();
+
+        if (Strings.hasLength(body)) {
+            if (!restApi.isBodySupported()) {
+                throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
+            }
+            httpRequestBuilder.body(body);
+        } else {
+            if (restApi.isBodyRequired()) {
+                throw new IllegalArgumentException("body is required by [" + restApi.getName() + "] api");
+            }
+        }
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = Maps.newHashMap();
@@ -167,6 +178,9 @@ public class RestClient implements Closeable {
                 if (restApi.getPathParts().contains(entry.getKey())) {
                     pathParts.put(entry.getKey(), entry.getValue());
                 } else {
+                    if (!restApi.getParams().contains(entry.getKey())) {
+                        throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in [" + restApi.getName() + "] api");
+                    }
                     httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
                 }
             }

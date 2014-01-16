@@ -40,10 +40,6 @@
           "type" : "string",
           "description" : "ID of the parent document"
         },
-        "percolate": {
-          "type" : "string",
-          "description" : "Perform percolation during the operation; use specific registered query name, attribute, or wildcard"
-        },
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the index after performing the operation"

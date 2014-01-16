@@ -1,6 +1,6 @@
 {
   "indices.analyze": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-analyze/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/0.90/indices-analyze.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_analyze",

@@ -1,6 +1,6 @@
 {
   "indices.exists_type": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-types-exists/",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/0.90/indices-types-exists.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}/{type}",

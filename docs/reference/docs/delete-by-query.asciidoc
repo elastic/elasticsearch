@@ -24,7 +24,6 @@ commands is:
 [source,js]
 --------------------------------------------------
 {
-    "ok" : true,
     "_indices" : {
         "twitter" : { 
             "_shards" : {

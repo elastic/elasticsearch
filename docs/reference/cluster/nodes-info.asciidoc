@@ -46,7 +46,6 @@ The result will look similar to:
 [source,js]
 --------------------------------------------------
 {
-  "ok" : true,
   "cluster_name" : "test-cluster-MacBook-Air-de-David.local",
   "nodes" : {
     "hJLXmY_NTrCytiIMbX4_1g" : {

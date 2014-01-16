@@ -3,21 +3,9 @@
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat",
-      "paths": ["/_cat/aliases", "/_cat/aliases/{alias}", "/_cat/allocation", "/_cat/allocation/{nodes}", "/_cat", "/_cat/health", "/_cat/indices", "/_cat/indices/{index}", "/_cat/master", "/_cat/nodes", "/_cat/pending_tasks", "/_cat/shards", "/_cat/shards/{index}"],
+      "path": "/_cat/master",
+      "paths": ["/_cat/master"],
       "parts": {
-        "alias": {
-          "type" : "list",
-          "description" : "A comma-separated list of alias names to return"
-        },
-        "nodes": {
-          "type": "list",
-          "description": "A comma-separated list of node IDs or names to limit the returned information"
-        },
-        "index": {
-          "type" : "list",
-          "description": "A comma-separated list of index names to limit the returned information"
-        }
       },
       "params": {
         "local": {
@@ -29,6 +17,10 @@
           "description" : "Explicit operation timeout for connection to master node"
         },
         "h": {
+            "type": "list",
+            "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
           "type": "boolean",
           "description": "Return help information",
           "default": false

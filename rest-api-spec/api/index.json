@@ -37,10 +37,6 @@
           "type" : "string",
           "description" : "ID of the parent document"
         },
-        "percolate": {
-          "type" : "string",
-          "description" : "Percolator queries to execute while indexing the document"
-        },
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the index after performing the operation"

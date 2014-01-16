@@ -25,6 +25,11 @@
           "description": "Return help information",
           "default": false
         },
+        "ts": {
+          "type": "boolean",
+          "description": "Set to false to disable timestamping",
+          "default": true
+        },
         "v": {
           "type": "boolean",
           "description": "Verbose mode. Display column headers",

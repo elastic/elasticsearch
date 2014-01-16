@@ -37,8 +37,8 @@ public class RestTestSuite {
     private List<TestSection> testSections = Lists.newArrayList();
 
     public RestTestSuite(String api, String name) {
-        this.api = replaceDot(api);
-        this.name = replaceDot(name);
+        this.api = api;
+        this.name = name;
     }
 
     public String getApi() {
@@ -53,11 +53,6 @@ public class RestTestSuite {
     //useful also to reproduce failures (RestReproduceInfoPrinter)
     public String getDescription() {
         return api + File.separator + name;
-    }
-
-    private static String replaceDot(String value) {
-        // '.' is used as separator internally and not expected to be within suite or test names, better replace it
-        return value.replace('.', '_');
     }
 
     public SetupSection getSetupSection() {

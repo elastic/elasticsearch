@@ -23,7 +23,6 @@ import com.google.common.collect.Maps;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,23 +47,6 @@ public class RestApi {
 
     RestApi(String name) {
         this.name = name;
-    }
-
-    RestApi(RestApi restApi, String name, String... methods) {
-        this(restApi, name, restApi.getPaths(), Arrays.asList(methods));
-    }
-
-    RestApi(RestApi restApi, List<String> paths) {
-        this(restApi, restApi.getName(), paths, restApi.getMethods());
-    }
-
-    private RestApi(RestApi restApi, String name, List<String> paths, List<String> methods) {
-        this.name = name;
-        this.paths.addAll(paths);
-        this.methods.addAll(methods);
-        this.pathParts.addAll(restApi.getPathParts());
-        this.params.addAll(restApi.getParams());
-        this.body = restApi.body;
     }
 
     public String getName() {

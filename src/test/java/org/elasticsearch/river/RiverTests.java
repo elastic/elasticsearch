@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 1, transportClientRatio = 0.0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test

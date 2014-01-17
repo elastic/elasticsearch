@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.Priority;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  *
  */
-public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
+public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
     public ClusterHealthRequestBuilder(ClusterAdminClient clusterClient) {
         super((InternalClusterAdminClient) clusterClient, new ClusterHealthRequest());
@@ -85,11 +85,6 @@ public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuild
 
     public ClusterHealthRequestBuilder setWaitForEvents(Priority waitForEvents) {
         request.waitForEvents(waitForEvents);
-        return this;
-    }
-
-    public ClusterHealthRequestBuilder setLocal(boolean local) {
-        request.local(local);
         return this;
     }
 

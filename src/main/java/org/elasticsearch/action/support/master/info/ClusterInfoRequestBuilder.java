@@ -21,12 +21,12 @@ package org.elasticsearch.action.support.master.info;
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
-public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse, Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeOperationRequestBuilder<Request, Response, Builder> {
+public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse, Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
     protected ClusterInfoRequestBuilder(InternalGenericClient client, Request request) {
         super(client, request);
@@ -61,11 +61,4 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
         request.indicesOptions(indicesOptions);
         return (Builder) this;
     }
-
-    @SuppressWarnings("unchecked")
-    public Builder setLocal(boolean local) {
-        request.local(local);
-        return (Builder) this;
-    }
-
 }

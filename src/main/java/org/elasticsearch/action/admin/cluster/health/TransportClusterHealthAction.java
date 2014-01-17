@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class TransportClusterHealthAction extends TransportMasterNodeOperationAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction extends TransportMasterNodeReadOperationAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private final ClusterName clusterName;
 
@@ -69,11 +69,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     @Override
     protected ClusterHealthResponse newResponse() {
         return new ClusterHealthResponse();
-    }
-
-    @Override
-    protected boolean localExecute(ClusterHealthRequest request) {
-        return request.local();
     }
 
     @Override

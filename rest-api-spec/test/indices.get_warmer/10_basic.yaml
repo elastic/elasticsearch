@@ -200,4 +200,13 @@ setup:
         index: non_existent
         name:  '*'
 
+---
+"Get /_warmer with local flag":
+
+ - do:
+    indices.get_warmer:
+        local: true
+
+ - is_true: test_1
+ - is_true: test_2
 

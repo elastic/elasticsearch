@@ -55,6 +55,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         client.admin().cluster().getRepositories(getRepositoriesRequest, new ActionListener<GetRepositoriesResponse>() {
             @Override
             public void onResponse(GetRepositoriesResponse response) {

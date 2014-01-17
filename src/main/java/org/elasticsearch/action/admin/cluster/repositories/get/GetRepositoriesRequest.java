@@ -19,8 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Get repository request
  */
-public class GetRepositoriesRequest extends MasterNodeOperationRequest<GetRepositoriesRequest> {
+public class GetRepositoriesRequest extends MasterNodeReadOperationRequest<GetRepositoriesRequest> {
 
     private String[] repositories = Strings.EMPTY_ARRAY;
 
@@ -87,11 +88,13 @@ public class GetRepositoriesRequest extends MasterNodeOperationRequest<GetReposi
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         repositories = in.readStringArray();
+        readLocal(in, Version.V_1_0_0);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(repositories);
+        writeLocal(out, Version.V_1_0_0);
     }
 }

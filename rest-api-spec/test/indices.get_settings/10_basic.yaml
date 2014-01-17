@@ -153,3 +153,13 @@ setup:
  - match: { test_2.settings.index.number_of_shards: "5"}
  - is_false: test_1
  - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /_settings with local flag":
+
+ - do:
+    indices.get_settings:
+        local: true
+
+ - is_true: test_1
+ - is_true: test_2

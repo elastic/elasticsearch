@@ -18,20 +18,19 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
  */
-public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequest> {
+public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
@@ -87,6 +86,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         indices = in.readStringArray();
         aliases = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        readLocal(in, Version.V_1_0_0);
     }
 
     @Override
@@ -95,5 +95,6 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
         indicesOptions.writeIndicesOptions(out);
+        writeLocal(out, Version.V_1_0_0);
     }
 }

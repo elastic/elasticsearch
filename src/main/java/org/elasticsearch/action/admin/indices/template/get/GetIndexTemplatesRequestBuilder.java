@@ -19,14 +19,14 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class GetIndexTemplatesRequestBuilder extends MasterNodeOperationRequestBuilder<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
+public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
 
     public GetIndexTemplatesRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new GetIndexTemplatesRequest());

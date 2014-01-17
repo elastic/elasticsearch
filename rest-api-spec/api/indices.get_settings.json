@@ -33,6 +33,10 @@
         "flat_settings": {
           "type": "boolean",
           "description": "Return settings in flat format (default: false)"
+        },
+        "local": {
+          "type": "boolean",
+          "description": "Return local information, do not retrieve the state from master node (default: false)"
         }
       }
     },

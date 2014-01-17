@@ -44,6 +44,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
+        pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new ActionListener<PendingClusterTasksResponse>() {
 
             @Override

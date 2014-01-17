@@ -201,6 +201,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // forces QUERY_THEN_FETCH because of https://github.com/elasticsearch/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
         client().admin()
                 .indices()
@@ -228,6 +229,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
             String query = intToEnglish.split(" ")[0];
             SearchResponse rescored = client()
                     .prepareSearch()
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
                     .setFrom(0)
@@ -242,6 +244,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                     .setRescoreWindow(rescoreWindow).execute().actionGet();
 
             SearchResponse plain = client().prepareSearch()
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(resultSize)
                     .execute().actionGet();
@@ -251,6 +254,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
             rescored = client()
                     .prepareSearch()
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
                     .setFrom(0)
@@ -268,6 +272,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
             rescored = client()
                     .prepareSearch()
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
                     .setFrom(0)

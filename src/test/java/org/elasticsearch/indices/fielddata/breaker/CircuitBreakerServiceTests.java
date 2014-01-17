@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.fielddata.breaker;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 
 /**
  * Integration tests for InternalCircuitBreakerService
@@ -79,9 +81,9 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             try {
-                client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
+                SearchResponse resp = client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
                         .execute().actionGet();
-                fail("should not reach this point");
+                assertFailures(resp);
             } catch (SearchPhaseExecutionException e) {
             }
 
@@ -136,9 +138,9 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             try {
-                client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
+                SearchResponse resp = client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
                         .execute().actionGet();
-                fail("should not reach this point");
+                assertFailures(resp);
             } catch (SearchPhaseExecutionException e) {
             }
 

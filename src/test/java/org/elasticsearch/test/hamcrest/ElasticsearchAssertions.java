@@ -175,6 +175,12 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
+    public static void assertFailures(SearchResponse searchResponse) {
+        assertThat("Expected at least one shard failure, got none",
+                searchResponse.getShardFailures().length, greaterThan(0));
+        assertVersionSerializable(searchResponse);
+    }
+
     public static void assertNoFailures(BroadcastOperationResponse response) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
         assertVersionSerializable(response);

@@ -1174,16 +1174,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    /*this is only used by one test right now and shoudl go away entirely once we update lucene*/
-    private static boolean allowRamBytesUsed = false;
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46 :
-                "when upgrading to a new lucene version, check if ramBytes is fixed, see https://issues.apache.org/jira/browse/LUCENE-5373";
-    }
 
     private long getReaderRamBytesUsed(AtomicReaderContext reader) {
         assert reader.reader() instanceof SegmentReader;
-        return allowRamBytesUsed ? ((SegmentReader) reader.reader()).ramBytesUsed() : 0;
+        return ((SegmentReader) reader.reader()).ramBytesUsed();
     }
 
     @Override

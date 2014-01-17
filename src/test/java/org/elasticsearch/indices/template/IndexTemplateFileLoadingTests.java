@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.template;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -27,9 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.util.HashSet;
@@ -43,8 +42,6 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope=Scope.TEST, numNodes=1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
 
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -52,7 +49,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         settingsBuilder.put(super.nodeSettings(nodeOrdinal));
 
         try {
-            File directory = temporaryFolder.newFolder();
+            File directory = newTempDir(LifecycleScope.SUITE);
             settingsBuilder.put("path.conf", directory.getPath());
 
             File templatesDir = new File(directory + File.separator + "templates");

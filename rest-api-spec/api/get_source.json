@@ -23,14 +23,6 @@
         }
       },
       "params": {
-        "exclude": {
-          "type" : "list",
-          "description" : "A list of fields to exclude from the returned _source field"
-        },
-        "include": {
-          "type" : "list",
-          "description" : "A list of fields to extract and return from the _source field"
-        },
         "parent": {
           "type" : "string",
           "description" : "The ID of the parent document"

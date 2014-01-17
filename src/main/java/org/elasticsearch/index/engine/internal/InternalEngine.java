@@ -1119,15 +1119,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    /*this is only used by one test right now and shoudl go away entirely once we update lucene*/
-    private static boolean allowRamBytesUsed = false;
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46 :
-                "when upgrading to a new lucene version, check if ramBytes is fixed, see https://issues.apache.org/jira/browse/LUCENE-5373";
-    }
 
     private long getReaderRamBytesUsed(AtomicReaderContext reader) {
-        return allowRamBytesUsed ? SegmentReaderUtils.segmentReader(reader.reader()).ramBytesUsed() : 0;
+        return SegmentReaderUtils.segmentReader(reader.reader()).ramBytesUsed();
     }
 
     @Override

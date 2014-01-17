@@ -68,42 +68,8 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
-        assert Lucene.VERSION == Version.LUCENE_46 : "LUCENE-5361";
-        if( sourceQuery instanceof BooleanQuery ){
-            BooleanQuery bq = (BooleanQuery)sourceQuery;
-            if (bq.getBoost() == 1) {
-                for( BooleanClause clause : bq.getClauses() ) {
-                    if(!clause.isProhibited()) {
-                        flatten(clause.getQuery(), reader, flatQueries);
-                    }
-                }
-            } else {
-                for( BooleanClause clause : bq.getClauses() ) {
-                    if(!clause.isProhibited()) {
-                        Query cloned = clause.getQuery().clone();
-                        cloned.setBoost(cloned.getBoost() * bq.getBoost());
-                        flatten(cloned, reader, flatQueries);
-                    }
-                }
-            }
-        } else if (sourceQuery instanceof DisjunctionMaxQuery) {
-            DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) sourceQuery;
-            if (dmq.getBoost() == 1) {
-                for (Query query : dmq) {
-                    flatten(query, reader, flatQueries);
-                }
-            } else {
-                for (Query query : dmq) {
-                    Query clone = query.clone();
-                    clone.setBoost(clone.getBoost() * dmq.getBoost());
-                    flatten(clone, reader, flatQueries);
-                }
-            }
-        } else if (sourceQuery instanceof SpanTermQuery) {
-            TermQuery termQuery = new TermQuery(((SpanTermQuery) sourceQuery).getTerm());
-            if (!flatQueries.contains(termQuery)) {
-                flatQueries.add(termQuery);
-            }
+        if (sourceQuery instanceof SpanTermQuery) {
+            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) sourceQuery;
             if (constantScoreQuery.getFilter() != null) {
@@ -128,7 +94,7 @@ public class CustomFieldQuery extends FieldQuery {
             convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else {
             super.flatten(sourceQuery, reader, flatQueries);
-        } 
+        }
     }
     
     private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {

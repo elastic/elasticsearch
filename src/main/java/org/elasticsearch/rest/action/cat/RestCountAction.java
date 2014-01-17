@@ -39,6 +39,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -109,9 +110,9 @@ public class RestCountAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest request, CountResponse response) {
         Table table = getTableWithHeader(request);
-        long time = System.currentTimeMillis() / 1000;
+        long time = System.currentTimeMillis();
         table.startRow();
-        table.addCell(time);
+        table.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
         table.addCell(dateFormat.print(time));
         table.addCell(response.getCount());
         table.endRow();

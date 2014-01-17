@@ -3,13 +3,12 @@
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
 only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
-to use the normal `histogram` on dates as well, though accuracy will be compromized. The reason for this is in the fact
+to use the normal `histogram` on dates as well, though accuracy will be compromised. The reason for this is in the fact
 that time based intervals are not fixed (think of leap years and on the number of days in a month). For this reason,
-we need a spcial support for time based data. From functionality perspective, this historam supports the same features
-as the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>. The main difference though is that the
-interval can be specified by date/time expressions.
+we need a special support for time based data. From a functionality perspective, this histogram supports the same features
+as the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>. The main difference is that the interval can be specified by date/time expressions.
 
-Requesting a month length bucket intervals
+Requesting bucket intervals of a month.
 
 [source,js]
 --------------------------------------------------
@@ -25,7 +24,7 @@ Requesting a month length bucket intervals
 }
 --------------------------------------------------
 
-or based on 1.5 months
+fractional values are allowed, for example 1.5 hours:
 
 [source,js]
 --------------------------------------------------
@@ -34,7 +33,7 @@ or based on 1.5 months
         "articles_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "1.5M"
+                "interval" : "1.5h"
             }
         }
     }

@@ -30,7 +30,7 @@ The above aggregation computes the average grade over all documents. The aggrega
 }
 --------------------------------------------------
 
-The name of the aggregation (`avg_grade` above) also serves as the key by which the aggreagtion result can be retrieved from the returned response.
+The name of the aggregation (`avg_grade` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 
@@ -49,7 +49,7 @@ Computing the average grade based on a script:
 
 ===== Value Script
 
-It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use value script to get the new average
+It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use value script to get the new average:
 
 [source,js]
 --------------------------------------------------

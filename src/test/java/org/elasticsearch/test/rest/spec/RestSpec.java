@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.spec;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -27,7 +26,6 @@ import org.elasticsearch.test.rest.support.FileUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,19 +38,7 @@ public class RestSpec {
     }
 
     void addApi(RestApi restApi) {
-        if ("get".equals(restApi.getName())) {
-            //TODO get_source endpoint shouldn't be present in the rest spec for the get api
-            //as get_source is already a separate api
-            List<String> paths = Lists.newArrayList();
-            for (String path : restApi.getPaths()) {
-                if (!path.endsWith("/_source")) {
-                    paths.add(path);
-                }
-            }
-            restApiMap.put(restApi.getName(), new RestApi(restApi, paths));
-        } else {
-            restApiMap.put(restApi.getName(), restApi);
-        }
+        restApiMap.put(restApi.getName(), restApi);
     }
 
     public RestApi getApi(String api) {

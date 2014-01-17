@@ -44,6 +44,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -60,6 +61,7 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.client.RandomizingClient;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -263,7 +265,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
-        return cluster().client();
+        Client client = cluster().client();
+        if (frequently()) {
+            client = new RandomizingClient((InternalClient) client, getRandom());
+        }
+        return client;
     }
 
     /**

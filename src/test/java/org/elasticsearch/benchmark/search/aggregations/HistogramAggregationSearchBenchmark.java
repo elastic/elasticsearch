@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.benchmark.search.aggregations;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.util.Date;
+import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -58,8 +60,8 @@ public class HistogramAggregationSearchBenchmark {
         Settings settings = settingsBuilder()
                 .put("refresh_interval", "-1")
                 .put("gateway.type", "local")
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
         String clusterName = HistogramAggregationSearchBenchmark.class.getSimpleName();
@@ -76,29 +78,25 @@ public class HistogramAggregationSearchBenchmark {
             lValues[i] = i;
         }
 
-        Thread.sleep(10000);
+        Random r = new Random();
         try {
             client.admin().indices().prepareCreate("test")
-                    .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                    .addMapping("test", jsonBuilder()
+                    .setSettings(settingsBuilder().put(settings))
+                    .addMapping("type1", jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("type1")
                                 .startObject("properties")
-                                    .startObject("name")
-                                        .startObject("fields")
-                                            .startObject("l_value")
-                                                .field("type", "long")
-                                            .endObject()
-                                            .startObject("i_value")
-                                                .field("type", "integer")
-                                            .endObject()
-                                            .startObject("s_value")
-                                                .field("type", "short")
-                                            .endObject()
-                                            .startObject("b_value")
-                                                .field("type", "byte")
-                                            .endObject()
-                                        .endObject()
+                                    .startObject("l_value")
+                                        .field("type", "long")
+                                    .endObject()
+                                    .startObject("i_value")
+                                        .field("type", "integer")
+                                    .endObject()
+                                    .startObject("s_value")
+                                        .field("type", "short")
+                                    .endObject()
+                                    .startObject("b_value")
+                                        .field("type", "byte")
                                     .endObject()
                                 .endObject()
                             .endObject()
@@ -115,7 +113,7 @@ public class HistogramAggregationSearchBenchmark {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
                     counter++;
-                    final long value = lValues[counter % lValues.length];
+                    final long value = lValues[r.nextInt(lValues.length)];
                     XContentBuilder source = jsonBuilder().startObject()
                             .field("id", Integer.valueOf(counter))
                             .field("l_value", value)
@@ -136,6 +134,7 @@ public class HistogramAggregationSearchBenchmark {
                     stopWatch.start();
                 }
             }
+            client.admin().indices().prepareFlush("test").execute().actionGet();
             System.out.println("--> Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) (COUNT)) / stopWatch.totalTime().secondsFrac()));
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
@@ -144,7 +143,6 @@ public class HistogramAggregationSearchBenchmark {
                 System.err.println("--> Timed out waiting for cluster health");
             }
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
         if (client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() != COUNT) {
             throw new Error();
         }
@@ -190,6 +188,7 @@ public class HistogramAggregationSearchBenchmark {
             }
             System.out.println("--> Histogram Facet (" + field + ") " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+            totalQueryTime = 0;
             for (int j = 0; j < QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch()
                         .setQuery(matchAllQuery())

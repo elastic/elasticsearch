@@ -38,7 +38,7 @@ The above aggregation sums up all changes in the today's trading stock ticks whi
 }
 --------------------------------------------------
 
-The name of the aggregation (`intraday_return` above) also serves as the key by which the aggreagtion result can be retrieved from the returned response.
+The name of the aggregation (`intraday_return` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 

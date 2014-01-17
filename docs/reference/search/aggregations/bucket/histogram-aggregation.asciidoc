@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-histogram-aggregation]]
 === Histogram
 
-A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document will be evaluated and will be rounded down to its closes bucket - for example, if the price is `32` and the bucket size is `5` then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated withe the key `30`. To make this more formal, here is the rounding function that is used:
+A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document will be evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size is `5` then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated withe the key `30`. To make this more formal, here is the rounding function that is used:
 
 [source,java]
 --------------------------------------------------
@@ -52,7 +52,7 @@ And the following may be the response:
 }
 --------------------------------------------------
 
-The response above shows that non of the aggregated products has a price that falls within the range of `[100 - 150)`. By default, the response will only contain the non-empty buckets, though it is possible to also return those, by setting the `empty_buckets` flag to `true`:
+The response above shows that none of the aggregated products has a price that falls within the range of `[100 - 150)`. By default, the response will only contain the non-empty buckets, though it is possible to also return those, by setting the `empty_buckets` flag to `true`:
 
 [source,js]
 --------------------------------------------------
@@ -218,7 +218,7 @@ NOTE:   The special value `0` can be used to add empty buckets to the response b
 
 ==== Response Format
 
-By default, the buckets are retuned as an ordered array. It is also possilbe to request the response as a hash instead keyed by the buckets keys:
+By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash instead keyed by the buckets keys:
 
 [source,js]
 --------------------------------------------------

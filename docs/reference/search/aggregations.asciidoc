@@ -67,7 +67,7 @@ The following snippet captures the basic structure of aggregations:
 }
 --------------------------------------------------
 
-The `aggregations` object (a.k.a `aggs` for short) in the json holds the aggregations to be computed. Each aggregation
+The `aggregations` object (the key `aggs` can also be used) in the json holds the aggregations to be computed. Each aggregation
 is associated with a logical name that the user defines (e.g. if the aggregation computes the average price, then it'll
 make sense to name it `avg_price`). These logical names will also be used to uniquely identify the aggregations in the
 response. Each aggregation has a specific type (`<aggregation_type>` in the above snippet) and is typically the first

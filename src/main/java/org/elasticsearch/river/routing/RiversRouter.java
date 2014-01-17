@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.river.RiverIndexName;
@@ -109,8 +110,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         });
     }
 
-    protected RiverClusterState updateRiverClusterState(final String source, final RiverClusterState currentState,
-                                          ClusterState newClusterState, final CountDown countDown) {
+    protected synchronized RiverClusterState updateRiverClusterState(final String source, final RiverClusterState currentState,
+                                                                     ClusterState newClusterState, final CountDown countDown) {
         if (!newClusterState.metaData().hasIndex(riverIndexName)) {
             // if there are routings, publish an empty one (so it will be deleted on nodes), otherwise, return the same state
             if (!currentState.routing().isEmpty()) {
@@ -121,14 +122,15 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
 
         RiversRouting.Builder routingBuilder = RiversRouting.builder().routing(currentState.routing());
         boolean dirty = false;
-
         IndexMetaData indexMetaData = newClusterState.metaData().index(riverIndexName);
-
         // go over and create new river routing (with no node) for new types (rivers names)
         Iterator<ObjectCursor<MappingMetaData>> iterator = indexMetaData.mappings().values().iterator();
         while (iterator.hasNext()) {
             ObjectCursor<MappingMetaData> cursor = iterator.next();
             String mappingType = cursor.value.type(); // mapping type is the name of the river
+            if (MapperService.DEFAULT_MAPPING.equals(mappingType)) {
+                continue;
+            }
             if (!currentState.routing().hasRiverByName(mappingType)) {
                 // no river, we need to add it to the routing with no node allocation
                 try {
@@ -138,9 +140,9 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                         if (iterator.hasNext()) continue;
 
                         if (countDown.countDown()) {
-                            logger.warn("no river _meta document found after {} attempts", RIVER_START_MAX_RETRIES);
+                            logger.warn("no river _meta document found for type [{}] after {} attempts", mappingType, RIVER_START_MAX_RETRIES);
                         } else {
-                            logger.info("no river _meta document found, retrying in {} ms", RIVER_START_RETRY_INTERVAL.millis());
+                            logger.info("no river _meta document found for type [{}], retrying in {} ms", mappingType, RIVER_START_RETRY_INTERVAL.millis());
                             try {
                                 threadPool.schedule(RIVER_START_RETRY_INTERVAL, ThreadPool.Names.GENERIC, new Runnable() {
                                     @Override
@@ -153,20 +155,20 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                                         });
                                     }
                                 });
-                            } catch(EsRejectedExecutionException ex) {
+                            } catch (EsRejectedExecutionException ex) {
                                 logger.debug("Couldn't schedule river start retry, node might be shutting down", ex);
                             }
                         }
-                        return currentState;
-                    }
-                    logger.debug("{}/{}/_meta document found.", riverIndexName, mappingType);
-
-                    String riverType = XContentMapValues.nodeStringValue(getResponse.getSourceAsMap().get("type"), null);
-                    if (riverType == null) {
-                        logger.warn("no river type provided for [{}], ignoring...", riverIndexName);
                     } else {
-                        routingBuilder.put(new RiverRouting(new RiverName(riverType, mappingType), null));
-                        dirty = true;
+                        logger.debug("{}/{}/_meta document found.", riverIndexName, mappingType);
+
+                        String riverType = XContentMapValues.nodeStringValue(getResponse.getSourceAsMap().get("type"), null);
+                        if (riverType == null) {
+                            logger.warn("no river type provided for [{}], ignoring...", riverIndexName);
+                        } else {
+                            routingBuilder.put(new RiverRouting(new RiverName(riverType, mappingType), null));
+                            dirty = true;
+                        }
                     }
                 } catch (NoShardAvailableActionException e) {
                     // ignore, we will get it next time...
@@ -181,9 +183,6 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 }
             }
         }
-
-
-
         // now, remove routings that were deleted
         // also, apply nodes that were removed and rivers were running on
         for (RiverRouting routing : currentState.routing()) {

@@ -410,6 +410,7 @@
                             <seed>${tests.seed}</seed>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <systemProperties>
+                                <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
@@ -439,6 +440,10 @@
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <java.awt.headless>true</java.awt.headless>
+                                <!-- everything below is for security manager / test.policy -->
+                                <java.security.manager/>
+                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
+                                <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>

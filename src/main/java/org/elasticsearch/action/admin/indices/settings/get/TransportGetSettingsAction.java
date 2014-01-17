@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,7 +39,7 @@ import java.util.Map;
 
 /**
  */
-public class TransportGetSettingsAction extends TransportMasterNodeOperationAction<GetSettingsRequest, GetSettingsResponse> {
+public class TransportGetSettingsAction extends TransportMasterNodeReadOperationAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
 

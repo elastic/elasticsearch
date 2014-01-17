@@ -59,11 +59,11 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-        boolean local = request.paramAsBooleanOptional("local", false);
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
-        getMappingsRequest.indices(indices).types(types).local(local).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+        getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         client.admin().indices().getFieldMappings(getMappingsRequest, new ActionListener<GetFieldMappingsResponse>() {
 
             @SuppressWarnings("unchecked")

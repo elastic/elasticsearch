@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support.master.info;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,13 +29,12 @@ import java.io.IOException;
 
 /**
  */
-public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeOperationRequest<T> {
+public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadOperationRequest<T> {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strict();
-    private boolean local = false;
 
     @SuppressWarnings("unchecked")
     public T indices(String... indices) {
@@ -55,12 +54,6 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         return (T) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public T local(boolean local) {
-        this.local = local;
-        return (T) this;
-    }
-
     public String[] indices() {
         return indices;
     }
@@ -73,17 +66,13 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         return indicesOptions;
     }
 
-    public boolean local() {
-        return local;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        local = in.readBoolean();
+        readLocal(in);
     }
 
     @Override
@@ -92,6 +81,6 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(local);
+        writeLocal(out);
     }
 }

@@ -57,6 +57,7 @@ public class RestAliasAction extends AbstractCatAction {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
+        getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
         client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
             @Override

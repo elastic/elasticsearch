@@ -63,10 +63,10 @@ public class RestGetMappingAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-        boolean local = request.paramAsBooleanOptional("local", false);
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
-        getMappingsRequest.indices(indices).types(types).local(local);
+        getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+        getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         client.admin().indices().getMappings(getMappingsRequest, new ActionListener<GetMappingsResponse>() {
 
             @Override

@@ -210,5 +210,15 @@ setup:
         index: non-existent
         name: foo
 
+---
+"Get aliases with local flag":
+
+  - do:
+      indices.get_aliases:
+        local: true
+
+  - is_true: test_index
+
+  - is_true: test_index_2
 
 

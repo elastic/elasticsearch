@@ -19,10 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +32,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRequest> {
+public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
@@ -79,6 +80,7 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
+        readLocal(in, Version.V_1_0_0);
     }
 
     @Override
@@ -87,5 +89,6 @@ public class GetSettingsRequest extends MasterNodeOperationRequest<GetSettingsRe
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
+        writeLocal(out, Version.V_1_0_0);
     }
 }

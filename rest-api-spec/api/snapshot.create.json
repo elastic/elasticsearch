@@ -27,7 +27,9 @@
         }
       }
     },
+    "body" : {
       "description" : "The snapshot definition",
       "required" : false
+    }
   }
 }

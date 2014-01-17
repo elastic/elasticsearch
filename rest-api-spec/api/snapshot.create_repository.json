@@ -22,7 +22,9 @@
         }
       }
     },
+    "body": {
       "description" : "The repository definition",
       "required" : true
+    }
   }
 }

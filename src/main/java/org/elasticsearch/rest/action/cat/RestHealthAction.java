@@ -36,6 +36,7 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -100,10 +101,10 @@ public class RestHealthAction extends AbstractCatAction {
     private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
 
     private Table buildTable(final ClusterHealthResponse health, final RestRequest request) {
-        long time = System.currentTimeMillis() / 1000;
+        long time = System.currentTimeMillis();
         Table t = getTableWithHeader(request);
         t.startRow();
-        t.addCell(time);
+        t.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
         t.addCell(dateFormat.print(time));
         t.addCell(health.getClusterName());
         t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));

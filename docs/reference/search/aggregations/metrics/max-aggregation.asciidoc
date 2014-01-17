@@ -29,7 +29,7 @@ Response:
 }
 --------------------------------------------------
 
-As can be seen, the name of the aggregation (`max_price` above) also serves as the key by which the aggreagtion result can be retrieved from the returned response.
+As can be seen, the name of the aggregation (`max_price` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 
@@ -47,7 +47,7 @@ Computing the max price value across all document, this time using a script:
 
 ==== Value Script
 
-Let's say that the prices of the documents in our index are in USD, but we would like to compute the max in EURO (and for the sake of this example, lets say the conversion rate is 1.2). We can use a value script to apply the conversion rate to every value before it's aggregated:
+Let's say that the prices of the documents in our index are in USD, but we would like to compute the max in EURO (and for the sake of this example, lets say the conversion rate is 1.2). We can use a value script to apply the conversion rate to every value before it is aggregated:
 
 [source,js]
 --------------------------------------------------

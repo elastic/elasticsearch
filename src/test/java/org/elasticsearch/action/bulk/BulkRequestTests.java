@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -38,7 +39,9 @@ public class BulkRequestTests extends ElasticsearchTestCase {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         // translate Windows line endings (\r\n) to standard ones (\n)
-        bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
+        if (Constants.WINDOWS) {
+            bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
+        }
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));

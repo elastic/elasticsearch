@@ -96,9 +96,22 @@ def generate_property_file(directory, data)
   end
 end
 
+
+if(ENV['WORKSPACE'])
+  #jenkin mode
+  working_directory = ENV['WORKSPACE']
+else
+  #local mode set up fake environment 
+  test_directory = 'tools/hudson.model.JDK/'
+  unless(File.exist?(test_directory))
+    puts "running local mode, setting up running environment"
+    puts "properties are written to file prop.txt"
+    system("mkdir -p %sJDK{6,7}"%test_directory)
+  end
+  working_directory = ENV['PWD']
+end
 # jenkins sets pwd prior to execution
 jdk_selector = JDKSelector.new(File.join(ENV['PWD'],'tools','hudson.model.JDK'))
 environment_matrix = get_env_matrix(jdk_selector.get_jdk.select_one)
 
-working_directory = ENV['WORKSPACE'] || '/var/tmp'
 generate_property_file(working_directory, environment_matrix)

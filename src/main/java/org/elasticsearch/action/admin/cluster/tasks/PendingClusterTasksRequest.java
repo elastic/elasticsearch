@@ -19,15 +19,32 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  */
-public class PendingClusterTasksRequest extends MasterNodeOperationRequest<PendingClusterTasksRequest> {
+public class PendingClusterTasksRequest extends MasterNodeReadOperationRequest<PendingClusterTasksRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        readLocal(in, Version.V_1_0_0);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeLocal(out, Version.V_1_0_0);
     }
 }

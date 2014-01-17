@@ -36,7 +36,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetSettingsAction extends BaseRestHandler {
@@ -58,6 +57,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
                 .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
                 .names(names);
+        getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
         client.admin().indices().getSettings(getSettingsRequest, new ActionListener<GetSettingsResponse>() {
 

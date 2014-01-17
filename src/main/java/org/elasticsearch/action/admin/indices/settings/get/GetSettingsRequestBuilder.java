@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
-public class GetSettingsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
+public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public GetSettingsRequestBuilder(InternalGenericClient client, String... indices) {
         super(client, new GetSettingsRequest().indices(indices));

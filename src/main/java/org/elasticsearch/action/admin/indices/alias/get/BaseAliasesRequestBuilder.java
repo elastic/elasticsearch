@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  */
-public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
+public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
 
     public BaseAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
         super((InternalIndicesAdminClient) client, new GetAliasesRequest(aliases));

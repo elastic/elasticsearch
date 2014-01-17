@@ -21,14 +21,14 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class IndicesExistsRequestBuilder extends MasterNodeOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
+public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
     public IndicesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
         super((InternalIndicesAdminClient) indicesClient, new IndicesExistsRequest(indices));

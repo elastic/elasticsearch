@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.master.info;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  */
-public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeOperationAction<Request, Response> {
+public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeReadOperationAction<Request, Response> {
 
     public TransportClusterInfoAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings, transportService, clusterService, threadPool);
@@ -40,11 +40,6 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     protected String executor() {
         // read operation, lightweight...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected final boolean localExecute(Request request) {
-        return request.local();
     }
 
     @Override

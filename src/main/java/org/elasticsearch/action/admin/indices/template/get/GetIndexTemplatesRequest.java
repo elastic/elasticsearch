@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,9 +30,9 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- *
+ * Request that allows to retrieve index templates
  */
-public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetIndexTemplatesRequest> {
+public class GetIndexTemplatesRequest extends MasterNodeReadOperationRequest<GetIndexTemplatesRequest> {
 
     private String[] names;
 
@@ -82,6 +82,7 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
             names = new String[1];
             names[0] = in.readString();
         }
+        readLocal(in, Version.V_1_0_0);
     }
 
     @Override
@@ -92,5 +93,6 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
         } else {
             out.writeString(names.length == 0 ? "*" : names[0]);
         }
+        writeLocal(out, Version.V_1_0_0);
     }
 }

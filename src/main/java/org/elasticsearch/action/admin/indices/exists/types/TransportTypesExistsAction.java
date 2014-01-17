@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Types exists transport action.
  */
-public class TransportTypesExistsAction extends TransportMasterNodeOperationAction<TypesExistsRequest, TypesExistsResponse> {
+public class TransportTypesExistsAction extends TransportMasterNodeReadOperationAction<TypesExistsRequest, TypesExistsResponse> {
 
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,

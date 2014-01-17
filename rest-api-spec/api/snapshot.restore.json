@@ -27,7 +27,9 @@
         }
       }
     },
+    "body" : {
       "description" : "Details of what to restore",
       "required" : false
+    }
   }
 }

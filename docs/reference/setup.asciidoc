@@ -44,7 +44,7 @@ anything set using either `JAVA_OPTS` or `ES_JAVA_OPTS`. For example:
 
 [source,sh]
 --------------------------------------------------
-$ bin/elasticsearch -f -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-node
+$ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-node
 --------------------------------------------------
 *************************************************************************
 --

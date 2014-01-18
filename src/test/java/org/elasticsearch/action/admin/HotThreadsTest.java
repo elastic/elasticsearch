@@ -108,9 +108,6 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                     client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
                     client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
             ensureSearchable();
-            if (randomBoolean()) {
-                optimize();
-            }
             while(latch.getCount() > 0) {
                 assertHitCount(
                         client().prepareSearch()

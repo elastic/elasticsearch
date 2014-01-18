@@ -124,7 +124,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
                     postingsProvider, docValuesProvider, similarity,
-                    normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -152,11 +152,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                             String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
-                            Settings indexSettings, MultiFields multiFields) {
+                            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
@@ -295,7 +295,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         final long value = ipToLong(ipAsString);
         if (fieldType.indexed() || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-            field.setBoost(boost);
+            field.setBoost(context.fieldBoost(this));
             fields.add(field);
         }
         if (hasDocValues()) {

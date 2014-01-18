@@ -93,7 +93,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues,
                     nullValue, ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
-                    context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -123,10 +123,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                  SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
-                                 Settings indexSettings, MultiFields multiFields) {
+                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -244,7 +244,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         int value;
-        float boost = this.boost;
+        float boost = context.fieldBoost(this);
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

@@ -93,7 +93,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context),
                     coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -123,11 +123,11 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                               Byte nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, 
                               PostingsFormatProvider postingsProvider,
                               DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
-                              @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields) {
+                              @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
-                docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+                docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -249,7 +249,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         byte value;
-        float boost = this.boost;
+        float boost = context.fieldBoost(this);
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

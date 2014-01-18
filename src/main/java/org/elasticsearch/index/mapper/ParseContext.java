@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.*;
@@ -154,6 +155,7 @@ public class ParseContext {
 
     private boolean mappingsModified = false;
     private boolean withinNewMapper = false;
+    private boolean withinCopyTo = false;
 
     private boolean externalValueSet;
 
@@ -162,6 +164,8 @@ public class ParseContext {
     private AllEntries allEntries = new AllEntries();
 
     private float docBoost = 1.0f;
+
+    private float copyToBoost = 1.0f;
 
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
@@ -221,6 +225,20 @@ public class ParseContext {
 
     public boolean isWithinNewMapper() {
         return withinNewMapper;
+    }
+
+    public void setWithinCopyTo(float copyToBoost) {
+        this.withinCopyTo = true;
+        this.copyToBoost = copyToBoost;
+    }
+
+    public void clearWithinCopyTo() {
+        this.withinCopyTo = false;
+        this.copyToBoost = 1.0f;
+    }
+
+    public boolean isWithinCopyTo() {
+        return withinCopyTo;
     }
 
     public String index() {
@@ -343,6 +361,9 @@ public class ParseContext {
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
     private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
+        if (withinCopyTo) {
+            return false;
+        }
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
@@ -377,6 +398,14 @@ public class ParseContext {
     public Object externalValue() {
         externalValueSet = false;
         return externalValue;
+    }
+
+    public float fieldBoost(AbstractFieldMapper mapper) {
+        if (withinCopyTo) {
+            return copyToBoost;
+        } else {
+            return mapper.boost();
+        }
     }
 
     public float docBoost() {

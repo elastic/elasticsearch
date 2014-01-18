@@ -143,7 +143,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, defaultFieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
                     positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, 
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context));
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -200,9 +200,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
                                 PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
-                                Settings indexSettings, MultiFields multiFields) {
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }
@@ -274,7 +274,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, boost);
+        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, context.fieldBoost(this));
         if (valueAndBoost.value() == null) {
             return;
         }

@@ -613,3 +613,57 @@ The following Similarities are configured out-of-box:
         The BM25 algorithm.
         http://en.wikipedia.org/wiki/Okapi_BM25[See Okapi_BM25] for more
         details.
+
+
+[float]
+===== Copy to field
+
+Adding `copy_to` parameter to any field mapping will cause all values of this field to be copied to fields specified in
+the parameter. In the following example all values from fields `title` and `abstract` will be copied to the field
+`meta_data`.
+
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : { "type" : "string", "copy_to" : "meta_data" },
+      "abstract" : { "type" : "string", "copy_to" : "meta_data" },
+      "meta_data" : { "type" : "string" },
+    }
+}
+--------------------------------------------------
+
+Multiple fields with optional boost factors are also supported:
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info^10.0"] },
+    }
+}
+--------------------------------------------------
+
+The same mapping can be also defined using extended syntax:
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : {
+        "type" : "string",
+        "copy_to" : [{
+            "field": "meta_data"
+        }, {
+            "field": "article_info"
+            "boost": 10.0
+        }
+    }
+}
+--------------------------------------------------
+
+

@@ -80,7 +80,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
-                    analyzer, multiFieldsBuilder.build(this, context));
+                    analyzer, multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,16 +117,16 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
             SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
-            MultiFields multiFields) {
+            MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce, postingsProvider, docValuesProvider, 
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
 
         this.analyzer = analyzer;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, boost);
+        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, context.fieldBoost(this));
         if (valueAndBoost.value() == null && nullValue() == null) {
             return;
         }

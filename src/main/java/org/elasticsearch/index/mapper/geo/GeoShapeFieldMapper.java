@@ -153,7 +153,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider,
-                    docValuesProvider, multiFieldsBuilder.build(this, context));
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -197,8 +197,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                               MultiFields multiFields) {
-        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields);
+                               MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
@@ -234,7 +234,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
             for (Field field : fields) {
                 if (!customBoost()) {
-                    field.setBoost(boost);
+                    field.setBoost(context.fieldBoost(this));
                 }
                 if (context.listener().beforeFieldAdded(this, field, context)) {
                     context.doc().add(field);

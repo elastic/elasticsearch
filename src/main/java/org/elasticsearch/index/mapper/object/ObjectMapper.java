@@ -614,8 +614,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         Mapper mapper = mappers.get(currentFieldName);
         if (mapper != null) {
             mapper.parse(context);
-            return;
+        } else {
+            parseDynamicValue(context, currentFieldName, token);
         }
+    }
+
+    public void parseDynamicValue(final ParseContext context, String currentFieldName, XContentParser.Token token) throws IOException {
         Dynamic dynamic = this.dynamic;
         if (dynamic == null) {
             dynamic = context.root().dynamic();
@@ -630,7 +634,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // its not the end of the world, since we add it to the mappers once we create it
         // so next time we won't even get here for this field
         synchronized (mutex) {
-            mapper = mappers.get(currentFieldName);
+            Mapper mapper = mappers.get(currentFieldName);
             if (mapper == null) {
                 BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {

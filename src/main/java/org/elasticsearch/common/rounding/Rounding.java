@@ -40,7 +40,7 @@ public abstract class Rounding implements Streamable {
     /**
      * Compute the rounded value given the key that identifies it.
      */
-    public abstract long roundValue(long key);
+    public abstract long valueForKey(long key);
 
     /**
      * Rounds the given value, equivalent to calling <code>roundValue(roundKey(value))</code>.
@@ -49,7 +49,7 @@ public abstract class Rounding implements Streamable {
      * @return      The rounded value.
      */
     public final long round(long value) {
-        return roundValue(roundKey(value));
+        return valueForKey(roundKey(value));
     }
 
     /**
@@ -107,7 +107,7 @@ public abstract class Rounding implements Streamable {
         }
 
         @Override
-        public long roundValue(long key) {
+        public long valueForKey(long key) {
             return key * interval;
         }
 

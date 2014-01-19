@@ -110,7 +110,7 @@ public class HistogramAggregator extends BucketsAggregator {
             if (ord < 0) {
                 continue; // slot is not allocated
             }
-            buckets.add(histogramFactory.createBucket(rounding.roundValue(bucketOrds.key(i)), bucketDocCount(ord), bucketAggregations(ord)));
+            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.key(i)), bucketDocCount(ord), bucketAggregations(ord)));
         }
 
 

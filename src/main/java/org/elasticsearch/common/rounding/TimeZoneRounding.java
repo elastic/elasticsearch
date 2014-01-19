@@ -152,7 +152,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long time) {
+        public long valueForKey(long time) {
             // now, time is still in local, move it to UTC (or the adjustLargeInterval flag is set)
             time = time - preTz.getOffset(time);
             // now apply post Tz
@@ -204,7 +204,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
+        public long valueForKey(long key) {
             return key;
         }
 
@@ -253,7 +253,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long time) {
+        public long valueForKey(long time) {
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
             time = time + postTz.getOffset(time);
@@ -304,7 +304,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
+        public long valueForKey(long key) {
             return Rounding.Interval.roundValue(key, interval);
         }
 
@@ -354,7 +354,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
+        public long valueForKey(long key) {
             long time = Rounding.Interval.roundValue(key, interval);
             // now, time is still in local, move it to UTC
             time = time - preTz.getOffset(time);
@@ -412,7 +412,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
+        public long valueForKey(long key) {
             long time = Rounding.Interval.roundValue(key, interval);
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
@@ -467,8 +467,8 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
-            return timeZoneRounding.roundValue(key);
+        public long valueForKey(long key) {
+            return timeZoneRounding.valueForKey(key);
         }
 
         @Override
@@ -518,8 +518,8 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundValue(long key) {
-            return postOffset + timeZoneRounding.roundValue(key);
+        public long valueForKey(long key) {
+            return postOffset + timeZoneRounding.valueForKey(key);
         }
 
         @Override

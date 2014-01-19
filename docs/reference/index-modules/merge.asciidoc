@@ -7,13 +7,11 @@ where the index data is stored, and are immutable up to delete markers.
 Segments are, periodically, merged into larger segments to keep the
 index size at bay and expunge deletes.
 
-The more segments one has in the Lucene index mean slower searches and
-more memory used, but, low number of segments means more merging that
-has to go on.
+The more segments one has in the Lucene index means slower searches and
+more memory used. Segment merging is used to reduce the number of segments,
+however merges can be expensive to perform, especially on low IO environments.
+Merges can be throttled using <<store-throttling,store level throttling>>.
 
-Since merges can be expensive to perform, especially on low IO
-environments, they can be throttled using store level throttling. Read
-the store module documentation on how to set it.
 
 [float]
 [[policy]]
@@ -69,7 +67,7 @@ This policy has the following settings:
 
 	Sets the allowed number of segments per tier. Smaller values mean more
 	merging but fewer segments. Default is `10`. Note, this value needs to be
-	>= then the `max_merge_at_once_` otherwise you'll force too many merges to
+	>= then the `max_merge_at_once` otherwise you'll force too many merges to
 	occur.
 
 `index.reclaim_deletes_weight`::

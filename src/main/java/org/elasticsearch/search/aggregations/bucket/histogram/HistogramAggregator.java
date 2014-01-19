@@ -87,7 +87,7 @@ public class HistogramAggregator extends BucketsAggregator {
         long previousKey = Long.MIN_VALUE;
         for (int i = 0; i < valuesCount; ++i) {
             long value = values.nextValue();
-            long key = rounding.round(value);
+            long key = rounding.roundKey(value);
             assert key >= previousKey;
             if (key == previousKey) {
                 continue;
@@ -110,7 +110,7 @@ public class HistogramAggregator extends BucketsAggregator {
             if (ord < 0) {
                 continue; // slot is not allocated
             }
-            buckets.add(histogramFactory.createBucket(bucketOrds.key(i), bucketDocCount(ord), bucketAggregations(ord)));
+            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.key(i)), bucketDocCount(ord), bucketAggregations(ord)));
         }
 
 

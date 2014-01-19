@@ -32,7 +32,7 @@ addressable from the outside. Defaults to the actual port assigned via
 `transport.tcp.port`.
 
 |`transport.tcp.connect_timeout` |The socket connect timeout setting (in
-time setting format). Defaults to `2s`.
+time setting format). Defaults to `30s`.
 
 |`transport.tcp.compress` |Set to `true` to enable compression (LZF)
 between all nodes. Defaults to `false`.

@@ -100,6 +100,7 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.rest.action.recovery.RestRecoveryAction;
 
 import java.util.List;
 
@@ -210,6 +211,8 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestExplainAction.class).asEagerSingleton();
 
+        bind(RestRecoveryAction.class).asEagerSingleton();
+
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
         catActionMultibinder.addBinding().to(RestAllocationAction.class).asEagerSingleton();
@@ -219,7 +222,8 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestIndicesAction.class).asEagerSingleton();
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
-        catActionMultibinder.addBinding().to(RestRecoveryAction.class).asEagerSingleton();
+        // Fully qualified to prevent interference with rest.action.recovery.RestRecoveryAction;
+        catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestRecoveryAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestHealthAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestAliasAction.class).asEagerSingleton();

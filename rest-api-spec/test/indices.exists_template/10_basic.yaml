@@ -1,4 +1,10 @@
 ---
+setup:
+  - do:
+      indices.delete_template:
+        name: test
+        ignore: [404]
+---
 "Test indices.exists_template":
   - do:
       indices.exists_template:

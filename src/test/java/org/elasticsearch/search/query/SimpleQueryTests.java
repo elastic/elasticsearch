@@ -90,7 +90,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
 
     }
-
+    @Test // see #3952
+    public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
+        assertHitCount(client().prepareSearch().setQuery(queryString("quick")).get(), 3l);
+        assertHitCount(client().prepareSearch().setQuery(queryString("")).get(), 0l); // return no docs
+    }
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {

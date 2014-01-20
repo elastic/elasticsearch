@@ -21,6 +21,7 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Names;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -57,16 +58,16 @@ public class InternalSettingsPreparer {
             boolean loadFromEnv = true;
             if (useSystemProperties) {
                 // if its default, then load it, but also load form env
-                if (System.getProperty("es.default.config") != null) {
+                if (Strings.hasText(System.getProperty("es.default.config"))) {
                     loadFromEnv = true;
                     settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.default.config")));
                 }
                 // if explicit, just load it and don't load from env
-                if (System.getProperty("es.config") != null) {
+                if (Strings.hasText(System.getProperty("es.config"))) {
                     loadFromEnv = false;
                     settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
                 }
-                if (System.getProperty("elasticsearch.config") != null) {
+                if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
                     loadFromEnv = false;
                     settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("elasticsearch.config")));
                 }

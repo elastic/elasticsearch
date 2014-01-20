@@ -4,29 +4,69 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/_percolate",
-      "paths": ["/{index}/{type}/_percolate"],
+      "paths": ["/{index}/{type}/_percolate", "/{index}/{type}/{id}/_percolate"],
       "parts": {
         "index": {
           "type" : "string",
           "required" : true,
-          "description" : "The name of the index with a registered percolator query"
+          "description" : "The index of the document being percolated."
         },
         "type": {
           "type" : "string",
           "required" : true,
-          "description" : "The document type"
+          "description" : "The type of the document being percolated."
+        },
+        "id": {
+          "type" : "string",
+          "required" : false,
+          "description" : "Substitute the document in the request body with a document that is known by the specified id. On top of the id, the index and type parameter will be used to retrieve the document from within the cluster."
         }
       },
       "params": {
-        "prefer_local": {
+        "routing": {
+          "type" : "list",
+          "description" : "A comma-separated list of specific routing values"
+        },
+        "preference": {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
+        },
+        "ignore_unavailable": {
           "type" : "boolean",
-          "description" : "With `true`, specify that a local shard should be used if available, with `false`, use a random shard (default: true)"
+          "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "allow_no_indices": {
+          "type" : "boolean",
+          "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
+        },
+        "expand_wildcards": {
+          "type" : "enum",
+          "options" : ["open","closed"],
+          "default" : "open",
+          "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "percolate_index": {
+          "type" : "string",
+          "description" : "The index to percolate the document into. Defaults to index."
+        },
+        "percolate_type": {
+          "type" : "string",
+          "description" : "The type to percolate document into. Defaults to type."
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal","external"],
+          "description" : "Specific version type"
         }
       }
     },
     "body": {
-      "description" : "The document (`doc`) to percolate against registered queries; optionally also a `query` to limit the percolation to specific registered queries",
-      "required" : true
+      "description" : "The percolator request definition using the percolate DSL",
+      "required" : false
     }
   }
 }

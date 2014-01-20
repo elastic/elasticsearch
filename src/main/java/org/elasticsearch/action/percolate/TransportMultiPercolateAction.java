@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -163,7 +164,15 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 assert element != null;
                 if (element instanceof PercolateRequest) {
                     PercolateRequest percolateRequest = (PercolateRequest) element;
-                    String[] concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.indicesOptions());
+                    String[] concreteIndices;
+                    try {
+                         concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.indicesOptions());
+                    } catch (IndexMissingException e) {
+                        reducedResponses.set(slot, e);
+                        responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
+                        expectedOperationsPerItem.set(slot, new AtomicInteger(0));
+                        continue;
+                    }
                     Map<String, Set<String>> routing = clusterState.metaData().resolveSearchRouting(percolateRequest.routing(), percolateRequest.indices());
                     // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
                     GroupShardsIterator shards = clusterService.operationRouting().searchShards(

@@ -36,6 +36,13 @@ public interface ToXContent {
 
         boolean paramAsBoolean(String key, boolean defaultValue);
 
+        Boolean paramAsBoolean(String key, Boolean defaultValue);
+
+        /**
+         * @deprecated since 1.0.0
+         * use {@link ToXContent.Params#paramAsBoolean(String, Boolean)} instead
+         */
+        @Deprecated
         Boolean paramAsBooleanOptional(String key, Boolean defaultValue);
     }
 
@@ -56,8 +63,13 @@ public interface ToXContent {
         }
 
         @Override
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return defaultValue;
+        }
+
+        @Override @Deprecated
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            return paramAsBoolean(key, defaultValue);
         }
     };
 
@@ -89,8 +101,13 @@ public interface ToXContent {
         }
 
         @Override
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return Booleans.parseBoolean(param(key), defaultValue);
+        }
+
+        @Override @Deprecated
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            return paramAsBoolean(key, defaultValue);
         }
     }
 
@@ -119,6 +136,11 @@ public interface ToXContent {
         }
 
         @Override
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            return super.paramAsBoolean(key, delegate.paramAsBoolean(key, defaultValue));
+        }
+
+        @Override @Deprecated
         public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
             return super.paramAsBooleanOptional(key, delegate.paramAsBooleanOptional(key, defaultValue));
         }

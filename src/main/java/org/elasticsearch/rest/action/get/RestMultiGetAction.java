@@ -61,7 +61,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.listenerThreaded(false);
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
-        multiGetRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+        multiGetRequest.realtime(request.paramAsBoolean("realtime", null));
 
         String[] sFields = null;
         String sField = request.param("fields");

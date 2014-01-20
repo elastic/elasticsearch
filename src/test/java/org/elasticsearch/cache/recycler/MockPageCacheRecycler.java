@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cache.recycler;
 
+import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +28,19 @@ import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Random;
+import java.util.concurrent.ConcurrentMap;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
+
+    private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = Maps.newConcurrentMap();
+
+    public static void ensureAllPagesAreReleased() {
+        if (ACQUIRED_PAGES.size() > 0) {
+            final Throwable t = ACQUIRED_PAGES.entrySet().iterator().next().getValue();
+            throw new RuntimeException(ACQUIRED_PAGES.size() + " pages have not been released", t);
+        }
+        ACQUIRED_PAGES.clear();
+    }
 
     private final Random random;
 
@@ -38,13 +51,45 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         random = new Random(seed);
     }
 
+    private static <T> V<T> wrap(final V<T> v) {
+        ACQUIRED_PAGES.put(v, new Throwable());
+        final Thread t = Thread.currentThread();
+        return new V<T>() {
+
+            @Override
+            public boolean release() throws ElasticsearchException {
+                if (t != Thread.currentThread()) {
+                    // Releasing from a different thread doesn't break anything but this is bad practice as pages should be acquired
+                    // as late as possible and released as soon as possible in a try/finally fashion
+                    throw new RuntimeException("Page was allocated in " + t + " but released in " + Thread.currentThread());
+                }
+                final Throwable t = ACQUIRED_PAGES.remove(v);
+                if (t == null) {
+                    throw new IllegalStateException("Releasing a page that has not been acquired");
+                }
+                return v.release();
+            }
+
+            @Override
+            public T v() {
+                return v.v();
+            }
+
+            @Override
+            public boolean isRecycled() {
+                return v.isRecycled();
+            }
+
+        };
+    }
+
     @Override
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (!clear) {
             random.nextBytes(page.v());
         }
-        return page;
+        return wrap(page);
     }
 
     @Override
@@ -55,7 +100,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 page.v()[i] = random.nextInt();
             }
         }
-        return page;
+        return wrap(page);
     }
 
     @Override
@@ -66,7 +111,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 page.v()[i] = random.nextLong();
             }
         }
-        return page;
+        return wrap(page);
     }
 
     @Override
@@ -77,7 +122,12 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 page.v()[i] = random.nextDouble() - 0.5;
             }
         }
-        return page;
+        return wrap(page);
+    }
+
+    @Override
+    public V<Object[]> objectPage() {
+        return wrap(super.objectPage());
     }
 
 }

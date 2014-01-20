@@ -92,7 +92,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(typesExists("test1", "test2"), true);
         verify(deleteByQuery("test1", "test2"), true);
         verify(percolate("test1", "test2"), true);
-        verify(mpercolate(null, "test1", "test2"), true);
+        verify(mpercolate(null, "test1", "test2"), false);
         verify(suggest("test1", "test2"), true);
         verify(getAliases("test1", "test2"), true);
         verify(getFieldMapping("test1", "test2"), true);
@@ -117,7 +117,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(typesExists("test1", "test2").setIndicesOptions(options), true);
         verify(deleteByQuery("test1", "test2").setIndicesOptions(options), true);
         verify(percolate("test1", "test2").setIndicesOptions(options), true);
-        verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), true);
+        verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
         verify(suggest("test1", "test2").setIndicesOptions(options), true);
         verify(getAliases("test1", "test2").setIndicesOptions(options), true);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);

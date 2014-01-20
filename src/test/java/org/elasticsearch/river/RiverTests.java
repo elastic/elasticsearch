@@ -30,68 +30,24 @@ import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRiverStart() throws Exception {
-        final String riverName = "dummy-river-test";
-        logger.info("-->  creating river [{}]", riverName);
-        IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
-                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
-        assertThat(indexResponse.getVersion(), equalTo(1l));
-
-        logger.info("-->  checking that river [{}] was created", riverName);
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
-                GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_status").get();
-                return response.isExists();
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
-    }
-
-    @Test
-    public void startDummyRiver() throws Exception {
-        logger.info("--> start a dummy river");
-        client().prepareIndex("_river", "dummy1", "_meta").setSource("type", "dummy").execute().actionGet();
-
-        // Check that river started
-        // We will fail after 5s
-        assertThat("dummy1 river should be started", awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
-                GetResponse response = get("_river", "dummy1", "_status");
-                return response.isExists();
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        startAndCheckRiverIsStarted("dummy-river-test");
     }
 
     @Test
     public void testMultipleRiversStart() throws Exception {
-        final String riverName1 = "dummy-river-test-1";
-        logger.info("-->  creating river [{}]", riverName1);
-        client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName1, "_meta")
-                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
-        final String riverName2 = "dummy-river-test-2";
-        logger.info("-->  creating river [{}]", riverName2);
-        client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName2, "_meta")
-                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
-        final String riverName3 = "dummy-river-test-3";
-        logger.info("-->  creating river [{}]", riverName3);
-        client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName3, "_meta")
-                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
+        int nbRivers = between(2,10);
+        logger.info("-->  testing with {} rivers...", nbRivers);
 
-        logger.info("-->  checking that rivers [{},{},{}] were created", riverName1, riverName2, riverName3);
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
-                GetResponse response1 = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName1, "_status").get();
-                GetResponse response2 = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName2, "_status").get();
-                GetResponse response3 = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName3, "_status").get();
-                return response1.isExists() && response2.isExists() && response3.isExists();
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        for (int i = 0; i < nbRivers; i++) {
+            final String riverName = "dummy-river-test-" + i;
+            startAndCheckRiverIsStarted(riverName);
+        }
     }
 
     /**
@@ -109,17 +65,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
                                 .endObject().endObject())
                 .get();
 
-        logger.info("--> start a dummy river");
-        client().prepareIndex("_river", "dummy1", "_meta").setSource("type", "dummy").execute().actionGet();
-
-        // Check that river started
-        // We will fail after 5s
-        assertThat("dummy1 river should be started", awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object obj) {
-                GetResponse response = get("_river", "dummy1", "_status");
-                return response.isExists();
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        startAndCheckRiverIsStarted("dummy-river-default-template-test");
     }
 
     /**
@@ -144,17 +90,26 @@ public class RiverTests extends ElasticsearchIntegrationTest {
                                 .endObject().endObject())
                 .get();
 
-        logger.info("--> start a dummy river");
-        client().prepareIndex("_river", "dummy1", "_meta").setSource("type", "dummy").execute().actionGet();
+        startAndCheckRiverIsStarted("dummy-river-template-test");
+    }
 
-        // Check that river started
-        // We will fail after 5s
-        assertThat("dummy1 river should be started", awaitBusy(new Predicate<Object>() {
+    /**
+     * Create a Dummy river then check it has been started. We will fail after 5 seconds.
+     * @param riverName Dummy river needed to be started
+     */
+    private void startAndCheckRiverIsStarted(final String riverName) throws InterruptedException {
+        logger.info("-->  starting river [{}]", riverName);
+        IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
+                .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
+        assertThat(indexResponse.getVersion(), equalTo(1l));
+
+        logger.info("-->  checking that river [{}] was created", riverName);
+        assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                GetResponse response = get("_river", "dummy1", "_status");
+                GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_status").get();
                 return response.isExists();
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
-
     }
+
 }

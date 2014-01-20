@@ -123,6 +123,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         RiversRouting.Builder routingBuilder = RiversRouting.builder().routing(currentState.routing());
         boolean dirty = false;
         IndexMetaData indexMetaData = newClusterState.metaData().index(riverIndexName);
+
+        boolean metaFound = false;
         // go over and create new river routing (with no node) for new types (rivers names)
         Iterator<ObjectCursor<MappingMetaData>> iterator = indexMetaData.mappings().values().iterator();
         while (iterator.hasNext()) {
@@ -135,31 +137,9 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 // no river, we need to add it to the routing with no node allocation
                 try {
                     GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").setPreference("_primary").get();
-                    if (!getResponse.isExists()) {
-                        // Is there other mappings remaining?
-                        if (iterator.hasNext()) continue;
+                    if (getResponse.isExists()) {
+                        metaFound = true;
 
-                        if (countDown.countDown()) {
-                            logger.warn("no river _meta document found for type [{}] after {} attempts", mappingType, RIVER_START_MAX_RETRIES);
-                        } else {
-                            logger.info("no river _meta document found for type [{}], retrying in {} ms", mappingType, RIVER_START_RETRY_INTERVAL.millis());
-                            try {
-                                threadPool.schedule(RIVER_START_RETRY_INTERVAL, ThreadPool.Names.GENERIC, new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        riverClusterService.submitStateUpdateTask(source, new RiverClusterStateUpdateTask() {
-                                            @Override
-                                            public RiverClusterState execute(RiverClusterState currentState) {
-                                                return updateRiverClusterState(source, currentState, riverClusterService.state(), countDown);
-                                            }
-                                        });
-                                    }
-                                });
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Couldn't schedule river start retry, node might be shutting down", ex);
-                            }
-                        }
-                    } else {
                         logger.debug("{}/{}/_meta document found.", riverIndexName, mappingType);
 
                         String riverType = XContentMapValues.nodeStringValue(getResponse.getSourceAsMap().get("type"), null);
@@ -183,6 +163,30 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 }
             }
         }
+
+        if (!metaFound) {
+            if (countDown.countDown()) {
+                logger.warn("no river _meta document found after {} attempts", RIVER_START_MAX_RETRIES);
+            } else {
+                logger.debug("no river _meta document found retrying in {} ms", RIVER_START_RETRY_INTERVAL.millis());
+                try {
+                    threadPool.schedule(RIVER_START_RETRY_INTERVAL, ThreadPool.Names.GENERIC, new Runnable() {
+                        @Override
+                        public void run() {
+                            riverClusterService.submitStateUpdateTask(source, new RiverClusterStateUpdateTask() {
+                                @Override
+                                public RiverClusterState execute(RiverClusterState currentState) {
+                                    return updateRiverClusterState(source, currentState, riverClusterService.state(), countDown);
+                                }
+                            });
+                        }
+                    });
+                } catch (EsRejectedExecutionException ex) {
+                    logger.debug("Couldn't schedule river start retry, node might be shutting down", ex);
+                }
+            }
+        }
+
         // now, remove routings that were deleted
         // also, apply nodes that were removed and rivers were running on
         for (RiverRouting routing : currentState.routing()) {

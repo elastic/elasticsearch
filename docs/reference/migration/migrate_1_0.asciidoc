@@ -241,7 +241,7 @@ you can now write:
 [source,json]
 ---------------
 "title": {
-    "type": "string";
+    "type": "string",
     "fields": {
         "raw":   { "type": "string", "index": "not_analyzed" }
     }

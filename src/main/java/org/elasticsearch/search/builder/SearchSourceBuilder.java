@@ -596,7 +596,6 @@ public class SearchSourceBuilder implements ToXContent {
      * @param lang   The language of the script
      * @param script The script to execute
      * @param params The script parameters (can be <tt>null</tt>)
-     * @return
      */
     public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
         if (scriptFields == null) {
@@ -610,10 +609,14 @@ public class SearchSourceBuilder implements ToXContent {
      * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link SearchSourceBuilder#fetchSource(String, String)} instead
+     *
      * @param name    The name of the field
      * @param include An optional include (optionally wildcarded) pattern from _source
      * @param exclude An optional exclude (optionally wildcarded) pattern from _source
      */
+    @Deprecated
     public SearchSourceBuilder partialField(String name, @Nullable String include, @Nullable String exclude) {
         if (partialFields == null) {
             partialFields = Lists.newArrayList();
@@ -626,10 +629,14 @@ public class SearchSourceBuilder implements ToXContent {
      * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link SearchSourceBuilder#fetchSource(String[], String[])} instead
+     *
      * @param name     The name of the field
      * @param includes An optional list of includes (optionally wildcarded) patterns from _source
      * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
      */
+    @Deprecated
     public SearchSourceBuilder partialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
         if (partialFields == null) {
             partialFields = Lists.newArrayList();

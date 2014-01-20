@@ -24,7 +24,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
@@ -39,9 +38,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     public static final String CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.fielddata.breaker.overhead";
 
     public static final double DEFAULT_OVERHEAD_CONSTANT = 1.03;
-
-    private static final long JVM_HEAP_MAX_BYTES = JvmInfo.jvmInfo().getMem().getHeapMax().bytes();
-    private static final long DEFAULT_BREAKER_LIMIT = (long) (0.8 * JVM_HEAP_MAX_BYTES); // 80% of the max heap
+    private static final String DEFAULT_BREAKER_LIMIT = "80%";
 
     private volatile MemoryCircuitBreaker breaker;
     private volatile long maxBytes;
@@ -50,7 +47,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     @Inject
     public InternalCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.maxBytes = settings.getAsBytesSize(CIRCUIT_BREAKER_MAX_BYTES_SETTING, new ByteSizeValue(DEFAULT_BREAKER_LIMIT)).bytes();
+        this.maxBytes = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, DEFAULT_BREAKER_LIMIT).bytes();
         this.overhead = settings.getAsDouble(CIRCUIT_BREAKER_OVERHEAD_SETTING, DEFAULT_OVERHEAD_CONSTANT);
 
         this.breaker = new MemoryCircuitBreaker(new ByteSizeValue(maxBytes), overhead, null, logger);
@@ -62,13 +59,13 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
         @Override
         public void onRefreshSettings(Settings settings) {
             // clear breaker now that settings have changed
-            ByteSizeValue newMaxByteSizeValue = settings.getAsBytesSize(CIRCUIT_BREAKER_MAX_BYTES_SETTING, null);
+            long newMaxByteSizeValue = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, DEFAULT_BREAKER_LIMIT).bytes();
             boolean breakerResetNeeded = false;
 
-            if (newMaxByteSizeValue != null) {
+            if (newMaxByteSizeValue != maxBytes) {
                 logger.info("updating [{}] from [{}] to [{}]", CIRCUIT_BREAKER_MAX_BYTES_SETTING,
                         new ByteSizeValue(InternalCircuitBreakerService.this.maxBytes), newMaxByteSizeValue);
-                InternalCircuitBreakerService.this.maxBytes = newMaxByteSizeValue.bytes();
+                maxBytes = newMaxByteSizeValue;
                 breakerResetNeeded = true;
             }
 
@@ -76,7 +73,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
             if (newOverhead != overhead) {
                 logger.info("updating [{}] from [{}] to [{}]", CIRCUIT_BREAKER_OVERHEAD_SETTING,
                         overhead, newOverhead);
-                InternalCircuitBreakerService.this.overhead = newOverhead;
+                overhead = newOverhead;
                 breakerResetNeeded = true;
             }
 

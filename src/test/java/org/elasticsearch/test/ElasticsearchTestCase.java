@@ -27,6 +27,7 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -107,6 +109,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public File getResource(String relativePath) {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
         return new File(uri);
+    }
+
+    @After
+    public void ensureAllPagesReleased() {
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
     public static void ensureAllFilesClosed() throws IOException {

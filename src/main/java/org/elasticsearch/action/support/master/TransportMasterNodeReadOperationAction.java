@@ -31,11 +31,19 @@ import org.elasticsearch.transport.TransportService;
  */
 public abstract class TransportMasterNodeReadOperationAction<Request extends MasterNodeReadOperationRequest, Response extends ActionResponse> extends TransportMasterNodeOperationAction<Request, Response> {
 
+    public static final String FORCE_LOCAL_SETTING = "action.master.force_local";
+
+    private Boolean forceLocal;
+
     protected TransportMasterNodeReadOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings, transportService, clusterService, threadPool);
+        this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }
 
     protected final boolean localExecute(Request request) {
+        if (forceLocal != null) {
+            return forceLocal;
+        }
         return request.local();
     }
 }

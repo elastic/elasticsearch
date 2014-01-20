@@ -23,9 +23,12 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -35,6 +38,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
+
+    private String randomRidiculouslySmallLimit() {
+        // 3 different ways to say 100 bytes
+        return randomFrom(Arrays.asList("100b", "100", (10000. / JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) + "%"));
+    }
 
     @Test
     @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
@@ -63,7 +71,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
             // Update circuit breaker settings
             Settings settings = settingsBuilder()
-                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, "100b")
+                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, randomRidiculouslySmallLimit())
                     .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                     .build();
             client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
@@ -120,7 +128,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
             // Update circuit breaker settings
             Settings settings = settingsBuilder()
-                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, "100b")
+                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, randomRidiculouslySmallLimit())
                     .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                     .build();
             client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();

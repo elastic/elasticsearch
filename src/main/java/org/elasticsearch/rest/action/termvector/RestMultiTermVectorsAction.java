@@ -24,6 +24,7 @@ import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,8 +54,11 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         multiTermVectorsRequest.listenerThreaded(false);
         TermVectorRequest template = new TermVectorRequest();
+        template.index(request.param("index"));
+        template.type(request.param("type"));
         RestTermVectorAction.readURIParameters(template, request);
-       
+        multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
+
         try {
             multiTermVectorsRequest.add(template, request.content());
         } catch (Throwable t) {

@@ -41,7 +41,8 @@
       }
     },
     "body": {
-      "description" : "The request definition"
+      "description" : "The request definition",
+      "required" : true
     }
   }
 }

@@ -8,10 +8,12 @@
       "parts": {
         "repository": {
           "type": "string",
+          "required" : true,
           "description": "A repository name"
         },
         "snapshot": {
           "type": "string",
+          "required" : true,
           "description": "A snapshot name"
         }
       },

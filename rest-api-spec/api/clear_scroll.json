@@ -8,6 +8,7 @@
       "parts": {
         "scroll_id": {
           "type" : "list",
+          "required" : "true",
           "description" : "A comma-separated list of scroll IDs to clear"
         }
       },

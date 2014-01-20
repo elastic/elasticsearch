@@ -8,10 +8,12 @@
       "parts": {
         "repository": {
           "type": "list",
+          "required" : true,
           "description": "A comma-separated list of repository names"
         },
         "snapshot": {
           "type": "list",
+          "required" : true,
           "description": "A comma-separated list of snapshot names"
         }
       },

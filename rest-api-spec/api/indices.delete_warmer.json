@@ -4,7 +4,7 @@
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_warmer/{name}",
-      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/_warmers", "/{index}/_warmers/{name}"],
+      "paths": ["/{index}/_warmer/{name}", "/{index}/_warmers/{name}"],
       "parts": {
         "index": {
           "type" : "list",
@@ -13,6 +13,7 @@
         },
         "name" : {
           "type" : "list",
+          "required" : true,
           "description" : "A comma-separated list of warmer names to delete (supports wildcards); use `_all` to delete all warmers in the specified indices. You must specify a name either in the uri or in the parameters."
         }
       },

@@ -53,7 +53,7 @@ The above request will yield the following response:
         "successful" : 5,
         "failed" : 0
     },
-    "count" : 1,
+    "total" : 1,
     "matches" : [
     	{
     	     "_index" : "my-index",

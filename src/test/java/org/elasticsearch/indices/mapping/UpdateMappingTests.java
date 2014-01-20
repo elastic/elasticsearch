@@ -182,6 +182,16 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
     }
 
+    @Test(expected = MergeMappingException.class)
+    public void updateMappingWithNormsConflicts() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": false }}}}}")
+                .execute().actionGet();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
+                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}")
+                .execute().actionGet();
+    }
+
     /*
     First regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
      */

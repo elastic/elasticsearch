@@ -156,7 +156,11 @@ public class RestClient implements Closeable {
     }
 
     private HttpRequestBuilder callApiBuilder(String apiName, Map<String, String> params, String body) {
-        RestApi restApi = restApi(apiName);
+
+        //create doesn't exist in the spec but is supported in the clients (index with op_type=create)
+        boolean indexCreateApi = "create".equals(apiName);
+        String api = indexCreateApi ? "index" : apiName;
+        RestApi restApi = restApi(api);
 
         HttpRequestBuilder httpRequestBuilder = httpRequestBuilder();
 
@@ -184,6 +188,10 @@ public class RestClient implements Closeable {
                     httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
                 }
             }
+        }
+
+        if (indexCreateApi) {
+            httpRequestBuilder.addParam("op_type", "create");
         }
 
         //the http method is randomized (out of the available ones with the chosen api)

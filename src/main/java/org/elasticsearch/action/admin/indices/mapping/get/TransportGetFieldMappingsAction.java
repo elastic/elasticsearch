@@ -156,13 +156,16 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
             return defaultValue;
         }
 
-        @Override
-        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             if (INCLUDE_DEFAULTS.equals(key)) {
                 return true;
             }
             return defaultValue;
+        }
 
+        @Override @Deprecated
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            return paramAsBoolean(key, defaultValue);
         }
     };
 

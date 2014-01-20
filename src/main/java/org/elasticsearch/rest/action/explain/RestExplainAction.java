@@ -76,7 +76,7 @@ public class RestExplainAction extends BaseRestHandler {
             queryStringBuilder.analyzer(request.param("analyzer"));
             queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
             queryStringBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryStringBuilder.lenient(request.paramAsBooleanOptional("lenient", null));
+            queryStringBuilder.lenient(request.paramAsBoolean("lenient", null));
             String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
                 if ("OR".equals(defaultOperator)) {

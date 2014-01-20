@@ -135,8 +135,13 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     @Override
-    public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+    public Boolean paramAsBoolean(String key, Boolean defaultValue) {
         return Booleans.parseBoolean(param(key), defaultValue);
+    }
+
+    @Override @Deprecated
+    public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+        return paramAsBoolean(key, defaultValue);
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {

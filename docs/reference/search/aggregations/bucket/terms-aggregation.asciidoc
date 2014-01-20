@@ -47,7 +47,7 @@ change this default behaviour by setting the `size` parameter.
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
 default, the node coordinating the search process will request each shard to provide its own top `size` term buckets
-and once all shards respond, it will reduces the results to the final list that will then be returned to the client.
+and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).

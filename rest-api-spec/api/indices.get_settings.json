@@ -11,7 +11,7 @@
           "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
         },
         "name": {
-          "type" : "string",
+          "type" : "list",
           "description" : "The name of the settings that should be included"
         }
       },
@@ -29,10 +29,6 @@
             "options" : ["open","closed"],
             "default" : ["open","closed"],
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "prefix" : {
-           "type" : "string",
-           "description" : "The prefix all settings must have in order to be included"
         },
         "flat_settings": {
           "type": "boolean",

@@ -6,10 +6,6 @@
       "path": "/_aliases",
       "paths": ["/_aliases"],
       "parts": {
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of index names to filter aliases"
-        }
       },
       "params": {
         "timeout": {

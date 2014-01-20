@@ -36,6 +36,9 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     BytesRefHash hash;
 
     private void newHash() {
+        if (hash != null) {
+            hash.release();
+        }
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
         hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randomCacheRecycler());
@@ -48,7 +51,8 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     }
 
     public void testDuell() {
-        final BytesRef[] values = new BytesRef[randomIntBetween(1, 100000)];
+        final int len = randomIntBetween(1, 100000);
+        final BytesRef[] values = new BytesRef[len];
         for (int i = 0; i < values.length; ++i) {
             values[i] = new BytesRef(randomAsciiOfLength(5));
         }
@@ -111,6 +115,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
                 }
             }
         }
+        hash.release();
     }
 
     /**
@@ -150,6 +155,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             }
             newHash();
         }
+        hash.release();
     }
 
     /**
@@ -190,6 +196,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             assertAllIn(strings, hash);
             newHash();
         }
+        hash.release();
     }
 
     @Test
@@ -225,6 +232,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             assertAllIn(strings, hash);
             newHash();
         }
+        hash.release();
     }
 
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {

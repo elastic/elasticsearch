@@ -162,7 +162,7 @@ public final class BytesRefHash extends AbstractHash {
             super.release();
             success = true;
         } finally {
-            Releasables.release(success, bytes, hashes);
+            Releasables.release(success, bytes, hashes, startOffsets);
         }
         return true;
     }

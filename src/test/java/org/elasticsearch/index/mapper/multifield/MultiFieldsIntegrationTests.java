@@ -50,7 +50,10 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
         MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
-        assertThat(((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource)).size(), equalTo(1));
+        Map titleFields = ((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource));
+        assertThat(titleFields.size(), equalTo(1));
+        assertThat(titleFields.get("not_analyzed"), notNullValue());
+        assertThat(((Map)titleFields.get("not_analyzed")).get("index").toString(), equalTo("not_analyzed"));
 
         client().prepareIndex("my-index", "my-type", "1")
                 .setSource("title", "Multi fields")
@@ -77,16 +80,13 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(mappingMetaData, not(nullValue()));
         mappingSource = mappingMetaData.sourceAsMap();
         assertThat(((Map) XContentMapValues.extractValue("properties.title", mappingSource)).size(), equalTo(2));
-        assertThat(((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource)).size(), equalTo(2));
+        titleFields = ((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource));
+        assertThat(titleFields.size(), equalTo(2));
+        assertThat(titleFields.get("not_analyzed"), notNullValue());
+        assertThat(((Map)titleFields.get("not_analyzed")).get("index").toString(), equalTo("not_analyzed"));
+        assertThat(titleFields.get("uncased"), notNullValue());
+        assertThat(((Map)titleFields.get("uncased")).get("analyzer").toString(), equalTo("whitespace"));
 
-        searchResponse = client().prepareSearch("my-index")
-                .setQuery(QueryBuilders.matchQuery("title.uncased", "multi"))
-                .get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
-        searchResponse = client().prepareSearch("my-index")
-                .setQuery(QueryBuilders.matchQuery("title.uncased", "Multi"))
-                .get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
         client().prepareIndex("my-index", "my-type", "1")
                 .setSource("title", "Multi fields")
                 .setRefresh(true)

@@ -235,10 +235,10 @@ public class Bootstrap {
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {
-                logger.error(errorMessage);
-            } else {
                 System.err.println(errorMessage);
                 System.err.flush();
+            } else {
+                logger.error(errorMessage);
             }
             Loggers.disableConsoleLogging();
             if (logger.isDebugEnabled()) {

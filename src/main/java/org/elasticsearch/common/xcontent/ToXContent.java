@@ -90,11 +90,7 @@ public interface ToXContent {
 
         @Override
         public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-            String sValue = param(key);
-            if (sValue == null) {
-                return defaultValue;
-            }
-            return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+            return Booleans.parseBoolean(param(key), defaultValue);
         }
     }
 

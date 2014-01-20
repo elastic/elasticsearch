@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.avg;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -39,6 +40,7 @@ import java.io.IOException;
 public class AvgAggregator extends MetricsAggregator.SingleValue {
 
     private final NumericValuesSource valuesSource;
+    private DoubleValues values;
 
     private LongArray counts;
     private DoubleArray sums;
@@ -59,14 +61,12 @@ public class AvgAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert valuesSource != null : "if value source is null, collect should never be called";
-
-        DoubleValues values = valuesSource.doubleValues();
-        if (values == null) {
-            return;
-        }
-
         counts = BigArrays.grow(counts, owningBucketOrdinal + 1);
         sums = BigArrays.grow(sums, owningBucketOrdinal + 1);
 

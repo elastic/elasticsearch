@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -38,6 +39,7 @@ import java.io.IOException;
 public class SumAggregator extends MetricsAggregator.SingleValue {
 
     private final NumericValuesSource valuesSource;
+    private DoubleValues values;
 
     private DoubleArray sums;
 
@@ -56,14 +58,12 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert valuesSource != null : "collect must only be called after #shouldCollect returns true";
-
-        DoubleValues values = valuesSource.doubleValues();
-        if (values == null) {
-            return;
-        }
-
         sums = BigArrays.grow(sums, owningBucketOrdinal + 1);
 
         final int valuesCount = values.setDocument(doc);

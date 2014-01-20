@@ -18,14 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 
 import java.io.IOException;
 
@@ -34,7 +36,8 @@ import java.io.IOException;
  */
 public class MissingAggregator extends SingleBucketAggregator {
 
-    private ValuesSource valuesSource;
+    private final ValuesSource valuesSource;
+    private BytesValues values;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
                              AggregationContext aggregationContext, Aggregator parent) {
@@ -43,8 +46,15 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        if (valuesSource != null) {
+            values = valuesSource.bytesValues();
+        }
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (valuesSource == null || valuesSource.bytesValues().setDocument(doc) == 0) {
+        if (valuesSource == null || values.setDocument(doc) == 0) {
             collectBucket(doc, owningBucketOrdinal);
         }
     }

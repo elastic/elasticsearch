@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -81,6 +82,7 @@ public class RangeAggregator extends BucketsAggregator {
     private final Range[] ranges;
     private final boolean keyed;
     private final AbstractRangeBase.Factory rangeFactory;
+    private DoubleValues values;
 
     final double[] maxTo;
 
@@ -117,13 +119,17 @@ public class RangeAggregator extends BucketsAggregator {
         return true;
     }
 
+    @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
     private final long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        final DoubleValues values = valuesSource.doubleValues();
         final int valuesCount = values.setDocument(doc);
         for (int i = 0, lo = 0; i < valuesCount; ++i) {
             final double value = values.nextValue();
@@ -261,6 +267,10 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         public boolean shouldCollect() {
             return false;
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext reader) {
         }
 
         @Override

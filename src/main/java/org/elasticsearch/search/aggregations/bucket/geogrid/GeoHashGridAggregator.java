@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -45,6 +46,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final int shardSize;
     private final NumericValuesSource valuesSource;
     private final LongHash bucketOrds;
+    private LongValues values;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
                               int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
@@ -61,9 +63,13 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.longValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final LongValues values = valuesSource.longValues();
         final int valuesCount = values.setDocument(doc);
 
         for (int i = 0; i < valuesCount; ++i) {
@@ -143,6 +149,10 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         @Override
         public boolean shouldCollect() {
             return false;
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext reader) {
         }
 
         @Override

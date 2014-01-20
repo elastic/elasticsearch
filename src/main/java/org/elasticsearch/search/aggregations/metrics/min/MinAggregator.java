@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -38,6 +39,7 @@ import java.io.IOException;
 public class MinAggregator extends MetricsAggregator.SingleValue {
 
     private final NumericValuesSource valuesSource;
+    private DoubleValues values;
 
     private DoubleArray mins;
 
@@ -57,11 +59,13 @@ public class MinAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert valuesSource != null : "collect must only be called if #shouldCollect returns true";
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
 
-        DoubleValues values = valuesSource.doubleValues();
-        if (values == null || values.setDocument(doc) == 0) {
+    @Override
+    public void collect(int doc, long owningBucketOrdinal) throws IOException {
+        if (values.setDocument(doc) == 0) {
             return;
         }
 

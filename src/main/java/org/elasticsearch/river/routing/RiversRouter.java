@@ -124,7 +124,7 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
         boolean dirty = false;
         IndexMetaData indexMetaData = newClusterState.metaData().index(riverIndexName);
 
-        boolean metaFound = false;
+        boolean metaFound = true;
         // go over and create new river routing (with no node) for new types (rivers names)
         Iterator<ObjectCursor<MappingMetaData>> iterator = indexMetaData.mappings().values().iterator();
         while (iterator.hasNext()) {
@@ -138,7 +138,6 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 try {
                     GetResponse getResponse = client.prepareGet(riverIndexName, mappingType, "_meta").setPreference("_primary").get();
                     if (getResponse.isExists()) {
-                        metaFound = true;
 
                         logger.debug("{}/{}/_meta document found.", riverIndexName, mappingType);
 
@@ -149,6 +148,9 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                             routingBuilder.put(new RiverRouting(new RiverName(riverType, mappingType), null));
                             dirty = true;
                         }
+                    } else {
+                        // At least one type does not have _meta
+                        metaFound = false;
                     }
                 } catch (NoShardAvailableActionException e) {
                     // ignore, we will get it next time...
@@ -164,6 +166,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
             }
         }
 
+        // At least one type does not have _meta, so we are
+        // going to reschedule some checks
         if (!metaFound) {
             if (countDown.countDown()) {
                 logger.warn("no river _meta document found after {} attempts", RIVER_START_MAX_RETRIES);

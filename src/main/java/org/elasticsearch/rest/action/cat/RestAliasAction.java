@@ -82,8 +82,8 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     void documentation(StringBuilder sb) {
-        sb.append("/_cat/aliases");
-        sb.append("/_cat/aliases/{alias}");
+        sb.append("/_cat/aliases\n");
+        sb.append("/_cat/aliases/{alias}\n");
     }
 
     @Override
@@ -93,8 +93,8 @@ public class RestAliasAction extends AbstractCatAction {
         table.addCell("alias", "desc:alias name");
         table.addCell("index", "desc:index alias points to");
         table.addCell("filter", "desc:filter");
-        table.addCell("index_routing", "desc:index routing");
-        table.addCell("search_routing", "desc:search routing");
+        table.addCell("indexRouting", "desc:index routing");
+        table.addCell("searchRouting", "desc:search routing");
         table.endHeaders();
         return table;
     }

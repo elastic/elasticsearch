@@ -94,6 +94,8 @@ green foo   1 0   227   0   2065131   2065131
 
 --
 
+include::cat/alias.asciidoc[]
+
 include::cat/allocation.asciidoc[]
 
 include::cat/count.asciidoc[]

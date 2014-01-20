@@ -38,7 +38,7 @@ for example:
 
 [source,shell]
 -----------------------------------
-bin/plugin --url file://path/to/plugin --install plugin-name
+bin/plugin --url file:///path/to/plugin --install plugin-name
 -----------------------------------
 
 

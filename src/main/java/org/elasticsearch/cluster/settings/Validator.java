@@ -24,6 +24,8 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.elasticsearch.common.unit.MemorySizeValue.parseBytesSizeValueOrHeapRatio;
+
 
 /**
  * Validates a setting, returning a failure message if applicable.
@@ -184,7 +186,19 @@ public interface Validator {
             return null;
         }
     };
-    
+
+    public static final Validator MEMORY_SIZE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                parseBytesSizeValueOrHeapRatio(value);
+            } catch (ElasticsearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
     public static final Validator BOOLEAN = new Validator() {
         @Override
         public String validate(String setting, String value) {

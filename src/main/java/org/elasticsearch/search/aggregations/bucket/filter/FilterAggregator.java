@@ -21,22 +21,17 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
 
 /**
  * Aggregate all docs that match a filter.
  */
-public class FilterAggregator extends SingleBucketAggregator implements ReaderContextAware {
+public class FilterAggregator extends SingleBucketAggregator {
 
     private final Filter filter;
 
@@ -88,9 +83,7 @@ public class FilterAggregator extends SingleBucketAggregator implements ReaderCo
 
         @Override
         public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            FilterAggregator aggregator = new FilterAggregator(name, filter, factories, context, parent);
-            context.registerReaderContextAware(aggregator);
-            return aggregator;
+            return new FilterAggregator(name, filter, factories, context, parent);
         }
 
     }

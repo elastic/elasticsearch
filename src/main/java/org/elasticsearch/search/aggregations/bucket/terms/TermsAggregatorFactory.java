@@ -108,10 +108,7 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
-                final StringTermsAggregator.WithOrdinals aggregator = new StringTermsAggregator.WithOrdinals(name,
-                        factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
-                aggregationContext.registerReaderContextAware(aggregator);
-                return aggregator;
+                return new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             } else {
                 return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
             }

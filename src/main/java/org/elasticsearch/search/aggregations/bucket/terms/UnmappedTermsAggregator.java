@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -44,6 +45,10 @@ public class UnmappedTermsAggregator extends Aggregator {
     @Override
     public boolean shouldCollect() {
         return false;
+    }
+
+    @Override
+    public void setNextReader(AtomicReaderContext reader) {
     }
 
     @Override

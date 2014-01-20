@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
@@ -49,6 +50,7 @@ public class HistogramAggregator extends BucketsAggregator {
     private final AbstractHistogramBase.Factory histogramFactory;
 
     private final LongHash bucketOrds;
+    private LongValues values;
 
     public HistogramAggregator(String name,
                                AggregatorFactories factories,
@@ -79,9 +81,13 @@ public class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.longValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final LongValues values = valuesSource.longValues();
         final int valuesCount = values.setDocument(doc);
 
         long previousKey = Long.MIN_VALUE;

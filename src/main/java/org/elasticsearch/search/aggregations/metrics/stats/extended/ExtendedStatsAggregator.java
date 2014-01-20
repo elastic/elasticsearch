@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -40,6 +41,7 @@ import java.io.IOException;
 public class ExtendedStatsAggregator extends MetricsAggregator.MultiValue {
 
     private final NumericValuesSource valuesSource;
+    private DoubleValues values;
 
     private LongArray counts;
     private DoubleArray sums;
@@ -68,14 +70,12 @@ public class ExtendedStatsAggregator extends MetricsAggregator.MultiValue {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert valuesSource != null : "collect must only be called if #shouldCollect returns true";
-
-        DoubleValues values = valuesSource.doubleValues();
-        if (values == null) {
-            return;
-        }
-
         if (owningBucketOrdinal >= counts.size()) {
             final long from = counts.size();
             final long overSize = BigArrays.overSize(owningBucketOrdinal + 1);

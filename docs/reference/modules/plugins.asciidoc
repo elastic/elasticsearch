@@ -32,8 +32,8 @@ For prior version, the older form is
 
 A plugin can also be installed directly by specifying the URL for it,
 for example:
-`bin/plugin --url file://path/to/plugin --install plugin-name` or
-`bin/plugin -url file://path/to/plugin -install plugin-name` for older
+`bin/plugin --url file:///path/to/plugin --install plugin-name` or
+`bin/plugin -url file:///path/to/plugin -install plugin-name` for older
 version.
 
 Starting from 0.90.2, for more information about plugins, you can run

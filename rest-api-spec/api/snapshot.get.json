@@ -7,9 +7,9 @@
       "paths": ["/_snapshot/{repository}/{snapshot}"],
       "parts": {
         "repository": {
-          "type": "list",
+          "type": "string",
           "required" : true,
-          "description": "A comma-separated list of repository names"
+          "description": "A repository name"
         },
         "snapshot": {
           "type": "list",

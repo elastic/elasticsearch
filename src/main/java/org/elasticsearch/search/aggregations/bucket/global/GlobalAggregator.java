@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
 
@@ -35,6 +32,10 @@ public class GlobalAggregator extends SingleBucketAggregator {
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext) {
         super(name, subFactories, aggregationContext, null);
+    }
+
+    @Override
+    public void setNextReader(AtomicReaderContext reader) {
     }
 
     @Override

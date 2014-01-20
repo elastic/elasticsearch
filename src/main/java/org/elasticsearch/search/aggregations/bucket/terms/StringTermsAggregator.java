@@ -26,7 +26,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Iterators2;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -56,6 +55,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     private final long minDocCount;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
+    private BytesValues values;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                  InternalOrder order, int requiredSize, int shardSize, long minDocCount,
@@ -77,9 +77,13 @@ public class StringTermsAggregator extends BucketsAggregator {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.bytesValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final BytesValues values = valuesSource.bytesValues();
         final int valuesCount = values.setDocument(doc);
 
         for (int i = 0; i < valuesCount; ++i) {
@@ -250,7 +254,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     /**
      * Extension of StringTermsAggregator that caches bucket ords using terms ordinals.
      */
-    public static class WithOrdinals extends StringTermsAggregator implements ReaderContextAware {
+    public static class WithOrdinals extends StringTermsAggregator {
 
         private final BytesValuesSource.WithOrdinals valuesSource;
         private BytesValues.WithOrdinals bytesValues;

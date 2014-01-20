@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -38,6 +39,7 @@ import java.io.IOException;
 public class MaxAggregator extends MetricsAggregator.SingleValue {
 
     private final NumericValuesSource valuesSource;
+    private DoubleValues values;
 
     private DoubleArray maxes;
 
@@ -57,14 +59,12 @@ public class MaxAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert valuesSource != null : "collect should only be called when value source is not null";
-
-        DoubleValues values = valuesSource.doubleValues();
-        if (values == null) {
-            return;
-        }
-
         if (owningBucketOrdinal >= maxes.size()) {
             long from = maxes.size();
             maxes = BigArrays.grow(maxes, owningBucketOrdinal + 1);

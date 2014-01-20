@@ -44,6 +44,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     private final long minDocCount;
     private final NumericValuesSource valuesSource;
     private final LongHash bucketOrds;
+    private DoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource, long estimatedBucketCount,
                                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
@@ -62,9 +63,13 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.doubleValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final DoubleValues values = valuesSource.doubleValues();
         final int valuesCount = values.setDocument(doc);
 
         for (int i = 0; i < valuesCount; ++i) {

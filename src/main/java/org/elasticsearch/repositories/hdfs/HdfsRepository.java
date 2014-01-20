@@ -32,9 +32,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -65,7 +65,7 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
 
         String path = repositorySettings.settings().get("path", componentSettings.get("path"));
         if (path == null) {
-            throw new ElasticSearchIllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
+            throw new ElasticsearchIllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
         }
 
         // get configuration
@@ -114,7 +114,7 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
         try {
             return (user != null ? FileSystem.get(actualUri, cfg, user) : FileSystem.get(actualUri, cfg));
         } catch (Exception ex) {
-            throw new ElasticSearchGenerationException(String.format("Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
+            throw new ElasticsearchGenerationException(String.format("Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
         }
     }
 
@@ -128,7 +128,7 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
             if (cfgURL == null) {
                 File file = new File(confLocation);
                 if (!file.canRead()) {
-                    throw new ElasticSearchIllegalArgumentException(
+                    throw new ElasticsearchIllegalArgumentException(
                             String.format(
                                     "Cannot find classpath resource or file 'conf_location' [%s] defined for hdfs snapshot/restore",
                                     confLocation));
@@ -149,7 +149,7 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
             try {
                 cfgURL = new URL(confLocation);
             } catch (MalformedURLException ex) {
-                throw new ElasticSearchIllegalArgumentException(String.format(
+                throw new ElasticsearchIllegalArgumentException(String.format(
                         "Invalid 'conf_location' URL [%s] defined for hdfs snapshot/restore", confLocation), ex);
             }
         }
@@ -177,7 +177,7 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         super.doClose();
 
         IOUtils.closeStream(fs);

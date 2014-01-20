@@ -2024,4 +2024,13 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
     }
+
+    @Test
+    public void testSearchEmptyDoc() {
+        prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}").get();
+        client().prepareIndex("test", "type1", "1").setSource("{}").get();
+        refresh();
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+    }
+
 }

@@ -40,6 +40,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 
 /**
+ * Note, when talking to tribe client, no need to set the local flag on master read operations, it
+ * does it by default.
  */
 public class TribeTests extends ElasticsearchIntegrationTest {
 
@@ -84,7 +86,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
                 return tribeState.getMetaData().hasIndex("test1") && tribeState.getMetaData().hasIndex("test2") &&
                         tribeState.getRoutingTable().hasIndex("test1") && tribeState.getRoutingTable().hasIndex("test2");
             }
@@ -93,7 +95,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         logger.info("wait till tribe has the same nodes as the 2 clusters");
         awaitSameNodeCounts();
 
-        assertThat(tribeClient.admin().cluster().prepareHealth().setLocal(true).setWaitForGreenStatus().get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(tribeClient.admin().cluster().prepareHealth().setWaitForGreenStatus().get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("create 2 docs through the tribe node");
         tribeClient.prepareIndex("test1", "type1", "1").setSource("field1", "value1").get();
@@ -106,7 +108,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
                 return tribeState.getMetaData().index("test1").mapping("type1") != null &&
                         tribeState.getMetaData().index("test2").mapping("type2") != null;
             }
@@ -125,7 +127,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
                 return tribeState.getMetaData().index("test1").mapping("type1") != null && tribeState.getMetaData().index("test1").mapping("type2") != null &&
                         tribeState.getMetaData().index("test2").mapping("type1") != null && tribeState.getMetaData().index("test2").mapping("type2") != null;
             }
@@ -144,7 +146,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
                 return tribeState.getMetaData().hasIndex("test1") && !tribeState.getMetaData().hasIndex("test2") &&
                         tribeState.getRoutingTable().hasIndex("test1") && !tribeState.getRoutingTable().hasIndex("test2");
             }
@@ -159,7 +161,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().setLocal(true).get().getState().getNodes();
+                DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().get().getState().getNodes();
                 return countDataNodesForTribe("t1", tribeNodes) == cluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()
                         && countDataNodesForTribe("t2", tribeNodes) == cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size();
             }

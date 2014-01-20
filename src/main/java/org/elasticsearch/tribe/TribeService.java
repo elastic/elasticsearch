@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -57,7 +58,7 @@ import java.util.concurrent.CountDownLatch;
  * <p/>
  * The tribe node settings make sure the discovery used is "local", but with no master elected. This means no
  * write level master node operations will work ({@link org.elasticsearch.discovery.MasterNotDiscoveredException}
- * will be thrown), and state level metadata operations should use the local flag.
+ * will be thrown), and state level metadata operations with automatically use the local flag.
  * <p/>
  * The state merged from different clusters include the list of nodes, metadata, and routing table. Each node merged
  * will have in its tribe which tribe member it came from. Each index merged will have in its settings which tribe
@@ -95,6 +96,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
         sb.put("gateway.type", "none"); // we shouldn't store anything locally...
+        sb.put(TransportMasterNodeReadOperationAction.FORCE_LOCAL_SETTING, true);
         return sb.build();
     }
 

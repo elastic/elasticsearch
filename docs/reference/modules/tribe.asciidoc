@@ -41,8 +41,8 @@ However, there are a few exceptions:
   clusters. It will pick one of them and discard the other.
 
 * Master level read operations (eg <<cluster-state>>, <<cluster-health>>)
-  need to have the `local` flag set to `true` as the tribe node does not
-  have a single master node.
+  will automatically execute with a local flag set to true since there is
+  no master.
 
 * Master level write operations (eg <<indices-create-index>>) are not
   allowed. These should be performed on a single cluster.

@@ -38,6 +38,22 @@ public class RestSpec {
     }
 
     void addApi(RestApi restApi) {
+        if ("index".equals(restApi.getName())) {
+            RestApi create = new RestApi("create");
+            create.addPath("/{index}/{type}");
+            create.addPath("/{index}/{type}/{id}/_create");
+            create.setBodyRequired();
+            for (String method : restApi.getMethods()) {
+                create.addMethod(method);
+            }
+            for (String param : restApi.getParams()) {
+                create.addParam(param);
+            }
+            for (String pathPart : restApi.getPathParts()) {
+                create.addPathPart(pathPart);
+            }
+            restApiMap.put(create.getName(), create);
+        }
         restApiMap.put(restApi.getName(), restApi);
     }
 

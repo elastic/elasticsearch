@@ -561,6 +561,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             // when the doc_values field data format is configured
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
+        if (this.fieldType().omitNorms() != fieldMergeWith.fieldType.omitNorms()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different `norms.enabled` values");
+        }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }

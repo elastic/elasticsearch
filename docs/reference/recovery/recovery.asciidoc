@@ -1,0 +1,11 @@
+[[recovery-recovery]]
+== Recovery
+
+The recovery API provides a comprehensive view of all active shard recovery operations in the cluster.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_recovery'
+--------------------------------------------------
+
+This will report on any on-going shard recovery in the cluster including gateway, peer, and snapshot recoveries.

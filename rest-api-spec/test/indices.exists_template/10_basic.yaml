@@ -10,7 +10,7 @@
       indices.put_template:
         name: test
         body:
-          template: test-*
+          template: 'test-*'
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -29,3 +29,4 @@
         local: true
 
   - is_false: ''
+

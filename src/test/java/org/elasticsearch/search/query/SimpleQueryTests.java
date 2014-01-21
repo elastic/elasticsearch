@@ -23,6 +23,7 @@ import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -2031,6 +2032,55 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                         .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
+    }
+
+    @Test
+    public void testRangeFilterNoCacheWithNow() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("type1", "date", "type=date,format=YYYY-mm-dd"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("date", "2014-01-01", "field", "value")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true)))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c `now` is used in `to`.
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c `now` is used in `to`.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache only has a cache entry for the term filter
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
     }
 
     @Test

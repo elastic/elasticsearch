@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -117,6 +118,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .put(newNode("node3"))
+                .put(newNode("node4", ImmutableMap.of("data", Boolean.FALSE.toString())))
         ).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
@@ -125,6 +127,13 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> allocating with primary flag set to false, should fail");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node1", false)));
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
+
+        logger.info("--> allocating to non-data node, should fail");
+        try {
+            rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node4", true)));
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }

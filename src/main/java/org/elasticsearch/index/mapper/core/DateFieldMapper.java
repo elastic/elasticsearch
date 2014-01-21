@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -324,6 +325,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
     }
 
+    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean includeUpper) {
+        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
+        return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(value, now) : dateMathParser.parse(value, now);
+    }
+
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         final long lValue = parseToMilliseconds(value, context);
@@ -341,18 +347,58 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
-                includeLower, includeUpper);
+        boolean nowIsUsed = false;
+        Long lowerVal = null;
+        Long upperVal = null;
+        if (lowerTerm != null) {
+            String value = convertToString(lowerTerm);
+            nowIsUsed = value.contains("now");
+            lowerVal = parseToMilliseconds(value, context, false);
+        }
+        if (upperTerm != null) {
+            String value = convertToString(upperTerm);
+            nowIsUsed = value.contains("now");
+            upperVal = parseToMilliseconds(value, context, includeUpper);
+        }
+
+        Filter filter =  NumericRangeFilter.newLongRange(
+            names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
+        );
+        if (nowIsUsed) {
+            // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
+            // a range filter with a `now` date expressions.
+            return NoCacheFilter.wrap(filter);
+        } else {
+            return filter;
+        }
     }
 
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData<?>) fieldData.getForField(this),
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
-                includeLower, includeUpper);
+        boolean nowIsUsed = false;
+        Long lowerVal = null;
+        Long upperVal = null;
+        if (lowerTerm != null) {
+            String value = convertToString(lowerTerm);
+            nowIsUsed = value.contains("now");
+            lowerVal = parseToMilliseconds(value, context, false);
+        }
+        if (upperTerm != null) {
+            String value = convertToString(upperTerm);
+            nowIsUsed = value.contains("now");
+            upperVal = parseToMilliseconds(value, context, includeUpper);
+        }
+
+        Filter filter =  NumericRangeFieldDataFilter.newLongRange(
+            (IndexNumericFieldData<?>) fieldData.getForField(this), lowerVal,upperVal, includeLower, includeUpper
+        );
+        if (nowIsUsed) {
+            // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
+            // a range filter with a `now` date expressions.
+            return NoCacheFilter.wrap(filter);
+        } else {
+            return filter;
+        }
     }
 
     @Override

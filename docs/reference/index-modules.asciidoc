@@ -41,6 +41,19 @@ otherwise it is written in non-compound format.  added[0.90.2]
 	refresh operation will be executed. Defaults to `1s`. Can be set to `-1`
 	in order to disable it.
 
+`index.shard.check_on_startup`::
+        Should shard consistency be checked upon opening.
+        When `true`, the shard will be checked, preventing it from being open in
+        case some segments appear to be corrupted.
+        When `fix`, the shard will also be checked but segments that were reported
+        as corrupted will be automatically removed.
+        Default value is `false`, which doesn't check shards.
+
+NOTE: Checking shards may take a lot of time on large indices.
+
+WARNING: Setting `index.shard.check_on_startup` to `fix` may result in data loss,
+         use with caution.
+
 --
 
 include::index-modules/analysis.asciidoc[]

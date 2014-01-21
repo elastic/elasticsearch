@@ -85,6 +85,10 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryAction;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryRequestBuilder;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
@@ -448,6 +452,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public IndicesStatusRequestBuilder prepareStatus(String... indices) {
         return new IndicesStatusRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override
+    public  ActionFuture<IndicesRecoveryResponse> recoveries(final IndicesRecoveryRequest request) {
+        return execute(IndicesRecoveryAction.INSTANCE, request);
+    }
+
+    @Override
+    public void recoveries(final IndicesRecoveryRequest request, final ActionListener<IndicesRecoveryResponse> listener) {
+        execute(IndicesRecoveryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public IndicesRecoveryRequestBuilder prepareRecoveries(String... indices) {
+        return new IndicesRecoveryRequestBuilder(this).setIndices(indices);
     }
 
     @Override

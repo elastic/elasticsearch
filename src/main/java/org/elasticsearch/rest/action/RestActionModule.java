@@ -78,6 +78,7 @@ import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQu
 import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
+import org.elasticsearch.rest.action.admin.indices.recovery.RestIndicesRecoveryAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -211,7 +212,9 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestExplainAction.class).asEagerSingleton();
 
+        // XXX = NOCOMMIT - REMOVE THIS IN FAVOR OF indicesRecoveryAction
         bind(RestRecoveryAction.class).asEagerSingleton();
+        bind(RestIndicesRecoveryAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

@@ -108,6 +108,9 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryRequestBuilder;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -206,6 +209,21 @@ public interface IndicesAdminClient {
      * The status of one or more indices.
      */
     IndicesStatusRequestBuilder prepareStatus(String... indices);
+
+    /**
+     * Indices recoveries
+     */
+    ActionFuture<IndicesRecoveryResponse> recoveries(IndicesRecoveryRequest request);
+
+    /**
+     * Indices recoveries
+     */
+    void recoveries(IndicesRecoveryRequest request, ActionListener<IndicesRecoveryResponse> listener);
+
+    /**
+     * Indices recoveries
+     */
+    IndicesRecoveryRequestBuilder prepareRecoveries(String... indices);
 
     /**
      * The segments of one or more indices.

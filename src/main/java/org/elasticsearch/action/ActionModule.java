@@ -120,6 +120,8 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
+import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryAction;
+import org.elasticsearch.action.admin.indices.recovery.TransportIndicesRecoveryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -219,7 +221,9 @@ public class ActionModule extends AbstractModule {
         registerAction(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
 
         registerAction(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
+        // XXX - NOCOMMIT - Remove status API
         registerAction(IndicesStatusAction.INSTANCE, TransportIndicesStatusAction.class);
+        registerAction(IndicesRecoveryAction.INSTANCE, TransportIndicesRecoveryAction.class);
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);

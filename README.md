@@ -10,6 +10,8 @@ The `elasticsearch-hadoop-repository-hdfs` plugin allows Elasticsearch 1.0 to us
 As with any other plugin, simply run:
 ``bin/plugin -install elasticsearch/elasticsearch-hadoop-repository-hdfs/1.3.0.M2``
 
+[NOTE]: 1.3.0 M2 has not been released yet, please build and install the plugin manually
+
 ## Development Snapshot
 Grab the latest nightly build from the [repository](http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-hadoop-repository-hdfs/) again through Maven:
 
@@ -33,9 +35,6 @@ Grab the latest nightly build from the [repository](http://oss.sonatype.org/cont
 
 or [build](#building-the-source) the project yourself. 
 
-# Feedback / Q&A
-We're interested in your feedback! You can find us on the User [mailing list](https://groups.google.com/forum/?fromgroups#!forum/elasticsearch) - please append `[Hadoop]` to the post subject to filter it out. For more details, see the [community](http://www.elasticsearch.org/community/) page.
-
 # Usage
 
 ## Configuration Properties
@@ -56,8 +55,11 @@ repositories
 
 ## Plugging other file-systems
 
-Any HDFS-compatible file-systems (like Amazon 's3://' or Google 'gs://') can be used as long as the proper Hadoop configuration is passed to the Elasticsearch plugin. In practice, this means making sure the correct Hadoop configuration files (`core-site.xml` and `hdfs-site.xml`) and its jars are available in plugin classpath, just as you would with any other Hadoop client or job.
+Any HDFS-compatible file-systems (like Amazon `s3://` or Google `gs://`) can be used as long as the proper Hadoop configuration is passed to the Elasticsearch plugin. In practice, this means making sure the correct Hadoop configuration files (`core-site.xml` and `hdfs-site.xml`) and its jars are available in plugin classpath, just as you would with any other Hadoop client or job.
 Otherwise, the plugin will only read the _default_, vanilla configuration of Hadoop and will not be able to recognized the plugged in file-system.
+
+# Feedback / Q&A
+We're interested in your feedback! You can find us on the User [mailing list](https://groups.google.com/forum/?fromgroups#!forum/elasticsearch) - please append `[Hadoop]` to the post subject to filter it out. For more details, see the [community](http://www.elasticsearch.org/community/) page.
 
 # License
 This project is released under version 2.0 of the [Apache License][]
@@ -70,9 +72,9 @@ ownership. Elasticsearch licenses this file to you under
 the Apache License, Version 2.0 (the "License"); you may
 not use this file except in compliance with the License.
 You may obtain a copy of the License at
- *
+ 
    http://www.apache.org/licenses/LICENSE-2.0
- *
+ 
 Unless required by applicable law or agreed to in writing,
 software distributed under the License is distributed on an
 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -80,18 +82,3 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 ```
-
-
-
-[Hadoop]: http://hadoop.apache.org
-[MapReduce]: http://hadoop.apache.org/docs/r1.0.4/mapred_tutorial.html
-[Pig]: http://pig.apache.org
-[Hive]: http://hive.apache.org
-[HiveQL]: http://cwiki.apache.org/confluence/display/Hive/LanguageManual
-[external table]: http://cwiki.apache.org/Hive/external-tables.html
-[Apache License]: http://www.apache.org/licenses/LICENSE-2.0
-[Gradle]: http://www.gradle.org/
-[REST]: http://www.elasticsearch.org/guide/reference/api/
-[DistributedCache]: http://hadoop.apache.org/docs/stable/api/org/apache/hadoop/filecache/DistributedCache.html
-[Cascading]: http://www.cascading.org/
-[Tap]: http://docs.cascading.org/cascading/2.1/userguide/html/ch03s05.html

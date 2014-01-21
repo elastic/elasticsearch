@@ -1,6 +1,6 @@
 {
-  "termvectors.get_multi_termvectors" : {
-    "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-termvectors.html",
+  "mtermvectors" : {
+    "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
       "path" : "/_mtermvectors",
@@ -8,18 +8,15 @@
       "parts" : {
         "index" : {
          "type" : "string",
-         "description" : "The index in which the document resides.",
-         "required" : true
+         "description" : "The index in which the document resides."
         },
         "type" : {
           "type" : "string",
-          "description" : "The type of the document.",
-          "required" : true
+          "description" : "The type of the document."
         },
         "id" : {
            "type" : "string",
-           "description" : "The id of the document.",
-           "required" : true
+           "description" : "The id of the document."
          }
       },
       "params" : {

@@ -1,32 +1,29 @@
 setup:
   - do:
-        indices.create:
+      indices.create:
           index: testidx
           body:
             mappings:
-              testtype: {
-                "properties": {
-                  "text": {
-                     "type" : "string",
+              testtype:
+                "properties":
+                  "text":
+                     "type" : "string"
                      "term_vector" : "with_positions_offsets"
-                   }
-                }
-              }
   - do:
       index:
         index: testidx
         type:  testtype
         id:    testing_document
         body:
-          {"text" : "The quick brown fox is brown."}
+            "text" : "The quick brown fox is brown."
   - do:
       indices.refresh: {}
 
 ---
-"Basic tests for termvectors get":
+"Basic tests for termvector get":
 
   - do:
-      termvectors.get_termvector:
+      termvector:
         index: testidx
         type:  testtype
         id:    testing_document

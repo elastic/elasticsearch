@@ -1,5 +1,5 @@
 {
-  "termvectors.get_termvector" : {
+  "termvector" : {
     "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {

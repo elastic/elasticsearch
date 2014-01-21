@@ -66,7 +66,7 @@ public class UnmappedTerms extends InternalTerms {
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.requiredSize = in.readVInt();
+        this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.buckets = BUCKETS;
         this.bucketMap = BUCKETS_MAP;
@@ -76,7 +76,7 @@ public class UnmappedTerms extends InternalTerms {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
-        out.writeVInt(requiredSize);
+        writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
     }
 

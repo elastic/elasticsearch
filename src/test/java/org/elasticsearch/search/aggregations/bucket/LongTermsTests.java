@@ -88,6 +88,24 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
+    public void sizeIsZero() {
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .minDocCount(randomInt(1))
+                        .size(0))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(100));
+    }
+
+    @Test
     public void singleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -544,7 +562,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     public void unmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
-                        .field("value"))
+                        .field("value")
+                        .size(randomInt(5)))
                 .execute().actionGet();
 
         assertSearchResponse(response);

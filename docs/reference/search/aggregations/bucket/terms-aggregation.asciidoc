@@ -65,6 +65,8 @@ the client.
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
 
+added[1.1.0] It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
+on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
 ==== Order
 

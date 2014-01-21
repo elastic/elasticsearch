@@ -64,7 +64,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     @Before
     public void init() throws Exception {
         createIndex("idx");
-        
+
         IndexRequestBuilder[] lowcardBuilders = new IndexRequestBuilder[NUM_DOCS];
         for (int i = 0; i < lowcardBuilders.length; i++) {
             lowcardBuilders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -72,7 +72,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
                     .field("value", (double) i)
                     .startArray("values").value((double)i).value(i + 1d).endArray()
                     .endObject());
-                    
+
         }
         indexRandom(randomBoolean(), lowcardBuilders);
         IndexRequestBuilder[] highCardBuilders = new IndexRequestBuilder[100]; // TODO: randomize the size?
@@ -87,6 +87,24 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
         createIndex("idx_unmapped");
         ensureSearchable();
+    }
+
+    @Test
+    // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
+    public void sizeIsZero() {
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .field("value")
+                        .minDocCount(randomInt(1))
+                        .size(0))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(100));
     }
 
     @Test
@@ -550,7 +568,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void unmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
-                        .field("value"))
+                        .field("value")
+                        .size(randomInt(5)))
                 .execute().actionGet();
 
         assertSearchResponse(response);

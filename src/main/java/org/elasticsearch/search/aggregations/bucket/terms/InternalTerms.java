@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -183,6 +186,19 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             }
         }
         buckets = newBuckets;
+    }
+
+    // 0 actually means unlimited
+    protected static int readSize(StreamInput in) throws IOException {
+        final int size = in.readVInt();
+        return size == 0 ? Integer.MAX_VALUE : size;
+    }
+
+    protected static void writeSize(int size, StreamOutput out) throws IOException {
+        if (size == Integer.MAX_VALUE) {
+            size = 0;
+        }
+        out.writeVInt(size);
     }
 
 }

@@ -167,7 +167,7 @@ public class DoubleTerms extends InternalTerms {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
         this.valueFormatter = ValueFormatterStreams.readOptional(in);
-        this.requiredSize = in.readVInt();
+        this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
@@ -183,7 +183,7 @@ public class DoubleTerms extends InternalTerms {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeVInt(requiredSize);
+        writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {

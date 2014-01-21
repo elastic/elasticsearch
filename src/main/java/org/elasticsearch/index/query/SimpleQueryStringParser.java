@@ -138,7 +138,7 @@ public class SimpleQueryStringParser implements QueryParser {
                     }
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } else if ("default_operator".equals(currentFieldName)) {
+                } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
                         defaultOperator = BooleanClause.Occur.SHOULD;

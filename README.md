@@ -41,7 +41,7 @@ We're interested in your feedback! You can find us on the User [mailing list](ht
 ## Configuration Properties
 
 Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml`:
-
+```
 repositories
 	hdfs:
 		uri: "hdfs://<host>:<port>/"  	# optional - Hadoop file-system URI
@@ -52,7 +52,7 @@ repositories
 		concurrent_streams: 5			# optional - the number of concurrent streams (defaults to 5)
 		compress: "false"				# optional - whether to compress the data or not (default)
 		chunk_size: "10mb"				# optional - chunk size (disabled by default)
-
+```
 
 ## Plugging other file-systems
 

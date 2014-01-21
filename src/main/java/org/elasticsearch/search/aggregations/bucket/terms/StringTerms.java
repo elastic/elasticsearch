@@ -96,7 +96,7 @@ public class StringTerms extends InternalTerms {
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.requiredSize = in.readVInt();
+        this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
@@ -111,7 +111,7 @@ public class StringTerms extends InternalTerms {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
-        out.writeVInt(requiredSize);
+        writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {

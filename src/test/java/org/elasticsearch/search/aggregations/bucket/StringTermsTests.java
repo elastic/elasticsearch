@@ -98,6 +98,26 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
+    public void sizeIsZero() {
+        final int minDocCount = randomInt(1);
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("value")
+                        .minDocCount(minDocCount)
+                        .size(0))
+                .execute().actionGet();
+
+        assertSearchResponse(response);System.out.println(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.buckets().size(), equalTo(minDocCount == 0 ? 105 : 100)); // 105 because of the other type
+    }
+
+    @Test
     public void singleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -686,6 +706,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
+                        .size(randomInt(5))
                         .field("value"))
                 .execute().actionGet();
 

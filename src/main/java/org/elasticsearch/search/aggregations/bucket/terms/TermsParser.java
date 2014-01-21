@@ -176,6 +176,14 @@ public class TermsParser implements Aggregator.Parser {
             }
         }
 
+        if (shardSize == 0) {
+            shardSize = Integer.MAX_VALUE;
+        }
+
+        if (requiredSize == 0) {
+            requiredSize = Integer.MAX_VALUE;
+        }
+
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
         if (shardSize < requiredSize) {
             shardSize = requiredSize;

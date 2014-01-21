@@ -115,3 +115,6 @@ include::cat/recovery.asciidoc[]
 include::cat/thread_pool.asciidoc[]
 
 include::cat/shards.asciidoc[]
+
+include::cat/plugins.asciidoc[]
+

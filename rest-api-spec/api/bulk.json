@@ -51,7 +51,8 @@
     },
     "body": {
       "description" : "The operation definition and data (action-data pairs), separated by newlines",
-      "required" : true
+      "required" : true,
+      "serialize" : "bulk"
     }
   }
 }

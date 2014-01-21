@@ -36,6 +36,9 @@ public enum MemorySizeValue {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
                 final double percent = Double.parseDouble(percentAsString);
+                if (percent < 0 || percent > 100) {
+                    throw new ElasticsearchParseException("Percentage should be in [0-100], got " + percentAsString);
+                }
                 return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes()), ByteSizeUnit.BYTES);
             } catch (NumberFormatException e) {
                 throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);

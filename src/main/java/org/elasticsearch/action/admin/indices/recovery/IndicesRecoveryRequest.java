@@ -33,7 +33,6 @@ import java.io.IOException;
  */
 public class IndicesRecoveryRequest extends BroadcastOperationRequest<IndicesRecoveryRequest> {
 
-
     public IndicesRecoveryRequest() {
         this(Strings.EMPTY_ARRAY);
     }

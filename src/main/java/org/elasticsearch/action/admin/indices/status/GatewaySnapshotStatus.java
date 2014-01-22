@@ -64,15 +64,12 @@ public class GatewaySnapshotStatus {
         }
     }
 
-    final Stage stage;
-
-    final long startTime;
-
-    final long time;
-
-    final long indexSize;
-
-    final int expectedNumberOfOperations;
+    // XXX - NOCOMMIT - CHANGE BACK TO PACKAGE-LEVEL AND MOVE CLASS
+    public final Stage stage;
+    public final long startTime;
+    public final long time;
+    public final long indexSize;
+    public final int expectedNumberOfOperations;
 
     public GatewaySnapshotStatus(Stage stage, long startTime, long time, long indexSize, int expectedNumberOfOperations) {
         this.stage = stage;

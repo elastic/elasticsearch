@@ -61,19 +61,14 @@ public class GatewayRecoveryStatus {
         }
     }
 
-    final Stage stage;
-
-    final long startTime;
-
-    final long time;
-
-    final long indexSize;
-
-    final long reusedIndexSize;
-
-    final long recoveredIndexSize;
-
-    final long recoveredTranslogOperations;
+    // XXX - NOCOMMIT - CHANGE BACK TO PACKAGE-LEVEL AND MOVE CLASS
+    public final Stage stage;
+    public final long startTime;
+    public final long time;
+    public final long indexSize;
+    public final long reusedIndexSize;
+    public final long recoveredIndexSize;
+    public final long recoveredTranslogOperations;
 
     public GatewayRecoveryStatus(Stage stage, long startTime, long time, long indexSize, long reusedIndexSize,
                                  long recoveredIndexSize, long recoveredTranslogOperations) {

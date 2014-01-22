@@ -44,7 +44,7 @@ public class RestIndicesRecoveryAction extends BaseRestHandler {
     public RestIndicesRecoveryAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_recovery", this);
-        controller.registerHandler(GET, "/{index}/_recovery", this);
+        controller.registerHandler(GET, "/{index}/_recovery", this);    // XXX - NOCOMMIT = Implement
     }
 
     @Override

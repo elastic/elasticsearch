@@ -82,7 +82,7 @@ public class GetIndexTemplatesRequest extends MasterNodeReadOperationRequest<Get
             names = new String[1];
             names[0] = in.readString();
         }
-        readLocal(in, Version.V_1_0_0);
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -93,6 +93,6 @@ public class GetIndexTemplatesRequest extends MasterNodeReadOperationRequest<Get
         } else {
             out.writeString(names.length == 0 ? "*" : names[0]);
         }
-        writeLocal(out, Version.V_1_0_0);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

@@ -200,7 +200,7 @@ public class TypeParsers {
                 }
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-                if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_0_0)) {
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_0_0_RC2)) {
                     throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : '" + op.name() + "']  instead");
                 }
                 // deprecated option for BW compat

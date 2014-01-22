@@ -344,7 +344,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
                         .setSettings(SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_VERSION_CREATED, version.id));
-                assertThat(version.onOrAfter(Version.V_1_0_0), equalTo(false));
+                assertThat(version.onOrAfter(Version.V_1_0_0_RC2), equalTo(false));
                 indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
@@ -358,7 +358,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 }
                 wipeIndices("test");
             } catch (MapperParsingException ex) {
-                assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0), equalTo(true));
+                assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
                 assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
             }
             version = randomVersion();

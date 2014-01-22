@@ -39,12 +39,12 @@ public class PendingClusterTasksRequest extends MasterNodeReadOperationRequest<P
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readLocal(in, Version.V_1_0_0);
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeLocal(out, Version.V_1_0_0);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

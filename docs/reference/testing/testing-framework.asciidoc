@@ -1,7 +1,7 @@
 [[testing-framework]]
 == Java Testing Framework
 
-added[1.0.0]
+added[1.0.0.RC1]
 
 [[testing-intro]]
 

@@ -80,7 +80,7 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
-        readLocal(in, Version.V_1_0_0);
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -89,6 +89,6 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
-        writeLocal(out, Version.V_1_0_0);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

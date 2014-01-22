@@ -1,6 +1,6 @@
 {
   "cat.count": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-count.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cat-count.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/count",

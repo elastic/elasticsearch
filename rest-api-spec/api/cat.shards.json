@@ -1,6 +1,6 @@
 {
   "cat.shards": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-shards.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cat-shards.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/shards",

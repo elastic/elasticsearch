@@ -1,6 +1,6 @@
 {
   "snapshot.restore": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/modules-snapshots.html",
     "methods": ["POST"],
     "url": {
       "path": "/_snapshot/{repository}/{snapshot}/_restore",

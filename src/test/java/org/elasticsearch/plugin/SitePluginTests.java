@@ -73,4 +73,17 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }
+
+    /**
+     * Test case for #4845: https://github.com/elasticsearch/elasticsearch/issues/4845
+     * Serving _site plugins do not pick up on index.html for sub directories
+     * @throws Exception
+     */
+    @Test
+    public void testWelcomePageInSubDirs() throws Exception {
+        // We use an HTTP Client to test redirection
+        HttpClientResponse response = httpClient("test").request("/_plugin/subdir/dir/");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString("<title>Dummy Site Plugin (subdir)</title>"));
+    }
 }

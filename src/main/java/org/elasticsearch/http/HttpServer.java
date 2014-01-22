@@ -177,8 +177,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             return;
         }
         if (!file.isFile()) {
-            channel.sendResponse(new StringRestResponse(FORBIDDEN));
-            return;
+            // We don't serve dir but if index.html exists in dir we should serve it
+            file = new File(siteFile, sitePath + "/index.html");
+            if (!file.exists() || file.isHidden() || !file.isFile()) {
+                channel.sendResponse(new StringRestResponse(FORBIDDEN));
+                return;
+            }
         }
         if (!file.getAbsolutePath().startsWith(siteFile.getAbsolutePath())) {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));

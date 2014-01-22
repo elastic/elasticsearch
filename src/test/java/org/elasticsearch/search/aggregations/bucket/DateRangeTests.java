@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRange;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -98,6 +99,41 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
         indexRandom(true, docs);
         ensureSearchable();
+    }
+
+    @Test
+    public void dateMath() throws Exception {
+        DateRangeBuilder rangeBuilder = dateRange("range");
+        if (randomBoolean()) {
+            rangeBuilder.field("date");
+        } else {
+            rangeBuilder.script("doc['date'].value");
+        }
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(rangeBuilder
+                        .addUnboundedTo("a long time ago", "now-50y")
+                        .addRange("recently", "now-50y", "now-1y")
+                        .addUnboundedFrom("last year", "now-1y"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        DateRange range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        assertThat(range.buckets().size(), equalTo(3));
+
+        DateRange.Bucket bucket = range.buckets().get(0);
+        assertThat(bucket.getKey(), equalTo("a long time ago"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
+
+        bucket = range.buckets().get(1);
+        assertThat(bucket.getKey(), equalTo("recently"));
+        assertThat(bucket.getDocCount(), equalTo((long) numDocs));
+
+        bucket = range.buckets().get(2);
+        assertThat(bucket.getKey(), equalTo("last year"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
     @Test

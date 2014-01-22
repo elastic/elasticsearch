@@ -33,6 +33,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
     private Object interval;
     private HistogramBase.Order order;
+    private Long minDocCount;
     private String preZone;
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
@@ -56,6 +57,11 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
     public DateHistogramBuilder order(DateHistogram.Order order) {
         this.order = order;
+        return this;
+    }
+
+    public DateHistogramBuilder minDocCount(long minDocCount) {
+        this.minDocCount = minDocCount;
         return this;
     }
 
@@ -98,6 +104,10 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             interval = TimeValue.timeValueMillis(((Number) interval).longValue()).toString();
         }
         builder.field("interval", interval);
+
+        if (minDocCount != null) {
+            builder.field("min_doc_count", minDocCount);
+        }
 
         if (order != null) {
             builder.field("order");

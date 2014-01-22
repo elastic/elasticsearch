@@ -73,4 +73,32 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }
+
+    /**
+     * Test direct access to an existing file (index.html)
+     */
+    @Test
+    public void testAnyPage() throws Exception {
+        HttpClientResponse response = httpClient("test").request("/_plugin/dummy/index.html");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
+    }
+
+    /**
+     * Test case for #4845: https://github.com/elasticsearch/elasticsearch/issues/4845
+     * Serving _site plugins do not pick up on index.html for sub directories
+     */
+    @Test
+    public void testWelcomePageInSubDirs() throws Exception {
+        HttpClientResponse response = httpClient("test").request("/_plugin/subdir/dir/");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString("<title>Dummy Site Plugin (subdir)</title>"));
+
+        response = httpClient("test").request("/_plugin/subdir/dir_without_index/");
+        assertThat(response.errorCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
+
+        response = httpClient("test").request("/_plugin/subdir/dir_without_index/page.html");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString("<title>Dummy Site Plugin (page)</title>"));
+    }
 }

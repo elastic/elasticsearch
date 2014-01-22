@@ -29,10 +29,13 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.util.*;
@@ -40,8 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 
 public class MinDocCountTests extends ElasticsearchIntegrationTest {
 
@@ -65,6 +67,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
         final List<IndexRequestBuilder> indexRequests = new ArrayList<IndexRequestBuilder>();
         final Set<String> stringTerms = new HashSet<String>();
         final LongSet longTerms = new LongOpenHashSet();
+        final Set<String> dateTerms = new HashSet<String>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
@@ -75,9 +78,17 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                 longTerm = randomInt(cardinality * 2);
             } while (!longTerms.add(longTerm));
             double doubleTerm = longTerm * Math.PI;
+            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd").print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0));
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
-                indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject().field("s", stringTerm).field("l", longTerm).field("d", doubleTerm).field("match", randomBoolean()).endObject()));
+                indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                        .startObject()
+                        .field("s", stringTerm)
+                        .field("l", longTerm)
+                        .field("d", doubleTerm)
+                        .field("date", dateTerm)
+                        .field("match", randomBoolean())
+                        .endObject()));
             }
         }
         cardinality = stringTerms.size();
@@ -128,6 +139,17 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
         for (Histogram.Bucket b1 : histo1) {
             if (b1.getDocCount() >= minDocCount) {
                 final Histogram.Bucket b2 = it2.next();
+                assertEquals(b1.getKey(), b2.getKey());
+                assertEquals(b1.getDocCount(), b2.getDocCount());
+            }
+        }
+    }
+
+    private void assertSubset(DateHistogram histo1, DateHistogram histo2, long minDocCount) {
+        final Iterator<DateHistogram.Bucket> it2 = histo2.iterator();
+        for (DateHistogram.Bucket b1 : histo1) {
+            if (b1.getDocCount() >= minDocCount) {
+                final DateHistogram.Bucket b2 = it2.next();
                 assertEquals(b1.getKey(), b2.getKey());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
             }
@@ -298,6 +320,22 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
         testMinDocCountOnHistogram(Histogram.Order.KEY_DESC);
     }
 
+    public void testDateHistogramCountAsc() throws Exception {
+        testMinDocCountOnDateHistogram(Histogram.Order.COUNT_ASC);
+    }
+
+    public void testDateHistogramCountDesc() throws Exception {
+        testMinDocCountOnDateHistogram(Histogram.Order.COUNT_DESC);
+    }
+
+    public void testDateHistogramKeyAsc() throws Exception {
+        testMinDocCountOnDateHistogram(Histogram.Order.KEY_ASC);
+    }
+
+    public void testDateHistogramKeyDesc() throws Exception {
+        testMinDocCountOnDateHistogram(Histogram.Order.KEY_DESC);
+    }
+
     private void testMinDocCountOnHistogram(Histogram.Order order) throws Exception {
         final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
@@ -315,6 +353,27 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                     .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount))
                     .execute().actionGet();
             assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
+        }
+
+    }
+
+    private void testMinDocCountOnDateHistogram(Histogram.Order order) throws Exception {
+        final int interval = randomIntBetween(1, 3);
+        final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+                .setSearchType(SearchType.COUNT)
+                .setQuery(QUERY)
+                .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).order(order).minDocCount(0))
+                .execute().actionGet();
+
+        final DateHistogram allHisto = allResponse.getAggregations().get("histo");
+
+        for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
+            final SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                    .setSearchType(SearchType.COUNT)
+                    .setQuery(QUERY)
+                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).order(order).minDocCount(minDocCount))
+                    .execute().actionGet();
+            assertSubset(allHisto, (DateHistogram) response.getAggregations().get("histo"), minDocCount);
         }
 
     }

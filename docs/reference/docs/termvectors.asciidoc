@@ -1,4 +1,4 @@
-[[search-termvectors]]
+[[docs-termvectors]]
 == Term Vectors
 
 added[1.0.0.Beta1]

@@ -1,6 +1,6 @@
 {
   "mtermvectors" : {
-    "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html",
+    "documentation" : "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/docs-multi-termvectors.html",
     "methods" : ["GET", "POST"],
     "url" : {
       "path" : "/_mtermvectors",

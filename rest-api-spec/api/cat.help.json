@@ -1,6 +1,6 @@
 {
   "cat.help": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cat.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat",

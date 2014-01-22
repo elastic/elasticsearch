@@ -1,6 +1,6 @@
 {
   "cat.pending_tasks": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-pending-tasks.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cat-pending-tasks.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/pending_tasks",

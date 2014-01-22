@@ -1,6 +1,6 @@
 {
   "cat.recovery": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-recovery.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cat-recovery.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/recovery",

@@ -1,6 +1,6 @@
 {
   "nodes.shutdown": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-nodes-shutdown.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-nodes-shutdown.html",
     "methods": ["POST"],
     "url": {
       "path": "/_shutdown",

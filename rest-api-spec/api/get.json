@@ -1,6 +1,6 @@
 {
   "get": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-get.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-get.html",
     "methods": ["GET"],
     "url": {
       "path": "/{index}/{type}/{id}",

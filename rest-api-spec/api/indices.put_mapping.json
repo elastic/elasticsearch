@@ -1,6 +1,6 @@
 {
   "indices.put_mapping": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-put-mapping.html",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}/{type}/_mapping",

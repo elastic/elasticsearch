@@ -51,12 +51,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -2278,6 +2281,98 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             } while (scrollResponse.getHits().getHits().length > 0);
             assertThat(scannedDocs, equalTo(10));
         }
+    }
+
+    @Test
+    public void testValidateThatHasChildAndHasParentFilterAreNeverCached() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "1").setSource("field", "value")
+                .get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("field", "value")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // Internally the has_child and has_parent use filter for the type field, which end up in the filter cache,
+        // so by first checking how much they take by executing has_child and has_parent *query* we can set a base line
+        // for the filter cache size in this test.
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        long initialCacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true)))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true)))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

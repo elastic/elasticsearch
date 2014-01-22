@@ -124,26 +124,26 @@ public class RestNodesAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("nodeId", "default:false;desc:unique node id");
-        table.addCell("pid", "default:false;desc:process id");
-        table.addCell("host", "desc:host name");
-        table.addCell("ip", "desc:ip address");
-        table.addCell("port", "default:false;desc:bound transport port");
+        table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
+        table.addCell("pid", "default:false;alias:p;desc:process id");
+        table.addCell("host", "alias:h;desc:host name");
+        table.addCell("ip", "alias:i;desc:ip address");
+        table.addCell("port", "default:false;alias:po;desc:bound transport port");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
-        table.addCell("jdk", "default:false;desc:jdk version");
-        table.addCell("diskAvail", "default:false;text-align:right;desc:available disk space");
-        table.addCell("heapPercent", "text-align:right;desc:used heap ratio");
-        table.addCell("heapMax", "default:false;text-align:right;desc:max configured heap");
-        table.addCell("ramPercent", "text-align:right;desc:used machine memory ratio");
-        table.addCell("ramMax", "default:false;text-align:right;desc:total machine memory");
+        table.addCell("jdk", "default:false;alias:j;desc:jdk version");
+        table.addCell("disk.avail", "default:false;alias:d,disk,diskAvail;text-align:right;desc:available disk space");
+        table.addCell("heap.percent", "alias:hp,heapPercent;text-align:right;desc:used heap ratio");
+        table.addCell("heap.max", "default:false;alias:hm,heapMax;text-align:right;desc:max configured heap");
+        table.addCell("ram.percent", "alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
+        table.addCell("ram.max", "default:false;alias:rm,ramMax;text-align:right;desc:total machine memory");
 
-        table.addCell("load", "text-align:right;desc:most recent load avg");
-        table.addCell("uptime", "default:false;text-align:right;desc:node uptime");
-        table.addCell("data/client", "desc:d:data node, c:client node");
-        table.addCell("master", "desc:m:master-eligible, *:current master");
-        table.addCell("name", "desc:node name");
+        table.addCell("load", "alias:l;text-align:right;desc:most recent load avg");
+        table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
+        table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
+        table.addCell("master", "alias:m;desc:m:master-eligible, *:current master");
+        table.addCell("name", "alias:n;desc:node name");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 

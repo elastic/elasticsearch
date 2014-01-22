@@ -91,11 +91,11 @@ public class RestAliasAction extends AbstractCatAction {
     Table getTableWithHeader(RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
-        table.addCell("alias", "desc:alias name");
-        table.addCell("index", "desc:index alias points to");
-        table.addCell("filter", "desc:filter");
-        table.addCell("indexRouting", "desc:index routing");
-        table.addCell("searchRouting", "desc:search routing");
+        table.addCell("alias", "alias:a;desc:alias name");
+        table.addCell("index", "alias:i,idx;desc:index alias points to");
+        table.addCell("filter", "alias:f,fi;desc:filter");
+        table.addCell("routing.index", "alias:ri,routingIndex;desc:index routing");
+        table.addCell("routing.search", "alias:rs,routingSearch;desc:search routing");
         table.endHeaders();
         return table;
     }

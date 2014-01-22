@@ -77,7 +77,10 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
 
         Bucket reduce(List<Bucket> buckets, CacheRecycler cacheRecycler) {
             if (buckets.size() == 1) {
-                return buckets.get(0);
+                // we only need to reduce the sub aggregations
+                Bucket bucket = buckets.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
             }
             List<InternalAggregations> aggregations = new ArrayList<InternalAggregations>(buckets.size());
             Bucket reduced = null;
@@ -172,21 +175,27 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
 
+            AbstractHistogramBase<B> histo = (AbstractHistogramBase<B>) aggregations.get(0);
+
             if (minDocCount == 1) {
-                return aggregations.get(0);
+                for (B bucket : histo.buckets) {
+                    ((Bucket) bucket).aggregations.reduce(reduceContext.cacheRecycler());
+                }
+                return histo;
             }
 
-            AbstractHistogramBase histo = (AbstractHistogramBase) aggregations.get(0);
+
             CollectionUtil.introSort(histo.buckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
-            List<HistogramBase.Bucket> list = order.asc ? histo.buckets : Lists.reverse(histo.buckets);
+            List<B> list = order.asc ? histo.buckets : Lists.reverse(histo.buckets);
             HistogramBase.Bucket prevBucket = null;
-            ListIterator<HistogramBase.Bucket> iter = list.listIterator();
+            ListIterator<B> iter = list.listIterator();
             if (minDocCount == 0) {
                 // we need to fill the gaps with empty buckets
                 while (iter.hasNext()) {
                     // look ahead on the next bucket without advancing the iter
                     // so we'll be able to insert elements at the right position
                     HistogramBase.Bucket nextBucket = list.get(iter.nextIndex());
+                    ((Bucket) nextBucket).aggregations.reduce(reduceContext.cacheRecycler());
                     if (prevBucket != null) {
                         long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.getKey());
                         while (key != nextBucket.getKey()) {
@@ -198,8 +207,11 @@ abstract class AbstractHistogramBase<B extends HistogramBase.Bucket> extends Int
                 }
             } else {
                 while (iter.hasNext()) {
-                    if (iter.next().getDocCount() < minDocCount) {
+                    Bucket bucket = (Bucket) iter.next();
+                    if (bucket.getDocCount() < minDocCount) {
                         iter.remove();
+                    } else {
+                        bucket.aggregations.reduce(reduceContext.cacheRecycler());
                     }
                 }
             }

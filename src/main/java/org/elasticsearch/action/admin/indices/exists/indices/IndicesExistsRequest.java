@@ -72,7 +72,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0);
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -80,6 +80,6 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

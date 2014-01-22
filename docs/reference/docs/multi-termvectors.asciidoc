@@ -3,7 +3,7 @@
 
 Multi termvectors API allows to get multiple termvectors based on an index, type and id. The response includes a `docs`
 array with all the fetched termvectors, each element having the structure
-provided by the <<search-termvectors,termvectors>>
+provided by the <<docs-termvectors,termvectors>>
 API. Here is an example:
 
 [source,js]
@@ -29,7 +29,7 @@ curl 'localhost:9200/_mtermvectors' -d '{
 }'
 --------------------------------------------------
 
-See the <<search-termvectors,termvectors>> API for a description of possible parameters.
+See the <<docs-termvectors,termvectors>> API for a description of possible parameters.
 
 The `_mtermvectors` endpoint can also be used against an index (in which case it
 is not required in the body):
@@ -90,4 +90,4 @@ curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
 }'
 --------------------------------------------------
 
-Parameters can aslo be set by passing them as uri parameters (see <<search-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.
+Parameters can aslo be set by passing them as uri parameters (see <<docs-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.

@@ -88,13 +88,13 @@ public class GetRepositoriesRequest extends MasterNodeReadOperationRequest<GetRe
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         repositories = in.readStringArray();
-        readLocal(in, Version.V_1_0_0);
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(repositories);
-        writeLocal(out, Version.V_1_0_0);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

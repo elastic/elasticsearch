@@ -99,9 +99,9 @@ public class RestCountAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("epoch", "desc:seconds since 1970-01-01 00:00:00, that the count was executed");
-        table.addCell("timestamp", "desc:time that the count was executed");
-        table.addCell("count", "desc:the document count");
+        table.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00, that the count was executed");
+        table.addCell("timestamp", "alias:ts,hms;desc:time that the count was executed");
+        table.addCell("count", "alias:dc,docs.count,docsCount;desc:the document count");
         table.endHeaders();
         return table;
     }

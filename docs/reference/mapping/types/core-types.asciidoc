@@ -618,6 +618,8 @@ The following Similarities are configured out-of-box:
 [float]
 ===== Copy to field
 
+added[1.0.0.RC2]
+
 Adding `copy_to` parameter to any field mapping will cause all values of this field to be copied to fields specified in
 the parameter. In the following example all values from fields `title` and `abstract` will be copied to the field
 `meta_data`.
@@ -668,6 +670,8 @@ The same mapping can be also defined using extended syntax:
 
 [float]
 ===== Multi fields
+
+added[1.0.0.RC1]
 
 The `fields` options allows to map several core types fields into a single
 json source field. This can be useful if a single field need to be

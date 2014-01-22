@@ -115,7 +115,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     /**
      * Reduces the given lists of addAggregation.
      *
-     * @param aggregationsList  A list of addAggregation to reduce
+     * @param aggregationsList  A list of aggregation to reduce
      * @return                  The reduced addAggregation
      */
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, CacheRecycler cacheRecycler) {
@@ -123,7 +123,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
             return null;
         }
 
-        // first we collect all addAggregation of the same type and list them together
+        // first we collect all aggregations of the same type and list them together
 
         Map<String, List<InternalAggregation>> aggByName = new HashMap<String, List<InternalAggregation>>();
         for (InternalAggregations aggregations : aggregationsList) {
@@ -148,6 +148,17 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         InternalAggregations result = aggregationsList.get(0);
         result.reset(reducedAggregations);
         return result;
+    }
+
+    /**
+     * Reduces this aggregations, effectively propagates the reduce to all the sub aggregations
+     * @param cacheRecycler
+     */
+    public void reduce(CacheRecycler cacheRecycler) {
+        for (int i = 0; i < aggregations.size(); i++) {
+            InternalAggregation aggregation = aggregations.get(i);
+            aggregations.set(i, aggregation.reduce(new InternalAggregation.ReduceContext(ImmutableList.of(aggregation), cacheRecycler)));
+        }
     }
 
     /** The fields required to write this addAggregation to xcontent */

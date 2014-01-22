@@ -86,7 +86,10 @@ public abstract class AbstractRangeBase<B extends RangeBase.Bucket> extends Inte
 
         Bucket reduce(List<Bucket> ranges, CacheRecycler cacheRecycler) {
             if (ranges.size() == 1) {
-                return ranges.get(0);
+                // we stil need to call reduce on all the sub aggregations
+                Bucket bucket = ranges.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
             }
             Bucket reduced = null;
             List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(ranges.size());
@@ -196,7 +199,11 @@ public abstract class AbstractRangeBase<B extends RangeBase.Bucket> extends Inte
     public AbstractRangeBase reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
-            return (AbstractRangeBase) aggregations.get(0);
+            AbstractRangeBase<B> reduced = (AbstractRangeBase<B>) aggregations.get(0);
+            for (B bucket : reduced.buckets()) {
+                ((Bucket) bucket).aggregations.reduce(reduceContext.cacheRecycler());
+            }
+            return reduced;
         }
         List<List<Bucket>> rangesList = null;
         for (InternalAggregation aggregation : aggregations) {

@@ -102,7 +102,10 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
         public Bucket reduce(List<? extends Bucket> buckets, CacheRecycler cacheRecycler) {
             if (buckets.size() == 1) {
-                return buckets.get(0);
+                // we still need to reduce the sub aggs
+                Bucket bucket = buckets.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
             }
             Bucket reduced = null;
             List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(buckets.size());
@@ -166,7 +169,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregations.get(0);
-            grid.trimExcessEntries();
+            grid.trimExcessEntries(reduceContext.cacheRecycler());
             return grid;
         }
         InternalGeoHashGrid reduced = null;
@@ -227,21 +230,14 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
  
-    protected void trimExcessEntries() {
-        if (requiredSize >= buckets.size()) {
-            return;
-        }
-
-        if (buckets instanceof List) {
-            buckets = ((List) buckets).subList(0, requiredSize);
-            return;
-        }
-
+    protected void trimExcessEntries(CacheRecycler cacheRecycler) {
         int i = 0;
         for (Iterator<Bucket> iter  = buckets.iterator(); iter.hasNext();) {
-            iter.next();
+            Bucket bucket = iter.next();
             if (i++ >= requiredSize) {
                 iter.remove();
+            } else {
+                bucket.aggregations.reduce(cacheRecycler);
             }
         }
     }

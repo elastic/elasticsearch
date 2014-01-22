@@ -104,7 +104,7 @@ public class LongTerms extends InternalTerms {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries();
+            terms.trimExcessEntries(reduceContext.cacheRecycler());
             return terms;
         }
         InternalTerms reduced = null;

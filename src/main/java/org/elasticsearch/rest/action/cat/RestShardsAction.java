@@ -105,14 +105,14 @@ public class RestShardsAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("index", "default:true;desc:index name")
-                .addCell("shard", "default:true;desc:shard name")
-                .addCell("prirep", "alias:pr,primaryOrReplica;default:true;desc:primary or replica")
-                .addCell("state", "default:true;desc:shard state")
-                .addCell("docs", "text-align:right;desc:number of docs in shard")
-                .addCell("store", "text-align:right;desc:store size of shard (how much disk it uses)")
+                .addCell("index", "default:true;alias:i,idx;desc:index name")
+                .addCell("shard", "default:true;alias:s,sh;desc:shard name")
+                .addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica")
+                .addCell("state", "default:true;alias:st;desc:shard state")
+                .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
+                .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
                 .addCell("ip", "default:true;desc:ip of node where it lives")
-                .addCell("node", "default:true;desc:name of node where it lives");
+                .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 

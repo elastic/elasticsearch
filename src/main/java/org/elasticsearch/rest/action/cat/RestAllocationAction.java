@@ -114,14 +114,14 @@ public class RestAllocationAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
-        table.addCell("shards", "text-align:right;desc:number of shards on node");
-        table.addCell("diskUsed", "text-align:right;desc:disk used (total, not just ES)");
-        table.addCell("diskAvail", "text-align:right;desc:disk available");
-        table.addCell("diskTotal", "text-align:right;desc:total capacity of all volumes");
-        table.addCell("diskPercent", "text-align:right;desc:percent disk used");
-        table.addCell("host", "desc:host of node");
+        table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
+        table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
+        table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");
+        table.addCell("disk.total", "alias:dt,diskTotal;text-align:right;desc:total capacity of all volumes");
+        table.addCell("disk.percent", "alias:dp,diskPercent;text-align:right;desc:percent disk used");
+        table.addCell("host", "alias:h;desc:host of node");
         table.addCell("ip", "desc:ip of node");
-        table.addCell("node", "desc:name of node");
+        table.addCell("node", "alias:n;desc:name of node");
         table.endHeaders();
         return table;
     }

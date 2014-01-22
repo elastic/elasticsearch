@@ -126,12 +126,12 @@ public class RestIndicesAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("health", "desc:current health status");
-        table.addCell("index", "desc:index name");
-        table.addCell("pri", "text-align:right;desc:number of primary shards");
-        table.addCell("rep", "text-align:right;desc:number of replica shards");
-        table.addCell("docs.count", "alias:docsCount;text-align:right;desc:available docs");
-        table.addCell("docs.deleted", "alias:docsDeleted;text-align:right;desc:deleted docs");
+        table.addCell("health", "alias:h;desc:current health status");
+        table.addCell("index", "alias:i,idx;desc:index name");
+        table.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
+        table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
+        table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
+        table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");

@@ -82,17 +82,17 @@ public class RestHealthAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
         t.startHeaders();
-        t.addCell("epoch", "desc:seconds since 1970-01-01 00:00:00, that the count was executed");
-        t.addCell("timestamp", "desc:time that the count was executed");
-        t.addCell("cluster", "desc:cluster name");
-        t.addCell("status", "desc:health status");
-        t.addCell("nodeTotal", "text-align:right;desc:total number of nodes");
-        t.addCell("nodeData", "text-align:right;desc:number of nodes that can store data");
-        t.addCell("shards", "text-align:right;desc:total number of shards");
-        t.addCell("pri", "text-align:right;desc:number of primary shards");
-        t.addCell("relo", "text-align:right;desc:number of relocating nodes");
-        t.addCell("init", "text-align:right;desc:number of initializing nodes");
-        t.addCell("unassign", "text-align:right;desc:number of unassigned shards");
+        t.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00");
+        t.addCell("timestamp", "alias:ts,hms,hhmmss;desc:time in HH:MM:SS");
+        t.addCell("cluster", "alias:cl;desc:cluster name");
+        t.addCell("status", "alias:st;desc:health status");
+        t.addCell("node.total", "alias:nt,nodeTotal;text-align:right;desc:total number of nodes");
+        t.addCell("node.data", "alias:nd,nodeData;text-align:right;desc:number of nodes that can store data");
+        t.addCell("shards", "alias:t,sh,shards.total,shardsTotal;text-align:right;desc:total number of shards");
+        t.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
+        t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");
+        t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
+        t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
         t.endHeaders();
 
         return t;

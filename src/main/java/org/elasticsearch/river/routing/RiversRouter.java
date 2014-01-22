@@ -241,6 +241,7 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                 it.remove();
                 routing.node(smallest);
                 nodesToRivers.get(smallest).add(routing);
+                logger.debug("going to allocate river [{}] on node {}", routing.riverName().getName(), smallest);
             }
         }
 

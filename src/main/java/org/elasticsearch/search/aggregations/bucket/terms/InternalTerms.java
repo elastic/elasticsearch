@@ -63,7 +63,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
         public Bucket reduce(List<? extends Bucket> buckets, CacheRecycler cacheRecycler) {
             if (buckets.size() == 1) {
-                return buckets.get(0);
+                Bucket bucket = buckets.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
             }
             Bucket reduced = null;
             List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(buckets.size());
@@ -124,12 +126,11 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries();
+            terms.trimExcessEntries(reduceContext.cacheRecycler());
             return terms;
         }
-        InternalTerms reduced = null;
 
-        // TODO: would it be better to use a hppc map and then directly work on the backing array instead of using a PQ?
+        InternalTerms reduced = null;
 
         Map<Text, List<InternalTerms.Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
@@ -175,7 +176,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         return reduced;
     }
 
-    final void trimExcessEntries() {
+    final void trimExcessEntries(CacheRecycler cacheRecycler) {
         final List<Bucket> newBuckets = Lists.newArrayList();
         for (Bucket b : buckets) {
             if (newBuckets.size() >= requiredSize) {
@@ -183,6 +184,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             }
             if (b.docCount >= minDocCount) {
                 newBuckets.add(b);
+                b.aggregations.reduce(cacheRecycler);
             }
         }
         buckets = newBuckets;

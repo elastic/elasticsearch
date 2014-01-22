@@ -67,8 +67,6 @@ include::mapping/fields.asciidoc[]
 
 include::mapping/types.asciidoc[]
 
-include::mapping/multi-fields.asciidoc[]
-
 include::mapping/date-format.asciidoc[]
 
 include::mapping/dynamic-mapping.asciidoc[]

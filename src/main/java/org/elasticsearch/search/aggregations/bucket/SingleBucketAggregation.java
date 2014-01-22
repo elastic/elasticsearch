@@ -64,7 +64,9 @@ public abstract class SingleBucketAggregation<B extends SingleBucketAggregation<
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
-            return aggregations.get(0);
+            B reduced = ((B) aggregations.get(0));
+            reduced.aggregations.reduce(reduceContext.cacheRecycler());
+            return reduced;
         }
         B reduced = null;
         List<InternalAggregations> subAggregationsList = new ArrayList<InternalAggregations>(aggregations.size());

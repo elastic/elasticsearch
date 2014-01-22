@@ -30,7 +30,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 ## Generic Configuration
 
-The plugin will automatically use the instance level security credentials (as of 0.17), but they can be provided explicitly using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+The plugin will automatically use the instance level security credentials (as of 1.7.0), but they can be provided explicitly using `cloud.aws.access_key` and `cloud.aws.secret_key`:
 
     cloud:
         aws:

@@ -1,6 +1,6 @@
 {
   "cluster.stats": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-stats.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-stats.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/stats",

@@ -1,6 +1,6 @@
 {
   "cluster.put_settings": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-update-settings.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-update-settings.html",
     "methods": ["PUT"],
     "url": {
       "path": "/_cluster/settings",

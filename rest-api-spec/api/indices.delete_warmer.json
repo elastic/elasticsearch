@@ -1,6 +1,6 @@
 {
   "indices.delete_warmer": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-warmers.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_warmer/{name}",

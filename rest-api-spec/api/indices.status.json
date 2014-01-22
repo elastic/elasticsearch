@@ -1,6 +1,6 @@
 {
   "indices.status": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-status.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-status.html",
     "methods": ["GET"],
     "url": {
       "path": "/_status",

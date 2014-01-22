@@ -1,6 +1,6 @@
 {
   "cluster.health": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-health.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-health.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/health",

@@ -48,8 +48,8 @@ public class IndicesRecoveryResponse extends BroadcastOperationResponse implemen
     IndicesRecoveryResponse() {
     }
 
-    IndicesRecoveryResponse(ShardRecoveryStatus[] shardRecoveries, ClusterState clusterState, int totalShards, int successfulShards,
-                            int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesRecoveryResponse(ShardRecoveryStatus[] shardRecoveries, int totalShards, int successfulShards, int failedShards,
+                            List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shardRecoveries = shardRecoveries;
     }
@@ -79,6 +79,13 @@ public class IndicesRecoveryResponse extends BroadcastOperationResponse implemen
 
         this.indexShardRecoveryMap = indexShardRecoveryMap;
         return indexShardRecoveryMap;
+    }
+
+    public boolean hasRecoveries() {
+        if (shardRecoveries == null || shardRecoveries.length == 0) {
+            return false;
+        }
+        return true;
     }
 
     @Override

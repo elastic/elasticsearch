@@ -106,13 +106,16 @@ public class TransportIndicesRecoveryAction extends TransportBroadcastOperationA
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                shardRecoveries.add((ShardRecoveryStatus) shardResponse);
+                ShardRecoveryStatus recoveryStatus = (ShardRecoveryStatus) shardResponse;
+                if (recoveryStatus.recovering() == true) {
+                    shardRecoveries.add((ShardRecoveryStatus) shardResponse);
+                }
                 successfulShards++;
             }
         }
 
         return new IndicesRecoveryResponse(shardRecoveries.toArray(new ShardRecoveryStatus[shardRecoveries.size()]),
-                clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
+                shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override
@@ -137,7 +140,12 @@ public class TransportIndicesRecoveryAction extends TransportBroadcastOperationA
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardRecoveryStatus recoveryStatus = new ShardRecoveryStatus(indexShard.routingEntry());
 
-        recoveryStatus.recovering((indexShard.state() == IndexShardState.RECOVERING) ? true : false);
+        boolean recovering = indexShard.state() == IndexShardState.RECOVERING;
+        recoveryStatus.recovering(recovering);
+        // Return early here since we won't be reporting on this shard's status
+        if (!recovering) {
+            return recoveryStatus;
+        }
 
         try {
             recoveryStatus.estimatedStoreSize(indexShard.store().estimateSize());

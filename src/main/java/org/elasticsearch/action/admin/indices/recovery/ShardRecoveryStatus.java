@@ -106,8 +106,10 @@ public class ShardRecoveryStatus extends BroadcastShardOperationResponse impleme
 
         builder.startObject();
 
-        builder.field(Fields.SHARD_ID, getShardRouting().getId());
+        builder.field(Fields.ID, getShardRouting().getId());
         builder.field(Fields.PRIMARY, getShardRouting().primary());
+        builder.field(Fields.NODE, getShardRouting().currentNodeId());
+        builder.field(Fields.RELOCATING_NODE, getShardRouting().relocatingNodeId());
 
         // Indicates a restore from a repository snapshot
         if (shardRouting.restoreSource() != null) {
@@ -245,25 +247,12 @@ public class ShardRecoveryStatus extends BroadcastShardOperationResponse impleme
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString PRIMARY_SIZE = new XContentBuilderString("primary_size");
-        static final XContentBuilderString PRIMARY_SIZE_IN_BYTES = new XContentBuilderString("primary_size_in_bytes");
         static final XContentBuilderString SIZE = new XContentBuilderString("size");
         static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
-        static final XContentBuilderString OPERATIONS = new XContentBuilderString("operations");
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
-        static final XContentBuilderString MAX_DOC = new XContentBuilderString("max_doc");
-        static final XContentBuilderString DELETED_DOCS = new XContentBuilderString("deleted_docs");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
         static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
         static final XContentBuilderString NODE = new XContentBuilderString("node");
         static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
         static final XContentBuilderString ID = new XContentBuilderString("id");
         static final XContentBuilderString PEER_RECOVERY = new XContentBuilderString("peer_recovery");
         static final XContentBuilderString STAGE = new XContentBuilderString("stage");
@@ -282,8 +271,5 @@ public class ShardRecoveryStatus extends BroadcastShardOperationResponse impleme
         static final XContentBuilderString GATEWAY_SNAPSHOT = new XContentBuilderString("gateway_snapshot");
         static final XContentBuilderString EXPECTED_OPERATIONS = new XContentBuilderString("expected_operations");
         static final XContentBuilderString SNAPSHOT_RECOVERY = new XContentBuilderString("snapshot_recovery");
-        static final XContentBuilderString SHARD_ID = new XContentBuilderString("shard_id");
-        static final XContentBuilderString RECOVERING = new XContentBuilderString("recovering");
-
     }
 }

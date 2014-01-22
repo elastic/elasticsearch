@@ -23,7 +23,9 @@ import java.io.IOException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.recovery.IndicesRecoveryResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,24 +46,27 @@ public class RestIndicesRecoveryAction extends BaseRestHandler {
     public RestIndicesRecoveryAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_recovery", this);
-        controller.registerHandler(GET, "/{index}/_recovery", this);    // XXX - NOCOMMIT = Implement
+        controller.registerHandler(GET, "/{index}/_recovery", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
 
-        IndicesRecoveryRequest recoveryRequest = new IndicesRecoveryRequest();
+        IndicesRecoveryRequest recoveryRequest = new IndicesRecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        recoveryRequest.listenerThreaded(false);
+        recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
         client.admin().indices().recoveries(recoveryRequest, new ActionListener<IndicesRecoveryResponse>() {
-
             @Override
             public void onResponse(IndicesRecoveryResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    buildBroadcastShardsHeader(builder, response);
-                    response.toXContent(builder, request);
-                    builder.endObject();
+                    if (response.hasRecoveries()) {
+                        builder.startObject();
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                    }
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);

@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
 
 /**
  * A request to get information about all on-going index recoveries.

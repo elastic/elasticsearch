@@ -1,7 +1,7 @@
 [[search-termvectors]]
 == Term Vectors
 
-added[1.00.Beta]
+added[1.0.0.Beta1]
 
 Returns information and statistics on terms in the fields of a
 particular document as stored in the index.

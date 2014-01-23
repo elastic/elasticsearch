@@ -92,8 +92,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         }
 
     }
-    
-   
 
     @Override
     public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) {

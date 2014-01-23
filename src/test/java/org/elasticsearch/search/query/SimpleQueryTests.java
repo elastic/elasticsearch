@@ -25,10 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -46,6 +43,8 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -2091,4 +2090,67 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
     }
 
+    @Test
+    public void queryStringSwitchCommonTerms() throws Exception {
+        client().admin().indices().prepareCreate("test").addMapping("type1", "field1", "type=string,analyzer=whitespace")
+        .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+
+        int numCommon = atLeast(100);
+        List<IndexRequestBuilder> indexRequests = new ArrayList<IndexRequestBuilder>();
+        for (int i = 0; i < numCommon; i++) {
+            indexRequests.add(client().prepareIndex("test", "type1", "common" + i).setSource("field1", "the"));
+        }
+        indexRequests.add(client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"));
+        indexRequests.add(client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown fox"));
+        indexRequests.add(client().prepareIndex("test", "type1", "3").setSource("field1", "quick", "field2", "brown fox"));
+        indexRandom(true, indexRequests);
+        int numDocs = indexRequests.size();
+
+        // A query without setting the common terms frequency with the default operator as OR finds all the test documents
+        QueryStringQueryBuilder qs = queryString("the quick brown fox").field("field1").field("field2");
+        qs.defaultOperator(QueryStringQueryBuilder.Operator.OR);
+        SearchRequestBuilder request = client().prepareSearch("test").setQuery(qs);
+        assertHitCount(request.get(), numDocs);
+
+        // A query with common terms turn on still finds them all
+        qs.commonTermsCutoffFrequency(.9f);
+        assertHitCount(request.get(), numDocs);
+
+        // Searching for AND without common terms frequency doesn't find docs without the common terms
+        qs.defaultOperator(QueryStringQueryBuilder.Operator.AND).commonTermsCutoffFrequency(null);
+        assertSearchHits(request.get(), "1");
+
+        // And neither does searching for them with a terms cutoff frequency
+        qs.commonTermsCutoffFrequency(.9f);
+        assertSearchHits(request.get(), "1");
+
+        // But if we turn on switchCommonTermToOr then it finds them
+        qs.switchCommonTermsToOr(true);
+        assertSearchHits(request.get(), "1", "2", "3");
+
+        // And they go away when you turn it back off
+        qs.switchCommonTermsToOr(false);
+        assertSearchHits(request.get(), "1");
+
+        // When common terms are explicitly added via + they required even if we switch to or
+        qs = queryString("+the quick brown fox").field("field1").field("field2")
+                .defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                .commonTermsCutoffFrequency(.9f).switchCommonTermsToOr(true);
+        request.setQuery(qs);
+        assertSearchHits(request.get(), "1");
+
+        // Same for AND
+        qs = queryString("quick AND the brown fox").field("field1").field("field2")
+                .defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                .commonTermsCutoffFrequency(.9f).switchCommonTermsToOr(true);
+        request.setQuery(qs);
+        assertSearchHits(request.get(), "1");
+
+        // Same for + even if the term is repeated elsewhere
+        qs = queryString("the quick brown fox +the").field("field1").field("field2")
+                .defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                .commonTermsCutoffFrequency(.9f).switchCommonTermsToOr(true);
+        request.setQuery(qs);
+        assertSearchHits(request.get(), "1");
+    }
 }

@@ -91,6 +91,10 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private String queryName;
 
+    private Float commonTermsCutoffFrequency;
+
+    private boolean switchCommonTermsToOr;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -309,6 +313,28 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
      */
     public QueryStringQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
+        return this;
+    }
+
+    /**
+     * Set the cutoff frequency for common terms.  If this is specified clusters of terms that aren't part of any special
+     * syntax are automatically converted to common terms queries rather than Boolean queries.  This shouldn't change which
+     * documents are found but can change the order in which they are returned slightly.
+     * @param commonTermsCutoffFrequency cutoff frequency for common term or null to clear the frequency
+     * @return this for chaining
+     */
+    public QueryStringQueryBuilder commonTermsCutoffFrequency(Float commonTermsCutoffFrequency) {
+        this.commonTermsCutoffFrequency = commonTermsCutoffFrequency;
+        return this;
+    }
+
+    /**
+     * Request that common terms be switch to OR.  This is only useful if your default query operator isn't already OR.
+     * @param commonTermsCutoffFrequency cutoff frequency for common term or null to clear the frequency
+     * @return this for chaining
+     */
+    public QueryStringQueryBuilder switchCommonTermsToOr(boolean switchCommonTermsToOr) {
+        this.switchCommonTermsToOr = switchCommonTermsToOr;
         return this;
     }
 

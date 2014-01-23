@@ -804,7 +804,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if ((srcDecision = maxNode.removeShard(shard)) != null) {
                                 minNode.addShard(shard, srcDecision);
                                 final float delta = weight.weight(operation, this, minNode, idx) - weight.weight(operation, this, maxNode, idx);
-                                if (delta < minCost) {
+                                if (delta < minCost ||
+                                        (candidate != null && delta == minCost && candidate.id() > shard.id())) {
+                                    /* this last line is a tie-breaker to make the shard allocation alg deterministic
+                                     * otherwise we rely on the iteration order of the index.getAllShards() which is a set.*/
                                     minCost = delta;
                                     candidate = shard;
                                     decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);

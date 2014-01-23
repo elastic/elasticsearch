@@ -169,7 +169,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregations.get(0);
-            grid.trimExcessEntries(reduceContext.cacheRecycler());
+            grid.reduceAndTrimBuckets(reduceContext.cacheRecycler());
             return grid;
         }
         InternalGeoHashGrid reduced = null;
@@ -230,16 +230,24 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
  
-    protected void trimExcessEntries(CacheRecycler cacheRecycler) {
-        int i = 0;
-        for (Iterator<Bucket> iter  = buckets.iterator(); iter.hasNext();) {
-            Bucket bucket = iter.next();
-            if (i++ >= requiredSize) {
-                iter.remove();
-            } else {
+    protected void reduceAndTrimBuckets(CacheRecycler cacheRecycler) {
+
+        if (requiredSize > buckets.size()) { // nothing to trim
+            for (Bucket bucket : buckets) {
                 bucket.aggregations.reduce(cacheRecycler);
             }
+            return;
         }
+
+        List<Bucket> trimmedBuckets = new ArrayList<Bucket>(requiredSize);
+        for (Bucket bucket : buckets) {
+            if (trimmedBuckets.size() >= requiredSize) {
+                break;
+            }
+            bucket.aggregations.reduce(cacheRecycler);
+            trimmedBuckets.add(bucket);
+        }
+        buckets = trimmedBuckets;
     }
 
     @Override

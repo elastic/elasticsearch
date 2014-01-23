@@ -7,24 +7,23 @@ replacement for the functionality we currently refer to as "faceting".
 
 <<search-facets, Facets>> provide a great way to aggregate data within a document set context.
 This context is defined by the executed query in combination with the different levels of filters that can be defined
-(filtered queries, top level filters, and facet level filters). While powerful, their implementation is not designed
+(filtered queries, top-level filters, and facet level filters). While powerful, their implementation is not designed
 from ground up to support complex aggregations and thus limited.
 
 .Are facets deprecated?
 **********************************
-As the functionality facets offer is a subset of the the one offered by aggregations, over time, we would like to
+As the functionality facets offer is a subset of the one offered by aggregations, over time, we would like to
 see users move to aggregations for all realtime data analytics. That said, we are well aware that such
 transitions/migrations take time, and for this reason we are keeping the facets around for the time being.
-Nonetheless, facets are and should be considered deprecated and will likely be removed in one of the future major
-releases.
+Facets are not officially deprecated yet but are likely to be in the future.
 **********************************
 
 The aggregations module breaks the barriers the current facet implementation put in place. The new name ("Aggregations")
-also indicate the intention here - a generic yet extremely powerful framework for building aggregations - any types of
+also indicates the intention here - a generic yet extremely powerful framework for building aggregations - any types of
 aggregations.
 
 An aggregation can be seen as a _unit-of-work_ that builds analytic information over a set of documents. The context of
-the execution defines what this document set is (e.g. a top level aggregation executes within the context of the executed
+the execution defines what this document set is (e.g. a top-level aggregation executes within the context of the executed
 query/filters of the search request).
 
 There are many different types of aggregations, each with its own purpose and output. To better understand these types,
@@ -32,10 +31,10 @@ it is often easier to break them into two main families:
 
 _Bucketing_::
 				A family of aggregations that build buckets, where each bucket is associated with a _key_ and a document
-				criteria. When the aggregations is executed, the buckets criterias are evaluated on every document in
-				the context and when matches, the document is considered to "fall in" the relevant bucket. By the end of
-				the aggreagation process, we'll end up with a list of buckets - each one with a set of documents that
-				"belong" to it.
+				criterion. When the aggregation is executed, all the buckets criteria are evaluated on every document in
+				the context and when a criterion matches, the document is considered to "fall in" the relevant bucket.
+				By the end of the aggregation process, we'll end up with a list of buckets - each one with a set of
+				documents that "belong" to it.
 
 _Metric_::
 				Aggregations that keep track and compute metrics over a set of documents  
@@ -45,7 +44,7 @@ the bucket), one can potentially associated aggregations on the bucket level, an
 of that bucket. This is where the real power of aggregations kicks in: *aggregations can be nested!*
 
 NOTE:	Bucketing aggregations can have sub-aggregations (bucketing or metric). The sub aggregations will be computed for 
-		each of the buckets their parent aggregation generates. There is not hard limit on the level/depth of nested
+		the buckets their parent aggregation generates. There is not hard limit on the level/depth of nested
 		aggregations (one can nest an aggregation under a "parent" aggregation which is itself a sub-aggregation of
 		another higher aggregations)
 
@@ -67,23 +66,23 @@ The following snippet captures the basic structure of aggregations:
 }
 --------------------------------------------------
 
-The `aggregations` object (the key `aggs` can also be used) in the json holds the aggregations to be computed. Each aggregation
+The `aggregations` object (the key `aggs` can also be used) in the JSON holds the aggregations to be computed. Each aggregation
 is associated with a logical name that the user defines (e.g. if the aggregation computes the average price, then it'll
 make sense to name it `avg_price`). These logical names will also be used to uniquely identify the aggregations in the
 response. Each aggregation has a specific type (`<aggregation_type>` in the above snippet) and is typically the first
 key within the named aggregation body. Each type of aggregation define its own body, depending on the nature of the
-aggregation (eg. an `avg` aggregation on a specific field will define the field on which the avg will be calculated).
+aggregation (e.g. an `avg` aggregation on a specific field will define the field on which the average will be calculated).
 At the same level of the aggregation type definition, one can optionally define a set of additional aggregations,
 though this only makes sense if the aggregation you defined is of a bucketing nature. In this scenario, the
 sub-aggregations you define on the bucketing aggregation level will be computed for all the buckets built by the
 bucketing aggregation. For example, if the you define a set of aggregations under the `range` aggregation, the
-sub-aggregations will be computed for each of the range buckets that are defined.
+sub-aggregations will be computed for the range buckets that are defined.
 
 [float]
 ==== Values Source
 
 Some aggregations work on values extracted from the aggregated documents. Typically, the values will be extracted from
-a sepcific document field which is set under the `field` settings for the aggrations. It is also possible to define a
+a specific document field which is set using the `field` key for the aggregations. It is also possible to define a
 <<modules-scripting,`script`>> that will generate the values (per document).
 
 When both `field` and `script` settings are configured for the aggregation, the script will be treated as a
@@ -94,15 +93,15 @@ from the configured `field` and the `script` is used to apply a "transformation"
 ["NOTE",id="aggs-script-note"]
 ===============================
 When working with scripts, the `lang` and `params` settings can also be defined. The former defines the scripting
-language that is used (assuming the proper language is available in es either by default or as a plugin). The latter
+language that is used (assuming the proper language is available in Elasticsearch either by default or as a plugin). The latter
 enables defining all the "dynamic" expressions in the script as parameters, and by that keep the script itself static
-between calls (this will ensure the use of the cached compiled scripts in elasticsearch).
+between calls (this will ensure the use of the cached compiled scripts in Elasticsearch).
 ===============================
 
 Scripts can generate a single value or multiple values per documents. When generating multiple values, once can use the
-`script_values_sorted` settings to indicate whether these values are sorted or not. Internally, elasticsearch can
+`script_values_sorted` settings to indicate whether these values are sorted or not. Internally, Elasticsearch can
 perform optimizations when dealing with sorted values (for example, with the `min` aggregations, knowing the values are
-sorted, elasticsearch will skip the iterations over all the values and rely on the first value in the list to be the
+sorted, Elasticsearch will skip the iterations over all the values and rely on the first value in the list to be the
 minimum value among all other values associated with the same document).
 
 [float]
@@ -127,7 +126,7 @@ sets. In addition to the buckets themselves, the `bucket` aggregations also comp
 that "fell in" each bucket.
 
 Bucket aggregations, as opposed to `metrics` aggregations, can hold sub-aggregations. These sub aggregations will be
-aggregated for each of the buckets created by their "parent" bucket aggregation.
+aggregated for the buckets created by their "parent" bucket aggregation.
 
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
@@ -136,5 +135,3 @@ define fixed number of multiple buckets, and others dynamically create the bucke
 include::aggregations/metrics.asciidoc[]
 
 include::aggregations/bucket.asciidoc[]
-
-

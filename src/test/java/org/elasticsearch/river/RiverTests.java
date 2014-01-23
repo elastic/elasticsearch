@@ -21,6 +21,9 @@ package org.elasticsearch.river;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequestBuilder;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -28,11 +31,13 @@ import org.elasticsearch.river.dummy.DummyRiverModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.hamcrest.Matchers.equalTo;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -44,11 +49,41 @@ public class RiverTests extends ElasticsearchIntegrationTest {
     public void testMultipleRiversStart() throws Exception {
         int nbRivers = between(2,10);
         logger.info("-->  testing with {} rivers...", nbRivers);
-
+        Thread[] riverCreators = new Thread[nbRivers];
+        final CountDownLatch latch = new CountDownLatch(nbRivers);
+        final MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet();
         for (int i = 0; i < nbRivers; i++) {
             final String riverName = "dummy-river-test-" + i;
-            startAndCheckRiverIsStarted(riverName);
+            riverCreators[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        startRiver(riverName);
+                    } catch (Throwable t) {
+                        logger.warn("failed to register river {}", t, riverName);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            };
+            riverCreators[i].start();
+            multiGetRequestBuilder.add(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_status");
         }
+
+        latch.await();
+
+        logger.info("-->  checking that all rivers were created");
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                MultiGetResponse multiGetItemResponse = multiGetRequestBuilder.get();
+                for (MultiGetItemResponse getItemResponse : multiGetItemResponse) {
+                    if (getItemResponse.isFailed() || !getItemResponse.getResponse().isExists()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }, 5, TimeUnit.SECONDS), equalTo(true));
     }
 
     /**
@@ -99,11 +134,18 @@ public class RiverTests extends ElasticsearchIntegrationTest {
      * @param riverName Dummy river needed to be started
      */
     private void startAndCheckRiverIsStarted(final String riverName) throws InterruptedException {
+        startRiver(riverName);
+        checkRiverIsStarted(riverName);
+    }
+
+    private void startRiver(final String riverName) {
         logger.info("-->  starting river [{}]", riverName);
         IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
                 .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
         assertTrue(indexResponse.isCreated());
+    }
 
+    private void checkRiverIsStarted(final String riverName) throws InterruptedException {
         logger.info("-->  checking that river [{}] was created", riverName);
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {

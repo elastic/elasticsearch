@@ -102,7 +102,17 @@ The `gateway.s3.concurrent_streams` allow to throttle the number of streams (per
 
 ## S3 Repository
 
-The S3 repository is using S3 to store snapshot. The following settings are supported:
+The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
+
+    $ curl -XPUT 'http://localhost:9200/_snapshot/my_s3_repository' -d '{
+        "type": "s3",
+        "settings": {
+            "bucket": "my_backet_name",
+            "region": "us-west"
+        }
+    }'
+
+The following settings are supported:
 
 * `bucket`: The name of the bucket to be used for snapshots. (Mandatory)
 * `region`: The region where bucket is located. Defaults to US Standard
@@ -110,6 +120,16 @@ The S3 repository is using S3 to store snapshot. The following settings are supp
 * `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
+
+The S3 repositories are using the same credentials as the rest of the S3 services provided by this plugin (`discovery` and `gateway`). They can be configured the following way:
+
+    cloud:
+        aws:
+            access_key: AKVAIQBF2RECL7FJWGJQ
+            secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+
+
+Multiple S3 repositories can be created as long as they share the same credential.
 
 ## Testing
 

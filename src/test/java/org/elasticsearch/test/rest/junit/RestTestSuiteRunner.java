@@ -412,29 +412,35 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             notifier.fireTestIgnored(rootDescription.getChildren().get(0));
             return;
         }
-
-        notifier.addListener(new RestReproduceInfoPrinter());
-
-        //the test suite gets run on a separate thread as the randomized context is per thread
-        //once the randomized context is disposed it's not possible to create it again on the same thread
-        final Thread thread = new Thread() {
-            @Override
-            public void run() {
-                try {
-                    createRandomizedContext(getTestClass().getJavaClass(), runnerRandomness);
-                    RestTestSuiteRunner.super.run(notifier);
-                } finally {
-                    disposeRandomizedContext();
-                }
-            }
-        };
-
-        thread.start();
+        final RestReproduceInfoPrinter restReproduceInfoPrinter = new RestReproduceInfoPrinter();
+        notifier.addListener(restReproduceInfoPrinter);
         try {
-            thread.join();
-        } catch (InterruptedException e) {
-            notifier.fireTestFailure(new Failure(getDescription(),
-                    new RuntimeException("Interrupted while waiting for the suite runner? Weird.", e)));
+            //the test suite gets run on a separate thread as the randomized context is per thread
+            //once the randomized context is disposed it's not possible to create it again on the same thread
+            final Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        createRandomizedContext(getTestClass().getJavaClass(), runnerRandomness);
+                        RestTestSuiteRunner.super.run(notifier);
+                    } finally {
+                        disposeRandomizedContext();
+                    }
+                }
+            };
+
+            thread.start();
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                notifier.fireTestFailure(new Failure(getDescription(),
+                        new RuntimeException("Interrupted while waiting for the suite runner? Weird.", e)));
+            }
+        } finally {
+            // remove the listener once the suite is done otherwise it will print
+            // a bogus line if a subsequent test fails that is not a
+            // REST test. The RunNotifier is used across suites!
+            notifier.removeListener(restReproduceInfoPrinter);
         }
     }
 

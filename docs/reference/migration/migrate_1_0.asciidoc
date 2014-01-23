@@ -175,7 +175,7 @@ behaviour can be reenabled on an index-by-index basis with the setting:
 While the `search` API takes a top-level `query` parameter, the
 <<search-count,`count`>>, <<docs-delete-by-query,`delete-by-query`>> and
 <<search-validate,`validate-query`>> requests expected the whole body to be a
-query. These have been changed to all accept a top-level `query` parameter:
+query. These now _require_ a top-level `query` parameter:
 
 [source,json]
 ---------------

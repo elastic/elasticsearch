@@ -811,7 +811,7 @@ public class PercolatorService extends AbstractComponent {
 
         public ReduceResult(long count, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
             this.count = count;
-            this.matches = EMPTY;
+            this.matches = null;
             this.reducedFacets = reducedFacets;
             this.reducedAggregations = reducedAggregations;
         }

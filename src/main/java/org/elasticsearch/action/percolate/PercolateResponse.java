@@ -42,7 +42,7 @@ import java.util.*;
  */
 public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match>, ToXContent {
 
-    private static final Match[] EMPTY = new Match[0];
+    public static final Match[] EMPTY = new Match[0];
 
     private long tookInMillis;
     private Match[] matches;
@@ -60,10 +60,10 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         this.aggregations = aggregations;
     }
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis, Match[] matches) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
-        this.matches = EMPTY;
+        this.matches = matches;
     }
 
     PercolateResponse() {
@@ -116,7 +116,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         RestActions.buildBroadcastShardsHeader(builder, this);
 
         builder.field(Fields.TOTAL, count);
-        if (matches.length != 0) {
+        if (matches != null) {
             builder.startArray(Fields.MATCHES);
             boolean justIds = "ids".equals(params.param("percolate_format"));
             if (justIds) {

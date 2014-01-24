@@ -163,7 +163,14 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- Lucene spatial -->
+        <!-- needed for templating -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+            <version>0.8.13</version>
+            <optional>true</optional>
+        </dependency>
+       <!-- Lucene spatial -->
 
 
         <!-- START: dependencies that are shaded -->
@@ -496,6 +503,7 @@
                             <include>org.joda:joda-convert</include>
                             <include>io.netty:netty</include>
                             <include>com.ning:compress-lzf</include>
+                            <include>com.github.spullara.mustache.java:compiler</include>
                         </includes>
                     </artifactSet>
                     <relocations>

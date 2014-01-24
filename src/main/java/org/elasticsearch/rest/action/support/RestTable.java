@@ -233,6 +233,10 @@ public class RestTable {
                 return Long.toString(v.mb());
             } else if ("g".equals(resolution)) {
                 return Long.toString(v.gb());
+            } else if ("t".equals(resolution)) {
+                return Long.toString(v.tb());
+            } else if ("p".equals(resolution)) {
+                return Long.toString(v.pb());
             } else {
                 return v.toString();
             }
@@ -248,6 +252,10 @@ public class RestTable {
                 return Long.toString(v.mega());
             } else if ("g".equals(resolution)) {
                 return Long.toString(v.giga());
+            } else if ("t".equals(resolution)) {
+                return Long.toString(v.tera());
+            } else if ("p".equals(resolution)) {
+                return Long.toString(v.peta());
             } else {
                 return v.toString();
             }

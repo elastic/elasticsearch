@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;

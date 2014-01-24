@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;

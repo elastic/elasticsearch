@@ -26,7 +26,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;

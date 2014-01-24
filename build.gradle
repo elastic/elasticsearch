@@ -100,4 +100,11 @@ task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
 
 task distZips(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {}
 
+artifacts {
+	archives distZipHadoop1
+	archives distZipHadoop2
+	archives distZipNoHadoop
+}
+
+
 assemble.dependsOn = ['jar']

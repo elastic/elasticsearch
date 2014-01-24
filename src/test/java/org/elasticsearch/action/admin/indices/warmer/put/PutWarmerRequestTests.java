@@ -18,43 +18,14 @@
  */
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PutWarmerRequestTests extends ElasticsearchTestCase {
-
-    @Test
-    public void testPutWarmerTimeout() throws Exception {
-        PutWarmerRequest outRequest = new PutWarmerRequest("warmer1");
-        outRequest.timeout(TimeValue.timeValueMillis(1000));
-
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(Version.V_0_90_6);
-        outRequest.writeTo(out);
-
-        ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        esBuffer.setVersion(Version.V_0_90_6);
-        PutWarmerRequest inRequest = new PutWarmerRequest();
-        inRequest.readFrom(esBuffer);
-
-        assertThat(inRequest.name(), equalTo("warmer1"));
-        //timeout is default as we don't read it from the received buffer
-        assertThat(inRequest.timeout().millis(), equalTo(outRequest.timeout().millis()));
-    }
 
     @Test // issue 4196
     public void testThatValidationWithoutSpecifyingSearchRequestFails() {

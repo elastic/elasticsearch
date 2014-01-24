@@ -144,7 +144,7 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
-            int shardCount = -1;
+            int shardCount = 0;
             if (allocs.containsKey(node.id())) {
                 shardCount = allocs.lget();
             }
@@ -158,7 +158,7 @@ public class RestAllocationAction extends AbstractCatAction {
             }
 
             table.startRow();
-            table.addCell(shardCount < 0 ? null : shardCount);
+            table.addCell(shardCount);
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
             table.addCell(avail < 0 ? null : new ByteSizeValue(avail));
             table.addCell(nodeStats.getFs().getTotal().getTotal());

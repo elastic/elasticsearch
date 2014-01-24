@@ -1,0 +1,12 @@
+{
+    "child":{
+        "properties":{
+            "field":{
+                "type":"string"
+            }
+        },
+        "_parent" : {
+          "type" : "person"
+        }
+    }
+}

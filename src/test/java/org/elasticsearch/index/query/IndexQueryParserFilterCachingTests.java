@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -47,12 +48,14 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.search.child.TestSearchContext;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -109,6 +112,8 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
+        String childMapping = copyToStringFromClasspath("/org/elasticsearch/index/query/child-mapping.json");
+        injector.getInstance(MapperService.class).merge("child", new CompressedString(childMapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
@@ -152,6 +157,26 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
         parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child.json");
+            parsedQuery = queryParser.parse(query).query();
+            assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+            assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(NoCacheFilter.class));
+
+            query = copyToStringFromClasspath("/org/elasticsearch/index/query/and-filter-cache.json");
+            parsedQuery = queryParser.parse(query).query();
+            assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+            assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+
+            query = copyToStringFromClasspath("/org/elasticsearch/index/query/has-child-in-and-filter-cached.json");
+            parsedQuery = queryParser.parse(query).query();
+            assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+            assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(AndFilter.class));
+        } finally {
+            SearchContext.removeCurrent();
+        }
     }
 
 }

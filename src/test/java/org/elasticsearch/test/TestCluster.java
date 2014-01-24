@@ -26,6 +26,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
@@ -107,6 +108,7 @@ public final class TestCluster implements Iterable<Client> {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
+    private static final String CLUSTER_NAME_KEY = "cluster.name";
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
@@ -198,23 +200,26 @@ public final class TestCluster implements Iterable<Client> {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed, clusterName));
+                .put(getRandomNodeSettings(nodeSeed));
         Settings settings = nodeSettingsSource.settings(nodeOrdinal);
         if (settings != null) {
+            if (settings.get(CLUSTER_NAME_KEY) != null) {
+                throw new ElasticsearchIllegalStateException("Tests must not set a '"+CLUSTER_NAME_KEY+"' as a node setting set '" + CLUSTER_NAME_KEY + "': [" + settings.get(CLUSTER_NAME_KEY) + "]");
+            }
             builder.put(settings);
         }
         if (others != null) {
             builder.put(others);
         }
+        builder.put(CLUSTER_NAME_KEY, clusterName);
         return builder.build();
     }
 
-    private static Settings getRandomNodeSettings(long seed, String clusterName) {
+    private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = ImmutableSettings.settingsBuilder()
         /* use RAM directories in 10% of the runs */
-        //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
-                .put("cluster.name", clusterName)
+                //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                         // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                         // default to non gateway
@@ -611,7 +616,7 @@ public final class TestCluster implements Iterable<Client> {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + node.settings().get("name"))
-                    .put("cluster.name", clusterName).put("client.transport.sniff", sniff).build());
+                    .put(CLUSTER_NAME_KEY, clusterName).put("client.transport.sniff", sniff).build());
             client.addTransportAddress(addr);
             return client;
         }

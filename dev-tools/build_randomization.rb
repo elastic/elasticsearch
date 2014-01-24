@@ -98,11 +98,8 @@ def generate_property_file(directory, data)
   end
 end
 
-
-if(ENV['WORKSPACE'])
-  #jenkin mode
-  working_directory = ENV['WORKSPACE']
-else
+working_directory = ENV['WORKSPACE'] || '/var/tmp'
+unless(ENV['BUILD_ID'])
   #local mode set up fake environment 
   test_directory = 'tools/hudson.model.JDK/'
   unless(File.exist?(test_directory))

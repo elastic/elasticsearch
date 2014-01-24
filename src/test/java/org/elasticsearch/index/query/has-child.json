@@ -1,0 +1,13 @@
+{
+  "filtered":{
+    "filter":{
+      "has_child" : {
+        "type" : "child",
+        "query" : {
+          "match_all" : {}
+        },
+        "_cache" : true
+      }
+    }
+  }
+}

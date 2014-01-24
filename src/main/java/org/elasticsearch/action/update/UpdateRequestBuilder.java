@@ -86,6 +86,10 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * The language of the script to execute.
+     * Valid options are: mvel, js, groovy, python, and native (Java)<br>
+     * Default: mvel
+     * <p>
+     * ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
      */
     public UpdateRequestBuilder setScriptLang(String scriptLang) {
         request.scriptLang(scriptLang);

@@ -1,12 +1,103 @@
-description = 'Elasticsearch Hadoop HDFS Repository'
+description = 'Elasticsearch HDFS Repository'
+
+configurations {
+	hadoop1
+	hadoop2
+}
 
 dependencies {
-	provided(hadoopCore)
+	//provided(hadoopClient)
+	provided("org.apache.hadoop:hadoop-core:$hadoop12Version")
 	provided("org.elasticsearch:elasticsearch:$esVersion")
 	testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
 	testCompile "org.apache.lucene:lucene-test-framework:4.6.0"
+	
+	hadoop1("org.apache.hadoop:hadoop-core:$hadoop12Version") {
+		exclude module: "commons-cli"
+		exclude group: "com.sun.jersey"
+		exclude group: "org.mortbay.jetty"
+		exclude group: "tomcat"
+		exclude module: "commons-el"
+		exclude module: "hsqldb"
+		exclude group: "org.eclipse.jdt"
+		exclude module: "commons-beanutils"
+	}
+
+	hadoop2("org.apache.hadoop:hadoop-client:$hadoop2Version") {
+		exclude module: "commons-cli"
+		exclude group: "com.sun.jersey"
+		exclude group: "com.sun.jersey.contribs"
+		exclude group: "com.sun.jersey.jersey-test-framework"
+		exclude module: "guice"
+		exclude group: "org.mortbay.jetty"
+		exclude group: "tomcat"
+		exclude module: "commons-el"
+		exclude module: "hsqldb"
+		exclude group: "org.eclipse.jdt"
+		exclude module: "commons-beanutils"
+		exclude module: "javax.servlet"
+	}
 }
+
 
 jar {
 	manifest.attributes['Implementation-Title'] = 'elasticsearch-hadoop-hdfs-repository'
 }
+
+task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
+    group = "Distribution"
+    description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
+	
+	from("../") {
+        include "LICENSE.txt"
+        include "NOTICE.txt"
+        //expand(yyyy: new Date().format("yyyy"), version: project.version)
+    }
+	from (".") {
+		include "README.md"
+	}
+	from jar.archivePath
+	from configurations.hadoop1.allArtifacts.files
+	from configurations.hadoop1
+	into archiveName
+}
+
+task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
+    group = "Distribution"
+    description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
+	classifier = "yarn"
+
+    from("../") {
+        include "LICENSE.txt"
+        include "NOTICE.txt"
+        //expand(yyyy: new Date().format("yyyy"), version: project.version)
+    }
+	from (".") {
+		include "README.md"
+	}
+	from jar.archivePath
+	from configurations.hadoop2.allArtifacts.files
+	from configurations.hadoop2
+	into archiveName
+}
+
+task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
+    group = "Distribution"
+    description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
+	classifier = "light"
+
+    from("../") {
+        include "LICENSE.txt"
+        include "NOTICE.txt"
+        //expand(yyyy: new Date().format("yyyy"), version: project.version)
+    }
+	from (".") {
+		include "README.md"
+	}
+	from jar.archivePath
+	into archiveName
+}
+
+task distZips(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {}
+
+assemble.dependsOn = ['jar']

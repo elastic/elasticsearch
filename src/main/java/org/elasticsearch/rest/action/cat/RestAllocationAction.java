@@ -153,7 +153,7 @@ public class RestAllocationAction extends AbstractCatAction {
             long avail = nodeStats.getFs().getTotal().getAvailable().bytes();
 
             short diskPercent = -1;
-            if (used >= 0 && avail > 0) {
+            if (used >= 0 && avail >= 0) {
                 diskPercent = (short) (used * 100 / (used + avail));
             }
 

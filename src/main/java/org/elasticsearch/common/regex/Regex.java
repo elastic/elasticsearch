@@ -71,6 +71,9 @@ public class Regex {
             int nextIndex = pattern.indexOf('*', firstIndex + 1);
             if (nextIndex == -1) {
                 return str.endsWith(pattern.substring(1));
+            } else if (nextIndex == 1) {
+                // Double wildcard "**" - skipping the first "*"
+                return simpleMatch(pattern.substring(1), str);
             }
             String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);

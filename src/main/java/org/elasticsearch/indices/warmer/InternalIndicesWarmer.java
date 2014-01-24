@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.warmer;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -86,8 +88,20 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
+        final List<IndicesWarmer.Listener.TerminationHandle> terminationHandles = Lists.newArrayList();
+        // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            listener.warm(indexShard, indexMetaData, context, threadPool);
+            terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
+        }
+        // wait for termination
+        for (IndicesWarmer.Listener.TerminationHandle terminationHandle : terminationHandles) {
+            try {
+                terminationHandle.awaitTermination();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Warming has been interrupted", e);
+                break;
+            }
         }
         long took = System.nanoTime() - time;
         indexShard.warmerService().onPostWarm(took);

@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.gateway.snapshot;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -54,9 +54,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(Strings.splitStringByCommaToArray(request.param("index")));
         gatewaySnapshotRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            gatewaySnapshotRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        gatewaySnapshotRequest.indicesOptions(IndicesOptions.fromRequest(request, gatewaySnapshotRequest.indicesOptions()));
         client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override
             public void onResponse(GatewaySnapshotResponse response) {

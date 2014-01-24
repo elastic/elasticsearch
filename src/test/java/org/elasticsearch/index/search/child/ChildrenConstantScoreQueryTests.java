@@ -328,11 +328,12 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
+        final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
+        idCache.setIndexService(indexService);
+        // Id_cache is now registered as document type listener, so we can add mappings.
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
-        final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
-        idCache.setIndexService(indexService);
 
         ThreadPool threadPool = new ThreadPool();
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);

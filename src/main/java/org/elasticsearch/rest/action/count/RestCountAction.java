@@ -22,11 +22,11 @@ package org.elasticsearch.rest.action.count;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,9 +61,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        if (request.hasParam("ignore_indices")) {
-            countRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
@@ -73,15 +71,15 @@ public class RestCountAction extends BaseRestHandler {
             }
             countRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                countRequest.query(request.content(), request.contentUnsafe());
+                countRequest.source(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    countRequest.query(source);
+                    countRequest.source(source);
                 } else {
-                    BytesReference querySource = RestActions.parseQuerySource(request);
-                    if (querySource != null) {
-                        countRequest.query(querySource, false);
+                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                    if (querySourceBuilder != null) {
+                        countRequest.source(querySourceBuilder);
                     }
                 }
             }

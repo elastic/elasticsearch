@@ -37,7 +37,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -49,10 +49,12 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -225,7 +227,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
                         .persistentSettings().getAsMap().size(), equalTo(0));
                 assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                        .persistentSettings().getAsMap().size(), equalTo(0));
+                        .transientSettings().getAsMap().size(), equalTo(0));
             
             }
             wipeIndices(); // wipe after to make sure we fail in the test that
@@ -267,13 +269,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             client().admin().indices().preparePutTemplate("random_index_template")
             .setTemplate("*")
             .setOrder(0)
-            .setSettings(setRandomMergePolicy(getRandom(), ImmutableSettings.builder()
-                    .put(INDEX_SEED_SETTING, getRandom().nextLong())))
+            .setSettings(setRandomNormsLoading(setRandomMergePolicy(getRandom(), ImmutableSettings.builder())
+                    .put(INDEX_SEED_SETTING, randomLong())))
                     .execute().actionGet();
         }
     }
-    
-    
+
+    private static ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
+        if (randomBoolean()) {
+            builder.put(SearchService.NORMS_LOADING_KEY, randomFrom(Arrays.asList(Loading.EAGER, Loading.LAZY)));
+        }
+        return builder;
+    }
+
     private static ImmutableSettings.Builder setRandomMergePolicy(Random random, ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
@@ -642,11 +650,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 indexRequestBuilder.execute(new PayloadLatchedActionListener<IndexResponse, IndexRequestBuilder>(indexRequestBuilder, latch, errors));
                 if (rarely()) {
                     if (rarely()) {
-                        client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches)));
+                        client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenient()).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches)));
                     } else if (rarely()) {
-                        client().admin().indices().prepareFlush(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<FlushResponse>(newLatch(latches)));
+                        client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenient()).execute(new LatchedActionListener<FlushResponse>(newLatch(latches)));
                     } else if (rarely()) {
-                        client().admin().indices().prepareOptimize(indices).setIgnoreIndices(IgnoreIndices.MISSING).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches)));
+                        client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenient()).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches)));
                     }
                 }
             }
@@ -657,11 +665,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 indexRequestBuilder.execute().actionGet();
                 if (rarely()) {
                     if (rarely()) {
-                        client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches)));
+                        client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenient()).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches)));
                     } else if (rarely()) {
-                        client().admin().indices().prepareFlush(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<FlushResponse>(newLatch(latches)));
+                        client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenient()).execute(new LatchedActionListener<FlushResponse>(newLatch(latches)));
                     } else if (rarely()) {
-                        client().admin().indices().prepareOptimize(indices).setIgnoreIndices(IgnoreIndices.MISSING).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches)));
+                        client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenient()).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches)));
                     }
                 }
             }
@@ -687,7 +695,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         assertThat(actualErrors, emptyIterable());
         if (forceRefresh) {
-            assertNoFailures(client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
+            assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenient()).execute().get());
         }
     }
 
@@ -878,6 +886,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
         return perTestRatio;
+    }
+
+    /**
+     * Returns a random numeric field data format from the choices of "array",
+     * "compressed", or "doc_values".
+     */
+    public static String randomNumericFieldDataFormat() {
+        return randomFrom(Arrays.asList("array", "compressed", "doc_values"));
+    }
+
+    /**
+     * Returns a random bytes field data format from the choices of
+     * "paged_bytes", "fst", or "doc_values".
+     */
+    public static String randomBytesFieldDataFormat() {
+        return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
     }
 
 }

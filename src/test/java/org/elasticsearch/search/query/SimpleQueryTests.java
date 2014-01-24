@@ -58,6 +58,37 @@ import static org.hamcrest.Matchers.*;
 
 public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
+    @Test
+    public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
+                        .startObject("_all").field("omit_norms", true).endObject()
+                        .endObject().endObject()));
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
+
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("_all", "quick")).get(), 3l);
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).get();
+        SearchHit[] hits = searchResponse.getHits().hits();
+        assertThat(hits.length, equalTo(3));
+        assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));
+        wipeIndices("test");
+
+        assertAcked(client().admin().indices().prepareCreate("test"));
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
+
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("_all", "quick")).get(), 3l);
+        searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).get();
+        hits = searchResponse.getHits().hits();
+        assertThat(hits.length, equalTo(3));
+        assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
+
+    }
+
+
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
         assertAcked(prepareCreate("test").setSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1)));
@@ -1923,5 +1954,60 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
+    }
+
+    @Test
+    public void testSimpleQueryStringFlags() {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("body", "foo").get();
+        client().prepareIndex("test", "type1", "2").setSource("body", "bar").get();
+        client().prepareIndex("test", "type1", "3").setSource("body", "foo bar").get();
+        client().prepareIndex("test", "type1", "4").setSource("body", "quux baz eggplant").get();
+        client().prepareIndex("test", "type1", "5").setSource("body", "quux baz spaghetti").get();
+        client().prepareIndex("test", "type1", "6").setSource("otherbody", "spaghetti").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo | bar")
+                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .flags(SimpleQueryStringFlag.OR)).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo | bar")
+                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .flags(SimpleQueryStringFlag.NONE)).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("baz | egg*")
+                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .flags(SimpleQueryStringFlag.NONE)).get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch().setSource("{\n" +
+                "  \"query\": {\n" +
+                "    \"simple_query_string\": {\n" +
+                "      \"query\": \"foo|bar\",\n" +
+                "      \"default_operator\": \"AND\"," +
+                "      \"flags\": \"NONE\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}").get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("baz | egg*")
+                        .defaultOperator(SimpleQueryStringBuilder.Operator.AND)
+                        .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("4"));
     }
 }

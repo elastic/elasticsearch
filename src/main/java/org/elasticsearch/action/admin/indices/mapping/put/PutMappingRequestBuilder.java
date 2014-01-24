@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -38,6 +39,16 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     public PutMappingRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
         return this;
     }
 

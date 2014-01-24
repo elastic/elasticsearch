@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -121,6 +122,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         String aliasOrIndex = request.index();
         request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
         request.index(metaData.concreteIndex(request.index()));
+
+        // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
+        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
+            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        }
         return true;
     }
 

@@ -24,9 +24,8 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.explain.ExplainSourceBuilder;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -89,9 +88,9 @@ public class RestExplainAction extends BaseRestHandler {
                 }
             }
 
-            ExplainSourceBuilder explainSourceBuilder = new ExplainSourceBuilder();
-            explainSourceBuilder.setQuery(queryStringBuilder);
-            explainRequest.source(explainSourceBuilder);
+            QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+            querySourceBuilder.setQuery(queryStringBuilder);
+            explainRequest.source(querySourceBuilder);
         }
 
         String sField = request.param("fields");

@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -78,7 +79,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
                 .build(new Mapper.BuilderContext(null, new ContentPath(1)));
 
         // create index and fielddata service
-        ifdService = new IndexFieldDataService(new Index("test"));
+        ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
         writer = new IndexWriter(new RAMDirectory(),
                 new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
 

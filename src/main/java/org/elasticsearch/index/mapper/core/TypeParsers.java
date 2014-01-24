@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
@@ -67,8 +68,8 @@ public class TypeParsers {
 
     public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         for (Map.Entry<String, Object> entry : fieldNode.entrySet()) {
-            String propName = Strings.toUnderscoreCase(entry.getKey());
-            Object propNode = entry.getValue();
+            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final Object propNode = entry.getValue();
             if (propName.equals("index_name")) {
                 builder.indexName(propNode.toString());
             } else if (propName.equals("store")) {
@@ -93,6 +94,17 @@ public class TypeParsers {
                 builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
+            } else if (propName.equals("norms")) {
+                final Map<String, Object> properties = nodeMapValue(propNode, "norms");
+                for (Map.Entry<String, Object> entry2 : properties.entrySet()) {
+                    final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
+                    final Object propNode2 = entry2.getValue();
+                    if (propName2.equals("enabled")) {
+                        builder.omitNorms(!nodeBooleanValue(propNode2));
+                    } else if (propName2.equals(Loading.KEY)) {
+                        builder.normsLoading(Loading.parse(nodeStringValue(propNode2, null), null));
+                    }
+                }
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 // deprecated option for BW compat
                 builder.indexOptions(nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
@@ -128,12 +140,7 @@ public class TypeParsers {
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             } else if (propName.equals("fielddata")) {
-                final Settings settings;
-                if (propNode instanceof Map){
-                    settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap((Map<String, Object>)propNode)).build();
-                } else {
-                    throw new ElasticSearchParseException("fielddata should be a hash but was of type: " + propNode.getClass());
-                }
+                final Settings settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();
                 builder.fieldDataSettings(settings);
             }
         }

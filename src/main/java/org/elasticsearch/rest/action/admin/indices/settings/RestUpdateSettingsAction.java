@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +54,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.listenerThreaded(false);
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
         String bodySettingsStr = request.content().toUtf8();

@@ -71,6 +71,11 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                         termVectorRequest.type(), termVectorRequest.id(), "[" + termVectorRequest.index() + "] missing")));
                 continue;
             }
+            if (termVectorRequest.routing() == null && clusterState.getMetaData().routingRequired(termVectorRequest.index(), termVectorRequest.type())) {
+                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(),
+                        termVectorRequest.type(), termVectorRequest.id(), "routing is required, but hasn't been specified")));
+                continue;
+            }
             termVectorRequest.index(clusterState.metaData().concreteIndex(termVectorRequest.index()));
             ShardId shardId = clusterService
                     .operationRouting()

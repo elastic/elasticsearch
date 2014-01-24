@@ -51,7 +51,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
-        CountResponse countResponse = client().prepareCount().setQuery(new BytesArray("{ \"term\" : { \"field1\" : \"value1_1\" }}").array()).get();
+        CountResponse countResponse = client().prepareCount().setSource(new BytesArray("{ \"query\" : { \"term\" : { \"field1\" : \"value1_1\" }}}").array()).get();
         assertHitCount(countResponse, 1l);
     }
 
@@ -103,7 +103,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         countResponse = client().prepareCount().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(new BytesArray("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").array()).get();
+        countResponse = client().prepareCount().setSource(new BytesArray("{ \"query\" : { \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } } }").array()).get();
         assertHitCount(countResponse, 1l);
 
         // Default

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -74,9 +74,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
-        if (restRequest.hasParam("ignore_indices")) {
-            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
-        }
+        percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 
@@ -103,9 +101,7 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.routing(restRequest.param("percolate_routing"));
         percolateRequest.preference(restRequest.param("percolate_preference"));
 
-        if (restRequest.hasParam("ignore_indices")) {
-            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
-        }
+        percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 

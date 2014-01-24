@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -59,10 +59,10 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
     }
 
     /**
-     * @param ignoreIndices Specifies how to resolve indices that aren't active / ready
+     * @param indicesOptions Specifies how to resolve indices that aren't active / ready and indices wildcard expressions
      */
-    public TypesExistsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public TypesExistsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

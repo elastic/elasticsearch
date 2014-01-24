@@ -35,21 +35,27 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
  */
 public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArrayAtomicFieldData> implements IndexNumericFieldData<DoubleArrayAtomicFieldData> {
 
+    private final CircuitBreakerService breakerService;
+
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
-            return new DoubleArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                                       CircuitBreakerService breakerService) {
+            return new DoubleArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
 
-    public DoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public DoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+                                     FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
+        this.breakerService = breakerService;
     }
 
     @Override
@@ -69,8 +75,13 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
 
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
+        DoubleArrayAtomicFieldData data = null;
+        // TODO: Use an actual estimator to estimate before loading.
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            return DoubleArrayAtomicFieldData.empty(reader.maxDoc());
+            data = DoubleArrayAtomicFieldData.empty(reader.maxDoc());
+            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigDoubleArrayList values = new BigDoubleArrayList();
@@ -78,6 +89,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         values.add(0); // first "t" indicates null value
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio);
+        boolean success = false;
         try {
             final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
@@ -89,12 +101,14 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
-                // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+                // there's sweet spot where due to low unique value count, using ordinals will consume less memory
                 long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
                 long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    return new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                    data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                    success = true;
+                    return data;
                 }
 
                 int maxDoc = reader.maxDoc();
@@ -104,17 +118,19 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
-                    return new DoubleArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
+                    data = new DoubleArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
                 } else {
-                    return new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
+                    data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
                 }
             } else {
-                return new DoubleArrayAtomicFieldData.WithOrdinals(
-                        values,
-                        reader.maxDoc(),
-                        build);
+                data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
             }
+            success = true;
+            return data;
         } finally {
+            if (success) {
+                estimator.afterLoad(null, data.getMemorySizeInBytes());
+            }
             builder.close();
         }
 

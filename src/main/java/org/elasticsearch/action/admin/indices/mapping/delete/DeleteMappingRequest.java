@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingRequest> {
 
     private String[] indices;
-
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
     private String type;
 
     DeleteMappingRequest() {
@@ -73,6 +74,15 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
         return indices;
     }
 
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public DeleteMappingRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
     /**
      * The mapping type.
      */
@@ -95,6 +105,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readString();
         }
+        indicesOptions =  IndicesOptions.readIndicesOptions(in);
         if (in.readBoolean()) {
             type = in.readString();
         }
@@ -112,6 +123,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
                 out.writeString(index);
             }
         }
+        indicesOptions.writeIndicesOptions(out);
         if (type == null) {
             out.writeBoolean(false);
         } else {

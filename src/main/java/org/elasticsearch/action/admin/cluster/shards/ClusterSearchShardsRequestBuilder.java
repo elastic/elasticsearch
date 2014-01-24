@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
@@ -77,10 +77,11 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeOperationReques
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal indices wildcard expressions.
+     * For example indices that don't exist.
      */
-    public ClusterSearchShardsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+    public ClusterSearchShardsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
         return this;
     }
 

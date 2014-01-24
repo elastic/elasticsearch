@@ -90,6 +90,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
+     * Sets the type of document to get the term vector for.
+     */
+    public TermVectorRequest type(String type) {
+        this.type = type;
+        return this;
+    }
+
+    /**
      * Returns the type of document to get the term vector for.
      */
     public String type() {
@@ -106,8 +114,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     /**
      * Sets the id of document the term vector is requested for.
      */
-    public void id(String id) {
+    public TermVectorRequest id(String id) {
         this.id = id;
+        return this;
     }
 
     /**
@@ -117,8 +126,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return routing;
     }
 
-    public void routing(String routing) {
+    public TermVectorRequest routing(String routing) {
         this.routing = routing;
+        return this;
     }
 
     /**

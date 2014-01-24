@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -117,7 +118,12 @@ public class FetchPhase implements SearchPhase {
                     continue;
                 }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
-                if (x != null && x.mapper().fieldType().stored()) {
+                if (x == null) {
+                    // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                    if (context.smartNameObjectMapper(fieldName) != null) {
+                        throw new ElasticSearchIllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                    }
+                } else if (x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {
                         fieldNames = new HashSet<String>();
                     }
@@ -180,8 +186,8 @@ public class FetchPhase implements SearchPhase {
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
-                    Object value = context.lookup().source().extractValue(extractFieldName);
-                    if (value != null) {
+                    List<Object> values = context.lookup().source().extractRawValues(extractFieldName);
+                    if (!values.isEmpty()) {
                         if (searchHit.fieldsOrNull() == null) {
                             searchHit.fields(new HashMap<String, SearchHitField>(2));
                         }
@@ -191,7 +197,9 @@ public class FetchPhase implements SearchPhase {
                             hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
                             searchHit.fields().put(extractFieldName, hitField);
                         }
-                        hitField.values().add(value);
+                        for (Object value : values) {
+                            hitField.values().add(value);
+                        }
                     }
                 }
             }

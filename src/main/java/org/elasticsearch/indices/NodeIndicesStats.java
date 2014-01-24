@@ -19,7 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +31,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -39,11 +44,15 @@ import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -51,12 +60,24 @@ import java.io.Serializable;
 public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
 
     private CommonStats stats;
+    private Map<Index, List<IndexShardStats>> statsByShard;
 
     NodeIndicesStats() {
     }
 
-    public NodeIndicesStats(CommonStats stats) {
-        this.stats = stats;
+    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard) {
+        //this.stats = stats;
+        this.statsByShard = statsByShard;
+
+        // make a total common stats from old ones and current ones
+        this.stats = oldStats;
+        for (List<IndexShardStats> shardStatsList : statsByShard.values()) {
+            for (IndexShardStats indexShardStats : shardStatsList) {
+                for (ShardStats shardStats : indexShardStats.getShards()) {
+                    stats.add(shardStats.getStats());
+                }
+            }
+        }
     }
 
     @Nullable
@@ -138,19 +159,93 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         stats = CommonStats.readCommonStats(in);
+        if (in.readBoolean()) {
+            int entries = in.readVInt();
+            statsByShard = Maps.newHashMap();
+            for (int i = 0; i < entries; i++) {
+                Index index = Index.readIndexName(in);
+                int indexShardListSize = in.readVInt();
+                List<IndexShardStats> indexShardStats = Lists.newArrayListWithCapacity(indexShardListSize);
+                for (int j = 0; j < indexShardListSize; j++) {
+                    indexShardStats.add(IndexShardStats.readIndexShardStats(in));
+                }
+                statsByShard.put(index, indexShardStats);
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
+        out.writeBoolean(statsByShard != null);
+        if (statsByShard != null) {
+            out.writeVInt(statsByShard.size());
+            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+                entry.getKey().writeTo(out);
+                out.writeVInt(entry.getValue().size());
+                for (IndexShardStats indexShardStats : entry.getValue()) {
+                    indexShardStats.writeTo(out);
+                }
+            }
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        String level = params.param("level", "node");
+        boolean isLevelValid = "node".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
+        if (!isLevelValid) {
+            return builder;
+        }
+
+        // "node" level
         builder.startObject(Fields.INDICES);
         stats.toXContent(builder, params);
+
+        if ("indices".equals(level)) {
+            Map<Index, CommonStats> indexStats = createStatsByIndex();
+            builder.startObject(Fields.INDICES);
+            for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
+                builder.startObject(entry.getKey().name());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+        } else if ("shards".equals(level)) {
+            builder.startObject("shards");
+            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+                builder.startArray(entry.getKey().name());
+                for (IndexShardStats indexShardStats : entry.getValue()) {
+                    builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
+                    for (ShardStats shardStats : indexShardStats.getShards()) {
+                        shardStats.toXContent(builder, params);
+                    }
+                    builder.endObject().endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+        }
+
         builder.endObject();
         return builder;
+    }
+
+    private Map<Index, CommonStats> createStatsByIndex() {
+        Map<Index, CommonStats> statsMap = Maps.newHashMap();
+        for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+            if (!statsMap.containsKey(entry.getKey())) {
+                statsMap.put(entry.getKey(), new CommonStats());
+            }
+
+            for (IndexShardStats indexShardStats : entry.getValue()) {
+                for (ShardStats shardStats : indexShardStats.getShards()) {
+                    statsMap.get(entry.getKey()).add(shardStats.getStats());
+                }
+            }
+        }
+
+        return statsMap;
     }
 
     static final class Fields {

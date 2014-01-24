@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,6 +109,8 @@ public interface IndexShard extends IndexShardComponent {
 
     CompletionStats completionStats(String... fields);
 
+    TranslogStats translogStats();
+
     PercolatorQueriesRegistry percolateRegistry();
 
     ShardPercolateService shardPercolateService();
@@ -134,7 +137,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void delete(Engine.Delete delete) throws ElasticSearchException;
 
-    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
 
     void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException;
 

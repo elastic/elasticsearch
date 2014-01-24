@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -50,11 +51,11 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = SUITE)
+@ClusterScope(scope = TEST)
 public class AckTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -467,6 +468,28 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,index=not_analyzed").setTimeout("0s").get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
+    public void testCreateIndexAcknowledgement() {
+        createIndex("test");
+
+        for (Client client : clients()) {
+            assertThat(getLocalClusterState(client).metaData().indices().containsKey("test"), equalTo(true));
+        }
+
+        //let's wait for green, otherwise there can be issues with after test checks (mock directory wrapper etc.)
+        //but we do want to check that the new index is on all nodes cluster state even before green
+        ensureGreen();
+    }
+
+    @Test
+    public void testCreateIndexNoAcknowledgement() {
+        CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate("test").setTimeout("0s").get();
+        assertThat(createIndexResponse.isAcknowledged(), equalTo(false));
+
+        //let's wait for green, otherwise there can be issues with after test checks (mock directory wrapper etc.)
+        ensureGreen();
     }
 
     private static ClusterState getLocalClusterState(Client client) {

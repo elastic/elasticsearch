@@ -2,12 +2,17 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.IOException;
 
 /**
  */
@@ -53,4 +58,41 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         }
     }
 
+    /**
+     * A {@code PerValueEstimator} is a sub-class that can be used to estimate
+     * the memory overhead for loading the data. Each field data
+     * implementation should implement its own {@code PerValueEstimator} if it
+     * intends to take advantage of the MemoryCircuitBreaker.
+     * <p/>
+     * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
+     * manually called.
+     */
+    public interface PerValueEstimator {
+
+        /**
+         * @return the number of bytes for the given term
+         */
+        public long bytesPerValue(BytesRef term);
+
+        /**
+         * Execute any pre-loading estimations for the terms. May also
+         * optionally wrap a {@link TermsEnum} in a
+         * {@link RamAccountingTermsEnum}
+         * which will estimate the memory on a per-term basis.
+         *
+         * @param terms terms to be estimated
+         * @return A TermsEnum for the given terms
+         * @throws IOException
+         */
+        public TermsEnum beforeLoad(Terms terms) throws IOException;
+
+        /**
+         * Possibly adjust a circuit breaker after field data has been loaded,
+         * now that the actual amount of memory used by the field data is known
+         *
+         * @param termsEnum  terms that were loaded
+         * @param actualUsed actual field data memory usage
+         */
+        public void afterLoad(TermsEnum termsEnum, long actualUsed);
+    }
 }

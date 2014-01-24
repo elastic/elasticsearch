@@ -55,6 +55,13 @@ more characters. An example mapping can be:
                 "store" : true,
                 "index" : "analyzed",
                 "null_value" : "na"
+            },
+            "user" : {
+                "type" : "string",
+                "index" : "not_analyzed",
+                "norms" : {
+                    "enabled" : false
+                }
             }
         }
     }
@@ -65,7 +72,10 @@ The above mapping defines a `string` `message` property/field within the
 `tweet` type. The field is stored in the index (so it can later be
 retrieved using selective loading when searching), and it gets analyzed
 (broken down into searchable terms). If the message has a `null` value,
-then the value that will be stored is `na`.
+then the value that will be stored is `na`. There is also a `string` `user`
+which is indexed as-is (not broken down into tokens) and has norms
+disabled (so that matching this field is a binary decision, no match is
+better than another one).
 
 The following table lists all the attributes that can be used with the
 `string` type:
@@ -100,9 +110,13 @@ Automatically set to `true` when the fielddata format is `doc_values`.
 `null_value` as the field value. Defaults to not adding the field at
 all.
 
-|`omit_norms` |Boolean value if norms should be omitted or not. Defaults
-to `false` for `analyzed` fields, and to `true` for `not_analyzed`
-fields.
+|`norms.enabled` |Boolean value if norms should be enabled or not. Defaults
+to `true` for `analyzed` fields, and to `false` for `not_analyzed` fields.
+
+|`norms.loading` |Describes how norms should be loaded, possible values are
+`eager` and `lazy` (default). It is possible to change the default value to
+eager for all fields by configuring the index setting `index.norms.loading`
+to `eager`.
 
 |`index_options` | Allows to set the indexing
 options, possible values are `docs` (only doc numbers are indexed),

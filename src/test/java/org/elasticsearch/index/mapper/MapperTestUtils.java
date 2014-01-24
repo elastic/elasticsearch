@@ -37,6 +37,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 
 /**
  *
@@ -58,7 +59,7 @@ public class MapperTestUtils {
     }
 
     public static MapperService newMapperService(Index index, Settings indexSettings) {
-        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index),
+        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, new DummyCircuitBreakerService()),
                 new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService());
     }
 

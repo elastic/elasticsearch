@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
@@ -75,6 +76,10 @@ import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlag
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
 
     public static final String DEFAULT_MAPPING = "_default_";
+    private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
+            "_uid", "_id", "_type", "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
+            "_size", "_timestamp", "_ttl"
+    );
 
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
@@ -295,7 +300,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 mapper.addObjectMapperListener(objectMapperListener, false);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
-                    typeListener.beforeCreate(mapper.type());
+                    typeListener.beforeCreate(mapper);
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
                 return mapper;
@@ -339,7 +344,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectAndFieldMappers(docMapper);
             for (DocumentTypeListener typeListener : typeListeners) {
-                typeListener.afterRemove(type);
+                typeListener.afterRemove(docMapper);
             }
         }
     }
@@ -839,6 +844,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         return null;
+    }
+
+    /**
+     * @return Whether a field is a metadata field.
+     */
+    public static boolean isMetadataField(String fieldName) {
+        return META_FIELDS.contains(fieldName);
     }
 
     public static class SmartNameObjectMapper {

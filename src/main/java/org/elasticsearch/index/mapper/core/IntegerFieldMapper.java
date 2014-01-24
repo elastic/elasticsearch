@@ -91,7 +91,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         public IntegerFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues,
-                    nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
+                    nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -120,10 +120,11 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed,
                                  PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                                 SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
+                                 Settings indexSettings) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed,
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

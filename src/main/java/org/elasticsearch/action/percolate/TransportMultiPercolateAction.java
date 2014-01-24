@@ -22,6 +22,7 @@ package org.elasticsearch.action.percolate;
 import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -162,12 +163,18 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 assert element != null;
                 if (element instanceof PercolateRequest) {
                     PercolateRequest percolateRequest = (PercolateRequest) element;
-                    String[] concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.ignoreIndices(), true);
+                    String[] concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.indicesOptions());
                     Map<String, Set<String>> routing = clusterState.metaData().resolveSearchRouting(percolateRequest.routing(), percolateRequest.indices());
                     // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
                     GroupShardsIterator shards = clusterService.operationRouting().searchShards(
-                            clusterState, percolateRequest.indices(), concreteIndices, routing, null
+                            clusterState, percolateRequest.indices(), concreteIndices, routing, percolateRequest.preference()
                     );
+                    if (shards.size() == 0) {
+                        reducedResponses.set(slot, new UnavailableShardsException(null, "No shards available"));
+                        responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
+                        expectedOperationsPerItem.set(slot, new AtomicInteger(0));
+                        continue;
+                    }
 
                     responsesByItemAndShard.set(slot, new AtomicReferenceArray(shards.size()));
                     expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));

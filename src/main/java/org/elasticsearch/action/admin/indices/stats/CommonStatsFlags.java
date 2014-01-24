@@ -34,7 +34,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     public final static CommonStatsFlags ALL = new CommonStatsFlags().all();
     public final static CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
-    private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Percolate);
+    private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
     private String[] types = null;
     private String[] groups = null;
     private String[] fieldDataFields = null;
@@ -227,7 +227,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Warmer("warmer"),
         Percolate("percolate"),
         Completion("completion"),
-        Segments("segments");
+        Segments("segments"),
+        Translog("translog");
 
         private final String restName;
 

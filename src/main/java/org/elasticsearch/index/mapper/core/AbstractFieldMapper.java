@@ -93,6 +93,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected PostingsFormatProvider postingsProvider;
         protected DocValuesFormatProvider docValuesProvider;
         protected SimilarityProvider similarity;
+        protected Loading normsLoading;
         @Nullable
         protected Settings fieldDataSettings;
 
@@ -117,24 +118,32 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public T storeTermVectors(boolean termVectors) {
-            this.fieldType.setStoreTermVectors(termVectors);
+            if (termVectors) {
+                this.fieldType.setStoreTermVectors(termVectors);
+            } // don't set it to false, it is default and might be flipped by a more specific option
             return builder;
         }
 
         public T storeTermVectorOffsets(boolean termVectorOffsets) {
-            this.fieldType.setStoreTermVectors(termVectorOffsets);
+            if (termVectorOffsets) {
+                this.fieldType.setStoreTermVectors(termVectorOffsets);
+            }
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
             return builder;
         }
 
         public T storeTermVectorPositions(boolean termVectorPositions) {
-            this.fieldType.setStoreTermVectors(termVectorPositions);
+            if (termVectorPositions) {
+                this.fieldType.setStoreTermVectors(termVectorPositions);
+            }
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
             return builder;
         }
 
         public T storeTermVectorPayloads(boolean termVectorPayloads) {
-            this.fieldType.setStoreTermVectors(termVectorPayloads);
+            if (termVectorPayloads) {
+                this.fieldType.setStoreTermVectors(termVectorPayloads);
+            }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
             return builder;
         }
@@ -196,6 +205,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return builder;
         }
 
+        public T normsLoading(Loading normsLoading) {
+            this.normsLoading = normsLoading;
+            return builder;
+        }
+
         public T fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
@@ -230,14 +244,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected PostingsFormatProvider postingsFormat;
     protected DocValuesFormatProvider docValuesFormat;
     protected final SimilarityProvider similarity;
-
+    protected Loading normsLoading;
     protected Settings customFieldDataSettings;
     protected FieldDataType fieldDataType;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
-                                  @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -263,6 +277,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this.postingsFormat = postingsFormat;
         this.docValuesFormat = docValuesFormat;
         this.similarity = similarity;
+        this.normsLoading = normsLoading;
 
         this.customFieldDataSettings = fieldDataSettings;
         if (fieldDataSettings == null) {
@@ -550,6 +565,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;
+            this.normsLoading = fieldMergeWith.normsLoading;
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
@@ -613,8 +629,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType));
         }
-        if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms()) {
-            builder.field("omit_norms", fieldType.omitNorms());
+        if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms() || normsLoading != null) {
+            builder.startObject("norms");
+            if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms()) {
+                builder.field("enabled", !fieldType.omitNorms());
+            }
+            if (normsLoading != null) {
+                builder.field(Loading.KEY, normsLoading);
+            }
+            builder.endObject();
         }
         if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions()) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
@@ -753,6 +776,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     public boolean hasDocValues() {
         return docValues;
+    }
+
+    @Override
+    public Loading normsLoading(Loading defaultLoading) {
+        return normsLoading == null ? defaultLoading : normsLoading;
     }
 
 }

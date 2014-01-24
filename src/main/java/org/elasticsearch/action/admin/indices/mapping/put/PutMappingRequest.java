@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,6 +57,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
     );
 
     private String[] indices;
+
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
     private String type;
 
@@ -99,6 +102,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
      */
     public String[] indices() {
         return indices;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public PutMappingRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     /**
@@ -243,6 +255,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
         readTimeout(in);
@@ -253,6 +266,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
+        indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
         writeTimeout(out);

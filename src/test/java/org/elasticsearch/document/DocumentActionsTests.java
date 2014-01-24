@@ -168,18 +168,23 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            countResponse = client().prepareCount("test")
+                    .setQuery(termQuery("_type", "type1"))
+                    .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)
+                    .get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            countResponse = client().prepareCount("test")
+                    .setQuery(termQuery("_type", "type1"))
+                    .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client().count(countRequest("test").query("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
+            countResponse = client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(0));

@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -106,7 +107,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -138,15 +139,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, ImmutableSettings.EMPTY);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                              boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
-                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings,
-                             Settings indexSettings) {
+                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
-                similarity, fieldDataSettings, indexSettings);
+                similarity, normsLoading, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -256,15 +257,26 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // if all are defaults, no need to write it at all
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        if (!includeDefaults && enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
-                fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
-                indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null) {
-            return builder;
+        if (!includeDefaults) {
+            // simulate the generation to make sure we don't add unnecessary content if all is default
+            // if all are defaults, no need to write it at all - generating is twice is ok though
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
+            XContentBuilder b =  new XContentBuilder(builder.contentType().xContent(), bytesStreamOutput);
+            long pos = bytesStreamOutput.position();
+            innerToXContent(b, false);
+            b.flush();
+            if (pos == bytesStreamOutput.position()) {
+                return builder;
+            }
         }
         builder.startObject(CONTENT_TYPE);
+        innerToXContent(builder, includeDefaults);
+        builder.endObject();
+        return builder;
+    }
+
+    private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
         if (includeDefaults || enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
@@ -275,7 +287,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", fieldType.storeTermVectors());
+            builder.field("store_term_vectors", fieldType.storeTermVectors());
         }
         if (includeDefaults || fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
             builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
@@ -285,6 +297,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
         if (includeDefaults || fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
             builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+        }
+        if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", fieldType.omitNorms());
         }
 
 
@@ -320,7 +335,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         } else if (includeDefaults) {
-            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {
@@ -328,10 +343,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
-
-        builder.endObject();
-        return builder;
     }
+
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {

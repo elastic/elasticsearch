@@ -46,13 +46,13 @@ public class RestTable {
 
     public static RestResponse buildXContentBuilder(Table table, RestRequest request, RestChannel channel) throws Exception {
         XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-        List<String> displayHeaders = buildDisplayHeaders(table, request);
+        List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
         builder.startArray();
         for (int row = 0; row < table.getRows().size(); row++) {
             builder.startObject();
-            for (String header : displayHeaders) {
-                builder.field(header, renderValue(request, table.getAsMap().get(header).get(row).value));
+            for (DisplayHeader header : displayHeaders) {
+                builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
             }
             builder.endObject();
 
@@ -63,27 +63,15 @@ public class RestTable {
 
     public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
         boolean verbose = request.paramAsBoolean("v", false);
-        boolean help = request.paramAsBoolean("h", false);
-        if (help) {
-            int[] width = buildHelpWidths(table, request, verbose);
-            StringBuilder out = new StringBuilder();
-            for (Table.Cell cell : table.getHeaders()) {
-                // need to do left-align always, so create new cells
-                pad(new Table.Cell(cell.value), width[0], request, out);
-                out.append(" ");
-                pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[1], request, out);
-                out.append("\n");
-            }
-            return new StringRestResponse(RestStatus.OK, out.toString());
-        }
 
-        List<String> headers = buildDisplayHeaders(table, request);
+        List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
 
         StringBuilder out = new StringBuilder();
         if (verbose) {
             for (int col = 0; col < headers.size(); col++) {
-                pad(table.findHeaderByName(headers.get(col)), width[col], request, out);
+                DisplayHeader header = headers.get(col);
+                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out);
                 out.append(" ");
             }
             out.append("\n");
@@ -91,8 +79,8 @@ public class RestTable {
 
         for (int row = 0; row < table.getRows().size(); row++) {
             for (int col = 0; col < headers.size(); col++) {
-                String header = headers.get(col);
-                pad(table.getAsMap().get(header).get(row), width[col], request, out);
+                DisplayHeader header = headers.get(col);
+                pad(table.getAsMap().get(header.name).get(row), width[col], request, out);
                 out.append(" ");
             }
             out.append("\n");
@@ -101,20 +89,32 @@ public class RestTable {
         return new StringRestResponse(RestStatus.OK, out.toString());
     }
 
-    private static List<String> buildDisplayHeaders(Table table, RestRequest request) {
+    private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
         String pHeaders = request.param("headers");
-        List<String> display = new ArrayList<String>();
+        List<DisplayHeader> display = new ArrayList<DisplayHeader>();
         if (pHeaders != null) {
             for (String possibility : Strings.splitStringByCommaToArray(pHeaders)) {
                 if (table.getAsMap().containsKey(possibility)) {
-                    display.add(possibility);
+                    display.add(new DisplayHeader(possibility, possibility));
+                } else {
+                    for (Table.Cell headerCell : table.getHeaders()) {
+                        String aliases = headerCell.attr.get("alias");
+                        if (aliases != null) {
+                            for (String alias : Strings.splitStringByCommaToArray(aliases)) {
+                                if (possibility.equals(alias)) {
+                                    display.add(new DisplayHeader(headerCell.value.toString(), alias));
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else {
             for (Table.Cell cell : table.getHeaders()) {
                 String d = cell.attr.get("default");
                 if (Booleans.parseBoolean(d, true)) {
-                    display.add(cell.value.toString());
+                    display.add(new DisplayHeader(cell.value.toString(), cell.value.toString()));
                 }
             }
         }
@@ -122,7 +122,7 @@ public class RestTable {
     }
 
     public static int[] buildHelpWidths(Table table, RestRequest request, boolean verbose) {
-        int[] width = new int[2];
+        int[] width = new int[3];
         for (Table.Cell cell : table.getHeaders()) {
             String v = renderValue(request, cell.value);
             int vWidth = v == null ? 0 : v.length();
@@ -130,23 +130,29 @@ public class RestTable {
                 width[0] = vWidth;
             }
 
-            v = renderValue(request, cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available");
+            v = renderValue(request, cell.attr.containsKey("alias") ? cell.attr.get("alias") : "");
             vWidth = v == null ? 0 : v.length();
             if (width[1] < vWidth) {
                 width[1] = vWidth;
+            }
+
+            v = renderValue(request, cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available");
+            vWidth = v == null ? 0 : v.length();
+            if (width[2] < vWidth) {
+                width[2] = vWidth;
             }
         }
         return width;
     }
 
-    private static int[] buildWidths(Table table, RestRequest request, boolean verbose, List<String> headers) {
+    private static int[] buildWidths(Table table, RestRequest request, boolean verbose, List<DisplayHeader> headers) {
         int[] width = new int[headers.size()];
         int i;
 
         if (verbose) {
             i = 0;
-            for (String hdr : headers) {
-                int vWidth = hdr.length();
+            for (DisplayHeader hdr : headers) {
+                int vWidth = hdr.display.length();
                 if (width[i] < vWidth) {
                     width[i] = vWidth;
                 }
@@ -155,8 +161,8 @@ public class RestTable {
         }
 
         i = 0;
-        for (String hdr : headers) {
-            for (Table.Cell cell : table.getAsMap().get(hdr)) {
+        for (DisplayHeader hdr : headers) {
+            for (Table.Cell cell : table.getAsMap().get(hdr.name)) {
                 String v = renderValue(request, cell.value);
                 int vWidth = v == null ? 0 : v.length();
                 if (width[i] < vWidth) {
@@ -244,5 +250,15 @@ public class RestTable {
         }
         // Add additional built in data points we can render based on request parameters?
         return value.toString();
+    }
+
+    static class DisplayHeader {
+        public final String name;
+        public final String display;
+
+        DisplayHeader(String name, String display) {
+            this.name = name;
+            this.display = display;
+        }
     }
 }

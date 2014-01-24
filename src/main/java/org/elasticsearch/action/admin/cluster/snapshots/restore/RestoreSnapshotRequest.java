@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,7 +56,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     private String renamePattern;
 
@@ -94,8 +94,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         if (indices == null) {
             validationException = addValidationError("indices are missing", validationException);
         }
-        if (ignoreIndices == null) {
-            validationException = addValidationError("ignoreIndices is missing", validationException);
+        if (indicesOptions == null) {
+            validationException = addValidationError("indicesOptions is missing", validationException);
         }
         if (settings == null) {
             validationException = addValidationError("settings are missing", validationException);
@@ -184,22 +184,24 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
      *
-     * @return the desired behaviour regarding indices to ignore
+     * @return the desired behaviour regarding indices to ignore and wildcard indices expression
      */
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
      *
-     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return this request
      */
-    public RestoreSnapshotRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public RestoreSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -379,6 +381,11 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
+        boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
+        boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
+        boolean expandWildcardsOpen = IndicesOptions.lenient().expandWildcardsOpen();
+        boolean expandWildcardsClosed = IndicesOptions.lenient().expandWildcardsClosed();
+
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -389,12 +396,18 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else {
                     throw new ElasticSearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_indices")) {
-                if (entry.getValue() instanceof String) {
-                    ignoreIndices(IgnoreIndices.fromString((String) entry.getValue()));
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed ignore_indices");
-                }
+            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
+                assert entry.getValue() instanceof String;
+                ignoreUnavailable = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
+                assert entry.getValue() instanceof String;
+                allowNoIndices = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
+                assert entry.getValue() instanceof String;
+                expandWildcardsOpen = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
+                assert entry.getValue() instanceof String;
+                expandWildcardsClosed = Boolean.valueOf(entry.getValue().toString());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticSearchIllegalArgumentException("malformed settings section, should indices an inner object");
@@ -421,6 +434,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 throw new ElasticSearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
+        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
         return this;
     }
 
@@ -498,7 +512,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         snapshot = in.readString();
         repository = in.readString();
         indices = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
@@ -512,7 +526,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);

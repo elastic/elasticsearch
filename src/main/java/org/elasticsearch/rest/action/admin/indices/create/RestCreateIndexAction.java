@@ -19,19 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices.create;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -66,29 +61,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
 
-        client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
-            @Override
-            public void onResponse(CreateIndexResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field("ok", true)
-                            .field("acknowledged", response.isAcknowledged())
-                            .endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.admin().indices().create(createIndexRequest, new AcknowledgedRestResponseActionListener<CreateIndexResponse>(request, channel, logger));
     }
 }

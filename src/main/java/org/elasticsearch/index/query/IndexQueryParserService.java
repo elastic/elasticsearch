@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -277,6 +278,35 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         QueryParseContext context = cache.get();
         context.reset(parser);
         return context.parseInnerQuery();
+    }
+
+    /**
+     * Selectively parses a query from a top level query or query_binary json field from the specified source.
+     */
+    public ParsedQuery parseQuery(BytesReference source) {
+        try {
+            XContentParser parser = XContentHelper.createParser(source);
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    if ("query".equals(fieldName)) {
+                        return parse(parser);
+                    } else if ("query_binary".equals(fieldName) || "queryBinary".equals(fieldName)) {
+                        byte[] querySource = parser.binaryValue();
+                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
+                        return parse(qSourceParser);
+                    } else {
+                        throw new QueryParsingException(index(), "request does not support [" + fieldName + "]");
+                    }
+                }
+            }
+        } catch (QueryParsingException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new QueryParsingException(index, "Failed to parse", e);
+        }
+
+        throw new QueryParsingException(index(), "Required query is missing");
     }
 
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {

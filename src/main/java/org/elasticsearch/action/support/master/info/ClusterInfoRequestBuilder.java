@@ -20,7 +20,7 @@ package org.elasticsearch.action.support.master.info;
 
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.InternalGenericClient;
 
@@ -57,8 +57,8 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
     }
 
     @SuppressWarnings("unchecked")
-    public Builder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public Builder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return (Builder) this;
     }
 

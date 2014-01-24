@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -268,19 +269,18 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                                // only if the field is stored or source is enabled we should add it..
-                                if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
-                                    value = searchLookup.source().extractValue(field);
-                                    // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                                    if (value != null && x != null) {
-                                        if (value instanceof List) {
-                                            List list = (List) value;
-                                            for (int i = 0; i < list.size(); i++) {
-                                                list.set(i, x.valueForSearch(list.get(i)));
-                                            }
-                                        } else {
-                                            value = x.valueForSearch(value);
+                                if (x == null) {
+                                    if (docMapper.objectMappers().get(field) != null) {
+                                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                                        throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                                    }
+                                } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
+                                    List<Object> values = searchLookup.source().extractRawValues(field);
+                                    if (!values.isEmpty()) {
+                                        for (int i = 0; i < values.size(); i++) {
+                                            values.set(i, x.valueForSearch(values.get(i)));
                                         }
+                                        value = values;
                                     }
                                 }
                             }
@@ -388,24 +388,25 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else {
                     FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null || !x.mapper().fieldType().stored()) {
+                    if (x == null) {
+                        if (docMapper.objectMappers().get(field) != null) {
+                            // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                            throw new ElasticSearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                        }
+                    } else if (!x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
                             searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                             searchLookup.setNextReader(docIdAndVersion.context);
                             searchLookup.source().setNextSource(source);
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }
-                        value = searchLookup.source().extractValue(field);
-                        // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                        if (value != null && x != null) {
-                            if (value instanceof List) {
-                                List list = (List) value;
-                                for (int i = 0; i < list.size(); i++) {
-                                    list.set(i, x.mapper().valueForSearch(list.get(i)));
-                                }
-                            } else {
-                                value = x.mapper().valueForSearch(value);
+
+                        List<Object> values = searchLookup.source().extractRawValues(field);
+                        if (!values.isEmpty()) {
+                            for (int i = 0; i < values.size(); i++) {
+                                values.set(i, x.mapper().valueForSearch(values.get(i)));
                             }
+                            value = values;
                         }
                     }
                 }

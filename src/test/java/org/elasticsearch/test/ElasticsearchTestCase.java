@@ -28,6 +28,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
@@ -64,11 +65,19 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
+    public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
+
+    public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
+
     public static final boolean ASSERTIONS_ENABLED;
     static {
         boolean enabled = false;
         assert enabled = true;
         ASSERTIONS_ENABLED = enabled;
+        if (Boolean.parseBoolean(Strings.hasLength(TESTS_SECURITY_MANAGER) ? TESTS_SECURITY_MANAGER : "true") && JAVA_SECURTY_POLICY != null) {
+            System.setSecurityManager(new SecurityManager());
+        }
+
     }
 
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {

@@ -48,6 +48,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class RangeTests extends ElasticsearchIntegrationTest {
 
+    private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
+    private static final String MULTI_VALUED_FIELD_NAME = "l_values";
 
     @Override
     public Settings indexSettings() {
@@ -67,8 +69,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
-                    .field("value", i+1)
-                    .startArray("values").value(i+1).value(i+2).endArray()
+                    .field(SINGLE_VALUED_FIELD_NAME, i+1)
+                    .startArray(MULTI_VALUED_FIELD_NAME).value(i+1).value(i+2).endArray()
                     .endObject());
         }
         indexRandom(true, builders);
@@ -79,8 +81,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     @Test
     public void rangeAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("values").size(100).subAggregation(
-                        range("range").field("value")
+                .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).size(100).subAggregation(
+                        range("range").field(SINGLE_VALUED_FIELD_NAME)
                             .addUnboundedTo(3)
                             .addRange(3, 6)
                             .addUnboundedFrom(6)))
@@ -130,7 +132,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void singleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -170,7 +172,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void singleValueField_WithCustomKey() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo("r1", 3)
                         .addRange("r2", 3, 6)
                         .addUnboundedFrom("r3", 6))
@@ -210,11 +212,11 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void singleValuedField_WithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6)
-                        .subAggregation(sum("sum").field("value")))
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -264,7 +266,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6)
@@ -318,7 +320,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void singleValuedField_WithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .script("_value + 1")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
@@ -372,7 +374,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void multiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("values")
+                        .field(MULTI_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -425,7 +427,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void multiValuedField_WithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("values")
+                        .field(MULTI_VALUED_FIELD_NAME)
                         .script("_value + 1")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
@@ -483,7 +485,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("values")
+                        .field(MULTI_VALUED_FIELD_NAME)
                         .script("_value + 1")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
@@ -541,7 +543,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void script_SingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .script("doc['value'].value")
+                        .script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -581,7 +583,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .script("doc['value'].value")
+                        .script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6)
@@ -635,7 +637,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void emptyRange() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("values")
+                        .field(MULTI_VALUED_FIELD_NAME)
                         .addUnboundedTo(-1)
                         .addUnboundedFrom(1000))
                 .execute().actionGet();
@@ -667,7 +669,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void script_MultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .script("doc['values'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -724,7 +726,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .script("doc['values'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
                         .addUnboundedTo("r1", 3)
                         .addRange("r2", 3, 6)
                         .addUnboundedFrom("r3", 6)
@@ -781,7 +783,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void unmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -823,7 +825,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(range("range")
-                        .field("value")
+                        .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
@@ -863,7 +865,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     public void overlappingRanges() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
-                        .field("values")
+                        .field(MULTI_VALUED_FIELD_NAME)
                         .addUnboundedTo(5)
                         .addRange(3, 6)
                         .addRange(4, 5)
@@ -909,19 +911,19 @@ public class RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()
-                    .field("value", i * 2)
+                    .field(SINGLE_VALUED_FIELD_NAME, i * 2)
                     .endObject()));
         }
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)
                         .subAggregation(range("range").addRange("0-2", 0.0, 2.0)))
                 .execute().actionGet();
 

@@ -50,7 +50,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     private IdCacheStats idCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private PercolateStats peroclate;
+    private PercolateStats percolate;
 
     private ClusterStatsIndices() {
     }
@@ -65,7 +65,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         this.idCache = new IdCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
-        this.peroclate = new PercolateStats();
+        this.percolate = new PercolateStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -89,7 +89,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
                 idCache.add(shardCommonStats.idCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
-                peroclate.add(shardCommonStats.percolate);
+                percolate.add(shardCommonStats.percolate);
             }
         }
 
@@ -137,7 +137,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     }
 
     public PercolateStats getPercolate() {
-        return peroclate;
+        return percolate;
     }
 
     @Override
@@ -151,7 +151,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache = IdCacheStats.readIdCacheStats(in);
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
-        peroclate = PercolateStats.readPercolateStats(in);
+        percolate = PercolateStats.readPercolateStats(in);
     }
 
     @Override
@@ -165,7 +165,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache.writeTo(out);
         completion.writeTo(out);
         segments.writeTo(out);
-        peroclate.writeTo(out);
+        percolate.writeTo(out);
     }
 
     public static ClusterStatsIndices readIndicesStats(StreamInput in) throws IOException {
@@ -189,7 +189,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache.toXContent(builder, params);
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
-        peroclate.toXContent(builder, params);
+        percolate.toXContent(builder, params);
         return builder;
     }
 

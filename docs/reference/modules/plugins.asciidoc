@@ -242,7 +242,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]
-* https://github.com/elasticsearch/elasticsearch-hadoop[Hadoop Plugin]
+* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS Snapshot/Restore Plugin]
 * https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin]
 
 .Supported by the community

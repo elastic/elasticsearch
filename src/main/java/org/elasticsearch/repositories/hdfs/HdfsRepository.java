@@ -71,27 +71,16 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
         // get configuration
         fs = initFileSystem(repositorySettings);
         Path hdfsPath = fs.makeQualified(new Path(path));
+        this.basePath = BlobPath.cleanPath();
 
         int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
         concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 5, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory(settings, "[hdfs_stream]"));
 
-        logger.debug("Using URI [{}], path [{}], concurrent_streams [{}]", fs, hdfsPath, concurrentStreams);
+        logger.debug("Using file-system [{}] for URI [{}], path [{}], concurrent_streams [{}]", fs, fs.getUri(), hdfsPath, concurrentStreams);
         blobStore = new HdfsBlobStore(settings, fs, hdfsPath, concurrentStreamPool);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
-
-
-        String basePath = repositorySettings.settings().get("uri", null);
-        if (Strings.hasText(basePath)) {
-            BlobPath p = new BlobPath();
-            for(String elem : Strings.splitStringToArray(basePath, '/')) {
-                p = p.add(elem);
-            }
-            this.basePath = p;
-        } else {
-            this.basePath = BlobPath.cleanPath();
-        }
     }
 
     private FileSystem initFileSystem(RepositorySettings repositorySettings) throws IOException {

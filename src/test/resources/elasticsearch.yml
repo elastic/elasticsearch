@@ -2,7 +2,7 @@ repositories:
     hdfs:
         uri: "file://./"
         # the path is loaded from higher up (the repository settings)
-        #path: "/tmp/test/snapshot"
+        path: "tmp/test/snapshot"
         load_defaults: "true"
         conf_location: "additional-cfg.xml"
         conf.foo: "bar"

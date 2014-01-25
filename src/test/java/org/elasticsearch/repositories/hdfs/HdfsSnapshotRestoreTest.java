@@ -68,7 +68,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     @After
     public final void wipeAfter() throws Exception {
         wipeRepositories();
-        cleanRepositoryFiles(path);
+        //cleanRepositoryFiles(path);
     }
 
     @Test
@@ -79,6 +79,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(ImmutableSettings.settingsBuilder()
+                .put("uri", "file://./")
                 .put("path", path)
                 .put("chunk_size", randomIntBetween(100, 1000))
                 .put("compress", randomBoolean())

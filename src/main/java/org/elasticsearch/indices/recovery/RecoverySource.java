@@ -294,9 +294,13 @@ public class RecoverySource extends AbstractComponent {
                     totalOperations++;
                     if (ops >= recoverySettings.translogOps() || size >= recoverySettings.translogSize().bytes()) {
 
-                        if (recoverySettings.rateLimiter() != null) {
-                            recoverySettings.rateLimiter().pause(size);
-                        }
+                        // don't throttle translog, since we lock for phase3 indexing, so we need to move it as
+                        // fast as possible. Note, sine we index docs to replicas while the index files are recovered
+                        // the lock can potentially be removed, in which case, it might make sense to re-enable
+                        // throttling in this phase
+//                        if (recoverySettings.rateLimiter() != null) {
+//                            recoverySettings.rateLimiter().pause(size);
+//                        }
 
                         RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionLongTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();

@@ -311,6 +311,13 @@ by disabling wildcard expansion on destructive actions.
   code.  The only exception to this rule is when `fields` is used to retrieve
   metadata like the `routing` value, which are always singular.  Metadata
   fields are always returned as scalars.
++
+The `fields` parameter is intended to be used for retrieving stored fields,
+rather than for fields extracted from the `_source`. That means that it can no
+longer be used to return whole objects and it no longer accepts the
+`_source.fieldname` format. For these you should use the
+<<search-request-source-filtering,`_source`&#32; `_source_include` and `_source_exclude`>>
+parameters instead.
 
 * Settings, like `index.analysis.analyzer.default` are now returned as proper
   nested JSON objects, which makes them easier to work with programatically:

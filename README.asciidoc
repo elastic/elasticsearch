@@ -11,8 +11,7 @@ The HDFS snapshot/restore plugin comes in three flavors:
 
 Default / Hadoop 1.x:: The default version contains the plugin jar alongside Hadoop 1.x (stable) dependencies.
 Yarn / Hadoop 2.x:: The +yarn+ version contains the plugin jar plus the Hadoop 2.x (Yarn) dependencies.
-Light::The +light+ version contains just the plugin jar, without any Hadoop dependencies.
-
+Light:: The +light+ version contains just the plugin jar, without any Hadoop dependencies.
 
 === Which version to use?
 It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath and using the +light+ version. This guarantees the existing libraries and configuration are being picked up by the plugin.

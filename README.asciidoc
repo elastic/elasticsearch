@@ -1,5 +1,4 @@
-
-= Hadoop HDFS Snapshot/Restore plugin
+Hadoop HDFS Snapshot/Restore plugin
 
 The +elasticsearch-repository-hdfs+ plugin allows Elasticsearch 1.0 to use +hdfs+ file-system as a repository for http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html[snapshot/restore]. See http://www.elasticsearch.org/blog/introducing-snapshot-restore/[this blog] entry for a quick introduction to snapshot/restore.
 

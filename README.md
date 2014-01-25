@@ -1,14 +1,32 @@
 #Hadoop HDFS Snapshot/Restore plugin
 
-The `elasticsearch-hadoop-repository-hdfs` plugin allows Elasticsearch 1.0 to use ``hdfs`` file-system as a repository for [snapshot/restore](http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html).
+The `elasticsearch-repository-hdfs` plugin allows Elasticsearch 1.0 to use ``hdfs`` file-system as a repository for [snapshot/restore](http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html). See [this blog](http://www.elasticsearch.org/blog/introducing-snapshot-restore/) entry for a quick introduction to snapshot/restore.
 
 # Requirements
 - Elasticsearch (version __1.0__ or higher)
 - hdfs accessible file-system (from the Elasticsearch classpath)
 
+# Flavors
+The HDFS snapshot/restore plugin comes in three flavors:
+## Default / Hadoop 1.x
+The default version contains the plugin jar alongside Hadoop 1.x (stable) dependencies.
+
+## Yarn / Hadoop 2.x
+The ``yarn`` version contains the plugin jar plus the Hadoop 2.x (Yarn) dependencies.
+
+## Light
+The ``light`` version contains just the plugin jar, without any Hadoop dependencies.
+
+## Which version to use?
+It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath and using the ``light`` version. This guarantees the existing libraries and configuration are being picked up by the plugin.
+If you do not have Hadoop installed, then select either the default version (for Hadoop stable/1.x) or, if you are using Hadoop 2, the ``yarn`` version.
+
 # Installation
 As with any other plugin, simply run:
 ``bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/1.3.0.M2``
+
+When looking for ``light`` or ``yarn`` artifacts use:
+``bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/1.3.0.M2-<classifier>``
 
 To install the latest snapshot, please install the plugin manually using:
 ``bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-1.3.0-BUILD-SNAPSHOT``

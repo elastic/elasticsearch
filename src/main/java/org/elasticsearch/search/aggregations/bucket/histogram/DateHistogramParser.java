@@ -234,9 +234,9 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
         int i = key.indexOf('.');
         if (i < 0) {
-            return HistogramBase.Order.aggregation(key, asc);
+            return new InternalOrder.Aggregation(key, null, asc);
         }
-        return HistogramBase.Order.aggregation(key.substring(0, i), key.substring(i + 1), asc);
+        return new InternalOrder.Aggregation(key.substring(0, i), key.substring(i + 1), asc);
     }
 
     private long parseOffset(String offset) throws IOException {

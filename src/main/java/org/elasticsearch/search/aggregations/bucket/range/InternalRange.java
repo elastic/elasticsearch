@@ -18,18 +18,27 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.numeric.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 
 /**
  *
  */
-public class InternalRange extends AbstractRangeBase<Range.Bucket> implements Range {
+public class InternalRange<B extends InternalRange.Bucket> extends InternalAggregation implements Range {
 
     static final Factory FACTORY = new Factory();
 
@@ -37,7 +46,7 @@ public class InternalRange extends AbstractRangeBase<Range.Bucket> implements Ra
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public AbstractRangeBase readResult(StreamInput in) throws IOException {
+        public InternalRange readResult(StreamInput in) throws IOException {
             InternalRange ranges = new InternalRange();
             ranges.readFrom(in);
             return ranges;
@@ -48,45 +57,263 @@ public class InternalRange extends AbstractRangeBase<Range.Bucket> implements Ra
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    public static class Bucket extends AbstractRangeBase.Bucket implements Range.Bucket {
+    public static class Bucket implements Range.Bucket {
+
+        private double from = Double.NEGATIVE_INFINITY;
+        private double to = Double.POSITIVE_INFINITY;
+        private long docCount;
+        private InternalAggregations aggregations;
+        private String key;
+        private boolean explicitKey;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            super(key, from, to, docCount, aggregations, formatter);
+            if (key != null) {
+                this.key = key;
+                explicitKey = true;
+            } else {
+                this.key = key(from, to, formatter);
+                explicitKey = false;
+            }
+            this.from = from;
+            this.to = to;
+            this.docCount = docCount;
+            this.aggregations = aggregations;
         }
-    }
 
-
-    public static class Factory implements AbstractRangeBase.Factory<Range.Bucket> {
+        public String getKey() {
+            return key;
+        }
 
         @Override
+        public Text getKeyAsText() {
+            return new StringText(getKey());
+        }
+
+        @Override
+        public Number getFrom() {
+            return from;
+        }
+
+        @Override
+        public Number getTo() {
+            return to;
+        }
+
+        @Override
+        public long getDocCount() {
+            return docCount;
+        }
+
+        @Override
+        public Aggregations getAggregations() {
+            return aggregations;
+        }
+
+        Bucket reduce(List<Bucket> ranges, CacheRecycler cacheRecycler) {
+            if (ranges.size() == 1) {
+                // we stil need to call reduce on all the sub aggregations
+                Bucket bucket = ranges.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
+            }
+            Bucket reduced = null;
+            List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(ranges.size());
+            for (Bucket range : ranges) {
+                if (reduced == null) {
+                    reduced = range;
+                } else {
+                    reduced.docCount += range.docCount;
+                }
+                aggregationsList.add(range.aggregations);
+            }
+            reduced.aggregations = InternalAggregations.reduce(aggregationsList, cacheRecycler);
+            return reduced;
+        }
+
+        void toXContent(XContentBuilder builder, Params params, ValueFormatter formatter, boolean keyed) throws IOException {
+            if (keyed) {
+                builder.startObject(key);
+            } else {
+                builder.startObject();
+                if (explicitKey) {
+                    builder.field(CommonFields.KEY, key);
+                }
+            }
+            if (!Double.isInfinite(from)) {
+                builder.field(CommonFields.FROM, from);
+                if (formatter != null) {
+                    builder.field(CommonFields.FROM_AS_STRING, formatter.format(from));
+                }
+            }
+            if (!Double.isInfinite(to)) {
+                builder.field(CommonFields.TO, to);
+                if (formatter != null) {
+                    builder.field(CommonFields.TO_AS_STRING, formatter.format(to));
+                }
+            }
+            builder.field(CommonFields.DOC_COUNT, docCount);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+        }
+
+        private static String key(double from, double to, ValueFormatter formatter) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(Double.isInfinite(from) ? "*" : formatter != null ? formatter.format(from) : from);
+            sb.append("-");
+            sb.append(Double.isInfinite(to) ? "*" : formatter != null ? formatter.format(to) : to);
+            return sb.toString();
+        }
+
+    }
+
+    public static class Factory<B extends Bucket, R extends InternalRange<B>> {
+
         public String type() {
             return TYPE.name();
         }
 
-        @Override
-        public AbstractRangeBase<Range.Bucket> create(String name, List<Range.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
-            return new InternalRange(name, ranges, formatter, keyed);
+        public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+            return (R) new InternalRange<B>(name, ranges, formatter, keyed, unmapped);
         }
 
 
-        public Range.Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            return new Bucket(key, from, to, docCount, aggregations, formatter);
+        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+            return (B) new Bucket(key, from, to, docCount, aggregations, formatter);
         }
     }
 
-    protected Range.Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, from, to, docCount, aggregations, formatter);
-    }
+    private List<B> ranges;
+    private Map<String, B> rangeMap;
+    private ValueFormatter formatter;
+    private boolean keyed;
+
+    private boolean unmapped;
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<Range.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
-        super(name, ranges, formatter, keyed);
+    public InternalRange(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+        super(name);
+        this.ranges = ranges;
+        this.formatter = formatter;
+        this.keyed = keyed;
+        this.unmapped = unmapped;
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public Collection<B> getBuckets() {
+        return ranges;
+    }
+
+    @Override
+    public B getBucketByKey(String key) {
+        if (rangeMap == null) {
+            rangeMap = new HashMap<String, B>(ranges.size());
+            for (Range.Bucket bucket : ranges) {
+                rangeMap.put(bucket.getKey(), (B) bucket);
+            }
+        }
+        return rangeMap.get(key);
+    }
+
+    @Override
+    public InternalAggregation reduce(ReduceContext reduceContext) {
+        List<InternalAggregation> aggregations = reduceContext.aggregations();
+        if (aggregations.size() == 1) {
+            InternalRange<B> reduced = (InternalRange<B>) aggregations.get(0);
+            for (B bucket : reduced.ranges) {
+                bucket.aggregations.reduce(reduceContext.cacheRecycler());
+            }
+            return reduced;
+        }
+        List<List<Bucket>> rangesList = null;
+        for (InternalAggregation aggregation : aggregations) {
+            InternalRange<Bucket> ranges = (InternalRange) aggregation;
+            if (ranges.unmapped) {
+                continue;
+            }
+            if (rangesList == null) {
+                rangesList = new ArrayList<List<Bucket>>(ranges.ranges.size());
+                for (Bucket bucket : ranges.ranges) {
+                    List<Bucket> sameRangeList = new ArrayList<Bucket>(aggregations.size());
+                    sameRangeList.add(bucket);
+                    rangesList.add(sameRangeList);
+                }
+            } else {
+                int i = 0;
+                for (Bucket range : ranges.ranges) {
+                    rangesList.get(i++).add(range);
+                }
+            }
+        }
+
+        if (rangesList == null) {
+            // unmapped, we can just take the first one
+            return aggregations.get(0);
+        }
+
+        InternalRange reduced = (InternalRange) aggregations.get(0);
+        int i = 0;
+        for (List<Bucket> sameRangeList : rangesList) {
+            reduced.ranges.set(i++, (sameRangeList.get(0)).reduce(sameRangeList, reduceContext.cacheRecycler()));
+        }
+        return reduced;
+    }
+
+    protected B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+        return (B) new Bucket(key, from, to, docCount, aggregations, formatter);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        formatter = ValueFormatterStreams.readOptional(in);
+        keyed = in.readBoolean();
+        int size = in.readVInt();
+        List<B> ranges = Lists.newArrayListWithCapacity(size);
+        for (int i = 0; i < size; i++) {
+            String key = in.readOptionalString();
+            ranges.add(createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
+        }
+        this.ranges = ranges;
+        this.rangeMap = null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeBoolean(keyed);
+        out.writeVInt(ranges.size());
+        for (B bucket : ranges) {
+            out.writeOptionalString(((Bucket) bucket).key);
+            out.writeDouble(((Bucket) bucket).from);
+            out.writeDouble(((Bucket) bucket).to);
+            out.writeVLong(((Bucket) bucket).docCount);
+            ((Bucket) bucket).aggregations.writeTo(out);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (keyed) {
+            builder.startObject(name);
+        } else {
+            builder.startArray(name);
+        }
+        for (B range : ranges) {
+            ((Bucket) range).toXContent(builder, params, formatter, keyed);
+        }
+        if (keyed) {
+            builder.endObject();
+        } else {
+            builder.endArray();
+        }
+        return builder;
     }
 
 }

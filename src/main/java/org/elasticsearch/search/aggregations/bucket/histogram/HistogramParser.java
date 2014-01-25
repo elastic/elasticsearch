@@ -75,7 +75,7 @@ public class HistogramParser implements Aggregator.Parser {
                 } else if ("format".equals(currentFieldName)) {
                     format = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("interval".equals(currentFieldName)) {
@@ -83,7 +83,7 @@ public class HistogramParser implements Aggregator.Parser {
                 } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
@@ -91,7 +91,7 @@ public class HistogramParser implements Aggregator.Parser {
                 } else if ("script_values_sorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
@@ -103,15 +103,17 @@ public class HistogramParser implements Aggregator.Parser {
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             String dir = parser.text();
                             boolean asc = "asc".equals(dir);
+                            if (!asc && !"desc".equals(dir)) {
+                                throw new SearchParseException(context, "Unknown order direction [" + dir + "] in aggregation [" + aggregationName + "]. Should be either [asc] or [desc]");
+                            }
                             order = resolveOrder(currentFieldName, asc);
-                            //TODO should we throw an error if the value is not "asc" or "desc"???
                         }
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in aggregation [" + aggregationName + "].");
             }
         }
 
@@ -159,8 +161,8 @@ public class HistogramParser implements Aggregator.Parser {
         }
         int i = key.indexOf('.');
         if (i < 0) {
-            return HistogramBase.Order.aggregation(key, asc);
+            return new InternalOrder.Aggregation(key, null, asc);
         }
-        return HistogramBase.Order.aggregation(key.substring(0, i), key.substring(i + 1), asc);
+        return new InternalOrder.Aggregation(key.substring(0, i), key.substring(i + 1), asc);
     }
 }

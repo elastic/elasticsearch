@@ -32,7 +32,7 @@ import java.io.IOException;
 public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHistogramBuilder> {
 
     private Object interval;
-    private HistogramBase.Order order;
+    private Histogram.Order order;
     private Long minDocCount;
     private String preZone;
     private String postZone;

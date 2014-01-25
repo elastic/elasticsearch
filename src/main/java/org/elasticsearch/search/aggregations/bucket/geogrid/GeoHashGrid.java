@@ -21,21 +21,34 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
 
-/**
- * Represents the results of a GeoHashGrid aggregation
- */
-public interface GeoHashGrid extends Iterable<GeoHashGrid.Bucket>, Aggregation {
+import java.util.Collection;
 
+/**
+ * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
+ * precision.
+ */
+public interface GeoHashGrid extends Aggregation {
+
+    /**
+     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@cod geohash} of the cell
+     */
     public static interface Bucket extends org.elasticsearch.search.aggregations.bucket.Bucket {
 
-        String getGeoHash();
+        /**
+         * @return  The geohash of the cell as a geo point
+         */
+        GeoPoint getKeyAsGeoPoint();
 
-        GeoPoint getGeoPoint();
-
-        long getInternalKey();
+        /**
+         * @return  A numeric representation of the geohash of the cell
+         */
+        Number getKeyAsNumber();
 
     }
 
-    int getNumberOfBuckets();
+    /**
+     * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
+     */
+    Collection<Bucket> getBuckets();
 
 }

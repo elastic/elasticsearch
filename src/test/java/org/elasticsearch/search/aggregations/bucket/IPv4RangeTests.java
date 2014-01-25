@@ -93,32 +93,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
@@ -138,23 +138,23 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(2));
+        assertThat(range.getBuckets().size(), equalTo(2));
 
         IPv4Range.Bucket bucket = range.getByKey("10.0.0.0/25");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.0/25"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.0")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.0")));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.0"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.128")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.128")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.128"));
         assertThat(bucket.getDocCount(), equalTo(128l));
 
         bucket = range.getByKey("10.0.0.128/25");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.128/25"));
-        assertThat((long) bucket.getFrom(), equalTo(IpFieldMapper.ipToLong("10.0.0.128")));
+        assertThat((long) bucket.getFrom().doubleValue(), equalTo(IpFieldMapper.ipToLong("10.0.0.128")));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.128"));
-        assertThat((long) bucket.getTo(), equalTo(IpFieldMapper.ipToLong("10.0.1.0"))); // range is exclusive on the to side
+        assertThat((long) bucket.getTo().doubleValue(), equalTo(IpFieldMapper.ipToLong("10.0.1.0"))); // range is exclusive on the to side
         assertThat(bucket.getToAsString(), equalTo("10.0.1.0"));
         assertThat(bucket.getDocCount(), equalTo(127l)); // include 10.0.0.128
     }
@@ -175,32 +175,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("r1");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("r1"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("r2");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("r2"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("r3");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("r3"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
@@ -222,15 +222,15 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -240,9 +240,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -252,8 +252,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
         sum = bucket.getAggregations().get("sum");
@@ -278,15 +278,15 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -296,9 +296,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -308,8 +308,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
         max = bucket.getAggregations().get("max");
@@ -334,32 +334,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
@@ -397,32 +397,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(101l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
@@ -444,32 +444,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(101l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
@@ -492,15 +492,15 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
@@ -510,9 +510,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(101l));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
@@ -522,8 +522,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(56l));
         max = bucket.getAggregations().get("max");
@@ -547,32 +547,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
@@ -594,15 +594,15 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -612,9 +612,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -624,8 +624,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
         max = bucket.getAggregations().get("max");
@@ -649,32 +649,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(101l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(56l));
     }
@@ -696,15 +696,15 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
@@ -714,9 +714,9 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(101l));
         max = bucket.getAggregations().get("max");
         assertThat(max, Matchers.notNullValue());
@@ -726,8 +726,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(56l));
         max = bucket.getAggregations().get("max");
@@ -751,32 +751,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
@@ -797,32 +797,32 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         IPv4Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.buckets().size(), equalTo(3));
+        assertThat(range.getBuckets().size(), equalTo(3));
 
         IPv4Range.Bucket bucket = range.getByKey("*-10.0.0.100");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("*-10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.100-10.0.0.200");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.100-10.0.0.200"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.100"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.100")));
         assertThat(bucket.getToAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getTo(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
         assertThat(bucket.getDocCount(), equalTo(100l));
 
         bucket = range.getByKey("10.0.0.200-*");
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKey(), equalTo("10.0.0.200-*"));
         assertThat(bucket.getFromAsString(), equalTo("10.0.0.200"));
-        assertThat(bucket.getFrom(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
-        assertThat(bucket.getTo(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getFrom().doubleValue(), equalTo((double) IpFieldMapper.ipToLong("10.0.0.200")));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(55l));
     }
@@ -853,12 +853,13 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         IPv4Range range = bucket.getAggregations().get("ip_range");
+        List<IPv4Range.Bucket> buckets = new ArrayList<IPv4Range.Bucket>(range.getBuckets());
         assertThat(range, Matchers.notNullValue());
         assertThat(range.getName(), equalTo("ip_range"));
-        assertThat(range.buckets().size(), is(1));
-        assertThat(range.buckets().get(0).getKey(), equalTo("r1"));
-        assertThat(range.buckets().get(0).getFromAsString(), equalTo("10.0.0.1"));
-        assertThat(range.buckets().get(0).getToAsString(), equalTo("10.0.0.10"));
-        assertThat(range.buckets().get(0).getDocCount(), equalTo(0l));
+        assertThat(buckets.size(), is(1));
+        assertThat(buckets.get(0).getKey(), equalTo("r1"));
+        assertThat(buckets.get(0).getFromAsString(), equalTo("10.0.0.1"));
+        assertThat(buckets.get(0).getToAsString(), equalTo("10.0.0.10"));
+        assertThat(buckets.get(0).getDocCount(), equalTo(0l));
     }
 }

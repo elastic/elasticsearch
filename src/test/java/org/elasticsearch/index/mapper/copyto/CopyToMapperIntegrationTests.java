@@ -62,8 +62,8 @@ public class CopyToMapperIntegrationTests extends ElasticsearchIntegrationTest {
 
         assertThat(response.getHits().totalHits(), equalTo((long) recordCount));
 
-        assertThat(((Terms) response.getAggregations().get("test")).buckets().size(), equalTo(recordCount + 1));
-        assertThat(((Terms) response.getAggregations().get("test_raw")).buckets().size(), equalTo(recordCount));
+        assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
+        assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
 
     }
 

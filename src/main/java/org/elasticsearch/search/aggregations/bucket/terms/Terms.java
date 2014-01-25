@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -28,9 +27,10 @@ import java.util.Collection;
 import java.util.Comparator;
 
 /**
- *
+ * A {@code terms} aggregation. Defines multiple bucket, each associated with a unique term for a specific field.
+ * All documents in a bucket has the bucket's term in that field.
  */
-public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
+public interface Terms extends Aggregation {
 
     static enum ValueType {
 
@@ -60,17 +60,15 @@ public interface Terms extends Aggregation, Iterable<Terms.Bucket> {
 
     static abstract class Bucket implements org.elasticsearch.search.aggregations.bucket.Bucket {
 
-        public abstract Text getKey();
-
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
 
     }
 
-    Collection<Bucket> buckets();
+    Collection<Bucket> getBuckets();
 
-    Bucket getByTerm(String term);
+    Bucket getByKey(String term);
 
 
     /**

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 
@@ -28,10 +29,23 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 public interface Bucket {
 
     /**
+     * @return  The key associated with the bucket as a string
+     */
+    String getKey();
+
+    /**
+     * @return  The key associated with the bucket as text (ideal for further streaming this instance)
+     */
+    Text getKeyAsText();
+
+    /**
      * @return The number of documents that fall within this bucket
      */
     long getDocCount();
 
+    /**
+     * @return  The sub-aggregations of this bucket
+     */
     Aggregations getAggregations();
 
     static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {

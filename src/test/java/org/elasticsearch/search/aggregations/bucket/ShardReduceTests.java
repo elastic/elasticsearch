@@ -42,8 +42,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -106,7 +104,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Global global = response.getAggregations().get("global");
         DateHistogram histo = global.getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -122,7 +120,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Filter filter = response.getAggregations().get("filter");
         DateHistogram histo = filter.getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -138,7 +136,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Missing missing = response.getAggregations().get("missing");
         DateHistogram histo = missing.getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -158,7 +156,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         Filter filter = global.getAggregations().get("filter");
         Missing missing = filter.getAggregations().get("missing");
         DateHistogram histo = missing.getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -174,7 +172,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Nested nested = response.getAggregations().get("nested");
         DateHistogram histo = nested.getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -189,8 +187,8 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
-        DateHistogram histo = terms.getByTerm("term").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        DateHistogram histo = terms.getByKey("term").getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -205,8 +203,8 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
-        DateHistogram histo = terms.getByTerm("1").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        DateHistogram histo = terms.getByKey("1").getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -221,8 +219,8 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
-        DateHistogram histo = terms.getByTerm("1.5").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        DateHistogram histo = terms.getByKey("1.5").getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -238,7 +236,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Range range = response.getAggregations().get("range");
         DateHistogram histo = range.getByKey("r1").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -254,7 +252,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         DateRange range = response.getAggregations().get("range");
         DateHistogram histo = range.getByKey("r1").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -270,7 +268,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         IPv4Range range = response.getAggregations().get("range");
         DateHistogram histo = range.getByKey("r1").getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -286,7 +284,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
         Histogram topHisto = response.getAggregations().get("topHisto");
         DateHistogram histo = topHisto.getByKey(0).getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
     @Test
@@ -301,8 +299,9 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
         DateHistogram topHisto = response.getAggregations().get("topHisto");
-        DateHistogram histo = topHisto.iterator().next().getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        DateHistogram histo = topHisto.getBuckets().iterator().next().getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
+
     }
 
     @Test
@@ -317,8 +316,8 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
         GeoHashGrid grid = response.getAggregations().get("grid");
-        DateHistogram histo = grid.iterator().next().getAggregations().get("histo");
-        assertThat(histo.buckets().size(), equalTo(4));
+        DateHistogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
 

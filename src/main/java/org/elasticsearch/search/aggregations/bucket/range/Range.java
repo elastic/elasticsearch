@@ -18,11 +18,34 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-/**
- *
- */
-public interface Range extends RangeBase<Range.Bucket> {
+import org.elasticsearch.search.aggregations.Aggregation;
 
-    static interface Bucket extends RangeBase.Bucket {
+import java.util.Collection;
+
+/**
+ * A {@code range} aggregation. Defines multiple buckets, each associated with a pre-defined value range of a field,
+ * and where the value of that fields in all documents in each bucket fall in the bucket's range.
+ */
+public interface Range extends Aggregation {
+
+    /**
+     * A bucket associated with a specific range
+     */
+    public static interface Bucket extends org.elasticsearch.search.aggregations.bucket.Bucket {
+
+        /**
+         * @return  The lower bound of the range
+         */
+        Number getFrom();
+
+        /**
+         * @return  The upper bound of the range (excluding)
+         */
+        Number getTo();
     }
+
+    Collection<? extends Bucket> getBuckets();
+
+    <B extends Bucket> B getByKey(String key);
+
 }

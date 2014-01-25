@@ -26,6 +26,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -40,9 +42,9 @@ import java.util.*;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalGeoHashGrid extends InternalAggregation implements GeoHashGrid{
+public class InternalGeoHashGrid extends InternalAggregation implements GeoHashGrid {
 
-    public static final Type TYPE = new Type("geohashgrid", "ghcells");
+    public static final Type TYPE = new Type("geohash_grid", "ghcells");
     protected Map<String, Bucket> bucketMap;
 
     public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
@@ -71,15 +73,19 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             this.geohashAsLong = geohashAsLong;
         }
 
-        public GeoPoint getGeoPoint() {
+        public String getKey() {
+            return GeoHashUtils.toString(geohashAsLong);
+        }
+
+        @Override
+        public Text getKeyAsText() {
+            return new StringText(getKey());
+        }
+
+        public GeoPoint getKeyAsGeoPoint() {
             return GeoHashUtils.decode(geohashAsLong);
         }
 
-       
-        public String getGeoHash() {
-            return GeoHashUtils.toString(geohashAsLong);
-        }
-        
         @Override
         public long getDocCount() {
             return docCount;
@@ -122,47 +128,33 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
 
         @Override
-        public long getInternalKey() {
+        public Number getKeyAsNumber() {
             return geohashAsLong;
         }     
-        
-        
+
     }
 
     private int requiredSize;
     private Collection<Bucket> buckets;
+
     InternalGeoHashGrid() {} // for serialization
 
-    public InternalGeoHashGrid(String name,  int requiredSize, Collection<Bucket> buckets) {
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets) {
         super(name);
         this.requiredSize=requiredSize;
         this.buckets=buckets;
-        
     }
 
     @Override
     public Type type() {
         return TYPE;
     }
-    
-    static class BucketPriorityQueue extends PriorityQueue<Bucket> {
 
-        public BucketPriorityQueue(int size) {
-            super(size);
-        }
-
-        @Override
-        protected boolean lessThan(Bucket o1, Bucket o2) {
-            long i = o2.getDocCount() - o1.getDocCount();
-            if (i == 0) {
-                i = o2.compareTo(o1);
-                if (i == 0) {
-                    i = System.identityHashCode(o2) - System.identityHashCode(o1);
-                }
-            }
-            return i > 0 ? true : false;            
-        }
-    }     
+    @Override
+    public Collection<GeoHashGrid.Bucket> getBuckets() {
+        Object o = buckets;
+        return (Collection<GeoHashGrid.Bucket>) o;
+    }
 
     @Override
     public InternalGeoHashGrid reduce(ReduceContext reduceContext) {
@@ -212,24 +204,12 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         buckets.release();
         Bucket[] list = new Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            list[i] = (Bucket) ordered.pop();
+            list[i] = ordered.pop();
         }
         reduced.buckets = Arrays.asList(list);
         return reduced;
     }
-    
-    @Override
-    public Iterator<GeoHashGrid.Bucket> iterator() {
-        Object o = buckets.iterator();
-        return (Iterator<GeoHashGrid.Bucket>) o;
-    }    
-    
-    @Override
-    public int getNumberOfBuckets() {
-        return buckets.size();
-    }
 
- 
     protected void reduceAndTrimBuckets(CacheRecycler cacheRecycler) {
 
         if (requiredSize > buckets.size()) { // nothing to trim
@@ -269,7 +249,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         out.writeVInt(requiredSize);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {
-            out.writeLong(((Bucket) bucket).geohashAsLong);
+            out.writeLong(bucket.geohashAsLong);
             out.writeVLong(bucket.getDocCount());
             ((InternalAggregations) bucket.getAggregations()).writeTo(out);
         }
@@ -281,7 +261,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         builder.startArray(CommonFields.BUCKETS);
         for (Bucket bucket : buckets) {
             builder.startObject();
-            builder.field(CommonFields.KEY, ((Bucket) bucket).getGeoHash());
+            builder.field(CommonFields.KEY, bucket.getKeyAsText());
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
             builder.endObject();
@@ -291,5 +271,23 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         return builder;
     }
 
+    static class BucketPriorityQueue extends PriorityQueue<Bucket> {
+
+        public BucketPriorityQueue(int size) {
+            super(size);
+        }
+
+        @Override
+        protected boolean lessThan(Bucket o1, Bucket o2) {
+            long i = o2.getDocCount() - o1.getDocCount();
+            if (i == 0) {
+                i = o2.compareTo(o1);
+                if (i == 0) {
+                    i = System.identityHashCode(o2) - System.identityHashCode(o1);
+                }
+            }
+            return i > 0;
+        }
+    }
 
 }

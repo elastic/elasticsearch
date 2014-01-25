@@ -26,28 +26,51 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
- *
+ * A builder for a histogram aggregation.
  */
 public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBuilder> {
 
     private Long interval;
-    private HistogramBase.Order order;
+    private Histogram.Order order;
     private Long minDocCount;
 
+    /**
+     * Constructs a new histogram aggregation builder.
+     *
+     * @param name  The name of the aggregation (will serve as the unique identifier for the aggregation result in the response)
+     */
     public HistogramBuilder(String name) {
         super(name, InternalHistogram.TYPE.name());
     }
 
+    /**
+     * Sets the interval for the histogram.
+     *
+     * @param interval  The interval for the histogram
+     * @return          This builder
+     */
     public HistogramBuilder interval(long interval) {
         this.interval = interval;
         return this;
     }
 
+    /**
+     * Sets the order by which the buckets will be returned.
+     *
+     * @param order The order by which the buckets will be returned
+     * @return      This builder
+     */
     public HistogramBuilder order(Histogram.Order order) {
         this.order = order;
         return this;
     }
 
+    /**
+     * Sets the minimum document count per bucket. Buckets with less documents than this min value will not be returned.
+     *
+     * @param minDocCount   The minimum document count per bucket
+     * @return              This builder
+     */
     public HistogramBuilder minDocCount(long minDocCount) {
         this.minDocCount = minDocCount;
         return this;

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.global;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
 
@@ -29,7 +29,7 @@ import java.io.IOException;
  * A global scope get (the document set on which we aggregate is all documents in the search context (ie. index + type)
  * regardless the query.
  */
-public class InternalGlobal extends SingleBucketAggregation<InternalGlobal> implements Global {
+public class InternalGlobal extends InternalSingleBucketAggregation<InternalGlobal> implements Global {
 
     public final static Type TYPE = new Type("global");
 

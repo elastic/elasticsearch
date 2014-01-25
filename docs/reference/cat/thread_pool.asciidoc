@@ -1,0 +1,44 @@
+[[cat-thread-pool]]
+== Thread pool
+
+The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
+statistics are returned for the bulk, index and search thread pools.
+
+[source,shell]
+--------------------------------------------------
+% curl 192.168.56.10:9200/_cat/thread_pool
+host1 192.168.1.35 0 0 0 0 0 0 0 0 0
+host2 192.168.1.36 0 0 0 0 0 0 0 0 0
+--------------------------------------------------
+
+The first two columns tell your the host and ip of a node.
+
+[source,shell]
+--------------------------------------------------
+host      ip
+host1 192.168.1.35
+host2 192.168.1.36
+--------------------------------------------------
+
+The next three columns show the active queue and rejected statistics for the bulk thread pool.
+
+[source,shell]
+--------------------------------------------------
+bulk.active bulk.queue bulk.rejected
+          0          0             0
+--------------------------------------------------
+
+The remaining columns show the active queue and rejected statistics of the index and search thread pool respectively.
+
+Also other statistics of different thread pools can be retrieved by using the `h` (header) parameter.
+
+[source,shell]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/thread_pool?v&h=id,host,suggest.active,suggest.rejected,suggest.completed'
+host      suggest.active suggest.rejected suggest.completed
+host1                  0                0                 0
+host2                  0                0                 0
+--------------------------------------------------
+
+Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed. The suggest
+thread pool won't be displayed by default, so you always need be specific about what statistic you want to display.

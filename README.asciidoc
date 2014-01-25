@@ -8,10 +8,9 @@ The +elasticsearch-repository-hdfs+ plugin allows Elasticsearch 1.0 to use +hdfs
 
 == Flavors
 The HDFS snapshot/restore plugin comes in three flavors:
+
 Default / Hadoop 1.x:: The default version contains the plugin jar alongside Hadoop 1.x (stable) dependencies.
-
 Yarn / Hadoop 2.x:: The +yarn+ version contains the plugin jar plus the Hadoop 2.x (Yarn) dependencies.
-
 Light::The +light+ version contains just the plugin jar, without any Hadoop dependencies.
 
 === Which version to use?
@@ -28,7 +27,7 @@ When looking for +light+ or +yarn+ artifacts use:
 To install the latest snapshot, please install the plugin manually using:
 +bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-1.3.0-BUILD-SNAPSHOT+
 
-[NOTE] 1.3.0 M2 has not been released yet, please build and install the plugin manually
+NOTE: 1.3.0 M2 has not been released yet, please install the plugin manually
 
 == Development Snapshot
 Grab the latest nightly build from the http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-repository-hdfs/[repository] again through Maven:
@@ -52,8 +51,6 @@ Grab the latest nightly build from the http://oss.sonatype.org/content/repositor
   </repository>
 </repositories>
 ----
-
-or [build](#building-the-source) the project yourself. 
 
 == Configuration Properties
 

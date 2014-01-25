@@ -8,17 +8,20 @@ The `elasticsearch-hadoop-repository-hdfs` plugin allows Elasticsearch 1.0 to us
 
 # Installation
 As with any other plugin, simply run:
-``bin/plugin -install elasticsearch/elasticsearch-hadoop-repository-hdfs/1.3.0.M2``
+``bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/1.3.0.M2``
+
+To install the latest snapshot, please install the plugin manually using:
+``bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-1.3.0-BUILD-SNAPSHOT``
 
 __NOTE__: 1.3.0 M2 has not been released yet, please build and install the plugin manually
 
 ## Development Snapshot
-Grab the latest nightly build from the [repository](http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-hadoop-repository-hdfs/) again through Maven:
+Grab the latest nightly build from the [repository](http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-repository-hdfs/) again through Maven:
 
 ```xml
 <dependency>
   <groupId>org.elasticsearch</groupId>
-  <artifactId>elasticsearch-hadoop-repository-hdfs</artifactId>
+  <artifactId>elasticsearch-repository-hdfs</artifactId>
   <version>1.3.0.BUILD-SNAPSHOT</version>
 </dependency>
 ```

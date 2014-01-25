@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
 
 /**
 *
 */
-public class InternalFilter extends SingleBucketAggregation<InternalFilter> implements Filter {
+public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
 
     public final static Type TYPE = new Type("filter");
 

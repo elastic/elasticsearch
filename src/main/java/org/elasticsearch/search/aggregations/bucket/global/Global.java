@@ -18,16 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
- *
+ * A {@code global} aggregation. Defines a single bucket the holds all the documents in the search context.
  */
-public interface Global extends Aggregation {
-
-    long getDocCount();
-
-    Aggregations getAggregations();
-
+public interface Global extends SingleBucketAggregation {
 }

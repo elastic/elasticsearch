@@ -59,7 +59,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, notNullValue());
 
         ExtendedStats stats = bucket.getAggregations().get("stats");

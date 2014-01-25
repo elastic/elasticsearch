@@ -35,10 +35,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 
 /**
- *  Aggregates Geo information into cells determined by geohashes of a given precision.
- *  WARNING - for high-precision geohashes it may prove necessary to use a {@link GeoBoundingBoxFilterBuilder}
- *  aggregation to focus in on a smaller area to avoid generating too many buckets and using too much RAM 
- *  
+ * Aggregates Geo information into cells determined by geohashes of a given precision.
+ * WARNING - for high-precision geohashes it may prove necessary to use a {@link GeoBoundingBoxFilterBuilder}
+ * aggregation to focus in on a smaller area to avoid generating too many buckets and using too much RAM
  */
 public class GeoHashGridParser implements Aggregator.Parser {
 
@@ -46,20 +45,18 @@ public class GeoHashGridParser implements Aggregator.Parser {
     public String type() {
         return InternalGeoHashGrid.TYPE.name();
     }
-    
-   
-    public static final int DEFAULT_PRECISION=5;
-    public static final int DEFAULT_MAX_NUM_CELLS=10000;
-    
+
+    public static final int DEFAULT_PRECISION = 5;
+    public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         String field = null;
-        int precision=DEFAULT_PRECISION;
-        int requiredSize=DEFAULT_MAX_NUM_CELLS;
-        int shardSize=0;
-        
+        int precision = DEFAULT_PRECISION;
+        int requiredSize = DEFAULT_MAX_NUM_CELLS;
+        int shardSize = 0;
+
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -69,44 +66,39 @@ public class GeoHashGridParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } 
+                }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("precision".equals(currentFieldName)) {
                     precision = parser.intValue();
-                }else  if ("size".equals(currentFieldName)) {
+                } else if ("size".equals(currentFieldName)) {
                     requiredSize = parser.intValue();
-                }else  if ("shard_size".equals(currentFieldName)) {
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
                     shardSize = parser.intValue();
-                }else  if ("shardSize".equals(currentFieldName)) {
-                    shardSize = parser.intValue();
-                }  
-                
-            } 
+                }
+
+            }
         }
-        if(shardSize==0)
-        {
+        if (shardSize == 0) {
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting            
-            shardSize=BucketUtils.suggestShardSideQueueSize(requiredSize,context.numberOfShards());
+            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
         }
 
         ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);
         if (field == null) {
-            return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
+            return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
+            return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new GeoGridFactory(aggregationName, config,precision,requiredSize,shardSize);
+        return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
     }
-    
 
-    
 
     private static class GeoGridFactory extends ValueSourceAggregatorFactory<GeoPointValuesSource> {
 
@@ -115,28 +107,28 @@ public class GeoHashGridParser implements Aggregator.Parser {
         private int shardSize;
 
         public GeoGridFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
-                int precision,int requiredSize,int shardSize) {
+                              int precision, int requiredSize, int shardSize) {
             super(name, InternalGeoHashGrid.TYPE.name(), valueSourceConfig);
-            this.precision=precision;
-            this.requiredSize=requiredSize;
-            this.shardSize=shardSize;
+            this.precision = precision;
+            this.requiredSize = requiredSize;
+            this.shardSize = shardSize;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new GeoHashGridAggregator.Unmapped(name,  requiredSize, aggregationContext, parent);
+            return new GeoHashGridAggregator.Unmapped(name, requiredSize, aggregationContext, parent);
         }
-        
+
         @Override
         protected Aggregator create(final GeoPointValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            final CellValues cellIdValues = new CellValues(valuesSource,precision);
+            final CellValues cellIdValues = new CellValues(valuesSource, precision);
             FieldDataSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
             if (cellIdSource.metaData().multiValued()) {
                 // we need to wrap to ensure uniqueness
                 cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
             }
-            final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource,null,null);
-            return new GeoHashGridAggregator(name, factories, geohashIdSource,  requiredSize,
+            final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource, null, null);
+            return new GeoHashGridAggregator(name, factories, geohashIdSource, requiredSize,
                     shardSize, aggregationContext, parent);
 
         }
@@ -147,11 +139,12 @@ public class GeoHashGridParser implements Aggregator.Parser {
             private GeoPointValues geoValues;
             private int precision;
 
-            protected CellValues(GeoPointValuesSource geoPointValues, int precision ) {
+            protected CellValues(GeoPointValuesSource geoPointValues, int precision) {
                 super(true);
                 this.geoPointValues = geoPointValues;
-                this.precision=precision;
-            }            
+                this.precision = precision;
+            }
+
             @Override
             public int setDocument(int docId) {
                 geoValues = geoPointValues.values();
@@ -163,7 +156,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 GeoPoint target = geoValues.nextValue();
                 return GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
             }
-            
+
         }
 
         private static class CellIdSource extends FieldDataSource.Numeric {
@@ -188,7 +181,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             @Override
             public DoubleValues doubleValues() {
-               throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException();
             }
 
             @Override

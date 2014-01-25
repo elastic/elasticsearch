@@ -70,7 +70,12 @@ public class LongTerms extends InternalTerms {
         }
 
         @Override
-        public Text getKey() {
+        public String getKey() {
+            return String.valueOf(term);
+        }
+
+        @Override
+        public Text getKeyAsText() {
             return new StringText(String.valueOf(term));
         }
 

@@ -53,6 +53,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
+
+
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {
@@ -136,7 +138,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 }
             }
 
-            final Range.Bucket bucket = range.getByKey(Integer.toString(i));
+            final Range.Bucket bucket = range.getBucketByKey(Integer.toString(i));
             assertEquals(bucket.getKey(), count, bucket.getDocCount());
 
             final Filter filter = resp.getAggregations().get("filter" + i);
@@ -204,14 +206,14 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final Terms stringMapTerms = resp.getAggregations().get("string_map");
         final Terms stringOrdinalsTerms = resp.getAggregations().get("string_ordinals");
 
-        assertEquals(valuesSet.size(), longTerms.buckets().size());
-        assertEquals(valuesSet.size(), doubleTerms.buckets().size());
-        assertEquals(valuesSet.size(), stringMapTerms.buckets().size());
-        assertEquals(valuesSet.size(), stringOrdinalsTerms.buckets().size());
-        for (Terms.Bucket bucket : longTerms.buckets()) {
-            final Terms.Bucket doubleBucket = doubleTerms.getByTerm(Double.toString(Long.parseLong(bucket.getKey().string())));
-            final Terms.Bucket stringMapBucket = stringMapTerms.getByTerm(bucket.getKey().string());
-            final Terms.Bucket stringOrdinalsBucket = stringOrdinalsTerms.getByTerm(bucket.getKey().string());
+        assertEquals(valuesSet.size(), longTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), doubleTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringMapTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringOrdinalsTerms.getBuckets().size());
+        for (Terms.Bucket bucket : longTerms.getBuckets()) {
+            final Terms.Bucket doubleBucket = doubleTerms.getBucketByKey(Double.toString(Long.parseLong(bucket.getKeyAsText().string())));
+            final Terms.Bucket stringMapBucket = stringMapTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket stringOrdinalsBucket = stringOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
             assertNotNull(doubleBucket);
             assertNotNull(stringMapBucket);
             assertNotNull(stringOrdinalsBucket);
@@ -259,10 +261,10 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertThat(terms, notNullValue());
         Histogram histo = resp.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        assertThat(terms.buckets().size(), equalTo(histo.buckets().size()));
-        for (Terms.Bucket bucket : terms) {
+        assertThat(terms.getBuckets().size(), equalTo(histo.getBuckets().size()));
+        for (Terms.Bucket bucket : terms.getBuckets()) {
             final long key = bucket.getKeyAsNumber().longValue() * interval;
-            final Histogram.Bucket histoBucket = histo.getByKey(key);
+            final Histogram.Bucket histoBucket = histo.getBucketByKey(key);
             assertEquals(bucket.getDocCount(), histoBucket.getDocCount());
         }
     }

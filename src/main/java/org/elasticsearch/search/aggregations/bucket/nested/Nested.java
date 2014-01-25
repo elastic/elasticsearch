@@ -18,16 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
- *
+ * A {@code nested} aggregation. Defines a single bucket that holds all the nested documents of a specific path.
  */
-public interface Nested extends Aggregation {
-
-    long getDocCount();
-
-    Aggregations getAggregations();
-
+public interface Nested extends SingleBucketAggregation {
 }

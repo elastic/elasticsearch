@@ -46,9 +46,10 @@ public class HistogramAggregator extends BucketsAggregator {
     private final InternalOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final AbstractHistogramBase.Factory histogramFactory;
+    private final InternalHistogram.Factory histogramFactory;
 
     private final LongHash bucketOrds;
+    private LongValues values;
 
     public HistogramAggregator(String name,
                                AggregatorFactories factories,
@@ -58,7 +59,7 @@ public class HistogramAggregator extends BucketsAggregator {
                                long minDocCount,
                                @Nullable NumericValuesSource valuesSource,
                                long initialCapacity,
-                               AbstractHistogramBase.Factory<?> histogramFactory,
+                               InternalHistogram.Factory<?> histogramFactory,
                                AggregationContext aggregationContext,
                                Aggregator parent) {
 
@@ -104,28 +105,27 @@ public class HistogramAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
-        List<HistogramBase.Bucket> buckets = new ArrayList<HistogramBase.Bucket>((int) bucketOrds.size());
+        List<InternalHistogram.Bucket> buckets = new ArrayList<InternalHistogram.Bucket>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.capacity(); ++i) {
             final long ord = bucketOrds.id(i);
             if (ord < 0) {
                 continue; // slot is not allocated
             }
-            buckets.add(histogramFactory.createBucket(bucketOrds.key(i), bucketDocCount(ord), bucketAggregations(ord)));
+            buckets.add(histogramFactory.createBucket(bucketOrds.key(i), bucketDocCount(ord), bucketAggregations(ord), valuesSource.formatter()));
         }
-
 
         CollectionUtil.introSort(buckets, order.comparator());
 
         // value source will be null for unmapped fields
         ValueFormatter formatter = valuesSource != null ? valuesSource.formatter() : null;
-        AbstractHistogramBase.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new AbstractHistogramBase.EmptyBucketInfo(rounding, buildEmptySubAggregations()) : null;
+        InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations()) : null;
         return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         ValueFormatter formatter = valuesSource != null ? valuesSource.formatter() : null;
-        AbstractHistogramBase.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new AbstractHistogramBase.EmptyBucketInfo(rounding, buildEmptySubAggregations()) : null;
+        InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations()) : null;
         return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
@@ -140,10 +140,10 @@ public class HistogramAggregator extends BucketsAggregator {
         private final InternalOrder order;
         private final boolean keyed;
         private final long minDocCount;
-        private final AbstractHistogramBase.Factory<?> histogramFactory;
+        private final InternalHistogram.Factory<?> histogramFactory;
 
         public Factory(String name, ValuesSourceConfig<NumericValuesSource> valueSourceConfig,
-                       Rounding rounding, InternalOrder order, boolean keyed, long minDocCount, AbstractHistogramBase.Factory<?> histogramFactory) {
+                       Rounding rounding, InternalOrder order, boolean keyed, long minDocCount, InternalHistogram.Factory<?> histogramFactory) {
             super(name, histogramFactory.type(), valueSourceConfig);
             this.rounding = rounding;
             this.order = order;

@@ -188,14 +188,14 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         LongTerms values = nested.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getName(), equalTo("values"));
-        assertThat(values.buckets(), notNullValue());
-        assertThat(values.buckets().size(), equalTo(uniqueValues));
+        assertThat(values.getBuckets(), notNullValue());
+        assertThat(values.getBuckets().size(), equalTo(uniqueValues));
         for (int i = 0; i < counts.length; ++i) {
             final String key = Long.toString(i);
             if (counts[i] == 0) {
-                assertNull(values.getByTerm(key));
+                assertNull(values.getBucketByKey(key));
             } else {
-                Bucket bucket = values.getByTerm(key);
+                Bucket bucket = values.getBucketByKey(key);
                 assertNotNull(bucket);
                 assertEquals(counts[i], bucket.getDocCount());
             }
@@ -216,13 +216,13 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         LongTerms values = response.getAggregations().get("top_values");
         assertThat(values, notNullValue());
         assertThat(values.getName(), equalTo("top_values"));
-        assertThat(values.buckets(), notNullValue());
-        assertThat(values.buckets().size(), equalTo(numParents));
+        assertThat(values.getBuckets(), notNullValue());
+        assertThat(values.getBuckets().size(), equalTo(numParents));
 
         for (int i = 0; i < numParents; i++) {
             String topValue = "" + (i + 1);
-            assertThat(values.getByTerm(topValue), notNullValue());
-            Nested nested = values.getByTerm(topValue).getAggregations().get("nested");
+            assertThat(values.getBucketByKey(topValue), notNullValue());
+            Nested nested = values.getBucketByKey(topValue).getAggregations().get("nested");
             assertThat(nested, notNullValue());
             Max max = nested.getAggregations().get("max_value");
             assertThat(max, notNullValue());
@@ -258,7 +258,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, Matchers.notNullValue());
 
         Nested nested = bucket.getAggregations().get("nested");

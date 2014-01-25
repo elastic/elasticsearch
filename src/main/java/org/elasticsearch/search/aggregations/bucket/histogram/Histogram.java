@@ -18,12 +18,120 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-/**
- * TODO should be renamed to NumericHistogram? This would also clean up the code and make it less confusing
- */
-public interface Histogram extends HistogramBase<Histogram.Bucket> {
+import com.google.common.primitives.Longs;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-    static interface Bucket extends HistogramBase.Bucket {
+import java.util.Collection;
+import java.util.Comparator;
+
+/**
+ * A {@code histogram} aggregation. Defines multiple buckets, each representing an interval in a histogram.
+ */
+public interface Histogram extends MultiBucketsAggregation {
+
+    /**
+     * A bucket in the histogram where documents fall in
+     */
+    static interface Bucket extends MultiBucketsAggregation.Bucket {
+
+        /**
+         * @return The key associated with the bucket (all documents that fall in this bucket were rounded to this key)
+         */
+        Number getKeyAsNumber();
+
     }
 
+    /**
+     * @return  The buckets of this histogram (each bucket representing an interval in the histogram)
+     */
+    Collection<? extends Bucket> getBuckets();
+
+    /**
+     * Returns a bucket by the key associated with it.
+     *
+     * @param key The key of the bucket.
+     * @return The bucket that is associated with the given key.
+     */
+    Bucket getBucketByKey(String key);
+
+    /**
+     * Returns a bucket by the key associated with it.
+     *
+     * @param key The key of the bucket.
+     * @return The bucket that is associated with the given key.
+     */
+    Bucket getBucketByKey(Number key);
+
+
+    /**
+     * A strategy defining the order in which the buckets in this histogram are ordered.
+     */
+    static abstract class Order implements ToXContent {
+
+        public static final Order KEY_ASC = new InternalOrder((byte) 1, "_key", true, new Comparator<InternalHistogram.Bucket>() {
+            @Override
+            public int compare(InternalHistogram.Bucket b1, InternalHistogram.Bucket b2) {
+                return Longs.compare(b1.key, b2.key);
+            }
+        });
+
+        public static final Order KEY_DESC = new InternalOrder((byte) 2, "_key", false, new Comparator<InternalHistogram.Bucket>() {
+            @Override
+            public int compare(InternalHistogram.Bucket b1, InternalHistogram.Bucket b2) {
+                return -Longs.compare(b1.key, b2.key);
+            }
+        });
+
+        public static final Order COUNT_ASC = new InternalOrder((byte) 3, "_count", true, new Comparator<InternalHistogram.Bucket>() {
+            @Override
+            public int compare(InternalHistogram.Bucket b1, InternalHistogram.Bucket b2) {
+                int cmp = Longs.compare(b1.getDocCount(), b2.getDocCount());
+                if (cmp == 0) {
+                    cmp = Longs.compare(b1.key, b2.key);
+                }
+                return cmp;
+            }
+        });
+
+
+        public static final Order COUNT_DESC = new InternalOrder((byte) 4, "_count", false, new Comparator<InternalHistogram.Bucket>() {
+            @Override
+            public int compare(InternalHistogram.Bucket b1, InternalHistogram.Bucket b2) {
+                int cmp = -Longs.compare(b1.getDocCount(), b2.getDocCount());
+                if (cmp == 0) {
+                    cmp = Longs.compare(b1.key, b2.key);
+                }
+                return cmp;
+            }
+        });
+
+        /**
+         * Creates a bucket ordering strategy that sorts buckets based on a single-valued calc sug-aggregation
+         *
+         * @param aggregationName the name of the aggregation
+         * @param asc             The direction of the order (ascending or descending)
+         */
+        public static Order aggregation(String aggregationName, boolean asc) {
+            return new InternalOrder.Aggregation(aggregationName, null, asc);
+        }
+
+        /**
+         * Creates a bucket ordering strategy that sorts buckets based on a multi-valued calc sug-aggregation
+         *
+         * @param aggregationName the name of the aggregation
+         * @param valueName       The name of the value of the multi-value get by which the sorting will be applied
+         * @param asc             The direction of the order (ascending or descending)
+         */
+        public static Order aggregation(String aggregationName, String valueName, boolean asc) {
+            return new InternalOrder.Aggregation(aggregationName, valueName, asc);
+        }
+
+        /**
+         * @return The bucket comparator by which the order will be applied.
+         */
+        abstract Comparator<InternalHistogram.Bucket> comparator();
+
+    }
 }

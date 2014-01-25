@@ -65,7 +65,12 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        public Text getKey() {
+        public String getKey() {
+            return termBytes.utf8ToString();
+        }
+
+        @Override
+        public Text getKeyAsText() {
             return new BytesText(new BytesArray(termBytes));
         }
 

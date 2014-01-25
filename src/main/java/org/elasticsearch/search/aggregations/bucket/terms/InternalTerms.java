@@ -99,23 +99,17 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     }
 
     @Override
-    public Iterator<Terms.Bucket> iterator() {
-        Object o = buckets.iterator();
-        return (Iterator<Terms.Bucket>) o;
-    }
-
-    @Override
-    public Collection<Terms.Bucket> buckets() {
+    public Collection<Terms.Bucket> getBuckets() {
         Object o = buckets;
         return (Collection<Terms.Bucket>) o;
     }
 
     @Override
-    public Terms.Bucket getByTerm(String term) {
+    public Terms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey().string(), bucket);
+                bucketMap.put(bucket.getKey(), bucket);
             }
         }
         return bucketMap.get(term);
@@ -145,10 +139,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 buckets = new HashMap<Text, List<Bucket>>(terms.buckets.size());
             }
             for (Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.getKey());
+                List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsText());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<Bucket>(aggregations.size());
-                    buckets.put(bucket.getKey(), existingBuckets);
+                    buckets.put(bucket.getKeyAsText(), existingBuckets);
                 }
                 existingBuckets.add(bucket);
             }

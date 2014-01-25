@@ -88,6 +88,10 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         createIndex("idx_unmapped");
         ensureSearchable();
     }
+    
+    private String key(Terms.Bucket bucket) {
+        return randomBoolean() ? bucket.getKey() : key(bucket);
+    }
 
     @Test
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
@@ -104,7 +108,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(100));
+        assertThat(terms.getBuckets().size(), equalTo(100));
     }
 
     @Test
@@ -120,12 +124,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
@@ -146,12 +150,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(20));
+        assertThat(terms.getBuckets().size(), equalTo(20));
 
         for (int i = 0; i < 20; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
@@ -169,12 +173,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         int i = 0;
-        for (Terms.Bucket bucket : terms.buckets()) {
+        for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             i++;
@@ -195,12 +199,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         int i = 4;
-        for (Terms.Bucket bucket : terms.buckets()) {
+        for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             i--;
@@ -221,12 +225,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             Sum sum = bucket.getAggregations().get("sum");
@@ -249,12 +253,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             Sum sum = bucket.getAggregations().get("sum");
@@ -277,12 +281,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + (i+1d));
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + (i+1d)));
+            assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
@@ -301,12 +305,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(6));
+        assertThat(terms.getBuckets().size(), equalTo(6));
 
         for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
@@ -330,12 +334,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(6));
+        assertThat(terms.getBuckets().size(), equalTo(6));
 
         for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + (i-1d));
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i - 1d));
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + (i-1d)));
+            assertThat(key(bucket), equalTo("" + (i-1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i-1));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
@@ -359,11 +363,11 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(1));
+        assertThat(terms.getBuckets().size(), equalTo(1));
 
-        Terms.Bucket bucket = terms.getByTerm("1.0");
+        Terms.Bucket bucket = terms.getBucketByKey("1.0");
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey().string(), equalTo("1.0"));
+        assertThat(key(bucket), equalTo("1.0"));
         assertThat(bucket.getKeyAsNumber().intValue(), equalTo(1));
         assertThat(bucket.getDocCount(), equalTo(5l));
     }
@@ -400,12 +404,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(6));
+        assertThat(terms.getBuckets().size(), equalTo(6));
 
         for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + (i+1d));
+            Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + (i+1d)));
+            assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
             final long count = i == 0 || i == 5 ? 1 : 2;
             double s = 0;
@@ -435,12 +439,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
@@ -460,12 +464,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             Sum sum = bucket.getAggregations().get("sum");
@@ -487,12 +491,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(6));
+        assertThat(terms.getBuckets().size(), equalTo(6));
 
         for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
@@ -538,12 +542,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(6));
+        assertThat(terms.getBuckets().size(), equalTo(6));
 
         for (int i = 0; i < 6; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             final long count = i == 0 || i == 5 ? 1 : 2;
             double s = 0;
@@ -574,7 +578,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(0));
+        assertThat(terms.getBuckets().size(), equalTo(0));
     }
 
     @Test
@@ -590,12 +594,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
@@ -622,13 +626,13 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, Matchers.notNullValue());
 
         Terms terms = bucket.getAggregations().get("terms");
         assertThat(terms, Matchers.notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().isEmpty(), is(true));
+        assertThat(terms.getBuckets().isEmpty(), is(true));
     }
 
     @Test
@@ -647,12 +651,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -753,13 +757,13 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 4; i >= 0; i--) {
 
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
 
             Avg avg = bucket.getAggregations().get("avg_i");
@@ -784,12 +788,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -814,12 +818,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 4; i >= 0; i--) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
 
             Stats stats = bucket.getAggregations().get("stats");
@@ -844,12 +848,12 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.buckets().size(), equalTo(5));
+        assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            Terms.Bucket bucket = terms.getByTerm("" + i);
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKey().string(), equalTo("" + i));
+            assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");

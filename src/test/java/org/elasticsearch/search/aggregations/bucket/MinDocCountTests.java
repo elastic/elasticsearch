@@ -116,18 +116,18 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
     // check that terms2 is a subset of terms1
     private void assertSubset(Terms terms1, Terms terms2, long minDocCount, int size, String include) {
         final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");;
-        final Iterator<Terms.Bucket> it1 = terms1.iterator();
-        final Iterator<Terms.Bucket> it2 = terms2.iterator();
+        final Iterator<Terms.Bucket> it1 = terms1.getBuckets().iterator();
+        final Iterator<Terms.Bucket> it2 = terms2.getBuckets().iterator();
         int size2 = 0;
         while (it1.hasNext()) {
             final Terms.Bucket bucket1 = it1.next();
-            if (bucket1.getDocCount() >= minDocCount && (matcher == null || matcher.reset(bucket1.getKey().string()).matches())) {
+            if (bucket1.getDocCount() >= minDocCount && (matcher == null || matcher.reset(bucket1.getKey()).matches())) {
                 if (size2++ == size) {
                     break;
                 }
                 assertTrue(it2.hasNext());
                 final Terms.Bucket bucket2 = it2.next();
-                assertEquals(bucket1.getKey(), bucket2.getKey());
+                assertEquals(bucket1.getKeyAsText(), bucket2.getKeyAsText());
                 assertEquals(bucket1.getDocCount(), bucket2.getDocCount());
             }
         }
@@ -135,22 +135,22 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSubset(Histogram histo1, Histogram histo2, long minDocCount) {
-        final Iterator<Histogram.Bucket> it2 = histo2.iterator();
-        for (Histogram.Bucket b1 : histo1) {
+        final Iterator<? extends Histogram.Bucket> it2 = histo2.getBuckets().iterator();
+        for (Histogram.Bucket b1 : histo1.getBuckets()) {
             if (b1.getDocCount() >= minDocCount) {
                 final Histogram.Bucket b2 = it2.next();
-                assertEquals(b1.getKey(), b2.getKey());
+                assertEquals(b1.getKeyAsNumber(), b2.getKeyAsNumber());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
             }
         }
     }
 
     private void assertSubset(DateHistogram histo1, DateHistogram histo2, long minDocCount) {
-        final Iterator<DateHistogram.Bucket> it2 = histo2.iterator();
-        for (DateHistogram.Bucket b1 : histo1) {
+        final Iterator<? extends DateHistogram.Bucket> it2 = histo2.getBuckets().iterator();
+        for (DateHistogram.Bucket b1 : histo1.getBuckets()) {
             if (b1.getDocCount() >= minDocCount) {
                 final DateHistogram.Bucket b2 = it2.next();
-                assertEquals(b1.getKey(), b2.getKey());
+                assertEquals(b1.getKeyAsNumber(), b2.getKeyAsNumber());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
             }
         }
@@ -284,7 +284,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                         .minDocCount(0))
                 .execute().actionGet();
         final Terms allTerms = allTermsResponse.getAggregations().get("terms");
-        assertEquals(cardinality, allTerms.buckets().size());
+        assertEquals(cardinality, allTerms.getBuckets().size());
 
         for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
             final int size = randomIntBetween(1, cardinality + 2);

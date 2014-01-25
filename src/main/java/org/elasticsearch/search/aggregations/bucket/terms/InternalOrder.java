@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.bucket.Bucket;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 
 import java.io.IOException;
@@ -165,11 +165,11 @@ class InternalOrder extends Terms.Order {
         static final byte ID = 0;
 
         Aggregation(String key, boolean asc) {
-            super(ID, key, asc, new Bucket.SubAggregationComparator<Terms.Bucket>(key, asc));
+            super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Terms.Bucket>(key, asc));
         }
 
         Aggregation(String aggName, String metricName, boolean asc) {
-            super(ID, key(aggName, metricName), asc, new Bucket.SubAggregationComparator<Terms.Bucket>(aggName, metricName, asc));
+            super(ID, key(aggName, metricName), asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Terms.Bucket>(aggName, metricName, asc));
         }
 
         String aggName() {
@@ -251,12 +251,12 @@ class InternalOrder extends Terms.Order {
         public static void writeOrder(InternalOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
             if (order instanceof Aggregation) {
-                out.writeBoolean(((Bucket.SubAggregationComparator) order.comparator).asc());
-                out.writeString(((Bucket.SubAggregationComparator) order.comparator).aggName());
-                boolean hasValueName = ((Bucket.SubAggregationComparator) order.comparator).valueName() != null;
+                out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).asc());
+                out.writeString(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).aggName());
+                boolean hasValueName = ((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).valueName() != null;
                 out.writeBoolean(hasValueName);
                 if (hasValueName) {
-                    out.writeString(((Bucket.SubAggregationComparator) order.comparator).valueName());
+                    out.writeString(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).valueName());
                 }
             }
         }

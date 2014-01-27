@@ -32,10 +32,6 @@
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
         },
-        "source": {
-          "type" : "string",
-          "description" : "The URL-encoded request definition using the Query DSL (instead of using request body)"
-        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"

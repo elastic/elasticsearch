@@ -32,6 +32,10 @@
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
         },
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition using the Query DSL (instead of using request body)"
+        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
@@ -48,7 +52,7 @@
     },
     "body": {
       "description" : "Document identifiers; can be either `docs` (containing full document information) or `ids` (when index and type is provided in the URL.",
-      "required" : true
+      "required" : false
     }
   }
 }

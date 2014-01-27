@@ -35,10 +35,12 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.emptyBuilder;
 
 /**
  *
@@ -70,14 +72,21 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             @Override
             public void onResponse(GetFieldMappingsResponse response) {
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-
                     ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
+
+                    boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                    if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
+                        channel.sendResponse(new XContentRestResponse(request, OK, emptyBuilder(request)));
+                        return;
+                    }
+
                     RestStatus status = OK;
                     if (mappingsByIndex.isEmpty() && fields.length > 0) {
                         status = NOT_FOUND;
                     }
+
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder.startObject();
                     response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
@@ -97,4 +106,25 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         });
     }
 
+    /**
+     *
+     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
+     * that type and index exist, but the field did not
+     */
+    private boolean isFieldMappingMissingField(ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex) throws IOException {
+        if (mappingsByIndex.size() != 1) {
+            return false;
+        }
+
+        for (ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
+            for (ImmutableMap<String, FieldMappingMetaData> fieldValue : value.values()) {
+                for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
+                    if (fieldMappingMetaDataEntry.getValue() == FieldMappingMetaData.NULL) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 }

@@ -92,6 +92,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
             return ImmutableMap.of();
         }
 
+        boolean isProbablySingleFieldRequest = concreteIndices.length == 1 && types.length == 1 && fields.length == 1;
         ImmutableMap.Builder<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexMapBuilder = ImmutableMap.builder();
         Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indicesService.indices());
         for (String index : intersection) {
@@ -114,7 +115,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
             MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>>();
             for (String type : typeIntersection) {
                 DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-                ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, fields, includeDefaults);
+                ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, fields, includeDefaults, isProbablySingleFieldRequest);
                 if (!fieldMapping.isEmpty()) {
                     typeMappings.put(type, fieldMapping);
                 }
@@ -170,7 +171,7 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
     };
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, String[] fields,
-                                                                               boolean includeDefaults) throws ElasticsearchException {
+                                                                               boolean includeDefaults, boolean isProbablySingleFieldRequest) throws ElasticsearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<String, FieldMappingMetaData>();
         ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : fields) {
@@ -215,6 +216,8 @@ public class TransportGetFieldMappingsAction extends TransportClusterInfoAction<
                 FieldMapper fieldMapper = documentMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(field, fieldMapper, fieldMappings, includeDefaults);
+                } else if (isProbablySingleFieldRequest) {
+                    fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
             }
         }

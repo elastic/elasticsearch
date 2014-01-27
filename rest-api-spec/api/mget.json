@@ -48,7 +48,7 @@
     },
     "body": {
       "description" : "Document identifiers; can be either `docs` (containing full document information) or `ids` (when index and type is provided in the URL.",
-      "required" : false
+      "required" : true
     }
   }
 }

@@ -566,7 +566,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                         timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
                     }
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp", e);
+                    throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp/id", e);
                 } finally {
                     if (parser != null) {
                         parser.close();

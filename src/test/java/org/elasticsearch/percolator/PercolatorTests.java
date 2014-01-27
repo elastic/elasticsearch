@@ -931,7 +931,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=c");
         response = client().preparePercolate()
@@ -939,7 +939,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=b c");
         response = client().preparePercolate()
@@ -947,7 +947,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 4l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate doc with field1=d");
         response = client().preparePercolate()
@@ -955,7 +955,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 1l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate non existing doc");
         try {
@@ -1003,7 +1003,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 2");
         response = client().preparePercolate()
@@ -1011,7 +1011,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setGetRequest(Requests.getRequest("test").type("type").id("2"))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 3");
         response = client().preparePercolate()
@@ -1019,7 +1019,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setGetRequest(Requests.getRequest("test").type("type").id("3"))
                 .execute().actionGet();
         assertMatchCount(response, 4l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
 
         logger.info("--> Count percolate existing doc with id 4");
         response = client().preparePercolate()
@@ -1027,7 +1027,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setGetRequest(Requests.getRequest("test").type("type").id("4"))
                 .execute().actionGet();
         assertMatchCount(response, 1l);
-        assertThat(response.getMatches(), emptyArray());
+        assertThat(response.getMatches(), nullValue());
     }
 
     @Test

@@ -795,8 +795,6 @@ public class PercolatorService extends AbstractComponent {
 
     public final static class ReduceResult {
 
-        private static PercolateResponse.Match[] EMPTY = new PercolateResponse.Match[0];
-
         private final long count;
         private final PercolateResponse.Match[] matches;
         private final InternalFacets reducedFacets;
@@ -811,7 +809,7 @@ public class PercolatorService extends AbstractComponent {
 
         public ReduceResult(long count, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
             this.count = count;
-            this.matches = EMPTY;
+            this.matches = null;
             this.reducedFacets = reducedFacets;
             this.reducedAggregations = reducedAggregations;
         }

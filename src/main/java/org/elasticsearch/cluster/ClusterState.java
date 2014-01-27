@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -50,10 +51,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -234,12 +232,14 @@ public class ClusterState implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!params.paramAsBoolean("filter_nodes", false)) {
+        Set<String> metrics = Strings.splitStringByCommaToSet(params.param("metric", "_all"));
+        boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
+
+        if (isAllMetricsOnly || metrics.contains("nodes")) {
             builder.field("master_node", nodes().masterNodeId());
         }
 
-        // blocks
-        if (!params.paramAsBoolean("filter_blocks", false)) {
+        if (isAllMetricsOnly || metrics.contains("blocks")) {
             builder.startObject("blocks");
 
             if (!blocks().global().isEmpty()) {
@@ -266,7 +266,7 @@ public class ClusterState implements ToXContent {
         }
 
         // nodes
-        if (!params.paramAsBoolean("filter_nodes", false)) {
+        if (isAllMetricsOnly || metrics.contains("nodes")) {
             builder.startObject("nodes");
             for (DiscoveryNode node : nodes()) {
                 builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
@@ -285,7 +285,7 @@ public class ClusterState implements ToXContent {
         }
 
         // meta data
-        if (!params.paramAsBoolean("filter_metadata", false)) {
+        if (isAllMetricsOnly || metrics.contains("metadata")) {
             builder.startObject("metadata");
 
             builder.startObject("templates");
@@ -371,7 +371,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing table
-        if (!params.paramAsBoolean("filter_routing_table", false)) {
+        if (isAllMetricsOnly || metrics.contains("routing_table")) {
             builder.startObject("routing_table");
             builder.startObject("indices");
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
@@ -392,7 +392,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        if (!params.paramAsBoolean("filter_routing_table", false)) {
+        if (isAllMetricsOnly || metrics.contains("routing_table")) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
@@ -413,7 +413,7 @@ public class ClusterState implements ToXContent {
             builder.endObject();
         }
 
-        if (!params.paramAsBoolean("filter_routing_table", false)) {
+        if (isAllMetricsOnly || metrics.contains("routing_table")) {
             builder.startArray("allocations");
             for (Map.Entry<ShardId, List<AllocationExplanation.NodeExplanation>> entry : allocationExplanation().explanations().entrySet()) {
                 builder.startObject();
@@ -435,7 +435,7 @@ public class ClusterState implements ToXContent {
             builder.endArray();
         }
 
-        if (!params.paramAsBoolean("filter_customs", false)) {
+        if (isAllMetricsOnly || metrics.contains("customs")) {
             for (ObjectObjectCursor<String, Custom> cursor : customs) {
                 builder.startObject(cursor.key);
                 lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);

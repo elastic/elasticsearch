@@ -16,7 +16,7 @@
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "blocks", "index_templates", "metadata", "nodes", "routing_table"],
+          "options" : ["_all", "blocks", "metadata", "nodes", "routing_table"],
           "description" : "Limit the information returned to the specified metrics"
         }
       },
@@ -28,6 +28,10 @@
         "master_timeout": {
           "type": "time",
           "description": "Specify timeout for connection to master"
+        },
+        "index_templates": {
+          "type": "list",
+          "description": "A comma separated list to return specific index templates when returning metadata"
         },
         "flat_settings": {
           "type": "boolean",

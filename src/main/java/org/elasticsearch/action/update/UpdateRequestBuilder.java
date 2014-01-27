@@ -78,6 +78,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
+     * <p>
+     * The script works with the variable <code>ctx</code>, which is bound to the entry, 
+     * e.g. <code>ctx._source.mycounter += 1</code>.
+     * 
+     * @see #setScriptLang(String)
+     * @see #setScriptParams(Map)
      */
     public UpdateRequestBuilder setScript(String script) {
         request.script(script);
@@ -89,7 +95,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Valid options are: mvel, js, groovy, python, and native (Java)<br>
      * Default: mvel
      * <p>
-     * ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
+     * Ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
      */
     public UpdateRequestBuilder setScriptLang(String scriptLang) {
         request.scriptLang(scriptLang);

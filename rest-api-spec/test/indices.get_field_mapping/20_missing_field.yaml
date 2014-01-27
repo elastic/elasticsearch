@@ -1,5 +1,5 @@
 ---
-"Raise 404 when field doesn't exist":
+"Return empty object if field doesn't exist, but type and index do":
 
   - do:
         indices.create:
@@ -13,9 +13,9 @@
                       analyzer: whitespace
 
   - do:
-      catch: missing
       indices.get_field_mapping:
         index: test_index
         type: test_type
-        field: not_text
+        field: not_existent
   
+  - match: { '': {}}

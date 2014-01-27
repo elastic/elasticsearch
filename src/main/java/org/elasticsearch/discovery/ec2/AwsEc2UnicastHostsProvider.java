@@ -118,17 +118,22 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                 if (!groups.isEmpty()) {
                     List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
                     ArrayList<String> securityGroupNames = new ArrayList<String>();
+                    ArrayList<String> securityGroupIds = new ArrayList<String>();
                     for (GroupIdentifier sg : instanceSecurityGroups) {
                         securityGroupNames.add(sg.getGroupName());
+                        securityGroupIds.add(sg.getGroupId());
                     }
                     if (bindAnyGroup) {
-                        if (Collections.disjoint(securityGroupNames, groups)) {
+                        // We check if we can find at least one group name or one group id in groups.
+                        if (Collections.disjoint(securityGroupNames, groups)
+                                && Collections.disjoint(securityGroupIds, groups)) {
                             logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;
                         }
                     } else {
-                        if (!securityGroupNames.containsAll(groups)) {
+                        // We need tp match all group names or group ids, otherwise we ignore this instance
+                        if (!(securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups))) {
                             logger.trace("filtering out instance {} based on groups {}, does not include all of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;

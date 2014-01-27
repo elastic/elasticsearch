@@ -34,6 +34,7 @@ public enum SimpleQueryStringFlag {
     NOT(XSimpleQueryParser.NOT_OPERATOR),
     OR(XSimpleQueryParser.OR_OPERATOR),
     PREFIX(XSimpleQueryParser.PREFIX_OPERATOR),
+    PHRASE(XSimpleQueryParser.PHRASE_OPERATOR),
     PRECEDENCE(XSimpleQueryParser.PRECEDENCE_OPERATORS),
     ESCAPE(XSimpleQueryParser.ESCAPE_OPERATOR),
     WHITESPACE(XSimpleQueryParser.WHITESPACE_OPERATOR);

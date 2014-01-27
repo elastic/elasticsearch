@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
@@ -50,9 +51,9 @@ public class StringTermsAggregator extends BucketsAggregator {
 
     private final ValuesSource valuesSource;
     private final InternalOrder order;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
+    protected final int requiredSize;
+    protected final int shardSize;
+    protected final long minDocCount;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
     private BytesValues values;
@@ -142,7 +143,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     }
 
     @Override
-    public StringTerms buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
@@ -244,7 +245,7 @@ public class StringTermsAggregator extends BucketsAggregator {
     }
 
     @Override
-    public StringTerms buildEmptyAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         return new StringTerms(name, order, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
     }
 

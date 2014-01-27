@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
@@ -67,6 +68,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(MissingParser.class);
         parsers.add(FilterParser.class);
         parsers.add(TermsParser.class);
+        parsers.add(SignificantTermsParser.class);
         parsers.add(RangeParser.class);
         parsers.add(DateRangeParser.class);
         parsers.add(IpRangeParser.class);

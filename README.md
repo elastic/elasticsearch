@@ -65,7 +65,7 @@ Here is a description on how to generate this using `openssl`:
 # You may want to use another dir than /tmp
 cd /tmp
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure-private.key -out azure-certificate.pem
-chmod 600 azure-private.key
+chmod 600 azure-private.key azure-certificate.pem
 openssl x509 -outform der -in azure-certificate.pem -out azure-certificate.cer
 
 # Generate a keystore (azurekeystore.pkcs12)

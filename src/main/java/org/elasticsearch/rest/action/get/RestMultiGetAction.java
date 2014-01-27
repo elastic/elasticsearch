@@ -24,6 +24,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,8 +73,18 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
 
+        BytesReference content = null;
+        if (request.hasContent()) {
+            content = request.content();
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                content = new BytesArray(source);
+            }
+        }
+
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), request.content(), allowExplicitIndex);
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), content, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

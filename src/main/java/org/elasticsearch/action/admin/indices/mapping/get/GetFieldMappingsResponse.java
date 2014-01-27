@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,6 +89,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     public static class FieldMappingMetaData implements ToXContent {
+        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
+
         private String fullName;
         private BytesReference source;
 

@@ -43,13 +43,16 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         super((InternalIndicesAdminClient) indicesClient, new CreateIndexRequest(index));
     }
 
+    /**
+     * Sets the name of the index to be created
+     */
     public CreateIndexRequestBuilder setIndex(String index) {
         request.index(index);
         return this;
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to create the index with.
      */
     public CreateIndexRequestBuilder setSettings(Settings settings) {
         request.settings(settings);
@@ -57,7 +60,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to create the index with.
      */
     public CreateIndexRequestBuilder setSettings(Settings.Builder settings) {
         request.settings(settings);
@@ -73,7 +76,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(String source) {
         request.settings(source);
@@ -89,7 +92,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
@@ -186,6 +189,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
         return this;
     }
 
+    /**
+     * Adds custom metadata to the index to be created.
+     */
     public CreateIndexRequestBuilder addCustom(IndexMetaData.Custom custom) {
         request.custom(custom);
         return this;

@@ -1,0 +1,27 @@
+---
+"Source":
+
+ - do:
+      indices.create:
+          index: test_1
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      mget:
+        index:  test_1
+        type:   test
+        source: "{\"ids\":[\"1\"]}"
+
+ - is_true:  docs.0.found
+ - match:   { docs.0._index:          test_1 }
+ - match:   { docs.0._type:           test   }
+ - match:   { docs.0._id:             "1"    }

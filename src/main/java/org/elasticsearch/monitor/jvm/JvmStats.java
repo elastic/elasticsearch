@@ -146,19 +146,27 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
         List<MemoryPool> pools = new ArrayList<MemoryPool>();
         for (int i = 0; i < memoryPoolMXBeans.size(); i++) {
-            MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
-            MemoryUsage usage = memoryPoolMXBean.getUsage();
-            MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
-            String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
-            if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
-                continue;
+            try {
+                MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
+                MemoryUsage usage = memoryPoolMXBean.getUsage();
+                MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
+                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
+                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
+                    continue;
+                }
+                pools.add(new MemoryPool(name,
+                        usage.getUsed() < 0 ? 0 : usage.getUsed(),
+                        usage.getMax() < 0 ? 0 : usage.getMax(),
+                        peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
+                        peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
+                ));
+            } catch (OutOfMemoryError err) {
+                throw err; // rethrow
+            } catch (Throwable ex) {
+                /* ignore some JVMs might barf here with:
+                 * java.lang.InternalError: Memory Pool not found
+                 * we just omit the pool in that case!*/
             }
-            pools.add(new MemoryPool(name,
-                    usage.getUsed() < 0 ? 0 : usage.getUsed(),
-                    usage.getMax() < 0 ? 0 : usage.getMax(),
-                    peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
-                    peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
-            ));
         }
         stats.mem.pools = pools.toArray(new MemoryPool[pools.size()]);
 

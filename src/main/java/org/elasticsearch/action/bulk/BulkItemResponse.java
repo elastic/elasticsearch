@@ -245,7 +245,11 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            failure = new Failure(in.readString(), in.readString(), in.readString(), in.readString());
+            String fIndex = in.readString();
+            String fType = in.readString();
+            String fId = in.readOptionalString();
+            String fMessage = in.readString();
+            failure = new Failure(fIndex, fType, fId, fMessage);
         }
     }
 
@@ -271,7 +275,7 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(true);
             out.writeString(failure.getIndex());
             out.writeString(failure.getType());
-            out.writeString(failure.getId());
+            out.writeOptionalString(failure.getId());
             out.writeString(failure.getMessage());
         }
     }

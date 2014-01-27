@@ -27,6 +27,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -574,6 +575,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     element.parse(parser, context);
                 } else if (token == null) {
                     break;
+                } else if ((token != XContentParser.Token.START_OBJECT)) {
+                    throw new ElasticsearchParseException("Expected field but got " + token.name() + " " + parser.currentName());
                 }
             }
         } catch (Throwable e) {

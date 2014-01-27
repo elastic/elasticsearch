@@ -1,0 +1,36 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:
+              user : foo
+              amount : 35
+              data : some
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Test with _local preference placed in query body - should fail":
+
+  - do:
+      catch: request
+      search:
+          index: test
+          type:  test
+          body:
+              query:
+                  term:
+                      data: some
+                  preference: _local
+              fields: [user,amount]
+
+

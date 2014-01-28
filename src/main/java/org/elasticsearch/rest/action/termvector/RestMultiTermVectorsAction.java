@@ -61,10 +61,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         RestTermVectorAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
 
-        BytesReference content = null;
-        if (request.hasContent()) {
-            content = request.content();
-        } else {
+        BytesReference content = request.content();
+        if (!request.hasContent()) {
             String source = request.param("source");
             if (source != null) {
                 content = new BytesArray(source);

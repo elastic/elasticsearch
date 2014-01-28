@@ -29,6 +29,7 @@ import org.junit.Test;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.FilterBuilders.andFilter;
 import static org.elasticsearch.index.query.FilterBuilders.notFilter;
@@ -37,6 +38,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 /**
@@ -50,7 +52,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
          */
         createIndex("test");
         final int iters = atLeast(2);
-
+        final AtomicBoolean hasErrors = new AtomicBoolean(false);
         for (int i = 0; i < iters; i++) {
             final String type;
             NodesHotThreadsRequestBuilder nodesHotThreadsRequestBuilder = client().admin().cluster().prepareNodesHotThreads();
@@ -59,7 +61,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                 nodesHotThreadsRequestBuilder.setInterval(timeValue);
             }
             if (randomBoolean()) {
-                nodesHotThreadsRequestBuilder.setThreads(randomIntBetween(1, 100));
+                nodesHotThreadsRequestBuilder.setThreads(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(1, 500));
             }
             if (randomBoolean()) {
                 switch (randomIntBetween(0, 2)) {
@@ -82,6 +84,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
             nodesHotThreadsRequestBuilder.execute(new ActionListener<NodesHotThreadsResponse>() {
                 @Override
                 public void onResponse(NodesHotThreadsResponse nodeHotThreads) {
+                    boolean success = false;
                     try {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String,NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
@@ -90,7 +93,11 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                             assertNotNull(ht.getHotThreads());
                             //logger.info(ht.getHotThreads());
                         }
+                        success = true;
                     } finally {
+                        if (!success) {
+                            hasErrors.set(true);
+                        }
                         latch.countDown();
                     }
                 }
@@ -98,6 +105,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                 @Override
                 public void onFailure(Throwable e) {
                     logger.error("FAILED", e);
+                    hasErrors.set(true);
                     latch.countDown();
                     fail();
                 }
@@ -120,6 +128,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                         3l);
             }
             latch.await();
+            assertThat(hasErrors.get(), is(false));
         }
     }
 }

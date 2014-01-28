@@ -34,18 +34,20 @@ Response:
     ...
 
     "aggregations": {
-        "range": [
-            {
-                "to": 1.3437792E+12,
-                "to_as_string": "08-2012",
-                "doc_count": 7
-            },
-            {
-                "from": 1.3437792E+12,
-                "from_as_string": "08-2012",
-                "doc_count": 2
-            }
-        ]
+        "range": {
+            "buckets": [
+                {
+                    "to": 1.3437792E+12,
+                    "to_as_string": "08-2012",
+                    "doc_count": 7
+                },
+                {
+                    "from": 1.3437792E+12,
+                    "from_as_string": "08-2012",
+                    "doc_count": 2
+                }
+            ]
+        }
     }
 }
 --------------------------------------------------

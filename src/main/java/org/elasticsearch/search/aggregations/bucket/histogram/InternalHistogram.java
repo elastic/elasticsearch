@@ -363,10 +363,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
         if (keyed) {
-            builder.startObject(name);
+            builder.startObject(CommonFields.BUCKETS);
         } else {
-            builder.startArray(name);
+            builder.startArray(CommonFields.BUCKETS);
         }
 
         for (B bucket : buckets) {
@@ -396,7 +397,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else {
             builder.endArray();
         }
-        return builder;
+        return builder.endObject();
     }
 
 }

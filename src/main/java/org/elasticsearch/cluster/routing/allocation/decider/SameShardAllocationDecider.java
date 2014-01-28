@@ -28,14 +28,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * An allocation decider that prevents multiple instances of the same shard to be
- * allocated on a single <tt>host</tt>. The cluster setting can be modified in
- * real-time by updating the {@value #SAME_HOST_SETTING} value of cluster setting
- * API. The default is <code>false</code>.
+ * An allocation decider that prevents multiple instances of the same shard to
+ * be allocated on the same <tt>node</tt>.
+ *
+ * The {@value #SAME_HOST_SETTING} setting allows to perform a check to prevent
+ * allocation of multiple instances of the same shard on a single <tt>host</tt>,
+ * based on host name and host address. Defaults to `false`, meaning that no
+ * check is performed by default.
+ *
  * <p>
  * Note: this setting only applies if multiple nodes are started on the same
- * <tt>host</tt>. Multiple allocations of the same shard on the same <tt>node</tt> are
- * not allowed independent of this setting.
+ * <tt>host</tt>. Allocations of multiple copies of the same shard on the same
+ * <tt>node</tt> are not allowed independently of this setting.
  * </p>
  */
 public class SameShardAllocationDecider extends AllocationDecider {

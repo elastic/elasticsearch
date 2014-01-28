@@ -39,7 +39,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -164,6 +163,7 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
 
     @Test
     public void test4093() {
+        cluster().ensureAtMostNumNodes(1);
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.store.type", "memory")
                 .put("cache.memory.large_cache_size", new ByteSizeValue(1, ByteSizeUnit.MB)) // no need to cache a lot
@@ -179,7 +179,7 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
             ByteSizeValue directMemoryMax = info.getJvm().getMem().getDirectMemoryMax();
             logger.debug("  --> JVM max direct memory for node [{}] is set to [{}]", info.getNode().getName(), directMemoryMax);
         }
-        final int numDocs = between(30, 100); // 30 docs are enough to fail without the fix for #4093
+        final int numDocs = between(30, 50); // 30 docs are enough to fail without the fix for #4093
         logger.debug("  --> Indexing [{}] documents", numDocs);
         for (int i = 0; i < numDocs; i++) {
             if ((i + 1) % 10 == 0) {

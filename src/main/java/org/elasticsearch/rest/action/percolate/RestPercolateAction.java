@@ -26,8 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,18 +69,7 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.documentType(restRequest.param("type"));
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
-
-        BytesReference content = null;
-        if (restRequest.hasContent()) {
-            content = restRequest.content();
-        } else {
-            String source = restRequest.param("source");
-            if (source != null) {
-                content = new BytesArray(source);
-            }
-        }
-
-        percolateRequest.source(content, restRequest.contentUnsafe());
+        percolateRequest.source(RestActions.getRestContent(restRequest), restRequest.contentUnsafe());
 
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restRequest, restChannel);

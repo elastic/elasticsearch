@@ -37,13 +37,13 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 h3. Installation
 
 * "Download":http://www.elasticsearch.org/download and unzip the Elasticsearch official distribution.
-* Run @bin/elasticsearch -f@ on unix, or @bin/elasticsearch.bat@ on windows.
+* Run @bin/elasticsearch@ on unix, or @bin/elasticsearch.bat@ on windows.
 * Run @curl -X GET http://localhost:9200/@.
 * Start more servers ...
 
 h3. Indexing
 
-Lets try and index some twitter like information. First, lets create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
+Let's try and index some twitter like information. First, let's create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
 
 <pre>
 curl -XPUT 'http://localhost:9200/twitter/user/kimchy' -d '{ "name" : "Shay Banon" }'
@@ -63,7 +63,7 @@ curl -XPUT 'http://localhost:9200/twitter/tweet/2' -d '
 }'
 </pre>
 
-Now, lets see if the information was added by GETting it:
+Now, let's see if the information was added by GETting it:
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/user/kimchy?pretty=true'
@@ -74,7 +74,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/2?pretty=true'
 h3. Searching
 
 Mmm search..., shouldn't it be elastic? 
-Lets find all the tweets that @kimchy@ posted:
+Let's find all the tweets that @kimchy@ posted:
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
@@ -91,7 +91,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -d '
 }'
 </pre>
 
-Just for kicks, lets get all the documents stored (we should see the user as well):
+Just for kicks, let's get all the documents stored (we should see the user as well):
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
@@ -119,7 +119,7 @@ There are many more options to perform search, after all, its a search product n
 
 h3. Multi Tenant - Indices and Types
 
-Maan, that twitter index might get big (in this case, index size == valuation). Lets see if we can structure our twitter system a bit differently in order to support such large amount of data.
+Maan, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amount of data.
 
 Elasticsearch support multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
 
@@ -184,7 +184,7 @@ curl -XGET 'http://localhost:9200/_search?pretty=true' -d '
 
 h3. Distributed, Highly Available
 
-Lets face it, things will fail....
+Let's face it, things will fail....
 
 Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 

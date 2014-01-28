@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -100,5 +101,24 @@ public class RestActions {
             }
         }
         return queryBuilder.buildAsBytes();
+    }
+
+    /**
+     * Get Rest content from either payload or source parameter
+     * @param request Rest request
+     * @return rest content
+     */
+    public static BytesReference getRestContent(RestRequest request) {
+        assert request != null;
+
+        BytesReference content = request.content();
+        if (!request.hasContent()) {
+            String source = request.param("source");
+            if (source != null) {
+                content = new BytesArray(source);
+            }
+        }
+
+        return content;
     }
 }

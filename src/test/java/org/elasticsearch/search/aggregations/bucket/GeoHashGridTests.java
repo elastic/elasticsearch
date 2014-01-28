@@ -101,6 +101,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
             }
         }
         indexRandom(true, cities);
+        ensureSearchable();
     }
 
 
@@ -166,9 +167,6 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void unmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
-
-
         for (int precision = 1; precision <= highestPrecisionGeohash; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
                     .addAggregation(geohashGrid("geohashgrid")

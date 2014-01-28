@@ -20,19 +20,15 @@ package org.elasticsearch.benchmark.search.child;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -40,7 +36,6 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -50,9 +45,9 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
  */
 public class ChildSearchAndIndexingBenchmark {
 
-    static long COUNT = SizeValue.parseSizeValue("1m").singles();
-    static int CHILD_COUNT = 5;
-    static int BATCH = 100;
+    static int PARENT_COUNT = (int) SizeValue.parseSizeValue("1m").singles();
+    static int NUM_CHILDREN_PER_PARENT = 12;
+    static int QUERY_VALUE_RATIO_PER_PARENT = 3;
     static int QUERY_COUNT = 50;
     static String indexName = "test";
     static Random random = new Random();
@@ -79,35 +74,11 @@ public class ChildSearchAndIndexingBenchmark {
                     .endObject().endObject()).execute().actionGet();
             Thread.sleep(5000);
 
-            StopWatch stopWatch = new StopWatch().start();
-
-            System.out.println("--> Indexing [" + COUNT + "] parent document and [" + (COUNT * CHILD_COUNT) + " child documents");
-            long ITERS = COUNT / BATCH;
-            long i = 1;
-            int counter = 0;
-            for (; i <= ITERS; i++) {
-                BulkRequestBuilder request = client.prepareBulk();
-                for (int j = 0; j < BATCH; j++) {
-                    counter++;
-                    request.add(Requests.indexRequest(indexName).type("parent").id(Integer.toString(counter))
-                            .source(parentSource(Integer.toString(counter), "test" + counter)));
-                    for (int k = 0; k < CHILD_COUNT; k++) {
-                        request.add(Requests.indexRequest(indexName).type("child").id(Integer.toString(counter) + "_" + k)
-                                .parent(Integer.toString(counter))
-                                .source(childSource(Integer.toString(counter), "tag" + k)));
-                    }
-                }
-                BulkResponse response = request.execute().actionGet();
-                if (response.hasFailures()) {
-                    System.err.println("--> failures...");
-                }
-                if (((i * BATCH) % 10000) == 0) {
-                    System.out.println("--> Indexed " + (i * BATCH) * (1 + CHILD_COUNT) + " took " + stopWatch.stop().lastTaskTime());
-                    stopWatch.start();
-                }
-            }
-            System.out.println("--> Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) (COUNT * (1 + CHILD_COUNT))) / stopWatch.totalTime().secondsFrac()));
-        } catch (Exception e) {
+            long startTime = System.currentTimeMillis();
+            ParentChildIndexGenerator generator = new ParentChildIndexGenerator(client, PARENT_COUNT, NUM_CHILDREN_PER_PARENT, QUERY_VALUE_RATIO_PER_PARENT);
+            generator.index();
+            System.out.println("--> Indexing took " + ((System.currentTimeMillis() - startTime) / 1000) + " seconds.");
+        } catch (IndexAlreadyExistsException e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
             if (clusterHealthResponse.isTimedOut()) {
@@ -130,14 +101,6 @@ public class ChildSearchAndIndexingBenchmark {
         node1.close();
     }
 
-    private static XContentBuilder parentSource(String id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
-    }
-
-    private static XContentBuilder childSource(String id, String tag) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("tag", tag).endObject();
-    }
-
     static class IndexThread implements Runnable {
 
         private final Client client;
@@ -150,18 +113,23 @@ public class ChildSearchAndIndexingBenchmark {
         @Override
         public void run() {
             while (run) {
-                for (int i = 1; run && i < COUNT; i++) {
+                int childIdLimit = PARENT_COUNT * NUM_CHILDREN_PER_PARENT;
+                for (int childId = 1; run && childId < childIdLimit;) {
                     try {
-                        client.prepareIndex(indexName, "parent", Integer.toString(i))
-                                .setSource(parentSource(Integer.toString(i), "test" + i)).execute().actionGet();
-                        for (int j = 0; j < CHILD_COUNT; j++) {
-                            client.prepareIndex(indexName, "child", Integer.toString(i) + "_" + j)
-                                    .setParent(Integer.toString(i))
-                                    .setSource(childSource(Integer.toString(j), "tag" + j)).execute().actionGet();
+                        for (int j = 0; j < 8; j++) {
+                            GetResponse getResponse = client
+                                    .prepareGet(indexName, "child", String.valueOf(++childId))
+                                    .setFields("_source", "_parent")
+                                    .setRouting("1") // Doesn't matter what value, since there is only one shard
+                                    .get();
+                            client.prepareIndex(indexName, "child", Integer.toString(childId) + "_" + j)
+                                    .setParent(getResponse.getField("_parent").getValue().toString())
+                                    .setSource(getResponse.getSource())
+                                    .get();
                         }
                         client.admin().indices().prepareRefresh(indexName).execute().actionGet();
-                        Thread.sleep(100);
-                        if (i % 500 == 0) {
+                        Thread.sleep(1000);
+                        if (childId % 500 == 0) {
                             NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
                                     .clear().setIndices(true).execute().actionGet();
                             System.out.println("Deleted docs: " + statsResponse.getAt(0).getIndices().getDocs().getDeleted());
@@ -182,10 +150,12 @@ public class ChildSearchAndIndexingBenchmark {
     static class SearchThread implements Runnable {
 
         private final Client client;
+        private final int numValues;
         private volatile boolean run = true;
 
         SearchThread(Client client) {
             this.client = client;
+            this.numValues = NUM_CHILDREN_PER_PARENT / NUM_CHILDREN_PER_PARENT;
         }
 
         @Override
@@ -198,15 +168,12 @@ public class ChildSearchAndIndexingBenchmark {
                                 .setQuery(
                                         filteredQuery(
                                                 matchAllQuery(),
-                                                hasChildFilter("child", termQuery("tag", "tag" + random.nextInt(CHILD_COUNT)))
+                                                hasChildFilter("child", termQuery("field2", "value" + random.nextInt(numValues)))
                                         )
                                 )
                                 .execute().actionGet();
                         if (searchResponse.getFailedShards() > 0) {
                             System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
-                        }
-                        if (searchResponse.getHits().totalHits() != COUNT) {
-//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }
@@ -224,10 +191,6 @@ public class ChildSearchAndIndexingBenchmark {
                                 .execute().actionGet();
                         if (searchResponse.getFailedShards() > 0) {
                             System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
-                        }
-                        long expected = (COUNT / BATCH) * BATCH;
-                        if (searchResponse.getHits().totalHits() != expected) {
-//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + expected + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }

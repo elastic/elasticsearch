@@ -31,21 +31,23 @@ Response:
     ...
 
     "aggregations": {
-        "price_ranges": [
-            {
-                "to": 50,
-                "doc_count": 2
-            },
-            {
-                "from": 50,
-                "to": 100,
-                "doc_count": 4
-            },
-            {
-                "from": 100,
-                "doc_count": 4
-            }
-        ]
+        "price_ranges" : {
+            "buckets": [
+                {
+                    "to": 50,
+                    "doc_count": 2
+                },
+                {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4
+                },
+                {
+                    "from": 100,
+                    "doc_count": 4
+                }
+            ]
+        }
     }
 }
 --------------------------------------------------
@@ -81,19 +83,21 @@ Response:
     ...
 
     "aggregations": {
-        "price_ranges": {
-            "*-50.0": {
-                "to": 50,
-                "doc_count": 2
-            },
-            "50.0-100.0": {
-                "from": 50,
-                "to": 100,
-                "doc_count": 4
-            },
-            "100.0-*": {
-                "from": 100,
-                "doc_count": 4
+        "price_ranges" : {
+            "buckets": {
+                "*-50.0": {
+                    "to": 50,
+                    "doc_count": 2
+                },
+                "50.0-100.0": {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4
+                },
+                "100.0-*": {
+                    "from": 100,
+                    "doc_count": 4
+                }
             }
         }
     }
@@ -128,7 +132,7 @@ It is also possible to customize the key for each range:
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "script" : "doc['price'].value",
                 "ranges" : [
                     { "to" : 50 },
@@ -200,42 +204,44 @@ Response:
 --------------------------------------------------
 {
     "aggregations": {
-        "price_ranges": [
-            {
-                "to": 50,
-                "doc_count": 2,
-                "price_stats": {
-                    "count": 2,
-                    "min": 20,
-                    "max": 47,
-                    "avg": 33.5,
-                    "sum": 67
+        "price_ranges" : {
+            "buckets": [
+                {
+                    "to": 50,
+                    "doc_count": 2,
+                    "price_stats": {
+                        "count": 2,
+                        "min": 20,
+                        "max": 47,
+                        "avg": 33.5,
+                        "sum": 67
+                    }
+                },
+                {
+                    "from": 50,
+                    "to": 100,
+                    "doc_count": 4,
+                    "price_stats": {
+                        "count": 4,
+                        "min": 60,
+                        "max": 98,
+                        "avg": 82.5,
+                        "sum": 330
+                    }
+                },
+                {
+                    "from": 100,
+                    "doc_count": 4,
+                    "price_stats": {
+                        "count": 4,
+                        "min": 134,
+                        "max": 367,
+                        "avg": 216,
+                        "sum": 864
+                    }
                 }
-            },
-            {
-                "from": 50,
-                "to": 100,
-                "doc_count": 4,
-                "price_stats": {
-                    "count": 4,
-                    "min": 60,
-                    "max": 98,
-                    "avg": 82.5,
-                    "sum": 330
-                }
-            },
-            {
-                "from": 100,
-                "doc_count": 4,
-                "price_stats": {
-                    "count": 4,
-                    "min": 134,
-                    "max": 367,
-                    "avg": 216,
-                    "sum": 864
-                }
-            }
-        ]
+            ]
+        }
     }
 }
 --------------------------------------------------

@@ -294,26 +294,27 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             out.writeDouble(((Bucket) bucket).from);
             out.writeDouble(((Bucket) bucket).to);
             out.writeVLong(((Bucket) bucket).docCount);
-            ((Bucket) bucket).aggregations.writeTo(out);
+            bucket.aggregations.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
         if (keyed) {
-            builder.startObject(name);
+            builder.startObject(CommonFields.BUCKETS);
         } else {
-            builder.startArray(name);
+            builder.startArray(CommonFields.BUCKETS);
         }
         for (B range : ranges) {
-            ((Bucket) range).toXContent(builder, params, formatter, keyed);
+            range.toXContent(builder, params, formatter, keyed);
         }
         if (keyed) {
             builder.endObject();
         } else {
             builder.endArray();
         }
-        return builder;
+        return builder.endObject();
     }
 
 }

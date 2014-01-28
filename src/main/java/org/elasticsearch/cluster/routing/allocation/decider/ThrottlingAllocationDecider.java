@@ -85,9 +85,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     }
                 }
                 if (primariesInRecovery >= primariesInitialRecoveries) {
-                    return Decision.THROTTLE;
+                    return allocation.decision(Decision.THROTTLE, "too many primaries currently recovering [%d], limit: [%d]",
+                            primariesInRecovery, primariesInitialRecoveries);
                 } else {
-                    return Decision.YES;
+                    return allocation.decision(Decision.YES, "below primary recovery limit of [%d]", primariesInitialRecoveries);
                 }
             }
         }
@@ -106,9 +107,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
         }
         if (currentRecoveries >= concurrentRecoveries) {
-            return Decision.THROTTLE;
+            return allocation.decision(Decision.THROTTLE, "too many shards currently recovering [%d], limit: [%d]",
+                    currentRecoveries, concurrentRecoveries);
         } else {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "below shard recovery limit of [%d]", concurrentRecoveries);
         }
     }
 

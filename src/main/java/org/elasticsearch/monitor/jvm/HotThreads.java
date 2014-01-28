@@ -130,6 +130,7 @@ public class HotThreads {
             }
             // sort by delta CPU time on thread.
             List<MyThreadInfo> hotties = new ArrayList<MyThreadInfo>(threadInfos.values());
+            final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
             // skip that for now
             CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {

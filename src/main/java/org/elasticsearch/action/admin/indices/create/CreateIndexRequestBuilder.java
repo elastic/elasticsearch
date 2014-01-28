@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -146,6 +147,38 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      */
     public CreateIndexRequestBuilder addMapping(String type, Object... source) {
         request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequestBuilder setAliases(Map source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequestBuilder setAliases(String source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequestBuilder setAliases(XContentBuilder source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
+     * Adds an alias that will be associated with the index when it gets created
+     */
+    public CreateIndexRequestBuilder addAlias(Alias alias) {
+        request.alias(alias);
         return this;
     }
 

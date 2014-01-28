@@ -20,10 +20,13 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,12 +37,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -64,9 +66,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private Map<String, String> mappings = newHashMap();
+    private final Map<String, String> mappings = newHashMap();
 
-    private Map<String, IndexMetaData.Custom> customs = newHashMap();
+    private final Set<Alias> aliases = Sets.newHashSet();
+
+    private final Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     CreateIndexRequest() {
     }
@@ -245,6 +249,56 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    @SuppressWarnings("unchecked")
+    public CreateIndexRequest aliases(Map source) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.map(source);
+            return aliases(builder.string());
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequest aliases(XContentBuilder source) {
+        try {
+            return aliases(source.string());
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalArgumentException("Failed to build json for aliases", e);
+        }
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequest aliases(String source) {
+        try {
+            XContentParser parser = XContentHelper.createParser(new BytesArray(source));
+            //move to the first alias
+            parser.nextToken();
+            while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                alias(Alias.fromXContent(parser));
+            }
+            return this;
+        } catch(IOException e) {
+            throw new ElasticsearchParseException("Failed to parse aliases", e);
+        }
+    }
+
+    /**
+     * Adds an alias that will be associated with the index when it gets created
+     */
+    public CreateIndexRequest alias(Alias alias) {
+        this.aliases.add(alias);
+        return this;
+    }
+
+    /**
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(String source) {
@@ -306,6 +360,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
+            } else if (name.equals("aliases")) {
+                found = true;
+                aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
                 IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
@@ -328,6 +385,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     Map<String, String> mappings() {
         return this.mappings;
+    }
+
+    Set<Alias> aliases() {
+        return this.aliases;
     }
 
     /**
@@ -359,6 +420,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
         }
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                aliases.add(Alias.read(in));
+            }
+        }
     }
 
     @Override
@@ -377,6 +444,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             out.writeString(entry.getKey());
             IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeVInt(aliases.size());
+            for (Alias alias : aliases) {
+                alias.writeTo(out);
+            }
         }
     }
 }

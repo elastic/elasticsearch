@@ -4,30 +4,18 @@ setup:
   - do:
       indices.create:
         index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
 
   - do:
       indices.create:
         index: test_index_2
-
-  - do:
-      indices.put_alias:
-        index: test_index
-        name: test_alias
-
-  - do:
-      indices.put_alias:
-        index: test_index
-        name: test_blias
-
-  - do:
-      indices.put_alias:
-        index: test_index_2
-        name: test_alias
-
-  - do:
-      indices.put_alias:
-        index: test_index_2
-        name: test_blias
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
 
 ---
 "Get all aliases via /_alias":

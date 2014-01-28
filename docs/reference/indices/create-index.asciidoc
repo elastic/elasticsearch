@@ -103,3 +103,26 @@ curl -XPUT localhost:9200/test -d '{
     }
 }'
 --------------------------------------------------
+
+[float]
+[[create-index-aliases]]
+=== Aliases
+
+coming[1.1.0]
+
+The create index API allows also to provide a set of <<indices-aliases,aliases>>:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test -d '{
+    "aliases" : {
+        "alias_1" : {},
+        "alias_2" : {
+            "filter" : {
+                "term" : {"user" : "kimchy" }
+            },
+            "routing" : "kimchy"
+        }
+    }
+}'
+--------------------------------------------------

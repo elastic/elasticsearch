@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,15 +36,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.util.List;
 import java.util.Map;
@@ -59,11 +54,14 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
+    private final AliasValidator aliasValidator;
+
     @Inject
-    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
+    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService, AliasValidator aliasValidator) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.aliasValidator = aliasValidator;
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
@@ -105,17 +103,9 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 Map<String, IndexService> indices = Maps.newHashMap();
                 try {
                     for (AliasAction aliasAction : request.actions()) {
-                        if (!Strings.hasText(aliasAction.alias()) || !Strings.hasText(aliasAction.index())) {
-                            throw new ElasticsearchIllegalArgumentException("Index name and alias name are required");
-                        }
+                        aliasValidator.validateAliasAction(aliasAction, currentState.metaData());
                         if (!currentState.metaData().hasIndex(aliasAction.index())) {
                             throw new IndexMissingException(new Index(aliasAction.index()));
-                        }
-                        if (currentState.metaData().hasIndex(aliasAction.alias())) {
-                            throw new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias");
-                        }
-                        if (aliasAction.indexRouting() != null && aliasAction.indexRouting().indexOf(',') != -1) {
-                            throw new ElasticsearchIllegalArgumentException("alias [" + aliasAction.alias() + "] has several routing values associated with it");
                         }
                     }
 
@@ -155,18 +145,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     indices.put(indexMetaData.index(), indexService);
                                 }
 
-                                // now, parse the filter
-                                IndexQueryParserService indexQueryParser = indexService.queryParserService();
-                                try {
-                                    XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
-                                    try {
-                                        indexQueryParser.parseInnerFilter(parser);
-                                    } finally {
-                                        parser.close();
-                                    }
-                                } catch (Throwable e) {
-                                    throw new ElasticsearchIllegalArgumentException("failed to parse filter for [" + aliasAction.alias() + "]", e);
-                                }
+                                aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.queryParserService());
                             }
                             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(
                                     aliasAction.alias())

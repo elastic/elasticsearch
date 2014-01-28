@@ -28,6 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -92,10 +94,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final MetaDataService metaDataService;
     private final Version version;
     private final String riverIndexName;
+    private final AliasValidator aliasValidator;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                      AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName) {
+                                      AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName,
+                                      AliasValidator aliasValidator) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -105,6 +109,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.metaDataService = metaDataService;
         this.version = version;
         this.riverIndexName = riverIndexName;
+        this.aliasValidator = aliasValidator;
     }
 
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
@@ -213,6 +218,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 String failureReason = null;
                 try {
                     validate(request, currentState);
+
+                    for (Alias alias : request.aliases()) {
+                        aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
+                    }
 
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
@@ -333,6 +342,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
                         }
                     }
+
+                    IndexQueryParserService indexQueryParserService = indexService.queryParserService();
+                    for (Alias alias : request.aliases()) {
+                        if (Strings.hasLength(alias.filter())) {
+                            aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
+                        }
+                    }
+
                     // now, update the mappings with the actual source
                     Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
                     for (DocumentMapper mapper : mapperService) {
@@ -343,6 +360,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
+                    }
+                    for (Alias alias : request.aliases()) {
+                        AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
+                                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                        indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
                     for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());

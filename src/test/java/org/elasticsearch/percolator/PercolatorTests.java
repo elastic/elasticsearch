@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.percolator;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -1490,13 +1491,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeletePercolatorType() throws Exception {
-        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("_all").execute().actionGet();
-        assertThat("Delete Index failed - not acked", deleteIndexResponse.isAcknowledged(), equalTo(true));
-        ensureGreen();
-
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
-        ensureGreen();
+        assertAcked(client().admin().indices().prepareCreate("test1"));
+        assertAcked(client().admin().indices().prepareCreate("test2"));
 
         client().prepareIndex("test1", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
@@ -1510,6 +1506,19 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 2l);
+
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test1", "test2").get();
+                boolean hasPercolatorType = getMappingsResponse.getMappings().get("test1").containsKey(PercolatorService.TYPE_NAME);
+                if (hasPercolatorType) {
+                    return getMappingsResponse.getMappings().get("test2").containsKey(PercolatorService.TYPE_NAME);
+                } else {
+                    return false;
+                }
+            }
+        });
 
         assertAcked(client().admin().indices().prepareDeleteMapping("test1").setType(PercolatorService.TYPE_NAME));
         response = client().preparePercolate()

@@ -51,12 +51,15 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     @Override
     public Collection<Instance> instances() {
         try {
+            logger.debug("get instances for project [{}], zone [{}]", project, zone);
+
             Compute.Instances.List list = client().instances().list(project, zone);
             InstanceList instanceList = list.execute();
 
             return instanceList.getItems();
         } catch (IOException e) {
-            logger.warn("can not get list of nodes. Disabling GCE discovery.");
+            logger.warn("disabling GCE discovery. Can not get list of nodes: {}", e.getMessage());
+            logger.debug("Full exception:", e);
             return new ArrayList<Instance>();
         }
     }

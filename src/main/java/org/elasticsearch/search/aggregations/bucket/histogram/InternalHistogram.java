@@ -66,8 +66,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     public static class Bucket implements Histogram.Bucket {
 
         long key;
-        private long docCount;
-        private InternalAggregations aggregations;
+        long docCount;
+        InternalAggregations aggregations;
 
         public Bucket(long key, long docCount, InternalAggregations aggregations) {
             this.key = key;

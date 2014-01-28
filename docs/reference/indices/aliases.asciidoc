@@ -185,12 +185,34 @@ Adding user alias:
 [source,js]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
-        "routing" : "12",
+    "routing" : "12",
     "filter" : {
         "term" : {
             "user_id" : 12
         }
     }       
+}'
+--------------------------------------------------
+
+[float]
+[[alias-index-creation]]
+=== Aliases during index creation
+
+coming[1.1.0]
+
+Aliases can also be specified during <<create-index-aliases,index creation>>:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/logs_20142801 -d '{
+    "aliases" : {
+        "current_day" : {},
+        "2014" : {
+            "filter" : {
+                "term" : {"year" : 2014 }
+            }
+        }
+    }
 }'
 --------------------------------------------------
 

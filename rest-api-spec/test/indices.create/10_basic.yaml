@@ -50,7 +50,35 @@
   - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
 
 ---
-"Create index with mappings, settings and warmers":
+"Create index with aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            test_blias:
+              routing: b
+            test_clias:
+              filter:
+                term:
+                  field : value
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias.search_routing: b}
+  - match: {test_index.aliases.test_blias.index_routing: b}
+  - is_false: test_index.aliases.test_blias.filter
+  - match: {test_index.aliases.test_clias.filter.term.field: value}
+  - is_false: test_index.aliases.test_clias.index_routing
+  - is_false: test_index.aliases.test_clias.search_routing
+
+---
+"Create index with mappings, settings, warmers and aliases":
 
   - do:
       indices.create:
@@ -65,6 +93,9 @@
               source:
                 query:
                   match_all: {}
+          aliases:
+            test_alias: {}
+            test_blias: {routing: b}
 
   - do:
       indices.get_mapping:
@@ -83,3 +114,11 @@
         index: test_index
 
   - match: { test_index.warmers.test_warmer.source.query.match_all: {}}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - match: { test_index.aliases.test_alias: {}}
+  - match: { test_index.aliases.test_blias.search_routing: b}
+  - match: { test_index.aliases.test_blias.index_routing: b}

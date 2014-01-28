@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -44,11 +45,13 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
-    private Map<String, String> mappings = Maps.newHashMap();
+    private final Map<String, String> mappings = Maps.newHashMap();
 
-    private Map<String, IndexMetaData.Custom> customs = newHashMap();
+    private final Set<Alias> aliases = Sets.newHashSet();
 
-    private Set<ClusterBlock> blocks = Sets.newHashSet();
+    private final Map<String, IndexMetaData.Custom> customs = newHashMap();
+
+    private final Set<ClusterBlock> blocks = Sets.newHashSet();
 
 
     CreateIndexClusterStateUpdateRequest(String cause, String index) {
@@ -63,6 +66,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest mappings(Map<String, String> mappings) {
         this.mappings.putAll(mappings);
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest aliases(Set<Alias> aliases) {
+        this.aliases.addAll(aliases);
         return this;
     }
 
@@ -99,6 +107,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Map<String, String> mappings() {
         return mappings;
+    }
+
+    public Set<Alias> aliases() {
+        return aliases;
     }
 
     public Map<String, IndexMetaData.Custom> customs() {

@@ -62,7 +62,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         private double from = Double.NEGATIVE_INFINITY;
         private double to = Double.POSITIVE_INFINITY;
         private long docCount;
-        private InternalAggregations aggregations;
+        InternalAggregations aggregations;
         private String key;
         private boolean explicitKey;
 

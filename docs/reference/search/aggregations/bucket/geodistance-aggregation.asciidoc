@@ -28,24 +28,26 @@ Response:
 --------------------------------------------------
 {
     "aggregations": {
-        "rings": [
-            {
-                "unit": "km",
-                "to": 100.0,
-                "doc_count": 3
-            },
-            {
-                "unit": "km",
-                "from": 100.0,
-                "to": 300.0,
-                "doc_count": 1
-            },
-            {
-                "unit": "km",
-                "from": 300.0,
-                "doc_count": 7
-            }
-        ]
+        "rings" : {
+            "buckets": [
+                {
+                    "unit": "km",
+                    "to": 100.0,
+                    "doc_count": 3
+                },
+                {
+                    "unit": "km",
+                    "from": 100.0,
+                    "to": 300.0,
+                    "doc_count": 1
+                },
+                {
+                    "unit": "km",
+                    "from": 300.0,
+                    "doc_count": 7
+                }
+            ]
+        }
     }
 }
 --------------------------------------------------

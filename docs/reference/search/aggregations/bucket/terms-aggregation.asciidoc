@@ -274,8 +274,8 @@ There are two mechanisms by which terms aggregations can be executed: either by 
 data per-bucket (`map`), or by using ordinals of the field values instead of the values themselves (`ordinals`). Although the
 latter execution mode can be expected to be slightly faster, it is only available for use when the underlying data source exposes
 those terms ordinals. Moreover, it may actually be slower if most field values are unique. Elasticsearch tries to have sensible
-defaults when it comes to the execution mode that should be used, but in case you know that an execution mode may perform better
-than the other one, you have the ability to provide Elasticsearch with a hint:
+defaults when it comes to the execution mode that should be used, but in case you know that one execution mode may perform better
+than the other one, you have the ability to "hint" it to Elasticsearch:
 
 [source,js]
 --------------------------------------------------

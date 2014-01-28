@@ -34,20 +34,22 @@ And the following may be the response:
 --------------------------------------------------
 {
     "aggregations": {
-        "prices": [
-            {
-                "key": 0,
-                "doc_count": 2
-            },
-            {
-                "key": 50,
-                "doc_count": 4
-            },
-            {
-                "key": 150,
-                "doc_count": 3
-            }
-        ]
+        "prices" : {
+            "buckets": [
+                {
+                    "key": 0,
+                    "doc_count": 2
+                },
+                {
+                    "key": 50,
+                    "doc_count": 4
+                },
+                {
+                    "key": 150,
+                    "doc_count": 3
+                }
+            ]
+        }
     }
 }
 --------------------------------------------------
@@ -75,24 +77,26 @@ Response:
 --------------------------------------------------
 {
     "aggregations": {
-        "prices": [
-            {
-                "key": 0,
-                "doc_count": 2
-            },
-            {
-                "key": 50,
-                "doc_count": 4
-            },
-            {
-                "key" : 100,
-                "doc_count" : 0
-            },
-            {
-                "key": 150,
-                "doc_count": 3
-            }
-        ]
+        "prices" : {
+            "buckets": [
+                {
+                    "key": 0,
+                    "doc_count": 2
+                },
+                {
+                    "key": 50,
+                    "doc_count": 4
+                },
+                {
+                    "key" : 100,
+                    "doc_count" : 0
+                },
+                {
+                    "key": 150,
+                    "doc_count": 3
+                }
+            ]
+        }
     }
 }
 --------------------------------------------------
@@ -187,29 +191,31 @@ NOTE:   The special value `0` can be used to add empty buckets to the response b
 {
     "aggregations": {
         "prices": {
-            "0": {
-                "key": 0,
-                "doc_count": 2
-            },
-            "50": {
-                "key": 50,
-                "doc_count": 0
-            },
-            "150": {
-                "key": 150,
-                "doc_count": 3
-            },
-            "200": {
-                "key": 150,
-                "doc_count": 0
-            },
-            "250": {
-                "key": 150,
-                "doc_count": 0
-            },
-            "300": {
-                "key": 150,
-                "doc_count": 1
+            "buckets": {
+                "0": {
+                    "key": 0,
+                    "doc_count": 2
+                },
+                "50": {
+                    "key": 50,
+                    "doc_count": 0
+                },
+                "150": {
+                    "key": 150,
+                    "doc_count": 3
+                },
+                "200": {
+                    "key": 150,
+                    "doc_count": 0
+                },
+                "250": {
+                    "key": 150,
+                    "doc_count": 0
+                },
+                "300": {
+                    "key": 150,
+                    "doc_count": 1
+                }
             }
         }
    }
@@ -242,19 +248,21 @@ Response:
 {
     "aggregations": {
         "prices": {
-            "0": {
-                "key": 0,
-                "doc_count": 2
-            },
-            "50": {
-                "key": 50,
-                "doc_count": 4
-            },
-            "150": {
-                "key": 150,
-                "doc_count": 3
+            "buckets": {
+                "0": {
+                    "key": 0,
+                    "doc_count": 2
+                },
+                "50": {
+                    "key": 50,
+                    "doc_count": 4
+                },
+                "150": {
+                    "key": 150,
+                    "doc_count": 3
+                }
             }
         }
-   }
+    }
 }
 --------------------------------------------------

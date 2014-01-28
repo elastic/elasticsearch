@@ -19,7 +19,9 @@
 
 package org.elasticsearch.aliases;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
@@ -817,6 +820,72 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         GetAliasesResponse response = admin().indices().prepareGetAliases().get();
         assertThat(response.getAliases(), hasKey("index1"));
         assertThat(response.getAliases(), hasKey("index1"));
+    }
+
+    @Test
+    public void testCreateIndexWithAliases() throws Exception {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias1"))
+                .addAlias(new Alias("alias2").filter(FilterBuilders.missingFilter("field")))
+                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
+
+        checkAliases();
+    }
+
+    @Test
+    public void testCreateIndexWithAliasesInSource() throws Exception {
+        assertAcked(prepareCreate("test").setSource("{\n" +
+                        "    \"aliases\" : {\n" +
+                        "        \"alias1\" : {},\n" +
+                        "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
+                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                        "    }\n" +
+                        "}"));
+
+        checkAliases();
+    }
+
+    @Test
+    public void testCreateIndexWithAliasesSource() throws Exception {
+        assertAcked(prepareCreate("test").setAliases("{\n" +
+                "        \"alias1\" : {},\n" +
+                "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
+                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                "}"));
+
+        checkAliases();
+    }
+
+    @Test (expected = ElasticsearchIllegalArgumentException.class)
+    public void testCreateIndexWithAliasesFilterNotValid() {
+        prepareCreate("test").addAlias(new Alias("alias1"))
+                .addAlias(new Alias("alias2").filter("f"))
+                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")).get();
+    }
+
+    private void checkAliases() {
+        GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetaData.alias(), equalTo("alias1"));
+        assertThat(aliasMetaData.filter(), nullValue());
+        assertThat(aliasMetaData.indexRouting(), nullValue());
+        assertThat(aliasMetaData.searchRouting(), nullValue());
+
+        getAliasesResponse = admin().indices().prepareGetAliases("alias2").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetaData.alias(), equalTo("alias2"));
+        assertThat(aliasMetaData.filter(), notNullValue());
+        assertThat(aliasMetaData.indexRouting(), nullValue());
+        assertThat(aliasMetaData.searchRouting(), nullValue());
+
+        getAliasesResponse = admin().indices().prepareGetAliases("alias3").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetaData.alias(), equalTo("alias3"));
+        assertThat(aliasMetaData.filter(), nullValue());
+        assertThat(aliasMetaData.indexRouting(), equalTo("index"));
+        assertThat(aliasMetaData.searchRouting(), equalTo("search"));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

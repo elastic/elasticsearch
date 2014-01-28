@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +54,18 @@ public class RestPercolateAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
         percolateRequest.listenerThreaded(false);
-        percolateRequest.source(request.content(), request.contentUnsafe());
+
+        BytesReference content = null;
+        if (request.hasContent()) {
+            content = request.content();
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                content = new BytesArray(source);
+            }
+        }
+
+        percolateRequest.source(content, request.contentUnsafe());
 
         // we just send a response, no need to fork
         percolateRequest.listenerThreaded(false);

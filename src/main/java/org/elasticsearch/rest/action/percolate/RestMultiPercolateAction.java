@@ -24,12 +24,11 @@ import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
@@ -66,18 +65,8 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
 
-        BytesReference content = null;
-        if (restRequest.hasContent()) {
-            content = restRequest.content();
-        } else {
-            String source = restRequest.param("source");
-            if (source != null) {
-                content = new BytesArray(source);
-            }
-        }
-
         try {
-            multiPercolateRequest.add(content, restRequest.contentUnsafe(), allowExplicitIndex);
+            multiPercolateRequest.add(RestActions.getRestContent(restRequest), restRequest.contentUnsafe(), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 restChannel.sendResponse(new XContentThrowableRestResponse(restRequest, e));

@@ -25,12 +25,11 @@ import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -61,16 +60,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         RestTermVectorAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
 
-        BytesReference content = request.content();
-        if (!request.hasContent()) {
-            String source = request.param("source");
-            if (source != null) {
-                content = new BytesArray(source);
-            }
-        }
-
         try {
-            multiTermVectorsRequest.add(template, content);
+            multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
         } catch (Throwable t) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, t));

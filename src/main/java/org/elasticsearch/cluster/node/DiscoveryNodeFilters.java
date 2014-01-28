@@ -153,4 +153,34 @@ public class DiscoveryNodeFilters {
             return true;
         }
     }
+
+    /**
+     * Generates a human-readable string for the DiscoverNodeFilters.
+     * Example: {@code _id:"id1 OR blah",name:"blah OR name2"}
+     */
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        int entryCount = filters.size();
+        for (Map.Entry<String, String[]> entry : filters.entrySet()) {
+            String attr = entry.getKey();
+            String[] values = entry.getValue();
+            sb.append(attr);
+            sb.append(":\"");
+            int valueCount = values.length;
+            for (String value : values) {
+                sb.append(value);
+                if (valueCount > 1) {
+                    sb.append(" " + opType.toString() + " ");
+                }
+                valueCount--;
+            }
+            sb.append("\"");
+            if (entryCount > 1) {
+                sb.append(",");
+            }
+            entryCount--;
+        }
+        return sb.toString();
+    }
 }

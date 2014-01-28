@@ -37,6 +37,8 @@ pidfile=/var/run/elasticsearch/${prog}.pid
 
 [ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
 
+export ES_MIN_MEM
+export ES_MAX_MEM
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE
 export ES_DIRECT_SIZE

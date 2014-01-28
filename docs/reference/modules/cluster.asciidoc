@@ -56,9 +56,10 @@ The following settings may be used:
     deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
 
 `cluster.routing.allocation.same_shard.host`::
-      Prevents that multiple instances of the same shard are allocated
-      on a single host. Defaults to `false`. This setting only applies
-      if multiple nodes are started on the same machine.
+      Allows to perform a check to prevent allocation of multiple instances
+      of the same shard on a single host, based on host name and host address.
+      Defaults to `false`, meaning that no check is performed by default. This
+      setting only applies if multiple nodes are started on the same machine.
 
 `indices.recovery.concurrent_streams`::
        The number of streams to open (on a *node* level) to recover a

@@ -132,4 +132,5 @@ Response:
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and
 value level scripts are supported. It is also possilbe to control the order of the returned buckets using the `order`
-settings and empty buckets can also be returned by setting the `empty_buckets` field to `true` (defaults to `false`).
+settings and filter the returned buckets based on a `min_doc_count` setting (by defaults to all buckets with
+`min_doc_count > 1` will be returned).

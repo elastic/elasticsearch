@@ -57,14 +57,15 @@ public class MultiMatchQueryParser implements QueryParser {
 
         Object value = null;
         float boost = 1.0f;
-        MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
+        Float tieBreaker = null;
+        MultiMatchQueryBuilder.Type type = null;
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
         String minimumShouldMatch = null;
         Map<String, Float> fieldNameWithBoosts = Maps.newHashMap();
         String queryName = null;
-
         XContentParser.Token token;
         String currentFieldName = null;
+        Boolean useDisMax = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -83,16 +84,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     value = parser.objectText();
                 } else if ("type".equals(currentFieldName)) {
-                    String tStr = parser.text();
-                    if ("boolean".equals(tStr)) {
-                        type = MatchQuery.Type.BOOLEAN;
-                    } else if ("phrase".equals(tStr)) {
-                        type = MatchQuery.Type.PHRASE;
-                    } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
-                        type = MatchQuery.Type.PHRASE_PREFIX;
-                    } else {
-                        throw new QueryParsingException(parseContext.index(), "[" + NAME + "] query does not support type " + tStr);
-                    }
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.parseFlags());
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
@@ -125,9 +117,9 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
                     multiMatchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                 } else if ("use_dis_max".equals(currentFieldName) || "useDisMax".equals(currentFieldName)) {
-                    multiMatchQuery.setUseDisMax(parser.booleanValue());
+                    useDisMax = parser.booleanValue();
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
-                    multiMatchQuery.setTieBreaker(parser.floatValue());
+                    multiMatchQuery.setTieBreaker(tieBreaker = parser.floatValue());
                 }  else if ("cutoff_frequency".equals(currentFieldName)) {
                     multiMatchQuery.setCommonTermsCutoff(parser.floatValue());
                 } else if ("lenient".equals(currentFieldName)) {
@@ -156,7 +148,19 @@ public class MultiMatchQueryParser implements QueryParser {
         if (fieldNameWithBoosts.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "No fields specified for match_all query");
         }
-
+        if (type == null) {
+            type = MultiMatchQueryBuilder.Type.BEST_FIELDS;
+        }
+        if (useDisMax != null) { // backwards foobar
+            boolean typeUsesDismax = type.tieBreaker() != 1.0f;
+            if (typeUsesDismax != useDisMax) {
+                if (useDisMax && tieBreaker == null) {
+                    multiMatchQuery.setTieBreaker(0.0f);
+                } else {
+                    multiMatchQuery.setTieBreaker(1.0f);
+                }
+            }
+        }
         Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, value, minimumShouldMatch);
         if (query == null) {
             return null;

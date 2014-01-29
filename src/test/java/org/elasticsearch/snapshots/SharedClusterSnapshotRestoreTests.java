@@ -39,11 +39,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -880,6 +879,69 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
+    }
+
+    @Test
+    public void throttlingTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        File repositoryLocation = newTempDir(LifecycleScope.SUITE);
+        boolean throttleSnapshot = randomBoolean();
+        boolean throttleRestore = randomBoolean();
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", repositoryLocation)
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))
+                        .put("max_restore_bytes_per_sec", throttleRestore ? "2.5k" : "0")
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> delete index");
+        wipeIndices("test-idx");
+
+        logger.info("--> restore index");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        ensureGreen();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        long snapshotPause = 0L;
+        long restorePause = 0L;
+        for (RepositoriesService repositoriesService : cluster().getInstances(RepositoriesService.class)) {
+            snapshotPause += repositoriesService.repository("test-repo").snapshotThrottleTimeInNanos();
+            restorePause += repositoriesService.repository("test-repo").restoreThrottleTimeInNanos();
+        }
+
+        if (throttleSnapshot) {
+            assertThat(snapshotPause, greaterThan(0L));
+        } else {
+            assertThat(snapshotPause, equalTo(0L));
+        }
+
+        if (throttleRestore) {
+            assertThat(restorePause, greaterThan(0L));
+        } else {
+            assertThat(restorePause, equalTo(0L));
+        }
     }
 
     private boolean waitForIndex(String index, TimeValue timeout) throws InterruptedException {

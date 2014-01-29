@@ -44,6 +44,7 @@ public class CopyToMapperIntegrationTests extends ElasticsearchIntegrationTest {
                 client().admin().indices().prepareCreate("test-idx")
                         .addMapping("doc", createDynamicTemplateMapping())
         );
+        ensureGreen("test-idx");
 
         int recordCount = between(1, 200);
 

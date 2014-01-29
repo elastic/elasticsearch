@@ -1,7 +1,13 @@
 [[search-aggregations-bucket-histogram-aggregation]]
 === Histogram
 
-A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document will be evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size is `5` then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated withe the key `30`. To make this more formal, here is the rounding function that is used:
+A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents.
+It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field
+that holds a price (numeric), we can configure this aggregation to dynamically build buckets with interval `5`
+(in case of price it may represent $5). When the aggregation executes, the price field of every document will be
+evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size is `5`
+then the rounding will yield `30` and thus the document will "fall" into the bucket that is associated withe the key `30`.
+To make this more formal, here is the rounding function that is used:
 
 [source,java]
 --------------------------------------------------
@@ -54,7 +60,10 @@ And the following may be the response:
 }
 --------------------------------------------------
 
-The response above shows that none of the aggregated products has a price that falls within the range of `[100 - 150)`. By default, the response will only contain the non-empty buckets, though it is possible to also return those, by setting the `empty_buckets` flag to `true`:
+The response above shows that none of the aggregated products has a price that falls within the range of `[100 - 150)`.
+By default, the response will only contain those buckets with a `doc_count` greater than 0. It is possible change that
+and request buckets with either a higher minimum count or even 0 (in which case elasticsearch will "fill in the gaps"
+and create buckets with zero documents). This can be configured using the `min_doc_count` setting:
 
 [source,js]
 --------------------------------------------------
@@ -64,7 +73,7 @@ The response above shows that none of the aggregated products has a price that f
             "histogram" : { 
                 "field" : "price",
                 "interval" : 50,
-                "empty_buckets" : true
+                "min_doc_count" : 0
             }
         }
     }
@@ -89,7 +98,7 @@ Response:
                 },
                 {
                     "key" : 100,
-                    "doc_count" : 0
+                    "doc_count" : 0 <1>
                 },
                 {
                     "key": 150,
@@ -101,9 +110,12 @@ Response:
 }
 --------------------------------------------------
 
+<1> No documents were found that belong in this bucket, yet it is still returned with zero `doc_count`.
+
 ==== Order
 
-By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controled using the `order` setting.
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controled
+using the `order` setting.
 
 Ordering the buckets by their key - descending:
 
@@ -165,7 +177,8 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
 
 ==== Minimum document count
 
-It is possible to only return buckets that have a document count that is greater than or equal to a configured limit through the `min_doc_count` option.
+It is possible to only return buckets that have a document count that is greater than or equal to a configured
+limit through the `min_doc_count` option.
 
 [source,js]
 --------------------------------------------------
@@ -184,7 +197,8 @@ It is possible to only return buckets that have a document count that is greater
 
 The above aggregation would only return buckets that contain 10 documents or more. Default value is `1`.
 
-NOTE:   The special value `0` can be used to add empty buckets to the response between the minimum and the maximum buckets. Here is an example of what the response could look like:
+NOTE:   The special value `0` can be used to add empty buckets to the response between the minimum and the maximum buckets.
+Here is an example of what the response could look like:
 
 [source,js]
 --------------------------------------------------
@@ -224,7 +238,8 @@ NOTE:   The special value `0` can be used to add empty buckets to the response b
 
 ==== Response Format
 
-By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash instead keyed by the buckets keys:
+By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash
+instead keyed by the buckets keys:
 
 [source,js]
 --------------------------------------------------

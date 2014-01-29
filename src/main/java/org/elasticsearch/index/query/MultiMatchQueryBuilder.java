@@ -21,11 +21,15 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -39,7 +43,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private final List<String> fields;
     private ObjectFloatOpenHashMap<String> fieldsBoosts;
 
-    private MatchQueryBuilder.Type type;
+    private MultiMatchQueryBuilder.Type type;
 
     private MatchQueryBuilder.Operator operator;
 
@@ -73,6 +77,82 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private String queryName;
 
+
+    public enum Type {
+
+        /**
+         * Uses the best matching boolean field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        BEST_FIELDS(MatchQuery.Type.BOOLEAN, 0.0f, new ParseField("best_fields", "boolean")),
+
+        /**
+         * Uses the sum of the matching boolean fields to score the query
+         */
+        MOST_FIELDS(MatchQuery.Type.BOOLEAN, 1.0f, new ParseField("most_fields")),
+
+        /**
+         * Uses a blended DocumentFrequency to dynamically combine the queried
+         * fields into a single field given the configured analysis is identical.
+         * This type uses a tie-breaker to adjust the score based on remaining
+         * matches per analyzed terms
+         */
+        CROSS_FIELDS(MatchQuery.Type.BOOLEAN, 0.0f, new ParseField("cross_fields")),
+
+        /**
+         * Uses the best matching phrase field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        PHRASE(MatchQuery.Type.PHRASE, 0.0f, new ParseField("phrase")),
+
+        /**
+         * Uses the best matching phrase-prefix field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix"));
+
+        private MatchQuery.Type matchQueryType;
+        private final float tieBreaker;
+        private final ParseField parseField;
+
+        Type (MatchQuery.Type matchQueryType, float tieBreaker, ParseField parseField) {
+            this.matchQueryType = matchQueryType;
+            this.tieBreaker = tieBreaker;
+            this.parseField = parseField;
+        }
+
+        public float tieBreaker() {
+            return this.tieBreaker;
+        }
+
+        public MatchQuery.Type matchQueryType() {
+            return matchQueryType;
+        }
+
+        public ParseField parseField() {
+            return parseField;
+        }
+
+        public static Type parse(String value) {
+            return parse(value, ParseField.EMPTY_FLAGS);
+        }
+
+        public static Type parse(String value, EnumSet<ParseField.Flag> flags) {
+            MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
+            Type type = null;
+            for (MultiMatchQueryBuilder.Type t : values) {
+                if (t.parseField().match(value, flags)) {
+                    type = t;
+                    break;
+                }
+            }
+            if (type == null) {
+                throw new ElasticsearchParseException("No type found for value: " + value);
+            }
+            return type;
+        }
+    }
+
     /**
      * Constructs a new text query.
      */
@@ -105,8 +185,16 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     /**
      * Sets the type of the text query.
      */
-    public MultiMatchQueryBuilder type(MatchQueryBuilder.Type type) {
+    public MultiMatchQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
+        return this;
+    }
+
+    /**
+     * Sets the type of the text query.
+     */
+    public MultiMatchQueryBuilder type(Object type) {
+        this.type = type == null ? null : Type.parse(type.toString().toLowerCase(Locale.ROOT));
         return this;
     }
 
@@ -180,12 +268,29 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
-    public MultiMatchQueryBuilder useDisMax(Boolean useDisMax) {
+    /**
+     * @deprecated use a tieBreaker of 1.0f to disable "dis-max"
+     * query or select the appropriate {@link Type}
+     */
+    @Deprecated
+    public MultiMatchQueryBuilder useDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
         return this;
     }
 
-    public MultiMatchQueryBuilder tieBreaker(Float tieBreaker) {
+    /**
+     * <p>Tie-Breaker for "best-match" disjunction queries (OR-Queries).
+     * The tie breaker capability allows documents that match more than on query clause
+     * (in this case on more than one field) to be scored better than documents that
+     * match only the best of the fields, without confusing this with the better case of
+     * two distinct matches in the multiple fields.</p>
+     *
+     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * "most-match" queries where all matching query clauses are considered for scoring.</p>
+     *
+     * @see Type
+     */
+    public MultiMatchQueryBuilder tieBreaker(float tieBreaker) {
         this.tieBreaker = tieBreaker;
         return this;
     }
@@ -297,4 +402,5 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
         builder.endObject();
     }
+
 }

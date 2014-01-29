@@ -5,13 +5,13 @@ The GCE Cloud plugin allows to use GCE API for the unicast discovery mechanism.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-gce/2.0.0.RC1`.
 
-|       GCE Cloud Plugin     |    elasticsearch    | Release date |
-|----------------------------|---------------------|:------------:|
-| 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |              |
-| 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-01-15  |
-| 1.2.0-SNAPSHOT (1.x)       | 0.90.3 -> 0.90      |              |
-| 1.1.0                      | 0.90.3 -> 0.90      |  2013-08-09  |
-| 1.0.0                      | 0.90.0 -> 0.90.2    |  2013-07-23  |
+|       GCE Cloud Plugin     |    elasticsearch    |   gce api    | Release date |
+|----------------------------|---------------------|--------------|:------------:|
+| 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |  1.17.0-rc   |              |
+| 2.0.0.RC1                  | 1.0.0.RC1 -> master |  1.15.0-rc   |  2014-01-15  |
+| 1.2.0-SNAPSHOT (1.x)       | 0.90.3 -> 0.90      |  1.17.0-rc   |              |
+| 1.1.0                      | 0.90.3 -> 0.90      |  1.15.0-rc   |  2013-08-09  |
+| 1.0.0                      | 0.90.0 -> 0.90.2    |  1.15.0-rc   |  2013-07-23  |
 
 
 Google Compute Engine Virtual Machine Discovery
@@ -98,13 +98,13 @@ sudo apt-get update
 sudo apt-get install curl
 
 # Download Elasticsearch
-curl https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.2.deb -o elasticsearch-0.90.2.deb
+wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.0.0.RC1.deb
 
 # Prepare Java installation
 sudo apt-get install java7-runtime-headless
 
 # Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-0.90.2.deb
+sudo dpkg -i elasticsearch-1.0.0.RC1.deb
 
 # Check that elasticsearch is running:
 curl http://localhost:9200/
@@ -116,10 +116,13 @@ This command should give you a JSON result:
 {
   "ok" : true,
   "status" : 200,
-  "name" : "Lunatica",
+  "name" : "Shriker",
   "version" : {
-    "number" : "0.90.2",
-    "snapshot_build" : false
+    "number" : "1.0.0.RC1",
+    "build_hash" : "0a5781f44876e8d1c30b6360628d59cb2a7a2bbb",
+    "build_timestamp" : "2014-01-10T10:18:37Z",
+    "build_snapshot" : false,
+    "lucene_version" : "4.6"
   },
   "tagline" : "You Know, for Search"
 }
@@ -131,8 +134,7 @@ Install the plugin:
 
 ```sh
 # Use Plugin Manager to install it
-sudo /usr/share/elasticsearch/bin/plugin
-     --install elasticsearch/elasticsearch-cloud-gce/1.1.0
+sudo /usr/share/elasticsearch/bin/plugin --install elasticsearch/elasticsearch-cloud-gce/2.0.0.RC1
 
 # Configure it:
 sudo vi /etc/elasticsearch/elasticsearch.yml
@@ -206,7 +208,7 @@ gcutil listkernels --project es-cloud
 | projects/google/global/kernels/gce-v20130603 | SCSI-enabled 3.3.8-gcg built 2013-05-29 01:04:00 |             |
 +----------------------------------------------+--------------------------------------------------+-------------+
 # Note the kernel you prefer to use and add your image to your catalog:
-gcutil --project=es-cloud addimage elasticsearch-0-90-2 \
+gcutil --project=es-cloud addimage elasticsearch-1-0-0-RC1 \
        gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz \
        --preferred_kernel=projects/google/global/kernels/gce-v20130603
 
@@ -220,7 +222,7 @@ As you have now an image, you can create as many instances as you need:
 
 ```sh
 # Just change node name (here myesnode2)
-gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
+gcutil --project=es-cloud addinstance --image=elasticsearch-1-0-0-RC1 \
        --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
        --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
        --persistent_boot_disk
@@ -293,7 +295,7 @@ gcutil --project=es-cloud addinstance myesnode1 \
        --metadata=es_port:9301
 
 # when creating an instance from an image
-gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
+gcutil --project=es-cloud addinstance --image=elasticsearch-1-0-0-RC1 \
        --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
        --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
        --persistent_boot_disk --metadata=es_port:9301
@@ -340,7 +342,7 @@ License
 
 This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

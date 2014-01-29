@@ -123,6 +123,11 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         try {
             Collection<Instance> instances = gceComputeService.instances();
 
+            if (instances == null) {
+                logger.trace("no instance found for project [{}], zone [{}].", this.project, this.zone);
+                return cachedDiscoNodes;
+            }
+
             for (Instance instance : instances) {
                 String name = instance.getName();
                 String type = instance.getMachineType();

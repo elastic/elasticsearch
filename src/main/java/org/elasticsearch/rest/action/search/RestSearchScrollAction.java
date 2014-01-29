@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -56,8 +57,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String scrollId = request.param("scroll_id");
-        if (scrollId == null && request.hasContent()) {
-            scrollId = request.content().toUtf8();
+        if (scrollId == null) {
+            scrollId = RestActions.getRestContent(request).toUtf8();
         }
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId);
         searchScrollRequest.listenerThreaded(false);

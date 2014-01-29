@@ -19,27 +19,34 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MultiMatchQuery extends MatchQuery {
 
-    private boolean useDisMax = true;
-    private float tieBreaker;
-
-    public void setUseDisMax(boolean useDisMax) {
-        this.useDisMax = useDisMax;
-    }
+    private Float groupTieBreaker = null;
 
     public void setTieBreaker(float tieBreaker) {
-        this.tieBreaker = tieBreaker;
+        this.groupTieBreaker = tieBreaker;
     }
 
     public MultiMatchQuery(QueryParseContext parseContext) {
@@ -57,36 +64,205 @@ public class MultiMatchQuery extends MatchQuery {
         return query;
     }
 
-    public Query parse(Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
+    public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();
-            return parseAndApply(type, fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
+            return parseAndApply(type.matchQueryType(), fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
         }
 
-        if (useDisMax) {
-            DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
-            boolean clauseAdded = false;
+        final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+        switch (type) {
+            case PHRASE:
+            case PHRASE_PREFIX:
+            case BEST_FIELDS:
+            case MOST_FIELDS:
+                queryBuilder = new QueryBuilder(tieBreaker);
+                break;
+            case CROSS_FIELDS:
+                queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
+                break;
+            default:
+                throw new ElasticsearchIllegalStateException("No such type: " + type);
+        }
+        final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
+        return queryBuilder.conbineGrouped(queries);
+    }
+
+    private QueryBuilder queryBuilder;
+
+    public class QueryBuilder {
+        protected final boolean groupDismax;
+        protected final float tieBreaker;
+
+        public QueryBuilder(float tieBreaker) {
+            this(tieBreaker != 1.0f, tieBreaker);
+        }
+
+        public QueryBuilder(boolean groupDismax, float tieBreaker) {
+            this.groupDismax = groupDismax;
+            this.tieBreaker = tieBreaker;
+        }
+
+        public  List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
+            List<Query> queries = new ArrayList<Query>();
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
-                Query query = parseAndApply(type, fieldName, value, minimumShouldMatch, boostValue);
+                Query query = parseGroup(type.matchQueryType(), fieldName, boostValue, value, minimumShouldMatch);
                 if (query != null) {
-                    clauseAdded = true;
+                    queries.add(query);
+                }
+            }
+            return queries;
+        }
+
+        public Query parseGroup(Type type, String field, Float boostValue, Object value, String minimumShouldMatch) throws IOException {
+            return parseAndApply(type, field, value, minimumShouldMatch, boostValue);
+        }
+
+        public Query conbineGrouped(List<? extends Query> groupQuery) {
+            if (groupQuery == null || groupQuery.isEmpty()) {
+                return null;
+            }
+            if (groupQuery.size() == 1) {
+                return groupQuery.get(0);
+            }
+            if (groupDismax) {
+                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
+                for (Query query : groupQuery) {
                     disMaxQuery.add(query);
                 }
-            }
-            return clauseAdded ? disMaxQuery : null;
-        } else {
-            BooleanQuery booleanQuery = new BooleanQuery();
-            for (String fieldName : fieldNames.keySet()) {
-                Float boostValue = fieldNames.get(fieldName);
-                Query query = parseAndApply(type, fieldName, value, minimumShouldMatch, boostValue);
-                if (query != null) {
+                return disMaxQuery;
+            } else {
+                final BooleanQuery booleanQuery = new BooleanQuery();
+                for (Query query : groupQuery) {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }
+                return booleanQuery;
             }
-            return !booleanQuery.clauses().isEmpty() ? booleanQuery : null;
+        }
+
+        public Query blendTerm(Term term, FieldMapper mapper) {
+            return MultiMatchQuery.super.blendTermQuery(term, mapper);
+        }
+
+        public boolean forceAnalyzeQueryString() {
+            return false;
         }
     }
 
+    public class CrossFieldsQueryBuilder extends QueryBuilder {
+        private FieldAndMapper[] blendedFields;
+
+        public CrossFieldsQueryBuilder(float tieBreaker) {
+            super(false, tieBreaker);
+        }
+
+        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
+            Map<Analyzer, List<FieldAndMapper>> groups = new HashMap<Analyzer, List<FieldAndMapper>>();
+            List<Tuple<String, Float>> missing = new ArrayList<Tuple<String, Float>>();
+            for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
+                String name = entry.getKey();
+                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(name);
+                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                    Analyzer actualAnalyzer = getAnalyzer(smartNameFieldMappers.mapper(), smartNameFieldMappers);
+                    name = smartNameFieldMappers.mapper().names().indexName();
+                    if (!groups.containsKey(actualAnalyzer)) {
+                       groups.put(actualAnalyzer, new ArrayList<FieldAndMapper>());
+                    }
+                    Float boost = entry.getValue();
+                    boost = boost == null ? Float.valueOf(1.0f) : boost;
+                    groups.get(actualAnalyzer).add(new FieldAndMapper(name, smartNameFieldMappers.mapper(), boost));
+                } else {
+                    missing.add(new Tuple(name, entry.getValue()));
+                }
+
+            }
+            List<Query> queries = new ArrayList<Query>();
+            for (Tuple<String, Float> tuple : missing) {
+                Query q = parseGroup(type.matchQueryType(), tuple.v1(), tuple.v2(), value, minimumShouldMatch);
+                if (q != null) {
+                    queries.add(q);
+                }
+            }
+            for (List<FieldAndMapper> group : groups.values()) {
+                if (group.size() > 1) {
+                    blendedFields = new FieldAndMapper[group.size()];
+                    int i = 0;
+                    for (FieldAndMapper fieldAndMapper : group) {
+                        blendedFields[i++] = fieldAndMapper;
+                    }
+                } else {
+                    blendedFields = null;
+                }
+                final FieldAndMapper fieldAndMapper= group.get(0);
+                Query q = parseGroup(type.matchQueryType(), fieldAndMapper.field, fieldAndMapper.boost, value, minimumShouldMatch);
+                if (q != null) {
+                    queries.add(q);
+                }
+            }
+
+            return queries.isEmpty() ? null : queries;
+        }
+
+        public boolean forceAnalyzeQueryString() {
+            return blendedFields != null;
+        }
+
+        public Query blendTerm(Term term, FieldMapper mapper) {
+            if (blendedFields == null) {
+                return super.blendTerm(term, mapper);
+            }
+            final Term[] terms = new Term[blendedFields.length];
+            float[] blendedBoost = new float[blendedFields.length];
+            for (int i = 0; i < blendedFields.length; i++) {
+                terms[i] = blendedFields[i].newTerm(term.text());
+                blendedBoost[i] = blendedFields[i].boost;
+            }
+            if (commonTermsCutoff != null) {
+                return BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, false, commonTermsCutoff);
+            }
+
+            if (tieBreaker == 1.0f) {
+                return BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false);
+            }
+            return BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker);
+        }
+    }
+
+    @Override
+    protected Query blendTermQuery(Term term, FieldMapper mapper) {
+        if (queryBuilder == null) {
+            return super.blendTermQuery(term, mapper);
+        }
+        return queryBuilder.blendTerm(term, mapper);
+    }
+
+    private static final class FieldAndMapper {
+        final String field;
+        final FieldMapper mapper;
+        final float boost;
+
+
+        private FieldAndMapper(String field, FieldMapper mapper, float boost) {
+            this.field = field;
+            this.mapper = mapper;
+            this.boost = boost;
+        }
+
+        public Term newTerm(String value) {
+            try {
+                final BytesRef bytesRef = mapper.indexedValueForSearch(value);
+                return new Term(field, bytesRef);
+            } catch (Exception ex) {
+                // we can't parse it just use the incoming value -- it will
+                // just have a DF of 0 at the end of the day and will be ignored
+            }
+            return new Term(field, value);
+        }
+    }
+
+    protected boolean forceAnalyzeQueryString() {
+        return this.queryBuilder.forceAnalyzeQueryString();
+    }
 }

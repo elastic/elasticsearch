@@ -22,7 +22,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -424,14 +423,14 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changes / upgraded
+                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
                 .endObject();
         client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
-        ensureYellow();
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        ensureGreen(INDEX);
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -454,7 +453,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestions(suggestResponse, "suggs");
 
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        waitForRelocation(ClusterHealthStatus.GREEN);
+        ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
                 new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
@@ -471,14 +470,14 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changes / upgraded
+                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
                 .endObject();
         client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
-        ensureYellow();
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        ensureGreen(INDEX);
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -500,7 +499,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestions(suggestResponse, "suggs");
 
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        waitForRelocation(ClusterHealthStatus.GREEN);
+        ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
                 new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
@@ -529,8 +528,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject();
         client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
-        ensureYellow();
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        ensureGreen(INDEX);
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -552,7 +551,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestions(suggestResponse, "suggs");
 
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        waitForRelocation(ClusterHealthStatus.GREEN);
+        ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
                 new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)

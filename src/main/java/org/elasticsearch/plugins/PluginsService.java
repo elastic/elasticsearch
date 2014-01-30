@@ -176,12 +176,12 @@ public class PluginsService extends AbstractComponent {
         for (Tuple<PluginInfo, Plugin> plugin : plugins()) {
             plugin.v2().processModule(module);
             // see if there are onModule references
-            List<OnModuleReference> references = onModuleReferences.get(plugin);
+            List<OnModuleReference> references = onModuleReferences.get(plugin.v2());
             if (references != null) {
                 for (OnModuleReference reference : references) {
                     if (reference.moduleClass.isAssignableFrom(module.getClass())) {
                         try {
-                            reference.onModuleMethod.invoke(plugin, module);
+                            reference.onModuleMethod.invoke(plugin.v2(), module);
                         } catch (Exception e) {
                             logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v2().name());
                         }

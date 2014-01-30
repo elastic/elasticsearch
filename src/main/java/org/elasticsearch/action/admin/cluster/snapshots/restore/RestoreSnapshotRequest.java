@@ -41,9 +41,9 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -411,10 +411,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                if (!(entry.getValue() instanceof Boolean)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed include_global_state, should be boolean");
-                }
-                includeGlobalState((Boolean) entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

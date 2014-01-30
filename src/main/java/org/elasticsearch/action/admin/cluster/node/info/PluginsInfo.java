@@ -32,9 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PluginsInfo implements Streamable, Serializable, ToXContent {
-    static final class Fields {
-        static final XContentBuilderString PLUGINS = new XContentBuilderString("plugins");
-    }
 
     private List<PluginInfo> infos;
 
@@ -85,5 +82,9 @@ public class PluginsInfo implements Streamable, Serializable, ToXContent {
         builder.endArray();
 
         return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString PLUGINS = new XContentBuilderString("plugins");
     }
 }

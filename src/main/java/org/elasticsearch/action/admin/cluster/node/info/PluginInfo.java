@@ -31,17 +31,9 @@ import java.io.IOException;
 import java.io.Serializable;
 
 public class PluginInfo implements Streamable, Serializable, ToXContent {
+
     public static final String DESCRIPTION_NOT_AVAILABLE = "No description found.";
     public static final String VERSION_NOT_AVAILABLE = "NA";
-
-    static final class Fields {
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString URL = new XContentBuilderString("url");
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
-        static final XContentBuilderString SITE = new XContentBuilderString("site");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-    }
 
     private String name;
     private String description;
@@ -121,6 +113,38 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         return version;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PluginInfo that = (PluginInfo) o;
+
+        if (!name.equals(that.name)) return false;
+        if (!version.equals(that.version)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + version.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("PluginInfo{");
+        sb.append("name='").append(name).append('\'');
+        sb.append(", description='").append(description).append('\'');
+        sb.append(", site=").append(site);
+        sb.append(", jvm=").append(jvm);
+        sb.append(", version='").append(version).append('\'');
+        sb.append('}');
+        return sb.toString();
+    }
+
     public static PluginInfo readPluginInfo(StreamInput in) throws IOException {
         PluginInfo info = new PluginInfo();
         info.readFrom(in);
@@ -167,33 +191,12 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         return builder;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        PluginInfo that = (PluginInfo) o;
-
-        if (!name.equals(that.name)) return false;
-        if (version != null ? !version.equals(that.version) : that.version != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return name.hashCode();
-    }
-
-    @Override
-    public String toString() {
-        final StringBuffer sb = new StringBuffer("PluginInfo{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", description='").append(description).append('\'');
-        sb.append(", site=").append(site);
-        sb.append(", jvm=").append(jvm);
-        sb.append(", version='").append(version).append('\'');
-        sb.append('}');
-        return sb.toString();
+    static final class Fields {
+        static final XContentBuilderString NAME = new XContentBuilderString("name");
+        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
+        static final XContentBuilderString URL = new XContentBuilderString("url");
+        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
+        static final XContentBuilderString SITE = new XContentBuilderString("site");
+        static final XContentBuilderString VERSION = new XContentBuilderString("version");
     }
 }

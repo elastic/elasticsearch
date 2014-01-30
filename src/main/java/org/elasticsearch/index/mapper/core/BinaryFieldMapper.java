@@ -59,7 +59,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         static {
             FIELD_TYPE.setIndexed(false);
-            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }

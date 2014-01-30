@@ -153,7 +153,24 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
         assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));
         assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
 
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_cached_complex_now.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
+
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_cached.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_cached_now_with_rounding.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_cached_complex_now_with_rounding.json");
         parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CachedFilter.class));

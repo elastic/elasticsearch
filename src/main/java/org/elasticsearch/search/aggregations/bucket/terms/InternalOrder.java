@@ -215,7 +215,7 @@ class InternalOrder extends Terms.Order {
                         if (v1 == Double.NaN) {
                             return asc ? 1 : -1;
                         }
-                        return Double.compare(v1, v2);
+                        return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
                     }
                 };
             }
@@ -230,7 +230,7 @@ class InternalOrder extends Terms.Order {
                     if (v1 == Double.NaN) {
                         return asc ? 1 : -1;
                     }
-                    return Double.compare(v1, v2);
+                    return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
                 }
             };
         }

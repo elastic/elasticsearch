@@ -411,10 +411,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                if (!(entry.getValue() instanceof Boolean)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed include_global_state, should be boolean");
-                }
-                includeGlobalState((Boolean) entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

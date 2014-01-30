@@ -47,9 +47,7 @@ import java.util.*;
  *
  */
 public class PluginsService extends AbstractComponent {
-    public static final String VERSION_NA = "NA";
-    public static final String DESCRIPTION_NA = "No description found.";
-    public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
+    private static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
 
     private final Environment environment;
 
@@ -89,8 +87,10 @@ public class PluginsService extends AbstractComponent {
         String[] defaultPluginsClasses = settings.getAsArray("plugin.types");
         for (String pluginClass : defaultPluginsClasses) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, VERSION_NA);
-            logger.trace("plugin loaded from settings [{}]", pluginInfo);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, PluginInfo.DEFAULT_VERSION);
+            if (logger.isTraceEnabled()) {
+                logger.trace("plugin loaded from settings [{}]", pluginInfo);
+            }
             tupleBuilder.add(new Tuple<PluginInfo, Plugin>(pluginInfo, plugin));
         }
 
@@ -282,24 +282,32 @@ public class PluginsService extends AbstractComponent {
         if (refreshInterval.millis() != 0) {
             if (cachedPluginsInfo != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve plugins info");
+                if (logger.isTraceEnabled()) {
+                    logger.trace("using cache to retrieve plugins info");
+                }
                 return cachedPluginsInfo;
             }
             lastRefresh = System.currentTimeMillis();
         }
 
-        if (logger.isTraceEnabled()) logger.trace("starting to fetch info on plugins");
+        if (logger.isTraceEnabled()) {
+            logger.trace("starting to fetch info on plugins");
+        }
         cachedPluginsInfo = new PluginsInfo();
 
         // We first add all JvmPlugins
         for (Tuple<PluginInfo, Plugin> plugin : this.plugins) {
-            if (logger.isTraceEnabled()) logger.trace("adding jvm plugin [{}]", plugin.v1());
+            if (logger.isTraceEnabled()) {
+                logger.trace("adding jvm plugin [{}]", plugin.v1());
+            }
             cachedPluginsInfo.add(plugin.v1());
         }
 
         // We reload site plugins (in case of some changes)
         for (Tuple<PluginInfo, Plugin> plugin : loadSitePlugins()) {
-            if (logger.isTraceEnabled()) logger.trace("adding site plugin [{}]", plugin.v1());
+            if (logger.isTraceEnabled()) {
+                logger.trace("adding site plugin [{}]", plugin.v1());
+            }
             cachedPluginsInfo.add(plugin.v1());
         }
 
@@ -337,7 +345,9 @@ public class PluginsService extends AbstractComponent {
         if (pluginsFile != null) {
             for (File pluginFile : pluginsFiles) {
                 if (pluginFile.isDirectory()) {
-                    logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
+                    }
                     try {
                         // add the root
                         addURL.invoke(classLoader, pluginFile.toURI().toURL());
@@ -369,7 +379,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     private ImmutableList<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
-        List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<Tuple<PluginInfo, Plugin>>();
+        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
 
         // Trying JVM plugins: looking for es-plugin.properties files
         try {
@@ -382,14 +392,16 @@ public class PluginsService extends AbstractComponent {
                     is = pluginUrl.openStream();
                     pluginProps.load(is);
                     String pluginClassName = pluginProps.getProperty("plugin");
-                    String pluginVersion = pluginProps.getProperty("version", VERSION_NA);
+                    String pluginVersion = pluginProps.getProperty("version", PluginInfo.DEFAULT_VERSION);
                     Plugin plugin = loadPlugin(pluginClassName, settings);
 
                     // Is it a site plugin as well? Does it have also an embedded _site structure
                     File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
                     boolean isSite = siteFile.exists() && siteFile.isDirectory();
-                    logger.trace("found a jvm plugin [{}], [{}]{}",
-                            plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("found a jvm plugin [{}], [{}]{}",
+                                plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
+                    }
 
                     PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), isSite, true, pluginVersion);
 
@@ -407,9 +419,10 @@ public class PluginsService extends AbstractComponent {
                 }
             }
         } catch (IOException e) {
+            logger.warn("failed to find jvm plugins from classpath", e);
         }
 
-        return ImmutableList.copyOf(plugins);
+        return plugins.build();
     }
 
     private ImmutableList<Tuple<PluginInfo,Plugin>> loadSitePlugins() {
@@ -436,8 +449,8 @@ public class PluginsService extends AbstractComponent {
                 if (sitePluginDir.exists()) {
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
-                    String version = VERSION_NA;
-                    String description = DESCRIPTION_NA;
+                    String version = PluginInfo.DEFAULT_VERSION;
+                    String description = PluginInfo.DEFAULT_DESCRIPTION;
 
                     // We check if es-plugin.properties exists in plugin/_site dir
                     File pluginPropFile = new File(sitePluginDir, ES_PLUGIN_PROPERTIES);
@@ -448,8 +461,8 @@ public class PluginsService extends AbstractComponent {
                         try {
                             is = new FileInputStream(pluginPropFile.getAbsolutePath());
                             pluginProps.load(is);
-                            description = pluginProps.getProperty("description", DESCRIPTION_NA);
-                            version = pluginProps.getProperty("version", VERSION_NA);
+                            description = pluginProps.getProperty("description", PluginInfo.DEFAULT_DESCRIPTION);
+                            version = pluginProps.getProperty("version", PluginInfo.DEFAULT_VERSION);
                         } catch (Exception e) {
                             // Can not load properties for this site plugin. Ignoring.
                         } finally {
@@ -463,8 +476,10 @@ public class PluginsService extends AbstractComponent {
                         }
                     }
 
-                    logger.trace("found a site plugin name [{}], version [{}], description [{}]",
-                            name, version, description);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("found a site plugin name [{}], version [{}], description [{}]",
+                                name, version, description);
+                    }
                     sitePlugins.add(new Tuple<PluginInfo, Plugin>(new PluginInfo(name, description, true, false, version), null));
                 }
             }

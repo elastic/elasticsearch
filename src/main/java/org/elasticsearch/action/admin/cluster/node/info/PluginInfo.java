@@ -31,6 +31,9 @@ import java.io.IOException;
 import java.io.Serializable;
 
 public class PluginInfo implements Streamable, Serializable, ToXContent {
+    public static final String DEFAULT_DESCRIPTION = "No description found.";
+    public static final String DEFAULT_VERSION = "NA";
+
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
@@ -38,7 +41,6 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString JVM = new XContentBuilderString("jvm");
         static final XContentBuilderString SITE = new XContentBuilderString("site");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final String VERSION_DEFAULT = "NA";
     }
 
     private String name;
@@ -67,7 +69,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         if (Strings.hasText(version)) {
             this.version = version;
         } else {
-            this.version = Fields.VERSION_DEFAULT;
+            this.version = DEFAULT_VERSION;
         }
     }
 
@@ -165,16 +167,15 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
-        PluginInfo p = (PluginInfo) o;
+        PluginInfo that = (PluginInfo) o;
 
-        return name.equals(p.getName());
+        if (!name.equals(that.name)) return false;
+        if (version != null ? !version.equals(that.version) : that.version != null) return false;
+
+        return true;
     }
 
     @Override

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;
 import org.elasticsearch.nodesinfo.plugin.dummy2.TestNoVersionPlugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -61,9 +60,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";
         static final String SITE_PLUGIN_DESCRIPTION = "This is a description for a dummy test site plugin.";
-        static final String SITE_PLUGIN_NO_DESCRIPTION = PluginsService.DESCRIPTION_NA;
         static final String SITE_PLUGIN_VERSION = "0.0.7-BOND-SITE";
-        static final String PLUGIN_NOVERSION = PluginsService.VERSION_NA;
     }
 
 
@@ -148,16 +145,16 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         assertNodeContainsPlugins(response, server3NodeId,
                 Lists.newArrayList(TestPlugin.Fields.NAME),                             // JVM Plugin
                 Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
-                Lists.newArrayList(Fields.PLUGIN_NOVERSION),
+                Lists.newArrayList(PluginInfo.DEFAULT_VERSION),
                 Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No site Plugin
 
         assertNodeContainsPlugins(response, server4NodeId,
                 Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),                    // JVM Plugin
                 Lists.newArrayList(TestNoVersionPlugin.Fields.DESCRIPTION),
-                Lists.newArrayList(Fields.PLUGIN_NOVERSION),
+                Lists.newArrayList(PluginInfo.DEFAULT_VERSION),
                 Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),// Site Plugin
-                Lists.newArrayList(Fields.SITE_PLUGIN_NO_DESCRIPTION),
-                Lists.newArrayList(Fields.PLUGIN_NOVERSION));
+                Lists.newArrayList(PluginInfo.DEFAULT_DESCRIPTION),
+                Lists.newArrayList(PluginInfo.DEFAULT_VERSION));
     }
 
     private void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,

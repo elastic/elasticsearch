@@ -42,9 +42,9 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -393,10 +393,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                if (!(entry.getValue() instanceof Boolean)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed include_global_state, should be boolean");
-                }
-                includeGlobalState((Boolean) entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue());
             }
         }
         indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));

@@ -108,6 +108,10 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             return XContentHelper.convertToMap(source.array(), source.arrayOffset(), source.length(), true).v2();
         }
 
+        public boolean isNull() {
+            return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("full_name", fullName);

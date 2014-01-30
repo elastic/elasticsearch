@@ -2046,7 +2046,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true)))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-01-01").to("now")))
                 .get();
         assertHitCount(searchResponse, 1l);
 
@@ -2059,7 +2059,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true))
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now"))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2068,19 +2068,49 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
         assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
 
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now/d").cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        // Now with rounding is used, so we must have something in filter cache
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        long filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+        assertThat(filtercacheSize, greaterThan(0l));
+
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.filteredQuery(
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now"))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // and because we use term filter, it is also added to filter cache, so it should contain more than before
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
+        filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
                                 .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
 
-        // filter cache only has a cache entry for the term filter
+        // The range filter is now explicitly cached, so it now it is in the filter cache.
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
     }
 
     @Test

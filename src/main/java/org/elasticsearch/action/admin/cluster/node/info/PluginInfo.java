@@ -31,8 +31,8 @@ import java.io.IOException;
 import java.io.Serializable;
 
 public class PluginInfo implements Streamable, Serializable, ToXContent {
-    public static final String DEFAULT_DESCRIPTION = "No description found.";
-    public static final String DEFAULT_VERSION = "NA";
+    public static final String DESCRIPTION_NOT_AVAILABLE = "No description found.";
+    public static final String VERSION_NOT_AVAILABLE = "NA";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -69,7 +69,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         if (Strings.hasText(version)) {
             this.version = version;
         } else {
-            this.version = DEFAULT_VERSION;
+            this.version = VERSION_NOT_AVAILABLE;
         }
     }
 
@@ -135,6 +135,8 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         this.jvm = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
             this.version = in.readString();
+        } else {
+            this.version = VERSION_NOT_AVAILABLE;
         }
     }
 

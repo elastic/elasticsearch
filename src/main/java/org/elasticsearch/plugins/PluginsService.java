@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.collect.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
@@ -87,7 +88,7 @@ public class PluginsService extends AbstractComponent {
         String[] defaultPluginsClasses = settings.getAsArray("plugin.types");
         for (String pluginClass : defaultPluginsClasses) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, PluginInfo.DEFAULT_VERSION);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, PluginInfo.VERSION_NOT_AVAILABLE);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from settings [{}]", pluginInfo);
             }
@@ -368,7 +369,7 @@ public class PluginsService extends AbstractComponent {
                             }
                             addURL.invoke(classLoader, libFile.toURI().toURL());
                         }
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to add plugin [" + pluginFile + "]", e);
                     }
                 }
@@ -392,7 +393,7 @@ public class PluginsService extends AbstractComponent {
                     is = pluginUrl.openStream();
                     pluginProps.load(is);
                     String pluginClassName = pluginProps.getProperty("plugin");
-                    String pluginVersion = pluginProps.getProperty("version", PluginInfo.DEFAULT_VERSION);
+                    String pluginVersion = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
                     Plugin plugin = loadPlugin(pluginClassName, settings);
 
                     // Is it a site plugin as well? Does it have also an embedded _site structure
@@ -406,16 +407,10 @@ public class PluginsService extends AbstractComponent {
                     PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), isSite, true, pluginVersion);
 
                     plugins.add(new Tuple<PluginInfo, Plugin>(pluginInfo, plugin));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to load plugin from [" + pluginUrl + "]", e);
                 } finally {
-                    if (is != null) {
-                        try {
-                            is.close();
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    }
+                    IOUtils.closeWhileHandlingException(is);
                 }
             }
         } catch (IOException e) {
@@ -449,8 +444,8 @@ public class PluginsService extends AbstractComponent {
                 if (sitePluginDir.exists()) {
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
-                    String version = PluginInfo.DEFAULT_VERSION;
-                    String description = PluginInfo.DEFAULT_DESCRIPTION;
+                    String version = PluginInfo.VERSION_NOT_AVAILABLE;
+                    String description = PluginInfo.DESCRIPTION_NOT_AVAILABLE;
 
                     // We check if es-plugin.properties exists in plugin/_site dir
                     File pluginPropFile = new File(sitePluginDir, ES_PLUGIN_PROPERTIES);
@@ -461,18 +456,13 @@ public class PluginsService extends AbstractComponent {
                         try {
                             is = new FileInputStream(pluginPropFile.getAbsolutePath());
                             pluginProps.load(is);
-                            description = pluginProps.getProperty("description", PluginInfo.DEFAULT_DESCRIPTION);
-                            version = pluginProps.getProperty("version", PluginInfo.DEFAULT_VERSION);
+                            description = pluginProps.getProperty("description", PluginInfo.DESCRIPTION_NOT_AVAILABLE);
+                            version = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
                         } catch (Exception e) {
                             // Can not load properties for this site plugin. Ignoring.
+                            logger.debug("can not load {} file.", e, ES_PLUGIN_PROPERTIES);
                         } finally {
-                            if (is != null) {
-                                try {
-                                    is.close();
-                                } catch (IOException e) {
-                                    // ignore
-                                }
-                            }
+                            IOUtils.closeWhileHandlingException(is);
                         }
                     }
 
@@ -522,7 +512,7 @@ public class PluginsService extends AbstractComponent {
 
             return plugin;
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new ElasticsearchException("Failed to load plugin class [" + className + "]", e);
         }
     }

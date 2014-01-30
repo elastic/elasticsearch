@@ -145,16 +145,16 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         assertNodeContainsPlugins(response, server3NodeId,
                 Lists.newArrayList(TestPlugin.Fields.NAME),                             // JVM Plugin
                 Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
-                Lists.newArrayList(PluginInfo.DEFAULT_VERSION),
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
                 Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No site Plugin
 
         assertNodeContainsPlugins(response, server4NodeId,
                 Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),                    // JVM Plugin
                 Lists.newArrayList(TestNoVersionPlugin.Fields.DESCRIPTION),
-                Lists.newArrayList(PluginInfo.DEFAULT_VERSION),
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
                 Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),// Site Plugin
-                Lists.newArrayList(PluginInfo.DEFAULT_DESCRIPTION),
-                Lists.newArrayList(PluginInfo.DEFAULT_VERSION));
+                Lists.newArrayList(PluginInfo.DESCRIPTION_NOT_AVAILABLE),
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE));
     }
 
     private void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,

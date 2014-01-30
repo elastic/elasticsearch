@@ -393,10 +393,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                if (!(entry.getValue() instanceof Boolean)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed include_global_state, should be boolean");
-                }
-                includeGlobalState((Boolean) entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue());
             }
         }
         indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));

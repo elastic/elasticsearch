@@ -119,7 +119,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         for (ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
             for (ImmutableMap<String, FieldMappingMetaData> fieldValue : value.values()) {
                 for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetaDataEntry.getValue() == FieldMappingMetaData.NULL) {
+                    if (fieldMappingMetaDataEntry.getValue().isNull()) {
                         return true;
                     }
                 }

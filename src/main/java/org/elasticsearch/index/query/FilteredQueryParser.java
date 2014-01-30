@@ -94,11 +94,11 @@ public class FilteredQueryParser implements QueryParser {
                         filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
-                    } else if ("_name".equals(currentFieldName)) {
-                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
                     }
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {

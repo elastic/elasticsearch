@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
@@ -122,11 +123,17 @@ public class RangeFilterParser implements FilterParser {
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
+                boolean explicitlyCached = cache != null && cache;
                 if (execution.equals("index")) {
                     if (cache == null) {
                         cache = true;
                     }
-                    filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper, parseContext);
+                    FieldMapper mapper = smartNameFieldMappers.mapper();
+                    if (mapper instanceof DateFieldMapper) {
+                        filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, parseContext, explicitlyCached);
+                    } else  {
+                        filter = mapper.rangeFilter(from, to, includeLower, includeUpper, parseContext);
+                    }
                 } else if ("fielddata".equals(execution)) {
                     if (cache == null) {
                         cache = false;
@@ -135,7 +142,11 @@ public class RangeFilterParser implements FilterParser {
                     if (!(mapper instanceof NumberFieldMapper)) {
                         throw new QueryParsingException(parseContext.index(), "[range] filter field [" + fieldName + "] is not a numeric type");
                     }
-                    filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext);
+                    if (mapper instanceof DateFieldMapper) {
+                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext, explicitlyCached);
+                    } else {
+                        filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext);
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] filter doesn't support [" + execution + "] execution");
                 }

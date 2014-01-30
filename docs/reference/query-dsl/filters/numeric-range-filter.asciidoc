@@ -56,3 +56,6 @@ If caching the *result* of the filter is desired (for example, using the
 same "teen" filter with ages between 10 and 20), then it is advisable to
 simply use the <<query-dsl-range-filter,range>>
 filter.
+
+If the `now` date math expression is used without rounding then a range numeric filter will never be cached even
+if `_cache` is set to `true`. Also any filter that wraps this filter will never be cached.

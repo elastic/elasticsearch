@@ -347,24 +347,28 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        boolean nowIsUsed = false;
+        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+    }
+
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
+        boolean cache = explicitCaching;
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
             String value = convertToString(lowerTerm);
-            nowIsUsed = value.contains("now");
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
             lowerVal = parseToMilliseconds(value, context, false);
         }
         if (upperTerm != null) {
             String value = convertToString(upperTerm);
-            nowIsUsed = value.contains("now");
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
             upperVal = parseToMilliseconds(value, context, includeUpper);
         }
 
         Filter filter =  NumericRangeFilter.newLongRange(
             names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
         );
-        if (nowIsUsed) {
+        if (!cache) {
             // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
             // a range filter with a `now` date expressions.
             return NoCacheFilter.wrap(filter);
@@ -375,29 +379,60 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        boolean nowIsUsed = false;
+        return rangeFilter(fieldData, lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+    }
+
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
+        boolean cache = explicitCaching;
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
             String value = convertToString(lowerTerm);
-            nowIsUsed = value.contains("now");
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
             lowerVal = parseToMilliseconds(value, context, false);
         }
         if (upperTerm != null) {
             String value = convertToString(upperTerm);
-            nowIsUsed = value.contains("now");
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
             upperVal = parseToMilliseconds(value, context, includeUpper);
         }
 
         Filter filter =  NumericRangeFieldDataFilter.newLongRange(
             (IndexNumericFieldData<?>) fieldData.getForField(this), lowerVal,upperVal, includeLower, includeUpper
         );
-        if (nowIsUsed) {
+        if (!cache) {
             // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
             // a range filter with a `now` date expressions.
             return NoCacheFilter.wrap(filter);
         } else {
             return filter;
+        }
+    }
+
+    private boolean hasNowExpressionWithNoRounding(String value) {
+        int index = value.indexOf("now");
+        if (index != -1) {
+            if (value.length() == 3) {
+                return true;
+            } else {
+                int indexOfPotentialRounding = index + 3;
+                if (indexOfPotentialRounding >= value.length()) {
+                    return true;
+                } else {
+                    char potentialRoundingChar;
+                    do {
+                        potentialRoundingChar = value.charAt(indexOfPotentialRounding++);
+                        if (potentialRoundingChar == '/') {
+                            return false; // We found the rounding char, so we shouldn't forcefully disable caching
+                        } else if (potentialRoundingChar == ' ') {
+                            return true; // Next token in the date math expression and no rounding found, so we should not cache.
+                        }
+                    } while (indexOfPotentialRounding < value.length());
+                    return true; // Couldn't find rounding char, so we should not cache
+                }
+            }
+        } else {
+            return false;
         }
     }
 

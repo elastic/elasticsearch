@@ -80,7 +80,7 @@ public class DeleteResponse extends ActionResponse {
     }
 
     /**
-     * Returns <tt>true</tt> if there was no doc found to delete.
+     * Returns <tt>true</tt> if a doc was found to delete.
      */
     public boolean isFound() {
         return found;

@@ -20,18 +20,22 @@
 package org.elasticsearch.index.mapper.multifield;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -61,11 +65,11 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
                 .get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index")
-                .setQuery(QueryBuilders.matchQuery("title", "multi"))
+                .setQuery(matchQuery("title", "multi"))
                 .get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch("my-index")
-                .setQuery(QueryBuilders.matchQuery("title.not_analyzed", "Multi fields"))
+                .setQuery(matchQuery("title.not_analyzed", "Multi fields"))
                 .get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -93,9 +97,146 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
                 .get();
 
         searchResponse = client().prepareSearch("my-index")
-                .setQuery(QueryBuilders.matchQuery("title.uncased", "Multi"))
+                .setQuery(matchQuery("title.uncased", "Multi"))
                 .get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testGeoPointMultiField() throws Exception {
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .addMapping("my-type", createMappingSource("geo_point"))
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(2));
+        assertThat(aField.get("type").toString(), equalTo("geo_point"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(2));
+        assertThat(bField.get("type").toString(), equalTo("string"));
+        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "51,19").setRefresh(true).get();
+        CountResponse countResponse = client().prepareCount("my-index")
+                .setQuery(constantScoreQuery(geoDistanceFilter("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
+                .get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+        countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "51,19")).get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    @Test
+    public void testTokenCountMultiField() throws Exception {
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .addMapping("my-type", XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                                .startObject("properties")
+                                .startObject("a")
+                                .field("type", "token_count")
+                                .field("analyzer", "simple")
+                                .startObject("fields")
+                                .startObject("b")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject().endObject())
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(3));
+        assertThat(aField.get("type").toString(), equalTo("token_count"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(2));
+        assertThat(bField.get("type").toString(), equalTo("string"));
+        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "my tokens").setRefresh(true).get();
+        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "my tokens")).get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    @Test
+    public void testCompletionMultiField() throws Exception {
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .addMapping("my-type", createMappingSource("completion"))
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(7));
+        assertThat(aField.get("type").toString(), equalTo("completion"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(2));
+        assertThat(bField.get("type").toString(), equalTo("string"));
+        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefresh(true).get();
+        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "complete me")).get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    @Test
+    public void testIpMultiField() throws Exception {
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .addMapping("my-type", createMappingSource("ip"))
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(2));
+        assertThat(aField.get("type").toString(), equalTo("ip"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(2));
+        assertThat(bField.get("type").toString(), equalTo("string"));
+        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "127.0.0.1").setRefresh(true).get();
+        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "127.0.0.1")).get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    private XContentBuilder createMappingSource(String fieldType) throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                .startObject("properties")
+                .startObject("a")
+                .field("type", fieldType)
+                .startObject("fields")
+                .startObject("b")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
     }
 
     private XContentBuilder createTypeSource() throws IOException {

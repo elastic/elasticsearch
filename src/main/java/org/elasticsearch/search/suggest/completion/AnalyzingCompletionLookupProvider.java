@@ -204,6 +204,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     @Override
     public LookupFactory load(IndexInput input) throws IOException {
+        long sizeInBytes = 0;
         int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
         final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<String, AnalyzingSuggestHolder>();
         input.seek(input.length() - 8);
@@ -249,8 +250,10 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte, holeCharacter);
+            sizeInBytes += fst.sizeInBytes();
             lookupMap.put(entry.getValue(), holder);
         }
+        final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
             public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
@@ -308,6 +311,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper) {
                 return lookupMap.get(mapper.names().indexName());
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return ramBytesUsed;
             }
         };
     }

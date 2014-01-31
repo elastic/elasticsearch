@@ -88,6 +88,8 @@ The skip section can also be used to list new features that need to be
 supported in order to run a test. This way the up-to-date runners will
 run the test, while the ones that don't support the feature yet can
 temporarily skip it, and avoid having lots of test failures in the meantime.
+Once all runners have implemented the feature, it can be declared supported
+by default, thus the related skip sections can be removed from the tests.
 
 ....
     "Parent":

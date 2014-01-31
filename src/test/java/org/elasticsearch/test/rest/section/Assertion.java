@@ -51,6 +51,9 @@ public abstract class Assertion implements ExecutableSection {
     }
 
     protected final Object getActualValue(RestTestExecutionContext executionContext) throws IOException {
+        if (executionContext.isStashed(field)) {
+            return executionContext.unstash(field);
+        }
         return executionContext.response(field);
     }
 

@@ -272,7 +272,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.sizeOf(lookupFactory) + delegateProducer.ramBytesUsed();
+            return (lookupFactory == null ? 0 : lookupFactory.ramBytesUsed()) + delegateProducer.ramBytesUsed();
         }
     }
 
@@ -367,5 +367,6 @@ public class Completion090PostingsFormat extends PostingsFormat {
         public abstract Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
         abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper);
+        public abstract long ramBytesUsed();
     }
 }

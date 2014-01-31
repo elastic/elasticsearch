@@ -244,7 +244,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         int value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

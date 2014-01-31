@@ -234,7 +234,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         long value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

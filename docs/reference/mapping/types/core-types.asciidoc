@@ -637,33 +637,14 @@ the parameter. In the following example all values from fields `title` and `abst
 }
 --------------------------------------------------
 
-Multiple fields with optional boost factors are also supported:
+Multiple fields are also supported:
 
 [source,js]
 --------------------------------------------------
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info^10.0"] },
-    }
-}
---------------------------------------------------
-
-The same mapping can be also defined using extended syntax:
-
-[source,js]
---------------------------------------------------
-{
-  "book" : {
-    "properties" : {
-      "title" : {
-        "type" : "string",
-        "copy_to" : [{
-            "field": "meta_data"
-        }, {
-            "field": "article_info"
-            "boost": 10.0
-        }
+      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] },
     }
 }
 --------------------------------------------------

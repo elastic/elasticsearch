@@ -274,7 +274,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, context.fieldBoost(this));
+        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, boost);
         if (valueAndBoost.value() == null) {
             return;
         }

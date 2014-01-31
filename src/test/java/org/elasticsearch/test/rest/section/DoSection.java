@@ -29,10 +29,9 @@ import org.elasticsearch.test.rest.client.RestResponse;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -100,17 +99,15 @@ public class DoSection implements ExecutableSection {
                 fail(formatStatusCodeMessage(e.restResponse(), "2xx"));
             } else if (catches.containsKey(catchParam)) {
                 assertStatusCode(e.restResponse());
-            } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
                 assertThat(formatStatusCodeMessage(e.restResponse(), "4xx|5xx"), e.statusCode(), greaterThanOrEqualTo(400));
                 Object error = executionContext.response("error");
                 assertThat("error was expected in the response", error, notNullValue());
                 //remove delimiters from regex
                 String regex = catchParam.substring(1, catchParam.length() - 1);
-                String errorMessage = error.toString();
-                Matcher matcher = Pattern.compile(regex).matcher(errorMessage);
-                assertThat("error message [" + errorMessage + "] was expected to match [" + catchParam + "] but didn't",
-                        matcher.find(), equalTo(true));
+                assertThat("the error message was expected to match the provided regex but didn't",
+                        error.toString(), matches(regex));
             } else {
                 throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
             }

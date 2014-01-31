@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  *
@@ -160,6 +161,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
                 } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
+                } else if ("fields".equals(fieldName) || "path".equals(fieldName)) {
+                    parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
                 } else {
                     throw new MapperParsingException("Unknown field [" + fieldName + "]");
                 }
@@ -224,6 +227,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         if (token == XContentParser.Token.VALUE_STRING) {
             inputs.add(parser.text());
+            multiFields.parse(this, context);
         } else {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -355,6 +359,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), this.preserveSeparators);
         builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), this.preservePositionIncrements);
         builder.field(Fields.MAX_INPUT_LENGTH.getPreferredName(), this.maxInputLength);
+        multiFields.toXContent(builder, params);
         return builder.endObject();
     }
 

@@ -47,19 +47,30 @@ public class RoutingAllocation {
 
         private final RoutingTable routingTable;
 
-        private final AllocationExplanation explanation;
+        private RoutingExplanations explanations = new RoutingExplanations();
+
+        /**
+         * Creates a new {@link RoutingAllocation.Result}
+         *
+         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         * @param routingTable the {@link RoutingTable} this Result references
+         */
+        public Result(boolean changed, RoutingTable routingTable) {
+            this.changed = changed;
+            this.routingTable = routingTable;
+        }
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
          * 
          * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
-         * @param explanation Explanation of the Result
+         * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, AllocationExplanation explanation) {
+        public Result(boolean changed, RoutingTable routingTable, RoutingExplanations explanations) {
             this.changed = changed;
             this.routingTable = routingTable;
-            this.explanation = explanation;
+            this.explanations = explanations;
         }
 
         /** determine whether the actual {@link RoutingTable} has been changed
@@ -81,8 +92,8 @@ public class RoutingAllocation {
          * Get the explanation of this result
          * @return explanation
          */
-        public AllocationExplanation explanation() {
-            return explanation;
+        public RoutingExplanations explanations() {
+            return explanations;
         }
     }
 
@@ -198,10 +209,14 @@ public class RoutingAllocation {
     /**
      * Create a routing decision, including the reason if the debug flag is
      * turned on
+     * @param decision decision whether to allow/deny allocation
+     * @param deciderLabel a human readable label for the AllocationDecider
+     * @param reason a format string explanation of the decision
+     * @param params format string parameters
      */
-    public Decision decision(Decision decision, String reason, Object... params) {
+    public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {
-            return Decision.single(decision.type(), reason, params);
+            return Decision.single(decision.type(), deciderLabel, reason, params);
         } else {
             return decision;
         }

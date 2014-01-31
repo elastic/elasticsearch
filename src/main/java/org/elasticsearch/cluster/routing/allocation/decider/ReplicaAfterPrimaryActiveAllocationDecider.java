@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
 
+    private static final String NAME = "replica_after_primary_active";
+
     @Inject
     public ReplicaAfterPrimaryActiveAllocationDecider(Settings settings) {
         super(settings);
@@ -43,12 +45,12 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
-            return allocation.decision(Decision.YES, "shard is primary");
+            return allocation.decision(Decision.YES, NAME, "shard is primary");
         }
         MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
         if (primary == null) {
-            return allocation.decision(Decision.NO, "primary shard is not yet active");
+            return allocation.decision(Decision.NO, NAME, "primary shard is not yet active");
         }
-        return allocation.decision(Decision.YES, "primary is already active");
+        return allocation.decision(Decision.YES, NAME, "primary is already active");
     }
 }

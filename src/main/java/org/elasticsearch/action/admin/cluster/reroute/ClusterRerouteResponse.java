@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -32,14 +35,16 @@ import java.io.IOException;
 public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     private ClusterState state;
+    private RoutingExplanations explanations;
 
     ClusterRerouteResponse() {
 
     }
 
-    ClusterRerouteResponse(boolean acknowledged, ClusterState state) {
+    ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
         super(acknowledged);
         this.state = state;
+        this.explanations = explanations;
     }
 
     /**
@@ -49,11 +54,20 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         return this.state;
     }
 
+    public RoutingExplanations getExplanations() {
+        return this.explanations;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         state = ClusterState.Builder.readFrom(in, null);
         readAcknowledged(in);
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            explanations = RoutingExplanations.readFrom(in);
+        } else {
+            explanations = new RoutingExplanations();
+        }
     }
 
     @Override
@@ -61,5 +75,8 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         super.writeTo(out);
         ClusterState.Builder.writeTo(state, out);
         writeAcknowledged(out);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            RoutingExplanations.writeTo(explanations, out);
+        }
     }
 }

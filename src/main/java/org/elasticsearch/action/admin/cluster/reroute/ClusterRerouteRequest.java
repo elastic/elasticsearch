@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -39,6 +40,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
 
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
+    boolean explain;
 
     public ClusterRerouteRequest() {
     }
@@ -67,6 +69,23 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
      */
     public boolean dryRun() {
         return this.dryRun;
+    }
+
+    /**
+     * Sets the explain flag, which will collect information about the reroute
+     * request without executing the actions. Similar to dryRun,
+     * but human-readable.
+     */
+    public ClusterRerouteRequest explain(boolean explain) {
+        this.explain = explain;
+        return this;
+    }
+
+    /**
+     * Returns the current explain flag
+     */
+    public boolean explain() {
+        return this.explain;
     }
 
     /**
@@ -110,6 +129,11 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.readFrom(in);
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            explain = in.readBoolean();
+        } else {
+            explain = false;
+        }
         readTimeout(in);
     }
 
@@ -118,6 +142,9 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.writeTo(out);
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeBoolean(explain);
+        }
         writeTimeout(out);
     }
 }

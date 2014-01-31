@@ -47,8 +47,8 @@ import java.util.Map;
  */
 public abstract class TransportSearchHelper {
 
-    public static ShardSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis) {
-        ShardSearchRequest shardRequest = new ShardSearchRequest(request, shardRouting, numberOfShards);
+    public static ShardSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis, boolean useSlowScroll) {
+        ShardSearchRequest shardRequest = new ShardSearchRequest(request, shardRouting, numberOfShards, useSlowScroll);
         shardRequest.filteringAliases(filteringAliases);
         shardRequest.nowInMillis(nowInMillis);
         return shardRequest;

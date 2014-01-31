@@ -85,7 +85,8 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
        @lucene.internal */
     long bottomOrd;
 
-    final BytesRef tempBR = new BytesRef();
+    BytesRef top;
+    long topOrd;
 
     public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
         this.indexFieldData = indexFieldData;
@@ -140,6 +141,10 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public int compareTopMissing() {
+        throw new UnsupportedOperationException();
+    }
 
     class PerSegmentComparator extends NestedWrappableComparator<BytesRef> {
         final Ordinals.Docs readerOrds;
@@ -205,13 +210,29 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
         @Override
         public int compareTop(int doc) throws IOException {
-            throw new UnsupportedOperationException("compareTop() not used for sorting in ES");
+            final long ord = getOrd(doc);
+            if (ord == Ordinals.MISSING_ORDINAL) {
+                return compareTopMissing();
+            } else {
+                final long comparableOrd = ord << 2;
+                return LongValuesComparator.compare(topOrd, comparableOrd);
+            }
         }
 
         @Override
         public int compareBottomMissing() {
             assert bottomSlot != -1;
             return LongValuesComparator.compare(bottomOrd, missingOrd);
+        }
+
+        @Override
+        public int compareTopMissing() {
+            int cmp =  LongValuesComparator.compare(topOrd, missingOrd);
+            if (cmp == 0) {
+                return compareValues(top, missingValue);
+            } else {
+                return cmp;
+            }
         }
 
         @Override
@@ -299,6 +320,12 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         if (bottomSlot != -1) {
             perSegComp.setBottom(bottomSlot);
         }
+        if (top != null) {
+            perSegComp.setTopValue(top);
+            topOrd = ordInCurrentReader(termsIndex, top);
+        } else {
+            topOrd = missingOrd;
+        }
         return perSegComp;
     }
 
@@ -332,7 +359,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     @Override
     public void setTopValue(BytesRef value) {
-        throw new UnsupportedOperationException("setTopValue() not used for sorting in ES");
+        this.top = value;
     }
 
     @Override

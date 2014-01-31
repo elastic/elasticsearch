@@ -23,7 +23,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -88,6 +87,7 @@ abstract class NestedFieldComparator extends FieldComparator {
     FixedBitSet rootDocuments;
     FixedBitSet innerDocuments;
     int bottomSlot;
+    Object top;
 
     NestedFieldComparator(FieldComparator wrappedComparator, Filter rootDocumentsFilter, Filter innerDocumentsFilter, int spareSlot) {
         this.wrappedComparator = wrappedComparator;
@@ -137,12 +137,8 @@ abstract class NestedFieldComparator extends FieldComparator {
 
     @Override
     public void setTopValue(Object top) {
-        throw new UnsupportedOperationException("setTopValue() not used for sorting in ES");
-    }
-
-    @Override
-    public int compareTop(int doc) throws IOException {
-        throw new UnsupportedOperationException("compareTop() not used for sorting in ES");
+        this.top = top;
+        wrappedComparator.setTopValue(top);
     }
 
     final static class Lowest extends NestedFieldComparator {
@@ -214,6 +210,42 @@ abstract class NestedFieldComparator extends FieldComparator {
             }
         }
 
+        @Override
+        public int compareTop(int rootDoc) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            // We need to copy the lowest value from all nested docs into slot.
+            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            // We only need to emit a single cmp value for any matching nested doc
+            @SuppressWarnings("unchecked")
+            int cmp = wrappedComparator.compareTop(nestedDoc);
+            if (cmp > 0) {
+                return cmp;
+            }
+
+            while (true) {
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+                if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                    return cmp;
+                }
+                @SuppressWarnings("unchecked")
+                int cmp1 = wrappedComparator.compareTop(nestedDoc);
+                if (cmp1 > 0) {
+                    return cmp1;
+                } else {
+                    if (cmp1 == 0) {
+                        cmp = 0;
+                    }
+                }
+            }
+        }
     }
 
     final static class Highest extends NestedFieldComparator {
@@ -280,6 +312,38 @@ abstract class NestedFieldComparator extends FieldComparator {
             }
         }
 
+        @Override
+        public int compareTop(int rootDoc) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            @SuppressWarnings("unchecked")
+            int cmp = wrappedComparator.compareTop(nestedDoc);
+            if (cmp < 0) {
+                return cmp;
+            }
+
+            while (true) {
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+                if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                    return cmp;
+                }
+                @SuppressWarnings("unchecked")
+                int cmp1 = wrappedComparator.compareTop(nestedDoc);
+                if (cmp1 < 0) {
+                    return cmp1;
+                } else if (cmp1 == 0) {
+                    cmp = 0;
+                }
+            }
+        }
     }
     
     static abstract class NumericNestedFieldComparatorBase extends NestedFieldComparator {
@@ -337,7 +401,32 @@ abstract class NestedFieldComparator extends FieldComparator {
             }
             afterNested(slot, counter);
         }
-        
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public int compareTop(int rootDoc) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            final int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                return compareTopMissing(wrappedComparator);
+            }
+
+            int counter = 1;
+            wrappedComparator.copy(spareSlot, nestedDoc);
+            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
+                onNested(spareSlot, nestedDoc);
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+                counter++;
+            }
+            afterNested(spareSlot, counter);
+            return wrappedComparator.compareValues(wrappedComparator.value(spareSlot), top);
+        }
+
         protected abstract void onNested(int slot, int nestedDoc);
         
         protected abstract void afterNested(int slot, int count);
@@ -394,6 +483,15 @@ abstract class NestedFieldComparator extends FieldComparator {
     static final int compareBottomMissing(FieldComparator<?> comparator) {
         if (comparator instanceof NestedWrappableComparator<?>) {
             return ((NestedWrappableComparator<?>) comparator).compareBottomMissing();
+        } else {
+            return 0;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static final int compareTopMissing(FieldComparator<?> comparator) {
+        if (comparator instanceof NestedWrappableComparator) {
+            return ((NestedWrappableComparator) comparator).compareTopMissing();
         } else {
             return 0;
         }

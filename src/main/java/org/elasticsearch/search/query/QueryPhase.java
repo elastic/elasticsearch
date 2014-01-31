@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.search.SearchType;
@@ -112,15 +113,45 @@ public class QueryPhase implements SearchPhase {
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
-            } else if (searchContext.sort() != null) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
-                        searchContext.trackScores(), searchContext.trackScores());
             } else {
-                rescore = !searchContext.rescore().isEmpty();
-                for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                    numDocs = Math.max(rescoreContext.window(), numDocs);
+                // Perhaps have a dedicated scroll phase?
+                if (!searchContext.useSlowScroll() && searchContext.request().scroll() != null) {
+                    numDocs = searchContext.size();
+                    ScoreDoc lastEmittedDoc = searchContext.lastEmittedDoc();
+                    if (searchContext.sort() != null) {
+                        topDocs = searchContext.searcher().searchAfter(
+                                lastEmittedDoc, query, null, numDocs, searchContext.sort(),
+                                searchContext.trackScores(), searchContext.trackScores()
+                        );
+                    } else {
+                        rescore = !searchContext.rescore().isEmpty();
+                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                            numDocs = Math.max(rescoreContext.window(), numDocs);
+                        }
+                        topDocs = searchContext.searcher().searchAfter(lastEmittedDoc, query, numDocs);
+                    }
+
+                    int size = topDocs.scoreDocs.length;
+                    if (size > 0) {
+                        // In the case of *QUERY_AND_FETCH we don't get back to shards telling them which least
+                        // relevant docs got emitted as hit, we can simply mark the last doc as last emitted
+                        if (searchContext.searchType() == SearchType.QUERY_AND_FETCH ||
+                                searchContext.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
+                            searchContext.lastEmittedDoc(topDocs.scoreDocs[size - 1]);
+                        }
+                    }
+                } else {
+                    if (searchContext.sort() != null) {
+                        topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
+                                searchContext.trackScores(), searchContext.trackScores());
+                    } else {
+                        rescore = !searchContext.rescore().isEmpty();
+                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                            numDocs = Math.max(rescoreContext.window(), numDocs);
+                        }
+                        topDocs = searchContext.searcher().search(query, numDocs);
+                    }
                 }
-                topDocs = searchContext.searcher().search(query, numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Throwable e) {

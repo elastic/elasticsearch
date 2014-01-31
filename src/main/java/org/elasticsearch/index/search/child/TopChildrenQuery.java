@@ -124,6 +124,7 @@ public class TopChildrenQuery extends Query {
         }
 
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         while (true) {
             parentDocs.v().clear();
             TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);

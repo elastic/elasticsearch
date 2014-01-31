@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -527,6 +528,15 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public void lastEmittedDoc(ScoreDoc doc) {
+    }
+
+    @Override
+    public ScoreDoc lastEmittedDoc() {
+        return null;
+    }
+
+    @Override
     public SearchLookup lookup() {
         return null;
     }
@@ -582,5 +592,15 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean release() throws ElasticsearchException {
         return false;
+    }
+
+    @Override
+    public boolean useSlowScroll() {
+        return false;
+    }
+
+    @Override
+    public SearchContext useSlowScroll(boolean useSlowScroll) {
+        return null;
     }
 }

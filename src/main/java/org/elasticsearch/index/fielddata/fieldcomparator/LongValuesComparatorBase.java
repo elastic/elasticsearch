@@ -71,4 +71,9 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
     public int compareBottomMissing() {
         return compare(bottom, missingValue);
     }
+
+    @Override
+    public int compareTopMissing() {
+        return compare(top.longValue(), missingValue);
+    }
 }

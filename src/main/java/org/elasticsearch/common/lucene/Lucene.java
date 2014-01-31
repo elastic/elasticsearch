@@ -29,6 +29,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -163,34 +164,7 @@ public class Lucene {
 
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
-                Comparable[] cFields = new Comparable[in.readVInt()];
-                for (int j = 0; j < cFields.length; j++) {
-                    byte type = in.readByte();
-                    if (type == 0) {
-                        cFields[j] = null;
-                    } else if (type == 1) {
-                        cFields[j] = in.readString();
-                    } else if (type == 2) {
-                        cFields[j] = in.readInt();
-                    } else if (type == 3) {
-                        cFields[j] = in.readLong();
-                    } else if (type == 4) {
-                        cFields[j] = in.readFloat();
-                    } else if (type == 5) {
-                        cFields[j] = in.readDouble();
-                    } else if (type == 6) {
-                        cFields[j] = in.readByte();
-                    } else if (type == 7) {
-                        cFields[j] = in.readShort();
-                    } else if (type == 8) {
-                        cFields[j] = in.readBoolean();
-                    } else if (type == 9) {
-                        cFields[j] = in.readBytesRef();
-                    } else {
-                        throw new IOException("Can't match type [" + type + "]");
-                    }
-                }
-                fieldDocs[i] = new FieldDoc(in.readVInt(), in.readFloat(), cFields);
+                fieldDocs[i] = readFieldDoc(in);
             }
             return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
         } else {
@@ -203,6 +177,41 @@ public class Lucene {
             }
             return new TopDocs(totalHits, scoreDocs, maxScore);
         }
+    }
+
+    public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
+        Comparable[] cFields = new Comparable[in.readVInt()];
+        for (int j = 0; j < cFields.length; j++) {
+            byte type = in.readByte();
+            if (type == 0) {
+                cFields[j] = null;
+            } else if (type == 1) {
+                cFields[j] = in.readString();
+            } else if (type == 2) {
+                cFields[j] = in.readInt();
+            } else if (type == 3) {
+                cFields[j] = in.readLong();
+            } else if (type == 4) {
+                cFields[j] = in.readFloat();
+            } else if (type == 5) {
+                cFields[j] = in.readDouble();
+            } else if (type == 6) {
+                cFields[j] = in.readByte();
+            } else if (type == 7) {
+                cFields[j] = in.readShort();
+            } else if (type == 8) {
+                cFields[j] = in.readBoolean();
+            } else if (type == 9) {
+                cFields[j] = in.readBytesRef();
+            } else {
+                throw new IOException("Can't match type [" + type + "]");
+            }
+        }
+        return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
+    }
+
+    public static ScoreDoc readScoreDoc(StreamInput in) throws IOException {
+        return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
@@ -240,48 +249,7 @@ public class Lucene {
                 if (index++ < from) {
                     continue;
                 }
-                FieldDoc fieldDoc = (FieldDoc) doc;
-                out.writeVInt(fieldDoc.fields.length);
-                for (Object field : fieldDoc.fields) {
-                    if (field == null) {
-                        out.writeByte((byte) 0);
-                    } else {
-                        Class type = field.getClass();
-                        if (type == String.class) {
-                            out.writeByte((byte) 1);
-                            out.writeString((String) field);
-                        } else if (type == Integer.class) {
-                            out.writeByte((byte) 2);
-                            out.writeInt((Integer) field);
-                        } else if (type == Long.class) {
-                            out.writeByte((byte) 3);
-                            out.writeLong((Long) field);
-                        } else if (type == Float.class) {
-                            out.writeByte((byte) 4);
-                            out.writeFloat((Float) field);
-                        } else if (type == Double.class) {
-                            out.writeByte((byte) 5);
-                            out.writeDouble((Double) field);
-                        } else if (type == Byte.class) {
-                            out.writeByte((byte) 6);
-                            out.writeByte((Byte) field);
-                        } else if (type == Short.class) {
-                            out.writeByte((byte) 7);
-                            out.writeShort((Short) field);
-                        } else if (type == Boolean.class) {
-                            out.writeByte((byte) 8);
-                            out.writeBoolean((Boolean) field);
-                        } else if (type == BytesRef.class) {
-                            out.writeByte((byte) 9);
-                            out.writeBytesRef((BytesRef) field);
-                        } else {
-                            throw new IOException("Can't handle sort field value of type [" + type + "]");
-                        }
-                    }
-                }
-
-                out.writeVInt(doc.doc);
-                out.writeFloat(doc.score);
+                writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
             out.writeBoolean(false);
@@ -294,10 +262,60 @@ public class Lucene {
                 if (index++ < from) {
                     continue;
                 }
-                out.writeVInt(doc.doc);
-                out.writeFloat(doc.score);
+                writeScoreDoc(out, doc);
             }
         }
+    }
+
+    public static void writeFieldDoc(StreamOutput out, FieldDoc fieldDoc) throws IOException {
+        out.writeVInt(fieldDoc.fields.length);
+        for (Object field : fieldDoc.fields) {
+            if (field == null) {
+                out.writeByte((byte) 0);
+            } else {
+                Class type = field.getClass();
+                if (type == String.class) {
+                    out.writeByte((byte) 1);
+                    out.writeString((String) field);
+                } else if (type == Integer.class) {
+                    out.writeByte((byte) 2);
+                    out.writeInt((Integer) field);
+                } else if (type == Long.class) {
+                    out.writeByte((byte) 3);
+                    out.writeLong((Long) field);
+                } else if (type == Float.class) {
+                    out.writeByte((byte) 4);
+                    out.writeFloat((Float) field);
+                } else if (type == Double.class) {
+                    out.writeByte((byte) 5);
+                    out.writeDouble((Double) field);
+                } else if (type == Byte.class) {
+                    out.writeByte((byte) 6);
+                    out.writeByte((Byte) field);
+                } else if (type == Short.class) {
+                    out.writeByte((byte) 7);
+                    out.writeShort((Short) field);
+                } else if (type == Boolean.class) {
+                    out.writeByte((byte) 8);
+                    out.writeBoolean((Boolean) field);
+                } else if (type == BytesRef.class) {
+                    out.writeByte((byte) 9);
+                    out.writeBytesRef((BytesRef) field);
+                } else {
+                    throw new IOException("Can't handle sort field value of type [" + type + "]");
+                }
+            }
+        }
+        out.writeVInt(fieldDoc.doc);
+        out.writeFloat(fieldDoc.score);
+    }
+
+    public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
+        if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
+            throw new ElasticsearchIllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+        }
+        out.writeVInt(scoreDoc.doc);
+        out.writeFloat(scoreDoc.score);
     }
 
     // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal

@@ -122,6 +122,11 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
         return Double.compare(bottom, MISSING_VALUE);
     }
 
+    @Override
+    public int compareTopMissing() {
+        return Double.compare(top, MISSING_VALUE);
+    }
+
     // Computes the distance based on geo points.
     // Due to this abstractions the geo distance comparator doesn't need to deal with whether fields have one
     // or multiple geo points per document.

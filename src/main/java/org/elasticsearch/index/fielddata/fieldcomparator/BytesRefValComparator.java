@@ -126,4 +126,8 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
         return compareValues(bottom, missingValue);
     }
 
+    @Override
+    public int compareTopMissing() {
+        return compareValues(top, missingValue);
+    }
 }

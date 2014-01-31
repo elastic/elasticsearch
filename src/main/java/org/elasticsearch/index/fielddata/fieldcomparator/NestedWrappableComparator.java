@@ -39,4 +39,11 @@ public abstract class NestedWrappableComparator<T> extends FieldComparator<T> {
      */
     public abstract int compareBottomMissing();
 
+    /**
+     * Compares the missing value to the top.
+     *
+     * @return any N < 0 if the tope is not competitive with the missing value, any N > 0 if the top is competitive
+     * with the top and 0 if they are equal.
+     */
+    public abstract int compareTopMissing();
 }

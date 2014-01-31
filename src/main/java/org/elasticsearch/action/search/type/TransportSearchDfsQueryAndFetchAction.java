@@ -179,7 +179,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
         }
 
         void innerFinishHim() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
+            sortedShardList = searchPhaseController.sortDocs(request, useSlowScroll, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

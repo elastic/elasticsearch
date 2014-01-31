@@ -310,14 +310,18 @@ public class InternalSearchHit implements SearchHit {
     public void sortValues(Object[] sortValues) {
         // LUCENE 4 UPGRADE: There must be a better way
         // we want to convert to a Text object here, and not BytesRef
+
+        // Don't write into sortValues! Otherwise the fields in FieldDoc is modified, which may be used in other places. (SearchContext#lastEmitedDoc)
+        Object[] sortValuesCopy = new Object[sortValues.length];
+        System.arraycopy(sortValues, 0, sortValuesCopy, 0, sortValues.length);
         if (sortValues != null) {
             for (int i = 0; i < sortValues.length; i++) {
                 if (sortValues[i] instanceof BytesRef) {
-                    sortValues[i] = new StringAndBytesText(new BytesArray((BytesRef) sortValues[i]));
+                    sortValuesCopy[i] = new StringAndBytesText(new BytesArray((BytesRef) sortValues[i]));
                 }
             }
         }
-        this.sortValues = sortValues;
+        this.sortValues = sortValuesCopy;
     }
 
     @Override

@@ -86,8 +86,16 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
 
     private static long computeSizeInMemory(HashedBytesRef id, Query query) {
         long size = (3 * RamUsageEstimator.NUM_BYTES_INT) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + id.bytes.bytes.length;
-        size += RamUsageEstimator.sizeOf(query);
+        size += RamEstimator.sizeOf(query);
         return size;
+    }
+
+    private static final class RamEstimator {
+        // we move this into it's own class to exclude it from the forbidden API checks
+        // it's fine to use here!
+        static long sizeOf(Query query) {
+            return RamUsageEstimator.sizeOf(query);
+        }
     }
 
 }

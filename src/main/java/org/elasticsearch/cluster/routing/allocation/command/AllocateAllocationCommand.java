@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -102,9 +103,13 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         @Override
-        public void toXContent(AllocateAllocationCommand command, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("index", command.shardId().index());
+        public void toXContent(AllocateAllocationCommand command, XContentBuilder builder, ToXContent.Params params, String objectName) throws IOException {
+            if (objectName == null) {
+                builder.startObject();
+            } else {
+                builder.startObject(objectName);
+            }
+            builder.field("index", command.shardId().index().name());
             builder.field("shard", command.shardId().id());
             builder.field("node", command.node());
             builder.field("allow_primary", command.allowPrimary());
@@ -162,7 +167,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
         MutableShardRouting shardRouting = null;
@@ -176,24 +181,43 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         if (shardRouting == null) {
+            if (explain) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                        "failed to find " + shardId + " on the list of unassigned shards"));
+            }
             throw new ElasticsearchIllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
         }
 
         if (shardRouting.primary() && !allowPrimary) {
-            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + "], which is disabled");
+            if (explain) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                        "trying to allocate a primary shard " + shardId + ", which is disabled"));
+            }
+            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + ", which is disabled");
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
         if (routingNode == null) {
             if (!discoNode.dataNode()) {
+                if (explain) {
+                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                            "Allocation can only be done on data nodes, not [" + node + "]"));
+                }
                 throw new ElasticsearchIllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
             } else {
+                if (explain) {
+                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                            "Could not find [" + node + "] among the routing nodes"));
+                }
                 throw new ElasticsearchIllegalStateException("Could not find [" + node + "] among the routing nodes");
             }
         }
 
         Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
         if (decision.type() == Decision.Type.NO) {
+            if (explain) {
+                return new RerouteExplanation(this, decision);
+            }
             throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
@@ -210,5 +234,6 @@ public class AllocateAllocationCommand implements AllocationCommand {
             }
             break;
         }
+        return new RerouteExplanation(this, decision);
     }
 }

@@ -82,6 +82,8 @@ import java.util.Map;
  */
 public class AwarenessAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "awareness";
+
     public static final String CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES = "cluster.routing.allocation.awareness.attributes";
     public static final String CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP = "cluster.routing.allocation.awareness.force.";
 
@@ -168,7 +170,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
-            return allocation.decision(Decision.YES, "no allocation awareness enabled");
+            return allocation.decision(Decision.YES, NAME, "no allocation awareness enabled");
         }
 
         IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.index());
@@ -176,7 +178,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().attributes().containsKey(awarenessAttribute)) {
-                return allocation.decision(Decision.NO, "node does not contain awareness attribute: [%s]", awarenessAttribute);
+                return allocation.decision(Decision.NO, NAME, "node does not contain awareness attribute: [%s]", awarenessAttribute);
             }
 
             // build attr_value -> nodes map
@@ -234,7 +236,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             int currentNodeCount = shardPerAttribute.get(node.node().attributes().get(awarenessAttribute));
             // if we are above with leftover, then we know we are not good, even with mod
             if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
-                return allocation.decision(Decision.NO, "too many shards on nodes for attribute: [%s]", awarenessAttribute);
+                return allocation.decision(Decision.NO, NAME, "too many shards on nodes for attribute: [%s]", awarenessAttribute);
             }
             // all is well, we are below or same as average
             if (currentNodeCount <= requiredCountPerAttribute) {
@@ -242,6 +244,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
         }
 
-        return allocation.decision(Decision.YES, "node meets awareness requirements");
+        return allocation.decision(Decision.YES, NAME, "node meets awareness requirements");
     }
 }

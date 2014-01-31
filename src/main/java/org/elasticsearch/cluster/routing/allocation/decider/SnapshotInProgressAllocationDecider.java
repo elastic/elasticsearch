@@ -34,6 +34,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  */
 public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "snapshot_in_progress";
+
     /**
      * Disables relocation of shards that are currently being snapshotted.
      */
@@ -99,19 +101,19 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             SnapshotMetaData snapshotMetaData = allocation.metaData().custom(SnapshotMetaData.TYPE);
             if (snapshotMetaData == null) {
                 // Snapshots are not running
-                return allocation.decision(Decision.YES, "no snapshots are currently running");
+                return allocation.decision(Decision.YES, NAME, "no snapshots are currently running");
             }
 
             for (SnapshotMetaData.Entry snapshot : snapshotMetaData.entries()) {
                 SnapshotMetaData.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
                 if (shardSnapshotStatus != null && !shardSnapshotStatus.state().completed() && shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     logger.trace("Preventing snapshotted shard [{}] to be moved from node [{}]", shardRouting.shardId(), shardSnapshotStatus.nodeId());
-                    return allocation.decision(Decision.NO, "snapshot for shard [%s] is currently running on node [%s]",
+                    return allocation.decision(Decision.NO, NAME, "snapshot for shard [%s] is currently running on node [%s]",
                             shardRouting.shardId(), shardSnapshotStatus.nodeId());
                 }
             }
         }
-        return allocation.decision(Decision.YES, "shard not primary or relocation disabled");
+        return allocation.decision(Decision.YES, NAME, "shard not primary or relocation disabled");
     }
 
 }

@@ -56,6 +56,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 @Deprecated
 public class DisableAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "disable";
+
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION = "cluster.routing.allocation.disable_new_allocation";
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION = "cluster.routing.allocation.disable_allocation";
     public static final String CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION = "cluster.routing.allocation.disable_replica_allocation";
@@ -104,28 +106,28 @@ public class DisableAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return allocation.decision(Decision.YES, "allocation disabling is ignored");
+            return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
         if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
             // if its primary, and it hasn't been allocated post API (meaning its a "fresh newly created shard"), only disable allocation
             // on a special disable allocation flag
             if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, disableNewAllocation)) {
-                return allocation.decision(Decision.NO, "new primary allocation is disabled");
+                return allocation.decision(Decision.NO, NAME, "new primary allocation is disabled");
             } else {
-                return allocation.decision(Decision.YES, "new primary allocation is enabled");
+                return allocation.decision(Decision.YES, NAME, "new primary allocation is enabled");
             }
         }
         if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION, disableAllocation)) {
-            return allocation.decision(Decision.NO, "all allocation is disabled");
+            return allocation.decision(Decision.NO, NAME, "all allocation is disabled");
         }
         if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, disableReplicaAllocation)) {
             if (shardRouting.primary()) {
-                return allocation.decision(Decision.YES, "primary allocation is enabled");
+                return allocation.decision(Decision.YES, NAME, "primary allocation is enabled");
             } else {
-                return allocation.decision(Decision.NO, "replica allocation is disabled");
+                return allocation.decision(Decision.NO, NAME, "replica allocation is disabled");
             }
         }
-        return allocation.decision(Decision.YES, "all allocation is enabled");
+        return allocation.decision(Decision.YES, NAME, "all allocation is enabled");
     }
 }

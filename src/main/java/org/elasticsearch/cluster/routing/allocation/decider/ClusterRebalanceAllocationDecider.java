@@ -45,6 +45,8 @@ import java.util.Locale;
  */
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "cluster_rebalance";
+
     /**
      * An enum representation for the configured re-balance type. 
      */
@@ -87,27 +89,27 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
-                return allocation.decision(Decision.NO, "cluster has unassigned primary shards");
+                return allocation.decision(Decision.NO, NAME, "cluster has unassigned primary shards");
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
-                return allocation.decision(Decision.NO, "cluster has inactive primary shards");
+                return allocation.decision(Decision.NO, NAME, "cluster has inactive primary shards");
             }
 
-            return allocation.decision(Decision.YES, "all primary shards are active");
+            return allocation.decision(Decision.YES, NAME, "all primary shards are active");
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
             if ( allocation.routingNodes().hasUnassignedShards() ) {
-                return allocation.decision(Decision.NO, "cluster has unassigned shards");
+                return allocation.decision(Decision.NO, NAME, "cluster has unassigned shards");
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
-                return allocation.decision(Decision.NO, "cluster has inactive shards");
+                return allocation.decision(Decision.NO, NAME, "cluster has inactive shards");
             }
         }
         // type == Type.ALWAYS
-        return allocation.decision(Decision.YES, "all shards are active");
+        return allocation.decision(Decision.YES, NAME, "all shards are active");
     }
 }

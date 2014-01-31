@@ -79,13 +79,13 @@ public class AllocationService extends AbstractComponent {
         StartedRerouteAllocation allocation = new StartedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), startedShards, clusterInfoService.getClusterInfo());
         boolean changed = applyStartedShards(routingNodes, startedShards);
         if (!changed) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
         shardsAllocators.applyStartedShards(allocation);
         if (withReroute) {
             reroute(allocation);
         }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
@@ -107,33 +107,34 @@ public class AllocationService extends AbstractComponent {
             changed |= applyFailedShard(allocation, failedShard, true);
         }
         if (!changed) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
         shardsAllocators.applyFailedShards(allocation);
         reroute(allocation);
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
     }
 
     public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
         return reroute(clusterState, commands, false);
     }
 
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean debug) throws ElasticsearchException {
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain) throws ElasticsearchException {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
-        allocation.debugDecision(debug);
+        // don't short circuit deciders, we want a full explanation
+        allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
-        commands.execute(allocation);
+        RoutingExplanations explanations = commands.execute(allocation, explain);
         // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), explanations);
     }
 
     /**
@@ -157,9 +158,9 @@ public class AllocationService extends AbstractComponent {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
         allocation.debugDecision(debug);
         if (!reroute(allocation)) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
     }
 
     /**
@@ -194,9 +195,9 @@ public class AllocationService extends AbstractComponent {
         changed |= electPrimariesAndUnassignDanglingReplicas(allocation);
 
         if (!changed) {
-            return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
+            return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
+        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
     }
 
     private boolean reroute(RoutingAllocation allocation) {

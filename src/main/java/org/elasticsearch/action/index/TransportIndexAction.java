@@ -250,12 +250,12 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
-                    .version(request.version())
+                    .version(request.version()).versionType(request.versionType())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.index(index);
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
-                    .version(request.version())
+                    .version(request.version()).versionType(request.versionType())
                     .origin(Engine.Operation.Origin.REPLICA);
             indexShard.create(create);
         }

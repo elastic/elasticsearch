@@ -59,6 +59,17 @@ public class VersionTypeTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testVersionValidation() {
+        assertTrue(VersionType.EXTERNAL.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertFalse(VersionType.EXTERNAL.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.EXTERNAL.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+
+        assertTrue(VersionType.INTERNAL.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertTrue(VersionType.INTERNAL.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.INTERNAL.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+    }
+
+    @Test
     public void testExternalVersionConflict() throws Exception {
 
         assertFalse(VersionType.EXTERNAL.isVersionConflict(Versions.NOT_FOUND, 10));

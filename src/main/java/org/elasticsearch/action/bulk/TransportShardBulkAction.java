@@ -405,7 +405,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
         long preVersion = indexRequest.version();
         // update the version on request so it will happen on the replicas
+        indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
         indexRequest.version(version);
+
+        assert indexRequest.versionType().validateVersion(indexRequest.version());
 
         // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
         Tuple<String, String> mappingsToUpdate = null;
@@ -421,7 +424,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
+        deleteRequest.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         deleteRequest.version(delete.version());
+
+        assert deleteRequest.versionType().validateVersion(deleteRequest.version());
+
         DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
         return new WriteResult(deleteResponse, deleteRequest.version(), null, null);
     }
@@ -532,10 +539,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse)
+                                .version(indexRequest.version()).versionType(indexRequest.versionType())
+                                .origin(Engine.Operation.Origin.REPLICA);
                         indexShard.index(index);
                     } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse)
+                                .version(indexRequest.version()).versionType(indexRequest.versionType())
+                                .origin(Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
                     }
                 } catch (Throwable e) {
@@ -544,7 +555,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version())
+                            .versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
                 } catch (Throwable e) {
                     // ignore, we are on backup

@@ -458,7 +458,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String dateAsString = null;
         Long value = null;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue instanceof Number) {

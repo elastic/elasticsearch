@@ -249,7 +249,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         float value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

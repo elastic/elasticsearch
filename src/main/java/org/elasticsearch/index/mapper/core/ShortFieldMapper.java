@@ -249,7 +249,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         short value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

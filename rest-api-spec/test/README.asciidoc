@@ -84,6 +84,23 @@ to a string with sufficient digits to allow string comparison, eg
 Snapshot versions and versions of the form `1.0.0.Beta1` can be treated
 as the rounded down version, eg `1.0.0`.
 
+The skip section can also be used to list new features that need to be
+supported in order to run a test. This way the up-to-date runners will
+run the test, while the ones that don't support the feature yet can
+temporarily skip it, and avoid having lots of test failures in the meantime.
+
+....
+    "Parent":
+     - skip:
+          features:    regex
+
+     - do:
+       ... test definitions ...
+....
+
+The `features` field can either be a string or an array of strings.
+The skip section requires to specify either a `version` or a `features` list.
+
 Required operators:
 -------------------
 

@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.test.rest.parser;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.section.SkipSection;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Parser for skip sections
@@ -38,6 +40,7 @@ public class SkipSectionParser implements RestTestFragmentParser<SkipSection> {
         XContentParser.Token token;
         String version = null;
         String reason = null;
+        List<String> features = Lists.newArrayList();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -47,22 +50,34 @@ public class SkipSectionParser implements RestTestFragmentParser<SkipSection> {
                     version = parser.text();
                 } else if ("reason".equals(currentFieldName)) {
                     reason = parser.text();
-                } else {
+                } else if ("features".equals(currentFieldName)) {
+                    features.add(parser.text());
+                }
+                else {
                     throw new RestTestParseException("field " + currentFieldName + " not supported within skip section");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("features".equals(currentFieldName)) {
+                    while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        features.add(parser.text());
+                    }
                 }
             }
         }
 
         parser.nextToken();
 
-        if (!Strings.hasLength(version)) {
-            throw new RestTestParseException("version is mandatory within skip section");
+        if (!Strings.hasLength(version) && features.isEmpty()) {
+            throw new RestTestParseException("version or features is mandatory within skip section");
         }
-        if (!Strings.hasLength(reason)) {
-            throw new RestTestParseException("reason is mandatory within skip section");
+        if (Strings.hasLength(version) && !features.isEmpty()) {
+            throw new RestTestParseException("version or features are mutually exclusive");
+        }
+        if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
+            throw new RestTestParseException("reason is mandatory within skip version section");
         }
 
-        return new SkipSection(version, reason);
+        return new SkipSection(version, features, reason);
 
     }
 }

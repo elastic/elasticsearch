@@ -92,6 +92,8 @@ public class MatchQueryParser implements QueryParser {
                             type = MatchQuery.Type.PHRASE;
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[match] query does not support type " + tStr);
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         String analyzer = parser.text();

@@ -59,6 +59,25 @@ public class VersionTypeTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testVersionValidation() {
+        assertTrue(VersionType.EXTERNAL.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertFalse(VersionType.EXTERNAL.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.EXTERNAL.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+
+        assertTrue(VersionType.EXTERNAL_GTE.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertFalse(VersionType.EXTERNAL_GTE.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.EXTERNAL_GTE.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+
+        assertTrue(VersionType.FORCE.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertFalse(VersionType.FORCE.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.FORCE.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+
+        assertTrue(VersionType.INTERNAL.validateVersion(randomIntBetween(1,Integer.MAX_VALUE)));
+        assertTrue(VersionType.INTERNAL.validateVersion(0)); // MATCH_ANY
+        assertFalse(VersionType.INTERNAL.validateVersion(randomIntBetween(Integer.MIN_VALUE, 0)));
+    }
+
+    @Test
     public void testExternalVersionConflict() throws Exception {
 
         assertFalse(VersionType.EXTERNAL.isVersionConflict(Versions.NOT_FOUND, 10));
@@ -88,6 +107,43 @@ public class VersionTypeTests extends ElasticsearchTestCase {
 //        updatedVersion = index.version();
     }
 
+    @Test
+    public void testExternalGTEVersionConflict() throws Exception {
+
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(Versions.NOT_SET, 10));
+        // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
+        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflict(10, Versions.MATCH_ANY));
+
+        // if we didn't find a version (but the index does support it), we always accept
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(Versions.NOT_FOUND, Versions.NOT_FOUND));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(Versions.NOT_FOUND, Versions.MATCH_ANY));
+
+        // and the standard behavior
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(10, 10));
+        assertFalse(VersionType.EXTERNAL_GTE.isVersionConflict(9, 10));
+        assertTrue(VersionType.EXTERNAL_GTE.isVersionConflict(10, 9));
+    }
+
+    @Test
+    public void testForceVersionConflict() throws Exception {
+
+        assertFalse(VersionType.FORCE.isVersionConflict(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.FORCE.isVersionConflict(Versions.NOT_SET, 10));
+        // MATCH_ANY must throw an exception in the case of external version, as the version must be set! it used as the new value
+        assertTrue(VersionType.FORCE.isVersionConflict(10, Versions.MATCH_ANY));
+
+        // if we didn't find a version (but the index does support it), we always accept
+        assertFalse(VersionType.FORCE.isVersionConflict(Versions.NOT_FOUND, Versions.NOT_FOUND));
+        assertFalse(VersionType.FORCE.isVersionConflict(Versions.NOT_FOUND, 10));
+        assertFalse(VersionType.FORCE.isVersionConflict(Versions.NOT_FOUND, Versions.MATCH_ANY));
+
+        // and the standard behavior
+        assertFalse(VersionType.FORCE.isVersionConflict(10, 10));
+        assertFalse(VersionType.FORCE.isVersionConflict(9, 10));
+        assertFalse(VersionType.FORCE.isVersionConflict(10, 9));
+    }
 
     @Test
     public void testUpdateVersion() {

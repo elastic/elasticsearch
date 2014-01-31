@@ -278,7 +278,6 @@ document.
 * `percolate_routing` - The routing value to use when percolating the existing document.
 * `percolate_preference` - Which shard to prefer when executing the percolate request.
 * `version` - Enables a version check. If the fetched document's version isn't equal to the specified version then the request fails with a version conflict and the percolation request is aborted.
-* `version_type` - Whether internal or external versioning is used. Defaults to internal versioning.
 
 Internally the percolate api will issue a get request for fetching the`_source` of the document to percolate.
 For this feature to work the `_source` for documents to be percolated need to be stored.

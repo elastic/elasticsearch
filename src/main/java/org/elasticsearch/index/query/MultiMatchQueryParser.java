@@ -76,7 +76,8 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if (token.isValue()) {
                     extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[" + NAME + "] query does not support [" + currentFieldName
+                            + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -89,11 +90,13 @@ public class MultiMatchQueryParser implements QueryParser {
                         type = MatchQuery.Type.PHRASE;
                     } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                         type = MatchQuery.Type.PHRASE_PREFIX;
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[" + NAME + "] query does not support type " + tStr);
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
-                        throw new QueryParsingException(parseContext.index(), "[match] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext.index(), "["+ NAME +"] analyzer [" + parser.text() + "] not found");
                     }
                     multiMatchQuery.setAnalyzer(analyzer);
                 } else if ("boost".equals(currentFieldName)) {

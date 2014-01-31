@@ -76,6 +76,53 @@ public enum VersionType {
         public boolean validateVersion(long version) {
             return version > 0L;
         }
+    },
+    EXTERNAL_GTE((byte) 2) {
+        /**
+         * - always returns false if currentVersion == {@link Versions#NOT_SET}
+         * - always conflict if expectedVersion == {@link Versions#MATCH_ANY} (we need something to set)
+         * - accepts currentVersion == {@link Versions#NOT_FOUND}
+         */
+        @Override
+        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+            return currentVersion != Versions.NOT_SET && currentVersion != Versions.NOT_FOUND
+                    && (expectedVersion == Versions.MATCH_ANY || currentVersion > expectedVersion);
+        }
+
+        @Override
+        public long updateVersion(long currentVersion, long expectedVersion) {
+            return expectedVersion;
+        }
+
+        @Override
+        public boolean validateVersion(long version) {
+            return version > 0L;
+        }
+    },
+    /**
+     * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
+     */
+    FORCE((byte) 3) {
+        /**
+         * - always returns false if currentVersion == {@link Versions#NOT_SET}
+         * - always conflict if expectedVersion == {@link Versions#MATCH_ANY} (we need something to set)
+         * - accepts currentVersion == {@link Versions#NOT_FOUND}
+         */
+        @Override
+        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+            return currentVersion != Versions.NOT_SET && currentVersion != Versions.NOT_FOUND
+                    && expectedVersion == Versions.MATCH_ANY;
+        }
+
+        @Override
+        public long updateVersion(long currentVersion, long expectedVersion) {
+            return expectedVersion;
+        }
+
+        @Override
+        public boolean validateVersion(long version) {
+            return version > 0L;
+        }
     };
 
     private final byte value;
@@ -117,8 +164,14 @@ public enum VersionType {
     public static VersionType fromString(String versionType) {
         if ("internal".equals(versionType)) {
             return INTERNAL;
+        } else if ("external_gt".equals(versionType)) {
+            return EXTERNAL;
         } else if ("external".equals(versionType)) {
             return EXTERNAL;
+        } else if ("external_gte".equals(versionType)) {
+            return EXTERNAL_GTE;
+        } else if ("force".equals(versionType)) {
+            return FORCE;
         }
         throw new ElasticsearchIllegalArgumentException("No version type match [" + versionType + "]");
     }
@@ -127,12 +180,7 @@ public enum VersionType {
         if (versionType == null) {
             return defaultVersionType;
         }
-        if ("internal".equals(versionType)) {
-            return INTERNAL;
-        } else if ("external".equals(versionType)) {
-            return EXTERNAL;
-        }
-        throw new ElasticsearchIllegalArgumentException("No version type match [" + versionType + "]");
+        return fromString(versionType);
     }
 
     public static VersionType fromValue(byte value) {
@@ -140,6 +188,10 @@ public enum VersionType {
             return INTERNAL;
         } else if (value == 1) {
             return EXTERNAL;
+        } else if (value == 2) {
+            return EXTERNAL_GTE;
+        } else if (value == 3) {
+            return FORCE;
         }
         throw new ElasticsearchIllegalArgumentException("No version type match [" + value + "]");
     }

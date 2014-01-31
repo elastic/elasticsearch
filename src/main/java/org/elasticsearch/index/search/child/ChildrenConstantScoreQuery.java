@@ -95,6 +95,7 @@ public class ChildrenConstantScoreQuery extends Query {
             childQuery = rewrittenChildQuery;
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         indexSearcher.search(childQuery, collector);
 
         int remaining = collectedUids.v().size();

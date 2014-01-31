@@ -22,6 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -65,7 +66,9 @@ public class DeleteByQueryWrappingFilter extends Filter {
             try {
                 if (!contains(indexReader, context)) {
                     multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false);
+                    Similarity similarity = searcher.getSimilarity();
                     searcher = new IndexSearcher(new MultiReader(indexReader, context.reader()));
+                    searcher.setSimilarity(similarity);
                 }
                 weight = searcher.createNormalizedWeight(query);
             } finally {
@@ -78,7 +81,9 @@ public class DeleteByQueryWrappingFilter extends Filter {
             if (!contains(indexReader, context)) {
                 IndexReader multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false);
                 try {
+                    Similarity similarity = searcher.getSimilarity();
                     searcher = new IndexSearcher(multiReader);
+                    searcher.setSimilarity(similarity);
                     weight = searcher.createNormalizedWeight(query);
                 } finally {
                     multiReader.close();

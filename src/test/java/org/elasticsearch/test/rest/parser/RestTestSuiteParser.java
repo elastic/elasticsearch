@@ -67,7 +67,7 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
 
         restTestSuite.setSetupSection(parseContext.parseSetupSection());
 
-        boolean skip = restTestSuite.getSetupSection().getSkipSection().skipVersion(parseContext.getCurrentVersion());
+        boolean skip = restTestSuite.getSetupSection().getSkipSection().skip(parseContext.getCurrentVersion());
 
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed

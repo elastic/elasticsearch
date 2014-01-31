@@ -12,6 +12,10 @@
           "type" : "boolean",
           "description" : "Simulate the operation only and return the resulting state"
         },
+        "explain": {
+          "type" : "boolean",
+          "description" : "Return an explanation of why the commands can or cannot be executed"
+        },
         "filter_metadata": {
           "type" : "boolean",
           "description" : "Don't return cluster state metadata (default: false)"

@@ -11,12 +11,11 @@ Here is a short example of how a simple reroute API call:
 
 [source,js]
 --------------------------------------------------
-    
 curl -XPOST 'localhost:9200/_cluster/reroute' -d '{
     "commands" : [ {
-        "move" : 
+        "move" :
             {
-              "index" : "test", "shard" : 0, 
+              "index" : "test", "shard" : 0,
               "from_node" : "node1", "to_node" : "node2"
             }
         },
@@ -45,22 +44,25 @@ the request body). This will cause the commands to apply to the current
 cluster state, and return the resulting cluster after the commands (and
 re-balancing) has been applied.
 
-The commands supported are: 
+If the `explain` parameter is specified, a detailed explanation of why the
+commands could or could not be executed is returned.
 
-`move`:: 
+The commands supported are:
+
+`move`::
     Move a started shard from one node to another node. Accepts
     `index` and `shard` for index name and shard number, `from_node` for the
     node to move the shard `from`, and `to_node` for the node to move the
-    shard to. 
+    shard to.
 
-`cancel`:: 
+`cancel`::
     Cancel allocation of a shard (or recovery). Accepts `index`
     and `shard` for index name and shard number, and `node` for the node to
     cancel the shard allocation on. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to cancel allocation for a primary
     shard. 
 
-`allocate`:: 
+`allocate`::
     Allocate an unassigned shard to a node. Accepts the
     `index` and `shard` for index name and shard number, and `node` to
     allocate the shard to. It also accepts `allow_primary` flag to

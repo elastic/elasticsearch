@@ -90,7 +90,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             } else {
                 builder.routingTable(currentState.routingTable());
             }
-            builder.allocationExplanation(currentState.allocationExplanation());
         }
         if (request.blocks()) {
             builder.blocks(currentState.blocks());

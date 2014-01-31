@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +36,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
@@ -73,7 +75,7 @@ public class AllocationCommands {
         registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
     }
 
-    private final List<AllocationCommand> commands = Lists.newArrayList();
+    private final List<AllocationCommand> commands = newArrayList();
 
     /**
      * Creates a new set of {@link AllocationCommands}
@@ -111,10 +113,12 @@ public class AllocationCommands {
      * @param allocation {@link RoutingAllocation} to apply this command to
      * @throws org.elasticsearch.ElasticsearchException if something happens during execution
      */
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
+    public RoutingExplanations execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+        RoutingExplanations explanations = new RoutingExplanations();
         for (AllocationCommand command : commands) {
-            command.execute(allocation);
+            explanations.add(command.execute(allocation, explain));
         }
+        return explanations;
     }
 
     /**
@@ -216,7 +220,7 @@ public class AllocationCommands {
         for (AllocationCommand command : commands.commands) {
             builder.startObject();
             builder.field(command.name());
-            AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params);
+            AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params, null);
             builder.endObject();
         }
         builder.endArray();

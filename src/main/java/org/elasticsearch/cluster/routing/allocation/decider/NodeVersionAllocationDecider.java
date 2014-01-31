@@ -36,6 +36,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class NodeVersionAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "node_version";
+
     @Inject
     public NodeVersionAllocationDecider(Settings settings) {
         super(settings);
@@ -49,11 +51,11 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         if (sourceNodeId == null) { // we allocate - check primary
             if (shardRouting.primary()) {
                 // we are the primary we can allocate wherever
-                return allocation.decision(Decision.YES, "primary shard can be allocated anywhere");
+                return allocation.decision(Decision.YES, NAME, "primary shard can be allocated anywhere");
             }
             final MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
             if (primary == null) { // we have a primary - it's a start ;)
-                return allocation.decision(Decision.YES, "no active primary shard yet");
+                return allocation.decision(Decision.YES, NAME, "no active primary shard yet");
             }
             sourceNodeId = primary.currentNodeId();
         }
@@ -67,10 +69,10 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
-            return allocation.decision(Decision.YES, "target node version [%s] is same or newer than source node version [%s]",
+            return allocation.decision(Decision.YES, NAME, "target node version [%s] is same or newer than source node version [%s]",
                     target.node().version(), source.node().version());
         } else {
-            return allocation.decision(Decision.NO, "target node version [%s] is older than source node version [%s]",
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than source node version [%s]",
                     target.node().version(), source.node().version());
         }
     }

@@ -21,10 +21,14 @@ package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
@@ -84,6 +88,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .setDryRun(true)
                 .execute().actionGet().getState();
@@ -96,6 +101,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
@@ -111,6 +117,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
                 .execute().actionGet().getState();
 
@@ -164,6 +171,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
@@ -197,6 +205,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
@@ -210,6 +219,49 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
+    }
+
+    @Test
+    public void rerouteExplain() {
+        Settings commonSettings = settingsBuilder().build();
+
+        logger.info("--> starting a node");
+        String node_1 = cluster().startNode(commonSettings);
+
+        assertThat(cluster().size(), equalTo(1));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> create an index with 1 shard");
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        ensureGreen("test");
+
+        logger.info("--> disable allocation");
+        Settings newSettings = settingsBuilder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+
+        logger.info("--> starting a second node");
+        String node_2 = cluster().startNode(commonSettings);
+        assertThat(cluster().size(), equalTo(2));
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> try to move the shard from node1 to node2");
+        MoveAllocationCommand cmd = new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2);
+        ClusterRerouteResponse resp = client().admin().cluster().prepareReroute().add(cmd).setExplain(true).execute().actionGet();
+        RoutingExplanations e = resp.getExplanations();
+        assertThat(e.explanations().size(), equalTo(1));
+        RerouteExplanation explanation = e.explanations().get(0);
+        assertThat(explanation.command().name(), equalTo(cmd.name()));
+        assertThat(((MoveAllocationCommand)explanation.command()).shardId(), equalTo(cmd.shardId()));
+        assertThat(((MoveAllocationCommand)explanation.command()).fromNode(), equalTo(cmd.fromNode()));
+        assertThat(((MoveAllocationCommand)explanation.command()).toNode(), equalTo(cmd.toNode()));
+        assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
 }

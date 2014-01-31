@@ -48,7 +48,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -417,23 +416,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             // same logic as index
             long updatedVersion;
             long expectedVersion = create.version();
-            if (create.origin() == Operation.Origin.PRIMARY) {
-                if (create.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (create.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                if (create.origin() == Operation.Origin.RECOVERY) {
+                    return;
+                } else {
                     throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
                 }
-                updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
-            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                // replicas treat the version as "external" as it comes from the primary ->
-                // only exploding if the version they got is lower or equal to what they know.
-                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
-                    if (create.origin() == Operation.Origin.RECOVERY) {
-                        return;
-                    } else {
-                        throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-                    }
-                }
-                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
+            updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
 
             // if the doc does not exists or it exists but not delete
             if (versionValue != null) {
@@ -513,25 +503,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             long updatedVersion;
             long expectedVersion = index.version();
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                if (index.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (index.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                if (index.origin() == Operation.Origin.RECOVERY) {
+                    return;
+                } else {
                     throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
                 }
-
-                updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
-
-            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                // replicas treat the version as "external" as it comes from the primary ->
-                // only exploding if the version they got is lower or equal to what they know.
-                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
-                    if (index.origin() == Operation.Origin.RECOVERY) {
-                        return;
-                    } else {
-                        throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                    }
-                }
-                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
+            updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+
 
             index.version(updatedVersion);
             if (currentVersion == Versions.NOT_FOUND) {
@@ -604,25 +584,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             long updatedVersion;
             long expectedVersion = delete.version();
-            if (delete.origin() == Operation.Origin.PRIMARY) {
-                if (delete.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (delete.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                if (delete.origin() == Operation.Origin.RECOVERY) {
+                    return;
+                } else {
                     throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, expectedVersion);
                 }
-
-                updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
-
-            } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                // replicas treat the version as "external" as it comes from the primary ->
-                // only exploding if the version they got is lower or equal to what they know.
-                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
-                    if (delete.origin() == Operation.Origin.RECOVERY) {
-                        return;
-                    } else {
-                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion - 1, expectedVersion);
-                    }
-                }
-                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
+            updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
 
             if (currentVersion == Versions.NOT_FOUND) {
                 // doc does not exists and no prior deletes

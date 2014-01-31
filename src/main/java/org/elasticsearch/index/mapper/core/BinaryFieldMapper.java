@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -176,22 +177,34 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             return;
         }
         byte[] value;
-        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-            return;
-        } else {
-            value = context.parser().binaryValue();
-            if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
-                if (compressThreshold == -1 || value.length > compressThreshold) {
-                    BytesStreamOutput bStream = new BytesStreamOutput();
-                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
-                    stream.writeBytes(value, 0, value.length);
-                    stream.close();
-                    value = bStream.bytes().toBytes();
+        if (context.externalValueSet()) {
+            if (context.externalValue() == null) {
+                return;
+            } else {
+                if (!(context.externalValue() instanceof byte[])) {
+                    throw new ElasticsearchIllegalArgumentException("illegal external value class ["
+                            + context.externalValue().getClass().getName() + "]. Should be " + byte[].class.getName());
                 }
+                value = (byte[]) context.externalValue();
+            }
+        } else {
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+                return;
+            } else {
+                value = context.parser().binaryValue();
             }
         }
         if (value == null) {
             return;
+        }
+        if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
+            if (compressThreshold == -1 || value.length > compressThreshold) {
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                stream.writeBytes(value, 0, value.length);
+                stream.close();
+                value = bStream.bytes().toBytes();
+            }
         }
         fields.add(new Field(names.indexName(), value, fieldType));
     }

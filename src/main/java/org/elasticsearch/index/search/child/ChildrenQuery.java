@@ -154,6 +154,7 @@ public class ChildrenQuery extends Query {
             childQuery = rewrittenChildQuery;
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         indexSearcher.search(childQuery, collector);
 
         int size = uidToScore.v().size();

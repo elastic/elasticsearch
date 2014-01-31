@@ -207,14 +207,29 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (!fieldType().indexed() && !fieldType().stored()) {
             return;
         }
-        XContentParser.Token token = context.parser().currentToken();
         String value = null;
-        if (token == XContentParser.Token.VALUE_NULL) {
-            if (nullValue != null) {
+        if (context.externalValueSet()) {
+            Object externalValue = context.externalValue();
+            if (externalValue == null && nullValue != null) {
                 value = nullValue ? "T" : "F";
+            } else {
+                if (!(context.externalValue() instanceof Boolean)) {
+                    throw new ElasticsearchIllegalArgumentException("illegal external value class ["
+                            + context.externalValue().getClass().getName() + "]. Should be " + Boolean.class.getName());
+                }
+
+                Boolean bExternalValue = (Boolean) externalValue;
+                value = bExternalValue ? "T" : "F";
             }
         } else {
-            value = context.parser().booleanValue() ? "T" : "F";
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    value = nullValue ? "T" : "F";
+                }
+            } else {
+                value = context.parser().booleanValue() ? "T" : "F";
+            }
         }
         if (value == null) {
             return;

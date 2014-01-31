@@ -236,6 +236,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
         }
+
         public T copyTo(CopyTo copyTo) {
             this.copyTo = copyTo;
             return builder;
@@ -283,7 +284,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity,
                 normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null);
     }
-    
+
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
@@ -996,9 +997,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
      */
     public static class CopyTo {
 
-        private final ImmutableList<CopyToField> copyToFields;
+        private final ImmutableList<String> copyToFields;
 
-        private CopyTo(ImmutableList<CopyToField> copyToFields) {
+        private CopyTo(ImmutableList<String> copyToFields) {
             this.copyToFields = copyToFields;
         }
 
@@ -1007,8 +1008,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
          */
         public void parse(ParseContext context) throws IOException {
             if (!context.isWithinCopyTo()) {
-                for (CopyToField field : copyToFields) {
-                    field.parse(context);
+                for (String field : copyToFields) {
+                    parse(field, context);
                 }
             }
         }
@@ -1016,8 +1017,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (!copyToFields.isEmpty()) {
                 builder.startArray("copy_to");
-                for (CopyToField field : copyToFields) {
-                    field.toXContent(builder, params);
+                for (String field : copyToFields) {
+                    builder.value(field);
                 }
                 builder.endArray();
             }
@@ -1025,10 +1026,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public static class Builder {
-            private final ImmutableList.Builder<CopyToField> copyToBuilders = ImmutableList.builder();
+            private final ImmutableList.Builder<String> copyToBuilders = ImmutableList.builder();
 
-            public Builder add(String field, float boost) {
-                copyToBuilders.add(new CopyToField(field, boost));
+            public Builder add(String field) {
+                copyToBuilders.add(field);
                 return this;
             }
 
@@ -1037,28 +1038,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
         }
 
-        public ImmutableList<CopyToField> copyToFields() {
+        public ImmutableList<String> copyToFields() {
             return copyToFields;
-        }
-
-    }
-
-    public static class CopyToField {
-
-        private final String field;
-
-        protected final float boost;
-
-        public CopyToField(String field, float boost) {
-            this.field = field;
-            this.boost = boost;
         }
 
         /**
          * Creates an copy of the current field with given field name and boost
          */
-        public void parse(ParseContext context) throws IOException {
-            context.setWithinCopyTo(boost);
+        public void parse(String field, ParseContext context) throws IOException {
+            context.setWithinCopyTo();
             FieldMappers mappers = context.docMapper().mappers().indexName(field);
             if (mappers != null && !mappers.isEmpty()) {
                 mappers.mapper().parse(context);
@@ -1115,23 +1103,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             context.clearWithinCopyTo();
         }
 
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("field", field);
-            if (boost != 1.0 || params.paramAsBoolean("include_defaults", false)) {
-                builder.field("boost", boost);
-            }
-            builder.endObject();
-            return builder;
-        }
 
-        public String field() {
-            return field;
-        }
-
-        public float boost() {
-            return boost;
-        }
     }
 
 }

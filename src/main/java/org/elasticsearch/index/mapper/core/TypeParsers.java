@@ -240,7 +240,7 @@ public class TypeParsers {
                 final Settings settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();
                 builder.fieldDataSettings(settings);
             } else if (propName.equals("copy_to")) {
-                parseCopyFields(name, propNode, builder);
+                parseCopyFields(propNode, builder);
             }
         }
     }
@@ -367,43 +367,16 @@ public class TypeParsers {
     }
 
     @SuppressWarnings("unchecked")
-    public static void parseCopyFields(String fieldName, Object propNode, AbstractFieldMapper.Builder builder) {
+    public static void parseCopyFields(Object propNode, AbstractFieldMapper.Builder builder) {
         AbstractFieldMapper.CopyTo.Builder copyToBuilder = new AbstractFieldMapper.CopyTo.Builder();
-        if (isObject(propNode)) {
-            parseCopyToField(fieldName, propNode, copyToBuilder);
-        } else if (isArray(propNode)) {
+        if (isArray(propNode)) {
             for(Object node : (List<Object>) propNode) {
-                if (isObject(node)) {
-                    parseCopyToField(fieldName, node, copyToBuilder);
-                } else {
-                    parseCopyToField(nodeStringValue(node, null), copyToBuilder);
-                }
+                copyToBuilder.add(nodeStringValue(node, null));
             }
         } else {
-            parseCopyToField(nodeStringValue(propNode, null), copyToBuilder);
+            copyToBuilder.add(nodeStringValue(propNode, null));
         }
         builder.copyTo(copyToBuilder.build());
-    }
-
-    public static void parseCopyToField(String fieldValue, AbstractFieldMapper.CopyTo.Builder builder) {
-        int carrotPos = fieldValue.indexOf('^');
-        if (carrotPos > 0) {
-            builder.add(fieldValue.substring(0, carrotPos), Float.parseFloat(fieldValue.substring(carrotPos + 1)));
-        } else {
-            builder.add(fieldValue, 1.0f);
-        }
-    }
-
-    public static void parseCopyToField(String fieldName, Object propNode, AbstractFieldMapper.CopyTo.Builder builder) {
-        Map<String, Object> copyToNode = (Map<String, Object>) propNode;
-        String field = nodeStringValue(copyToNode.get("field"), null);
-        if (field == null) {
-            throw new MapperParsingException("No type specified for property [" + fieldName + "]");
-        }
-        float boost = nodeFloatValue(copyToNode.get("boost"), 1.0f);
-        builder.add(field, boost);
-
-
     }
 
 }

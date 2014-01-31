@@ -165,8 +165,6 @@ public class ParseContext {
 
     private float docBoost = 1.0f;
 
-    private float copyToBoost = 1.0f;
-
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -227,14 +225,12 @@ public class ParseContext {
         return withinNewMapper;
     }
 
-    public void setWithinCopyTo(float copyToBoost) {
+    public void setWithinCopyTo() {
         this.withinCopyTo = true;
-        this.copyToBoost = copyToBoost;
     }
 
     public void clearWithinCopyTo() {
         this.withinCopyTo = false;
-        this.copyToBoost = 1.0f;
     }
 
     public boolean isWithinCopyTo() {
@@ -398,14 +394,6 @@ public class ParseContext {
     public Object externalValue() {
         externalValueSet = false;
         return externalValue;
-    }
-
-    public float fieldBoost(AbstractFieldMapper mapper) {
-        if (withinCopyTo) {
-            return copyToBoost;
-        } else {
-            return mapper.boost();
-        }
     }
 
     public float docBoost() {

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -824,11 +825,15 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                 .endObject()).execute().actionGet();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setTypes("type1")
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("type1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.ASC))
-                .execute().actionGet();
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.ASC));
+
+        if (randomBoolean()) {
+            searchRequestBuilder.setScroll("10m");
+        }
+
+        SearchResponse searchResponse = searchRequestBuilder.get();
 
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
@@ -838,11 +843,14 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits()[2].id(), equalTo("3"));
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("10"));
 
-        searchResponse = client().prepareSearch("test")
-                .setTypes("type1")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC))
-                .execute().actionGet();
+        searchRequestBuilder = client().prepareSearch("test").setTypes("type1") .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC));
+
+        if (randomBoolean()) {
+            searchRequestBuilder.setScroll("10m");
+        }
+
+        searchResponse = searchRequestBuilder.get();
 
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("3"));
@@ -851,6 +859,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("5"));
         assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+        client().prepareClearScroll().addScrollId("_all").get();
     }
 
     @Test

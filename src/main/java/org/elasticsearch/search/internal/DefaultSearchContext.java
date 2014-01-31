@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -172,10 +173,13 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile long keepAlive;
 
+    private ScoreDoc lastEmittedDoc;
+
     private volatile long lastAccessTime = -1;
 
     private List<Releasable> clearables = null;
 
+    private volatile boolean useSlowScroll;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -644,6 +648,16 @@ public class DefaultSearchContext extends SearchContext {
         this.keepAlive = keepAlive;
     }
 
+    @Override
+    public void lastEmittedDoc(ScoreDoc doc) {
+        this.lastEmittedDoc = doc;
+    }
+
+    @Override
+    public ScoreDoc lastEmittedDoc() {
+        return lastEmittedDoc;
+    }
+
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
@@ -704,5 +718,15 @@ public class DefaultSearchContext extends SearchContext {
 
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return mapperService().smartNameObjectMapper(name, request.types());
+    }
+
+    @Override
+    public boolean useSlowScroll() {
+        return useSlowScroll;
+    }
+
+    public DefaultSearchContext useSlowScroll(boolean useSlowScroll) {
+        this.useSlowScroll = useSlowScroll;
+        return this;
     }
 }

@@ -22,10 +22,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -658,6 +655,16 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public void lastEmittedDoc(ScoreDoc doc) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ScoreDoc lastEmittedDoc() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public DfsSearchResult dfsResult() {
         throw new UnsupportedOperationException();
     }
@@ -704,6 +711,16 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean useSlowScroll() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SearchContext useSlowScroll(boolean useSlowScroll) {
         throw new UnsupportedOperationException();
     }
 }

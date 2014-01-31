@@ -93,10 +93,10 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
-    private static final String DEFAUTL_KEEPALIVE_COMPONENENT_KEY ="default_keep_alive";
-    public static final String DEFAUTL_KEEPALIVE_KEY ="search."+DEFAUTL_KEEPALIVE_COMPONENENT_KEY;
-    private static final String KEEPALIVE_INTERVAL_COMPONENENT_KEY ="keep_alive_interval";
-    public static final String KEEPALIVE_INTERVAL_KEY ="search."+KEEPALIVE_INTERVAL_COMPONENENT_KEY;
+    private static final String DEFAUTL_KEEPALIVE_COMPONENENT_KEY = "default_keep_alive";
+    public static final String DEFAUTL_KEEPALIVE_KEY = "search." + DEFAUTL_KEEPALIVE_COMPONENENT_KEY;
+    private static final String KEEPALIVE_INTERVAL_COMPONENENT_KEY = "keep_alive_interval";
+    public static final String KEEPALIVE_INTERVAL_KEY = "search." + KEEPALIVE_INTERVAL_COMPONENENT_KEY;
 
 
     private final ThreadPool threadPool;
@@ -446,6 +446,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
+            if (request.lastEmittedDoc() != null) {
+                context.lastEmittedDoc(request.lastEmittedDoc());
+            }
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
             context.indexShard().searchService().onPreFetchPhase(context);
             long time = System.nanoTime();
@@ -502,6 +505,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());
+            context.useSlowScroll(request.useSlowScroll());
 
             parseTemplate(request);
             parseSource(context, request.source());
@@ -646,24 +650,33 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
      * handles this as well since the result is always size * shards for Q_A_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
-        TopDocs topDocs = context.queryResult().topDocs();
-        if (topDocs.scoreDocs.length < context.from()) {
-            // no more docs...
-            context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
-            return;
-        }
-        int totalSize = context.from() + context.size();
-        int[] docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size())];
-        int counter = 0;
-        for (int i = context.from(); i < totalSize; i++) {
-            if (i < topDocs.scoreDocs.length) {
-                docIdsToLoad[counter] = topDocs.scoreDocs[i].doc;
-            } else {
-                break;
+        if (!context.useSlowScroll() && context.request().scroll() != null) {
+            TopDocs topDocs = context.queryResult().topDocs();
+            int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
             }
-            counter++;
+            context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        } else {
+            TopDocs topDocs = context.queryResult().topDocs();
+            if (topDocs.scoreDocs.length < context.from()) {
+                // no more docs...
+                context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
+                return;
+            }
+            int totalSize = context.from() + context.size();
+            int[] docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size())];
+            int counter = 0;
+            for (int i = context.from(); i < totalSize; i++) {
+                if (i < topDocs.scoreDocs.length) {
+                    docIdsToLoad[counter] = topDocs.scoreDocs[i].doc;
+                } else {
+                    break;
+                }
+                counter++;
+            }
+            context.docIdsToLoad(docIdsToLoad, 0, counter);
         }
-        context.docIdsToLoad(docIdsToLoad, 0, counter);
     }
 
     private void shortcutDocIdsToLoadForScanning(SearchContext context) {

@@ -20,6 +20,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -275,6 +276,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void keepAlive(long keepAlive);
 
+    public abstract void lastEmittedDoc(ScoreDoc doc);
+
+    public abstract ScoreDoc lastEmittedDoc();
+
     public abstract SearchLookup lookup();
 
     public abstract DfsSearchResult dfsResult();
@@ -297,4 +302,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 
+    public abstract boolean useSlowScroll();
+
+    public abstract SearchContext useSlowScroll(boolean useSlowScroll);
 }

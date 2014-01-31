@@ -19,12 +19,27 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 /**
  *
  */
 public abstract class SortBuilder implements ToXContent {
+
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            throw new ElasticsearchException("Failed to build query", e);
+        }
+    }
 
     /**
      * The order of sorting. Defaults to {@link SortOrder#ASC}.

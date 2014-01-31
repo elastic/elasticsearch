@@ -147,4 +147,9 @@ public class DoubleScriptDataComparator extends NumberComparatorBase<Double> {
     public int compareBottomMissing() {
         return Double.compare(bottom, Double.MAX_VALUE);
     }
+
+    @Override
+    public int compareTopMissing() {
+        return Double.compare(top, Double.MAX_VALUE);
+    }
 }

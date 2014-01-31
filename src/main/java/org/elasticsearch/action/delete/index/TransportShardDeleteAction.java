@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -117,6 +118,12 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
+
+        // IndexDeleteAction doesn't support version type at the moment. Hard coded for the INTERNAL version
+        delete.versionType(VersionType.INTERNAL.versionTypeForReplicationAndRecovery());
+
+        assert delete.versionType().validateVersion(delete.version());
+
         indexShard.delete(delete);
 
         if (request.refresh()) {

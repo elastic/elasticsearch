@@ -56,7 +56,7 @@
         },
         "version_type": {
           "type" : "enum",
-          "options" : ["internal","external"],
+          "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
         }
       }

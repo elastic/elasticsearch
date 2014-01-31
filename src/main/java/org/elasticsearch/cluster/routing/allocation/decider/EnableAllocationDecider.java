@@ -45,6 +45,8 @@ import java.util.Locale;
  */
 public class EnableAllocationDecider extends AllocationDecider implements NodeSettingsService.Listener {
 
+    public static final String NAME = "enable";
+
     public static final String CLUSTER_ROUTING_ALLOCATION_ENABLE = "cluster.routing.allocation.enable";
     public static final String INDEX_ROUTING_ALLOCATION_ENABLE = "index.routing.allocation.enable";
 
@@ -60,7 +62,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return allocation.decision(Decision.YES, "allocation disabling is ignored");
+            return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
@@ -73,20 +75,20 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
         }
         switch (enable) {
             case ALL:
-                return allocation.decision(Decision.YES, "all allocations are allowed");
+                return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
             case NONE:
-                return allocation.decision(Decision.NO, "no allocations are allowed");
+                return allocation.decision(Decision.NO, NAME, "no allocations are allowed");
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
-                    return allocation.decision(Decision.YES, "new primary allocations are allowed");
+                    return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, "non-new primary allocations are disallowed");
+                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are disallowed");
                 }
             case PRIMARIES:
                 if (shardRouting.primary()) {
-                    return allocation.decision(Decision.YES, "primary allocations are allowed");
+                    return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, "replica allocations are disallowed");
+                    return allocation.decision(Decision.NO, NAME, "replica allocations are disallowed");
                 }
             default:
                 throw new ElasticsearchIllegalStateException("Unknown allocation option");

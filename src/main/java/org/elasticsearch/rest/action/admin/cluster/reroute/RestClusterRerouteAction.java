@@ -26,6 +26,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 
@@ -50,6 +51,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
@@ -75,6 +77,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                 }
                 response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                 builder.endObject();
+                if (clusterRerouteRequest.explain()) {
+                    assert response.getExplanations() != null;
+                    response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                }
             }
 
             @Override

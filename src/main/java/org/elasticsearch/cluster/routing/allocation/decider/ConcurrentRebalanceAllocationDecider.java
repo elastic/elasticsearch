@@ -39,6 +39,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  */
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "concurrent_rebalance";
+
     public static final String CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE = "cluster.routing.allocation.cluster_concurrent_rebalance";
 
     class ApplySettings implements NodeSettingsService.Listener {
@@ -65,12 +67,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
-            return allocation.decision(Decision.YES, "all concurrent rebalances are allowed");
+            return allocation.decision(Decision.YES, NAME, "all concurrent rebalances are allowed");
         }
         if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
-            return allocation.decision(Decision.NO, "too man concurrent rebalances [%d], limit: [%d]",
+            return allocation.decision(Decision.NO, NAME, "too man concurrent rebalances [%d], limit: [%d]",
                     allocation.routingNodes().getRelocatingShardCount(), clusterConcurrentRebalance);
         }
-        return allocation.decision(Decision.YES, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);
+        return allocation.decision(Decision.YES, NAME, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);
     }
 }

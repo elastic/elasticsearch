@@ -54,6 +54,15 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
     }
 
     /**
+     * Sets the explain flag (defaults to <tt>false</tt>). If true, the
+     * request will include an explanation in addition to the cluster state.
+     */
+    public ClusterRerouteRequestBuilder setExplain(boolean explain) {
+        request.explain(explain);
+        return this;
+    }
+
+    /**
      * Sets the source for the request
      */
     public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {

@@ -21,17 +21,22 @@ package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,8 +45,10 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -209,6 +216,53 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
+
+    }
+
+    @Test
+    public void rerouteExplain() {
+        Settings commonSettings = settingsBuilder().build();
+
+        logger.info("--> starting a node");
+        String node_1 = cluster().startNode(commonSettings);
+
+        assertThat(cluster().size(), equalTo(1));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> create an index with 1 shard");
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        ensureGreen("test");
+
+        logger.info("--> disable allocation");
+        Settings newSettings = settingsBuilder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+
+        logger.info("--> starting a second node");
+        String node_2 = cluster().startNode(commonSettings);
+        assertThat(cluster().size(), equalTo(2));
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> try to move the shard from node1 to node2");
+        ClusterRerouteResponse resp = client().admin().cluster().prepareReroute()
+                .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
+                .setExplain(true)
+                .execute().actionGet();
+        RoutingExplanations e = resp.getExplanations();
+        assertThat(e.explanations().size(), equalTo(1));
+
+        try {
+            BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/cluster/allocation/reroute-explanation.json"));
+            assertThat(e.toXContent(XContentFactory.jsonBuilder().prettyPrint(), null).string(), equalTo(json.toUtf8()));
+        } catch (IOException ex) {
+            fail("Exception: " + ex);
+        }
 
     }
 

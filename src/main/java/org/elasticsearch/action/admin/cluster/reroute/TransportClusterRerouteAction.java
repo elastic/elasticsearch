@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
@@ -72,9 +73,15 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
+        if (request.explain()) {
+            RoutingExplanations explanations = allocationService.explain(state, request.commands);
+            listener.onResponse(new ClusterRerouteResponse(true, state, explanations));
+            return;
+        }
         clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             private volatile ClusterState clusterStateToSend;
+            private final RoutingExplanations emptyExplanations = new RoutingExplanations();
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -83,12 +90,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
             @Override
             public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend));
+                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend, emptyExplanations));
             }
 
             @Override
             public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend));
+                listener.onResponse(new ClusterRerouteResponse(false, state, emptyExplanations));
             }
 
             @Override

@@ -137,6 +137,24 @@ public class AllocationService extends AbstractComponent {
     }
 
     /**
+     * Applies the allocation commands to the cluster state, returning an
+     * explanation for each command as to why it can or can not be applied.
+     * Does not update the routing allocation.
+     * @param clusterState current cluster state
+     * @param commands AllocationCommands to explain application
+     * @return explanations for the commands
+     */
+    public RoutingExplanations explain(ClusterState clusterState, AllocationCommands commands) {
+        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        // don't short-circuit decisions, since we want a full explanation
+        allocation.debugDecision(true);
+        // we ignore disable allocation, because commands are explicit
+        allocation.ignoreDisable(true);
+        return commands.explain(allocation);
+    }
+
+    /**
      * Reroutes the routing table based on the live nodes.
      * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.

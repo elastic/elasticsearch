@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider {
 
+    public static final String NAME = "rebalance_only_when_active";
+
     @Inject
     public RebalanceOnlyWhenActiveAllocationDecider(Settings settings) {
         super(settings);
@@ -39,8 +41,8 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
         // its ok to check for active here, since in relocation, a shard is split into two in routing
         // nodes, once relocating, and one initializing
         if (!allocation.routingNodes().allReplicasActive(shardRouting)) {
-            return allocation.decision(Decision.NO, "not all replicas are active in cluster");
+            return allocation.decision(Decision.NO, NAME, "not all replicas are active in cluster");
         }
-        return allocation.decision(Decision.YES, "all replicas are active in cluster");
+        return allocation.decision(Decision.YES, NAME, "all replicas are active in cluster");
     }
 }

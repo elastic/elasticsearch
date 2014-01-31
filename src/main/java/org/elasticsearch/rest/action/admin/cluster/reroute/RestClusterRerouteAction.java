@@ -26,10 +26,14 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
@@ -50,6 +54,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
@@ -66,6 +71,25 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         }
 
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestResponseActionListener<ClusterRerouteResponse>(request, channel, logger) {
+            @Override
+            public void onResponse(ClusterRerouteResponse response) {
+                // If this is an explain request, it needs to be wrapped and encoded specially
+                if (clusterRerouteRequest.explain()) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (IOException ex) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("failed to handle cluster reroute explain", ex);
+                        }
+                        super.onFailure(ex);
+                    }
+                } else {
+                    super.onResponse(response);
+                }
+            }
+
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");

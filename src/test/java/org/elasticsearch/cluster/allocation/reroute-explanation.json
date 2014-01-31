@@ -1,0 +1,56 @@
+{
+  "explanations" : [ {
+    "command" : "move",
+    "parameters" : {
+      "index" : "test",
+      "shard" : 0,
+      "from_node" : "node_0",
+      "to_node" : "node_1"
+    },
+    "decisions" : [ {
+      "decider" : "same_shard",
+      "decision" : "YES",
+      "explanation" : "shard is not allocated to same node or host"
+    }, {
+      "decider" : "filter",
+      "decision" : "YES",
+      "explanation" : "node passes include/exclude/require filters"
+    }, {
+      "decider" : "replica_after_primary_active",
+      "decision" : "YES",
+      "explanation" : "shard is primary"
+    }, {
+      "decider" : "throttling",
+      "decision" : "YES",
+      "explanation" : "below shard recovery limit of [2]"
+    }, {
+      "decider" : "enable",
+      "decision" : "YES",
+      "explanation" : "allocation disabling is ignored"
+    }, {
+      "decider" : "disable",
+      "decision" : "YES",
+      "explanation" : "allocation disabling is ignored"
+    }, {
+      "decider" : "awareness",
+      "decision" : "YES",
+      "explanation" : "no allocation awareness enabled"
+    }, {
+      "decider" : "shards_limit",
+      "decision" : "YES",
+      "explanation" : "total shard limit disabled: [-1] <= 0"
+    }, {
+      "decider" : "node_version",
+      "decision" : "YES",
+      "explanation" : "target node version [2.0.0-SNAPSHOT] is same or newer than source node version [2.0.0-SNAPSHOT]"
+    }, {
+      "decider" : "disk_threshold",
+      "decision" : "YES",
+      "explanation" : "disk threshold decider disabled"
+    }, {
+      "decider" : "snapshot_in_progress",
+      "decision" : "YES",
+      "explanation" : "no snapshots are currently running"
+    } ]
+  } ]
+}

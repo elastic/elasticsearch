@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,9 +105,13 @@ public class MoveAllocationCommand implements AllocationCommand {
         }
 
         @Override
-        public void toXContent(MoveAllocationCommand command, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("index", command.shardId().index());
+        public void toXContent(MoveAllocationCommand command, XContentBuilder builder, ToXContent.Params params, String objectName) throws IOException {
+            if (objectName == null) {
+                builder.startObject();
+            } else {
+                builder.startObject(objectName);
+            }
+            builder.field("index", command.shardId().index().name());
             builder.field("shard", command.shardId().id());
             builder.field("from_node", command.fromNode());
             builder.field("to_node", command.toNode());
@@ -177,5 +182,29 @@ public class MoveAllocationCommand implements AllocationCommand {
         if (!found) {
             throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
         }
+    }
+
+    @Override
+    public RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException {
+        DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
+        DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
+
+        for (MutableShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
+            if (!shardRouting.shardId().equals(shardId)) {
+                continue;
+            }
+
+            if (!shardRouting.started()) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
+                        "shard " + shardId + " has not been started"));
+            }
+
+            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
+            Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
+            return new RerouteExplanation(this, decision);
+        }
+
+        return new RerouteExplanation(this, allocation.decision(Decision.NO,
+                "MoveAllocationCommand", "shard " + shardId + " not found"));
     }
 }

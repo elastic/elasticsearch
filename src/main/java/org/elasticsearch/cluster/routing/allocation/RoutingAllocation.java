@@ -198,10 +198,14 @@ public class RoutingAllocation {
     /**
      * Create a routing decision, including the reason if the debug flag is
      * turned on
+     * @param decision decision whether to allow/deny allocation
+     * @param deciderLabel a human readable label for the AllocationDecider
+     * @param reason a format string explanation of the decision
+     * @param params format string parameters
      */
-    public Decision decision(Decision decision, String reason, Object... params) {
+    public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {
-            return Decision.single(decision.type(), reason, params);
+            return Decision.single(decision.type(), deciderLabel, reason, params);
         } else {
             return decision;
         }

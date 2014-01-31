@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -68,10 +70,11 @@ public interface AllocationCommand {
          * Writes an {@link AllocationCommand} using an {@link XContentBuilder}
          * @param command {@link AllocationCommand} to write
          * @param builder {@link XContentBuilder} to use
-         * @param params parameters to use when writing the command 
+         * @param params parameters to use when writing the command
+         * @param objectName object the encoding should be encased in, null means a plain object
          * @throws IOException if something happens during writing the command
          */
-        void toXContent(T command, XContentBuilder builder, ToXContent.Params params) throws IOException;
+        void toXContent(T command, XContentBuilder builder, ToXContent.Params params, @Nullable String objectName) throws IOException;
     }
 
     /**
@@ -86,4 +89,9 @@ public interface AllocationCommand {
      * @throws org.elasticsearch.ElasticsearchException if something happens during reconfiguration
      */
     void execute(RoutingAllocation allocation) throws ElasticsearchException;
+
+    /**
+     * Return an explanation for why this reroute command can or can not be applied
+     */
+    RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException;
 }

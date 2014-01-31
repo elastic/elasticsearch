@@ -27,6 +27,9 @@ import java.util.List;
  * Allows to register additional features supported by the tests runner.
  * This way any runner can add extra features and use proper skip sections to avoid
  * breaking others runners till they have implemented the new feature as well.
+ *
+ * Once all runners have implemented the feature, it can be removed from the list
+ * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
 

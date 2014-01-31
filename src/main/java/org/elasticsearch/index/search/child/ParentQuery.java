@@ -129,6 +129,7 @@ public class ParentQuery extends Query {
             parentQuery = rewrittenParentQuery;
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         indexSearcher.search(parentQuery, collector);
 
         if (uidToScore.v().isEmpty()) {

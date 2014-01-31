@@ -234,6 +234,9 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         // update the version on the request, so it will be used for the replicas
         request.version(version);
+        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+
+        assert request.versionType().validateVersion(request.version());
 
         IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);

@@ -42,6 +42,18 @@ public enum VersionType {
             return (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
         }
 
+        @Override
+        public boolean validateVersion(long version) {
+            // not allowing Versions.NOT_FOUND as it will always result in a conflict
+            return version > 0L || version == Versions.MATCH_ANY;
+        }
+
+        @Override
+        public VersionType versionTypeForReplicationAndRecovery() {
+            // replicas get the version from the primary after increment. The same version is stored in
+            // the transaction log. -> the should use the external semantics.
+            return EXTERNAL;
+        }
     },
     EXTERNAL((byte) 1) {
         /**
@@ -58,6 +70,11 @@ public enum VersionType {
         @Override
         public long updateVersion(long currentVersion, long expectedVersion) {
             return expectedVersion;
+        }
+
+        @Override
+        public boolean validateVersion(long version) {
+            return version > 0L;
         }
     };
 
@@ -84,6 +101,18 @@ public enum VersionType {
      * @return new version
      */
     public abstract long updateVersion(long currentVersion, long expectedVersion);
+
+    /** validate the version is a valid value for this type.
+     * @return true if valid, false o.w
+     */
+    public abstract boolean validateVersion(long version);
+
+    /** Some version types require different semantics for primary and replicas. This version allows
+     * the type to override the default behavior.
+     */
+    public VersionType versionTypeForReplicationAndRecovery() {
+        return this;
+    }
 
     public static VersionType fromString(String versionType) {
         if ("internal".equals(versionType)) {

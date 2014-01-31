@@ -100,6 +100,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
         }
 
+        if (!versionType.validateVersion(version)) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["+ versionType.name() + "]", validationException);
+        }
+
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
         }

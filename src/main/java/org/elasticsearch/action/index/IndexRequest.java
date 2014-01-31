@@ -177,6 +177,9 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
+        if (!versionType.validateVersion(version)) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["+ versionType.name() + "]", validationException);
+        }
         return validationException;
     }
 

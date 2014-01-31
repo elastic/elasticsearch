@@ -28,7 +28,6 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -77,6 +76,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorService;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -742,19 +742,22 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
                     engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
-                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl())).version(create.version())
+                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()))
+                            .version(create.version()).versionType(create.versionType().versionTypeForReplicationAndRecovery())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
                     engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
-                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl())).version(index.version())
+                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()))
+                            .version(index.version()).versionType(index.versionType().versionTypeForReplicationAndRecovery())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
                     Uid uid = Uid.createUid(delete.uid().text());
-                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid()).version(delete.version())
+                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid())
+                            .version(delete.version()).versionType(delete.versionType().versionTypeForReplicationAndRecovery())
                             .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 case DELETE_BY_QUERY:

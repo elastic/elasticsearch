@@ -94,6 +94,9 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
+        if (!versionType.validateVersion(version)) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["+ versionType.name() + "]", validationException);
+        }
         return validationException;
     }
 

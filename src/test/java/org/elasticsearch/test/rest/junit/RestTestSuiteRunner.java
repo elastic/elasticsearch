@@ -40,6 +40,7 @@ import org.elasticsearch.test.rest.section.ExecutableSection;
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestSpec;
+import org.elasticsearch.test.rest.support.Features;
 import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -264,7 +265,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                 apiDescription.addChild(testSuiteDescription);
 
                 if (restTestSuite.getTestSections().size() == 0) {
-                    assert restTestSuite.getSetupSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion());
+                    assert restTestSuite.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion());
                     testCandidates.add(RestTestCandidate.empty(restTestSuite, testSuiteDescription));
                     continue;
                 }
@@ -274,7 +275,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                 for (TestSection testSection : restTestSuite.getTestSections()) {
 
                     //no need to generate seed if we are going to skip the test section
-                    if (testSection.getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
+                    if (testSection.getSkipSection().skip(restTestExecutionContext.esVersion())) {
                         Description testSectionDescription = createTestSectionIterationDescription(restTestSuite, testSection, null);
                         testSuiteDescription.addChild(testSectionDescription);
                         testCandidates.add(new RestTestCandidate(restTestSuite, testSuiteDescription, testSection, testSectionDescription, -1));
@@ -448,11 +449,17 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
     protected void runChild(RestTestCandidate testCandidate, RunNotifier notifier) {
 
         //if the while suite needs to be skipped, no test sections were loaded, only an empty one that we need to mark as ignored
-        if (testCandidate.getSetupSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
-            logger.info("skipped test suite [{}]\nreason: {}\nskip versions: {} (current version: {})",
-                    testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getReason(),
-                    testCandidate.getSetupSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
-
+        if (testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())) {
+            if (logger.isInfoEnabled()) {
+                if (testCandidate.getSetupSection().getSkipSection().isVersionCheck()) {
+                    logger.info("skipped test suite [{}]\nreason: {}\nskip versions: {} (current version: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getReason(),
+                            testCandidate.getSetupSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+                } else {
+                    logger.info("skipped test suite [{}]\nreason: feature not supported\nrequired features: {} (supported features: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getFeatures(), Features.getSupported());
+                }
+            }
             notifier.fireTestIgnored(testCandidate.describeSuite());
             return;
         }
@@ -460,11 +467,19 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         //from now on no more empty test candidates are expected
         assert testCandidate.getTestSection() != null;
 
-        if (testCandidate.getTestSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
-            logger.info("skipped test [{}/{}]\nreason: {}\nskip versions: {} (current version: {})",
-                    testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
-                    testCandidate.getTestSection().getSkipSection().getReason(),
-                    testCandidate.getTestSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+        if (testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())) {
+            if (logger.isInfoEnabled()) {
+                if (testCandidate.getTestSection().getSkipSection().isVersionCheck()) {
+                    logger.info("skipped test [{}/{}]\nreason: {}\nskip versions: {} (current version: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
+                            testCandidate.getTestSection().getSkipSection().getReason(),
+                            testCandidate.getTestSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+                } else {
+                    logger.info("skipped test [{}/{}]\nreason: feature not supported\nrequired features: {} (supported features: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
+                            testCandidate.getTestSection().getSkipSection().getFeatures(), Features.getSupported());
+                }
+            }
 
             notifier.fireTestIgnored(testCandidate.describeTest());
             return;

@@ -205,13 +205,14 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
     private static class CompletionFieldsProducer extends FieldsProducer {
 
-        private FieldsProducer delegateProducer;
-        private LookupFactory lookupFactory;
+        private final FieldsProducer delegateProducer;
+        private final LookupFactory lookupFactory;
 
         public CompletionFieldsProducer(SegmentReadState state) throws IOException {
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexInput input = state.directory.openInput(suggestFSTFile, state.context);
             CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_CODEC_VERSION);
+            FieldsProducer delegateProducer = null;
             boolean success = false;
             try {
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(input.readString());
@@ -221,7 +222,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
                     throw new ElasticsearchIllegalStateException("no provider with name [" + providerName + "] registered");
                 }
                 // TODO: we could clone the ReadState and make it always forward IOContext.MERGE to prevent unecessary heap usage? 
-                this.delegateProducer = delegatePostingsFormat.fieldsProducer(state);
+                delegateProducer = delegatePostingsFormat.fieldsProducer(state);
                 /*
                  * If we are merging we don't load the FSTs at all such that we
                  * don't consume so much memory during merge
@@ -231,7 +232,10 @@ public class Completion090PostingsFormat extends PostingsFormat {
                     // eventually we should have some kind of curciut breaker that prevents us from going OOM here
                     // with some configuration
                     this.lookupFactory = completionLookupProvider.load(input);
+                } else {
+                    this.lookupFactory = null;
                 }
+                this.delegateProducer = delegateProducer;
                 success = true;
             } finally {
                 if (!success) {
@@ -254,11 +258,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         @Override
         public Terms terms(String field) throws IOException {
-            Terms terms = delegateProducer.terms(field);
-            if (terms == null) {
+            final Terms terms = delegateProducer.terms(field);
+            if (terms == null || lookupFactory == null) {
                 return terms;
             }
-            return new CompletionTerms(terms, this.lookupFactory);
+            return new CompletionTerms(terms, lookupFactory);
         }
 
         @Override

@@ -234,7 +234,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
             for (Field field : fields) {
                 if (!customBoost()) {
-                    field.setBoost(context.fieldBoost(this));
+                    field.setBoost(boost);
                 }
                 if (context.listener().beforeFieldAdded(this, field, context)) {
                     context.doc().add(field);

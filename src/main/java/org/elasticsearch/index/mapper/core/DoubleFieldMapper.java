@@ -244,7 +244,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         double value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

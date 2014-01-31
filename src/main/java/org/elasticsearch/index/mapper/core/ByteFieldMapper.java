@@ -249,7 +249,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         byte value;
-        float boost = context.fieldBoost(this);
+        float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {

@@ -50,7 +50,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("copy_test")
                 .field("type", "string")
-                .array("copy_to", "another_field^10", "cyclic_test")
+                .array("copy_to", "another_field", "cyclic_test")
                 .endObject()
 
                 .startObject("another_field")
@@ -64,16 +64,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .startObject("int_to_str_test")
                 .field("type", "integer")
-                .startArray("copy_to")
-                .startObject()
-                .field("field", "another_field")
-                .field("boost", 5.5f)
-                .endObject()
-                .startObject()
-                .field("field", "new_field")
-                .endObject()
-                .endArray()
-
+                .array("copy_to",  "another_field", "new_field")
                 .endObject()
                 .endObject().endObject().endObject().string();
 
@@ -89,11 +80,10 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
         Map<String, Object> copyTestMap = (Map<String, Object>) serializedMap.get("copy_test");
         assertThat(copyTestMap.get("type").toString(), is("string"));
-        List<Map<String, Object>> copyToMap = (List<Map<String, Object>>) copyTestMap.get("copy_to");
-        assertThat(copyToMap.size(), equalTo(2));
-        assertThat(copyToMap.get(0).get("field").toString(), equalTo("another_field"));
-        assertThat((Double) copyToMap.get(0).get("boost"), closeTo(10.0, 0.001));
-        assertThat(copyToMap.get(1).get("field").toString(), equalTo("cyclic_test"));
+        List<String> copyToList = (List<String>) copyTestMap.get("copy_to");
+        assertThat(copyToList.size(), equalTo(2));
+        assertThat(copyToList.get(0).toString(), equalTo("another_field"));
+        assertThat(copyToList.get(1).toString(), equalTo("cyclic_test"));
 
         // Check data parsing
         BytesReference json = jsonBuilder().startObject()
@@ -109,9 +99,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
         assertThat(doc.getFields("another_field").length, equalTo(2));
         assertThat(doc.getFields("another_field")[0].stringValue(), equalTo("foo"));
-        assertThat((double) (doc.getFields("another_field")[0].boost()), closeTo(10.0, 0.001));
         assertThat(doc.getFields("another_field")[1].stringValue(), equalTo("42"));
-        assertThat((double) (doc.getFields("another_field")[1].boost()), closeTo(5.5, 0.001));
 
         assertThat(doc.getFields("cyclic_test").length, equalTo(2));
         assertThat(doc.getFields("cyclic_test")[0].stringValue(), equalTo("foo"));
@@ -213,11 +201,11 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
         DocumentMapper docMapperBefore = MapperTestUtils.newParser().parse(mappingBefore);
 
-        ImmutableList<AbstractFieldMapper.CopyToField> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
+        ImmutableList<String> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).field(), equalTo("foo"));
-        assertThat(fields.get(1).field(), equalTo("bar"));
+        assertThat(fields.get(0), equalTo("foo"));
+        assertThat(fields.get(1), equalTo("bar"));
 
 
         DocumentMapper docMapperAfter = MapperTestUtils.newParser().parse(mappingAfter);
@@ -231,8 +219,8 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).field(), equalTo("baz"));
-        assertThat(fields.get(1).field(), equalTo("bar"));
+        assertThat(fields.get(0), equalTo("baz"));
+        assertThat(fields.get(1), equalTo("bar"));
     }
 
 }

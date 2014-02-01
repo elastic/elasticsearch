@@ -72,4 +72,7 @@
   D3.
 
 * https://github.com/roundscope/ember-data-elasticsearch-kit[ember-data-elasticsearch-kit]:
-  An ember-data kit for both pushing and querying objects to ElasticSearch cluster
+  An ember-data kit for both pushing and querying objects to Elasticsearch cluster
+
+* https://github.com/kzwang/elasticsearch-osem[elasticsearch-osem]:
+  A Java Object Search Engine Mapping (OSEM) for Elasticsearch

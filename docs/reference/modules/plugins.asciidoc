@@ -143,6 +143,19 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
+==== Lucene version dependent plugins
+
+coming[1.2.0]
+
+For some plugins, such as analysis plugins, a specific major Lucene version is
+required to run. In that case, the plugin provides in its `es-plugin.properties`
+file the Lucene version for which the plugin was built for.
+
+If present at startup the node will check the Lucene version before loading the plugin.
+
+You can disable that check using `plugins.check_lucene: false`.
+
+[float]
 [[known-plugins]]
 === Known Plugins
 

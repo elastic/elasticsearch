@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -46,8 +47,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -150,9 +152,18 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
         assertThat(nodesInfoResponse.getNodes().length, equalTo(1));
         assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos(), notNullValue());
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().size(), equalTo(1));
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().get(0).getName(), equalTo(pluginName));
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().get(0).isSite(), equalTo(true));
+        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().size(), not(0));
+
+        boolean pluginFound = false;
+
+        for (PluginInfo pluginInfo : nodesInfoResponse.getNodes()[0].getPlugins().getInfos()) {
+            if (pluginInfo.getName().equals(pluginName)) {
+                pluginFound = true;
+                break;
+            }
+        }
+
+        assertThat(pluginFound, is(true));
     }
 
     private void assertPluginAvailable(String pluginName) throws InterruptedException {

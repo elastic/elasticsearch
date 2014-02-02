@@ -6,8 +6,9 @@ added[1.0.0.Beta1]
 
 Allows to control how the `_source` field is returned with every hit.
 
-By default, the contents of the `_source` field unless
-you have used the `fields` parameter or if the `_source` field is disabled. 
+By default operations return the contents of the `_source` field unless
+you have used the `fields` parameter or if the `_source` field is disabled.
+
 You can turn off `_source` retrieval by using the `_source` parameter:
 
 To disable `_source` retrieval set to `false`:

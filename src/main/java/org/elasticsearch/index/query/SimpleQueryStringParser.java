@@ -46,6 +46,8 @@ import java.util.Map;
  * <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
  * <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
  * <li>'{@code (}' and '{@code)}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
+ * <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
+ * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
  * <p/>
  * See: {@link XSimpleQueryParser} for more information.
@@ -151,7 +153,7 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("flags".equals(currentFieldName)) {
                     if (parser.hasTextCharacters()) {
                         // Possible options are:
-                        // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE
+                        // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
                         flags = SimpleQueryStringFlag.resolveFlags(parser.text());
                     } else {
                         flags = parser.intValue();

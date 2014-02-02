@@ -51,6 +51,8 @@ The `simple_query_string` supports the following special characters:
 * `"` wraps a number of tokens to signify a phrase for searching
 * `*` at the end of a term signifies a prefix query
 * `(` and `)` signify precedence
+* `~N` after a word signifies edit distance (fuzziness)
+* `~N` after a phrase signifies slop amount
 
 In order to search for any of these special characters, they will need to
 be escaped with `\`.
@@ -97,4 +99,4 @@ should be enabled. It is specified as a `|`-delimited string with the
 --------------------------------------------------
 
 The available flags are: `ALL`, `NONE`, `AND`, `OR`, `PREFIX`, `PHRASE`,
-`PRECEDENCE`, `ESCAPE`, and `WHITESPACE`.
+`PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.

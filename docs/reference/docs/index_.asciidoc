@@ -127,6 +127,32 @@ latest version will be used if the index operations are out of order for
 whatever reason.
 
 [float]
+==== Version types
+
+Next to the `internal` & `external` version types explained above, Elasticsearch
+also supports other types for specific use cases. Here is an overview of
+the different version types and their semantics.
+
+`internal`:: only index the document if the given version is identical to the version
+of the stored document.
+
+`external` or `external_gt`:: only index the document if the given version is strictly higher
+than the version of the stored document *or* if there is no existing document. The given
+version will be used as the new version and will be stored with the new document.
+
+`external_gte`:: only index the document if the given version is *equal* or higher
+than the version of the stored document. If there is no existing document
+the operation will succeed as well. The given version will be used as the new version
+and will be stored with the new document.
+
+`force`:: the document will be indexed regardless of the version of the stored document or if there
+is no existing document. The given version will be used as the new version and will be stored
+with the new document. This version type is typically used for correcting errors.
+
+*NOTE*: The `external_gte` & `force` version types are meant for special use cases and should be used
+with care. If used incorrectly, they can result in loss of data.
+
+[float]
 [[operation-type]]
 === Operation Type
 

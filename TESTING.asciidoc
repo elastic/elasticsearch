@@ -190,6 +190,9 @@ and port) or fire a test cluster (default)
 of the tests providing a sub-folder or even a single yaml file (the default
 /rest-api-spec/test prefix is optional when files are loaded from classpath)
 e.g. -Dtests.rest.suite=index,get,create/10_with_id
+* `tests.rest.section`: regex that allows to filter the test sections that
+are going to be run. If provided, only the section names that match (case
+insensitive) against it will be executed
 * `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
 * `tests.iters`: runs multiple iterations
 * `tests.seed`: seed to base the random behaviours on

@@ -53,6 +53,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 import static com.carrotsearch.randomizedtesting.SeedUtils.parseSeedChain;
 import static com.carrotsearch.randomizedtesting.StandaloneRandomizedContext.*;
@@ -72,6 +73,8 @@ import static org.junit.Assert.assertThat;
  * - tests.rest.suite: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test)
  *                     it is possible to run only a subset of the tests providing a directory or a single yaml file
  *                     (the default /rest-api-spec/test prefix is optional when files are loaded from classpath)
+ * - tests.rest.section: regex that allows to filter the test sections that are going to be run. If provided, only the
+ *                       section names that match (case insensitive) against it will be executed
  * - tests.rest.spec: REST spec path (default /rest-api-spec/api)
  * - tests.iters: runs multiple iterations
  * - tests.seed: seed to base the random behaviours on
@@ -85,6 +88,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
 
     public static final String REST_TESTS_MODE = "tests.rest";
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
+    public static final String REST_TESTS_SECTION = "tests.rest.section";
     public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
@@ -227,6 +231,12 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
 
+        String sectionFilter = System.getProperty(REST_TESTS_SECTION);
+        Pattern sectionFilterPattern = null;
+        if (Strings.hasLength(sectionFilter)) {
+            sectionFilterPattern = Pattern.compile(sectionFilter, Pattern.CASE_INSENSITIVE);
+        }
+
         int iterations = determineTestSectionIterationCount();
         boolean appendSeedParameter = RandomizedTest.systemPropertyAsBoolean(SYSPROP_APPEND_SEED(), false);
 
@@ -246,7 +256,6 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         for (String api : apis) {
 
             Description apiDescription = createApiDescription(api);
-            rootDescription.addChild(apiDescription);
 
             List<File> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
             Collections.shuffle(yamlFiles, runnerRandomness.getRandom());
@@ -262,7 +271,6 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                 }
 
                 Description testSuiteDescription = createTestSuiteDescription(restTestSuite);
-                apiDescription.addChild(testSuiteDescription);
 
                 if (restTestSuite.getTestSections().size() == 0) {
                     assert restTestSuite.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion());
@@ -273,6 +281,12 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                 Collections.shuffle(restTestSuite.getTestSections(), runnerRandomness.getRandom());
 
                 for (TestSection testSection : restTestSuite.getTestSections()) {
+
+                    if (sectionFilterPattern != null) {
+                        if (!sectionFilterPattern.matcher(testSection.getName()).find()) {
+                            continue;
+                        }
+                    }
 
                     //no need to generate seed if we are going to skip the test section
                     if (testSection.getSkipSection().skip(restTestExecutionContext.esVersion())) {
@@ -309,6 +323,16 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                         testCandidates.add(new RestTestCandidate(restTestSuite, testSuiteDescription, testSection, testSectionDescription, thisSeed));
                     }
                 }
+
+                //we add the suite only if it has at least a section left
+                if (testSuiteDescription.getChildren().size() > 0) {
+                    apiDescription.addChild(testSuiteDescription);
+                }
+            }
+
+            //we add the api only if it has at least a suite left
+            if (apiDescription.getChildren().size() > 0) {
+                rootDescription.addChild(apiDescription);
             }
         }
 

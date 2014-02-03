@@ -121,8 +121,8 @@ setup:
 
   - do:
       catch: param
-      indices.put_warmer: {}
-
-
-
+      indices.put_warmer:
+        body:
+          query:
+            match_all: {}
 

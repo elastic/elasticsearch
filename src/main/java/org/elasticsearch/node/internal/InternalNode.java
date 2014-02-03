@@ -25,8 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
-import org.elasticsearch.cache.NodeCache;
-import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -157,7 +155,6 @@ public final class InternalNode implements Node {
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
         modules.add(new NetworkModule());
-        modules.add(new NodeCacheModule(settings));
         modules.add(new ScriptModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new NodeEnvironmentModule(nodeEnvironment));
@@ -348,9 +345,6 @@ public final class InternalNode implements Node {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");
             injector.getInstance(plugin).close();
         }
-
-        stopWatch.stop().start("node_cache");
-        injector.getInstance(NodeCache.class).close();
 
         stopWatch.stop().start("script");
         injector.getInstance(ScriptService.class).close();

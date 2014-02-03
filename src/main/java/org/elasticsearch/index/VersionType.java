@@ -44,7 +44,7 @@ public enum VersionType {
 
         @Override
         public boolean validateVersion(long version) {
-            // not allowing Versions.NOT_FOUND as it will always result in a conflict
+            // not allowing Versions.NOT_FOUND as it is not a valid input value.
             return version > 0L || version == Versions.MATCH_ANY;
         }
 
@@ -164,9 +164,9 @@ public enum VersionType {
     public static VersionType fromString(String versionType) {
         if ("internal".equals(versionType)) {
             return INTERNAL;
-        } else if ("external_gt".equals(versionType)) {
-            return EXTERNAL;
         } else if ("external".equals(versionType)) {
+            return EXTERNAL;
+        } else if ("external_gt".equals(versionType)) {
             return EXTERNAL;
         } else if ("external_gte".equals(versionType)) {
             return EXTERNAL_GTE;

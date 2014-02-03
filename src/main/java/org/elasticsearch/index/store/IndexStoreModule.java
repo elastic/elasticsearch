@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsIndexStoreModule;
-import org.elasticsearch.index.store.memory.MemoryIndexStoreModule;
 import org.elasticsearch.index.store.ram.RamIndexStoreModule;
 
 /**
@@ -58,7 +57,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
         if ("ram".equalsIgnoreCase(storeType)) {
             indexStoreModule = RamIndexStoreModule.class;
         } else if ("memory".equalsIgnoreCase(storeType)) {
-            indexStoreModule = MemoryIndexStoreModule.class;
+            indexStoreModule = RamIndexStoreModule.class;
         } else if ("fs".equalsIgnoreCase(storeType)) {
             // nothing to set here ... (we default to fs)
         } else if ("simplefs".equalsIgnoreCase(storeType) || "simple_fs".equals(storeType)) {

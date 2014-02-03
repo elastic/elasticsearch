@@ -2210,6 +2210,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat((double) (parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
+    
+    @Test
+    public void testBadTypeMatchQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-query-bad-type.json");
+        QueryParsingException expectedException = null;
+        try {
+            queryParser.parse(query).query();
+        } catch (QueryParsingException qpe) {
+            expectedException = qpe;
+        }
+        assertThat(expectedException, notNullValue());
+    }     
 
     @Test
     public void testMultiMatchQuery() throws Exception {
@@ -2217,6 +2230,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-simple.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+    }
+
+    @Test
+    public void testBadTypeMultiMatchQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-bad-type.json");
+        QueryParsingException expectedException = null;
+        try {
+            queryParser.parse(query).query();
+        } catch (QueryParsingException qpe) {
+            expectedException = qpe;
+        }
+        assertThat(expectedException, notNullValue());
     }
 
     @Test

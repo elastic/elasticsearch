@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.parser;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.section.RestTestSuite;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.rest.section.TestSection;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 
 /**
  * Parser for a complete test suite (yaml file)
@@ -41,14 +43,27 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
             throw new IllegalArgumentException(file.getAbsolutePath() + " is not a file");
         }
 
+        String filename = file.getName();
+        //remove the file extension
+        int i = filename.lastIndexOf('.');
+        if (i > 0) {
+            filename = filename.substring(0, i);
+        }
+
+        //our yaml parser seems to be too tolerant. Each yaml suite must end with \n, otherwise clients tests might break.
+        RandomAccessFile randomAccessFile = null;
+        try {
+            randomAccessFile = new RandomAccessFile(file, "r");
+            randomAccessFile.skipBytes((int)randomAccessFile.length() - 1);
+            if (randomAccessFile.read() != 10) {
+                throw new RestTestParseException("test suite [" + api + "/" + filename + "] doesn't end with line feed (\\n)");
+            }
+        } finally {
+            IOUtils.close(randomAccessFile);
+        }
+
         XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file));
         try {
-            String filename = file.getName();
-            //remove the file extension
-            int i = filename.lastIndexOf('.');
-            if (i > 0) {
-                filename = filename.substring(0, i);
-            }
             RestTestSuiteParseContext testParseContext = new RestTestSuiteParseContext(api, filename, parser, currentVersion);
             return parse(testParseContext);
         } finally {

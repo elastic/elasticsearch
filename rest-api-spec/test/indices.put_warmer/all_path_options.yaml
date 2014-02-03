@@ -116,7 +116,7 @@ setup:
   - match: {foo.warmers.warmer.source.query.match_all: {}}
 
 ---
-"put warmer with mising name":
+"put warmer with missing name":
 
 
   - do:

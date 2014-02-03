@@ -95,28 +95,4 @@ class, be sure your have plenty of virtual address space.
 [[store-memory]]
 === Memory
 
-The `memory` type stores the index in main memory with the following
-configuration options:
-
-There are also *node* level settings that control the caching of buffers
-(important when using direct buffers):
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`cache.memory.direct` |Should the memory be allocated outside of the
-JVM heap. Defaults to `true`.
-
-|`cache.memory.small_buffer_size` |The small buffer size, defaults to
-`1kb`.
-
-|`cache.memory.large_buffer_size` |The large buffer size, defaults to
-`1mb`.
-
-|`cache.memory.small_cache_size` |The small buffer cache size, defaults
-to `10mb`.
-
-|`cache.memory.large_cache_size` |The large buffer cache size, defaults
-to `500mb`.
-|=======================================================================
-
+The `memory` type stores the index in main memory.

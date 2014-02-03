@@ -169,7 +169,7 @@ setup:
   - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
 
 ---
-"put mapping with mising type":
+"put mapping with missing type":
 
 
   - do:

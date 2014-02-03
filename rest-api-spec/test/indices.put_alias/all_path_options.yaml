@@ -118,7 +118,7 @@ setup:
   - match: {foo.aliases.alias: {}}
 
 ---
-"put alias with mising name":
+"put alias with missing name":
 
 
   - do:

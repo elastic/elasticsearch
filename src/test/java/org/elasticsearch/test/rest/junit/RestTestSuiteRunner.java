@@ -51,6 +51,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -181,35 +182,35 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         this.testSectionRandomnessOverride = randomnessOverride;
         logger.info("Master seed: {}", SeedUtils.formatSeed(initialSeed));
 
-        String host;
-        int port;
+        List<InetSocketAddress> addresses = Lists.newArrayList();
         if (runMode == RunMode.TEST_CLUSTER) {
-            this.testCluster = new TestCluster(SHARED_CLUSTER_SEED, 1, clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+            this.testCluster = new TestCluster(SHARED_CLUSTER_SEED, 1, 3,
+                    clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
             this.testCluster.beforeTest(runnerRandomness.getRandom(), 0.0f);
-            HttpServerTransport httpServerTransport = testCluster.getInstance(HttpServerTransport.class);
-            InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
-            host = inetSocketTransportAddress.address().getHostName();
-            port = inetSocketTransportAddress.address().getPort();
+            for (HttpServerTransport httpServerTransport : testCluster.getInstances(HttpServerTransport.class)) {
+                addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+            }
         } else {
             this.testCluster = null;
             String testsMode = System.getProperty(REST_TESTS_MODE);
-            String[] split = testsMode.split(":");
-            if (split.length < 2) {
-                throw new InitializationError("address [" + testsMode + "] not valid");
-            }
-            host = split[0];
-            try {
-                port = Integer.valueOf(split[1]);
-            } catch(NumberFormatException e) {
-                throw new InitializationError("port is not valid, expected number but was [" + split[1] + "]");
+            String[] stringAddresses = testsMode.split(",");
+            for (String stringAddress : stringAddresses) {
+                String[] split = stringAddress.split(":");
+                if (split.length < 2) {
+                    throw new InitializationError("address [" + testsMode + "] not valid");
+                }
+                try {
+                    addresses.add(new InetSocketAddress(split[0], Integer.valueOf(split[1])));
+                } catch(NumberFormatException e) {
+                    throw new InitializationError("port is not valid, expected number but was [" + split[1] + "]");
+                }
             }
         }
 
         try {
             String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
-
-            this.restTestExecutionContext = new RestTestExecutionContext(host, port, restSpec);
+            this.restTestExecutionContext = new RestTestExecutionContext(addresses.toArray(new InetSocketAddress[addresses.size()]), restSpec);
             this.rootDescription = createRootDescription(getRootSuiteTitle());
             this.restTestCandidates = collectTestCandidates(rootDescription);
         } catch (InitializationError e) {

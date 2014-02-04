@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -47,6 +48,10 @@ public class ValueCountParser implements Aggregator.Parser {
         ValuesSourceConfig<BytesValuesSource> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
 
         String field = null;
+        String script = null;
+        String scriptLang = null;
+        Map<String, Object> scriptParams = null;
+        boolean assumeUnique = false;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -56,12 +61,34 @@ public class ValueCountParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
+                } else if ("script".equals(currentFieldName)) {
+                    script = parser.text();
+                } else if ("lang".equals(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if ("script_values_unique".equals(currentFieldName)) {
+                    assumeUnique = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("params".equals(currentFieldName)) {
+                    scriptParams = parser.map();
                 }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
+        }
+
+        if (script != null) {
+            config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
+        }
+
+        if (!assumeUnique) {
+            config.ensureUnique(true);
         }
 
         if (field == null) {

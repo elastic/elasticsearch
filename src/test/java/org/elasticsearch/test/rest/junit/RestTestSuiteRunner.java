@@ -337,6 +337,10 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             }
         }
 
+        if (rootDescription.getChildren().size() == 0) {
+            throw new InitializationError("No tests to run");
+        }
+
         if (!parseExceptions.isEmpty()) {
             throw new InitializationError(parseExceptions);
         }

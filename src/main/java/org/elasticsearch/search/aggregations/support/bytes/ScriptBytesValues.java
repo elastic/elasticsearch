@@ -37,7 +37,6 @@ public class ScriptBytesValues extends BytesValues implements ScriptValues {
 
     private Iterator<?> iter;
     private Object value;
-    private BytesRef scratch = new BytesRef();
 
     public ScriptBytesValues(SearchScript script) {
         super(true); // assume multi-valued

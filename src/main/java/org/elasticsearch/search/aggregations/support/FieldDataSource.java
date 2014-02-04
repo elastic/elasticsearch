@@ -287,23 +287,23 @@ public abstract class FieldDataSource {
                 return bytesValues;
             }
 
-            static class SortedUniqueBytesValues extends FilterBytesValues {
+            static class SortedUniqueBytesValues extends BytesValues {
 
-                final BytesRef spare;
+                final BytesValues delegate;
                 int[] sortedIds;
                 final BytesRefHash bytes;
                 int numUniqueValues;
                 int pos = Integer.MAX_VALUE;
 
                 public SortedUniqueBytesValues(BytesValues delegate) {
-                    super(delegate);
+                    super(delegate.isMultiValued());
+                    this.delegate = delegate;
                     bytes = new BytesRefHash();
-                    spare = new BytesRef();
                 }
 
                 @Override
                 public int setDocument(int docId) {
-                    final int numValues = super.setDocument(docId);
+                    final int numValues = delegate.setDocument(docId);
                     if (numValues == 0) {
                         sortedIds = null;
                         return 0;
@@ -311,7 +311,10 @@ public abstract class FieldDataSource {
                     bytes.clear();
                     bytes.reinit();
                     for (int i = 0; i < numValues; ++i) {
-                        bytes.add(super.nextValue(), super.currentValueHash());
+                        final BytesRef next = delegate.nextValue();
+                        final int hash = delegate.currentValueHash();
+                        assert hash == next.hashCode();
+                        bytes.add(next, hash);
                     }
                     numUniqueValues = bytes.size();
                     sortedIds = bytes.sort(BytesRef.getUTF8SortedAsUnicodeComparator());
@@ -321,13 +324,8 @@ public abstract class FieldDataSource {
 
                 @Override
                 public BytesRef nextValue() {
-                    bytes.get(sortedIds[pos++], spare);
-                    return spare;
-                }
-
-                @Override
-                public int currentValueHash() {
-                    return spare.hashCode();
+                    bytes.get(sortedIds[pos++], scratch);
+                    return scratch;
                 }
 
                 @Override
@@ -738,13 +736,11 @@ public abstract class FieldDataSource {
 
             private final FieldDataSource source;
             private final SearchScript script;
-            private final BytesRef scratch;
 
             public BytesValues(FieldDataSource source, SearchScript script) {
                 super(true);
                 this.source = source;
                 this.script = script;
-                scratch = new BytesRef();
             }
 
             @Override

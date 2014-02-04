@@ -850,6 +850,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? -1 : annotation.numNodes();
     }
 
+    private int getMinNumNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_NODES : annotation.minNumNodes();
+    }
+
+    private int getMaxNumNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_NODES : annotation.maxNumNodes();
+    }
+
     /**
      * This method is used to obtain settings for the <tt>Nth</tt> node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
@@ -880,7 +890,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             };
         }
 
-        return new TestCluster(currentClusterSeed, numNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
+        int minNumNodes, maxNumNodes;
+        if (numNodes >= 0) {
+            minNumNodes = maxNumNodes = numNodes;
+        } else {
+            minNumNodes = getMinNumNodes();
+            maxNumNodes = getMaxNumNodes();
+        }
+
+        return new TestCluster(currentClusterSeed, minNumNodes, maxNumNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
     }
 
     /**
@@ -898,9 +916,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         /**
          * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
-         * a random number of nodes but at least <code>2</code></tt> is used./
+         * a random number of nodes is used, where the minimum and maximum number of nodes
+         * are either the specified ones or the default ones if not specified.
          */
         int numNodes() default -1;
+
+        /**
+         * Returns the minimum number of nodes in the cluster. Default is {@link TestCluster#DEFAULT_MIN_NUM_NODES}.
+         * Ignored when {@link ClusterScope#numNodes()} is set.
+         */
+        int minNumNodes() default TestCluster.DEFAULT_MIN_NUM_NODES;
+
+        /**
+         * Returns the maximum number of nodes in the cluster.  Default is {@link TestCluster#DEFAULT_MAX_NUM_NODES}.
+         * Ignored when {@link ClusterScope#numNodes()} is set.
+         */
+        int maxNumNodes() default TestCluster.DEFAULT_MAX_NUM_NODES;
 
         /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random

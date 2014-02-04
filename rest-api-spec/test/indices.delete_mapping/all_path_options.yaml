@@ -258,20 +258,6 @@ setup:
         index: "non_existent"
         type: "test_type1"
 
-
----
-"check delete with blank index and blank alias":
-  - do:
-      catch: param
-      indices.delete_alias:
-        name: "alias1"
-
-  - do:
-      catch: param
-      indices.delete_alias:
-        index: "test_index1"
-
-
 ---
 "check delete with blank index and blank type":
   - do:

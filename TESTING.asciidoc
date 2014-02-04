@@ -184,7 +184,8 @@ The following are the options supported by the REST tests runner:
 
 * `tests.rest[true|false|host:port]`: determines whether the REST tests need
 to be run and if so whether to rely on an external cluster (providing host
-and port) or fire a test cluster (default)
+and port) or fire a test cluster (default). It's possible to provide a
+comma separated list of addresses to send requests in a round-robin fashion.
 * `tests.rest.suite`: comma separated paths of the test suites to be run
 (by default loaded from /rest-api-spec/test). It is possible to run only a subset
 of the tests providing a sub-folder or even a single yaml file (the default

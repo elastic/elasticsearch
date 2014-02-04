@@ -33,6 +33,7 @@ import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 
@@ -47,35 +48,47 @@ public class RestClient implements Closeable {
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
 
-    private final String host;
-    private final int port;
+    private final InetSocketAddress[] addresses;
 
     private final String esVersion;
 
-    public RestClient(String host, int port, RestSpec restSpec) throws IOException, RestException {
+    public RestClient(InetSocketAddress[] addresses, RestSpec restSpec) throws IOException, RestException {
+        assert addresses.length > 0;
         this.restSpec = restSpec;
         this.httpClient = createHttpClient();
-        this.host = host;
-        this.port = port;
-        this.esVersion = readVersion();
-        logger.info("REST client initialized [{}:{}], elasticsearch version: [{}]", host, port, esVersion);
+        this.addresses = addresses;
+        this.esVersion = readAndCheckVersion();
+        logger.info("REST client initialized {}, elasticsearch version: [{}]", addresses, esVersion);
     }
 
-    private String readVersion() throws IOException, RestException {
+    private String readAndCheckVersion() throws IOException, RestException {
         //we make a manual call here without using callApi method, mainly because we are initializing
         //and the randomized context doesn't exist for the current thread (would be used to choose the method otherwise)
         RestApi restApi = restApi("info");
         assert restApi.getPaths().size() == 1;
         assert restApi.getMethods().size() == 1;
-        RestResponse restResponse = new RestResponse(httpRequestBuilder()
-                .path(restApi.getPaths().get(0))
-                .method(restApi.getMethods().get(0)).execute());
-        checkStatusCode(restResponse);
-        Object version = restResponse.evaluate("version.number");
-        if (version == null) {
-            throw new RuntimeException("elasticsearch version not found in the response");
+
+        String version = null;
+        for (InetSocketAddress address : addresses) {
+            RestResponse restResponse = new RestResponse(new HttpRequestBuilder(httpClient)
+                    .host(address.getHostName()).port(address.getPort())
+                    .path(restApi.getPaths().get(0))
+                    .method(restApi.getMethods().get(0)).execute());
+            checkStatusCode(restResponse);
+
+            Object latestVersion = restResponse.evaluate("version.number");
+            if (latestVersion == null) {
+                throw new RuntimeException("elasticsearch version not found in the response");
+            }
+            if (version == null) {
+                version = latestVersion.toString();
+            } else {
+                if (!latestVersion.equals(version)) {
+                    throw new IllegalArgumentException("provided nodes addresses run different elasticsearch versions");
+                }
+            }
         }
-        return version.toString();
+        return version;
     }
 
     public String getEsVersion() {
@@ -208,7 +221,9 @@ public class RestClient implements Closeable {
     }
 
     protected HttpRequestBuilder httpRequestBuilder() {
-        return new HttpRequestBuilder(httpClient).host(host).port(port);
+        //the address used is randomized between the available ones
+        InetSocketAddress address = RandomizedTest.randomFrom(addresses);
+        return new HttpRequestBuilder(httpClient).host(address.getHostName()).port(address.getPort());
     }
 
     protected CloseableHttpClient createHttpClient() {

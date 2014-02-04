@@ -29,6 +29,7 @@ import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,9 +51,8 @@ public class RestTestExecutionContext implements Closeable {
 
     private RestResponse response;
 
-    public RestTestExecutionContext(String host, int port, RestSpec restSpec) throws RestException, IOException {
-
-        this.restClient = new RestClient(host, port, restSpec);
+    public RestTestExecutionContext(InetSocketAddress[] addresses, RestSpec restSpec) throws RestException, IOException {
+        this.restClient = new RestClient(addresses, restSpec);
         this.esVersion = restClient.getEsVersion();
     }
 

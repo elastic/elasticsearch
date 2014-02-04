@@ -52,7 +52,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     @Before
     public void setupSecondCluster() {
         // create another cluster
-        cluster2 = new TestCluster(randomLong(), 2, cluster().getClusterName() + "-2");
+        cluster2 = new TestCluster(randomLong(), 2, 2, cluster().getClusterName() + "-2");
         cluster2.beforeTest(getRandom(), getPerTestTransportClientRatio());
         cluster2.ensureAtLeastNumNodes(2);
 

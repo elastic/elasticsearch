@@ -1,6 +1,18 @@
 ---
 "Realtime":
 
+
+ - do:
+      indices.create:
+          index: test_1
+          body:
+              settings:
+                  refresh_interval: -1
+
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
  - do:
       index:
           index:   test_1

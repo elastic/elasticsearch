@@ -22,7 +22,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 {
     "aggregations" : {
         "myLarge-GrainGeoHashGrid" : {
-            "geohashgrid" : {
+            "geohash_grid" : {
                 "field" : "location",
                 "precision" : 3
             }
@@ -74,7 +74,7 @@ When requesting detailed buckets (typically for displaying a "zoomed in" map) a 
             },
             "aggregations":{
                 "zoom1":{
-                    "geohashgrid" : { 
+                    "geohash_grid" : {
                         "field":"location",
                         "precision":8,
                     }

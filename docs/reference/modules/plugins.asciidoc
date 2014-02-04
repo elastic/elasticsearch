@@ -221,6 +221,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 .Supported by the community
 * https://github.com/tlrx/transport-zeromq[ZeroMQ transport layer plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport plugin] (by Sonian Inc.)
+* https://github.com/kzwang/elasticsearch-transport-redis[Redis transport plugin] (by Kevin Wang)
 
 [float]
 [[scripting]]

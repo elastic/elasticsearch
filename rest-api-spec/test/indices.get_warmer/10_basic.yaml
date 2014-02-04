@@ -3,38 +3,27 @@ setup:
   - do:
         indices.create:
           index: test_1
+          body:
+            warmers:
+              warmer_1:
+                source: { query: { match_all: { }}}
+              warmer_2:
+                source: { query: { match_all: { }}}
+
+
   - do:
         indices.create:
           index: test_2
+          body:
+            warmers:
+              warmer_2:
+                source: { query: { match_all: { }}}
+              warmer_3:
+                source: { query: { match_all: { }}}
 
   - do:
         cluster.health:
             wait_for_status: yellow
-  - do:
-        indices.put_warmer:
-            index: test_1
-            name: warmer_1
-            body: { query: { match_all: { }}}
-
-  - do:
-        indices.put_warmer:
-            index: test_1
-            name: warmer_2
-            body: { query: { match_all: { }}}
-
-  - do:
-        indices.put_warmer:
-            index: test_2
-            name: warmer_2
-            body: { query: { match_all: { }}}
-  - do:
-        indices.put_warmer:
-            index: test_2
-            name: warmer_3
-            body: { query: { match_all: { }}}
-
-  - do:
-        indices.refresh: {}
 
 ---
 "Get /_warmer":

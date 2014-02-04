@@ -2,30 +2,44 @@ setup:
   - do:
       indices.create:
         index: test_index1
+        body:
+          warmers:
+            test_warmer1:
+              source:
+                query:
+                  match_all: {}
+            test_warmer2:
+              source:
+                query:
+                  match_all: {}
 
   - do:
       indices.create:
         index: test_index2
+        body:
+          warmers:
+            test_warmer1:
+              source:
+                query:
+                  match_all: {}
+            test_warmer2:
+              source:
+                query:
+                  match_all: {}
 
   - do:
       indices.create:
         index: foo
-
-  - do:
-      indices.put_warmer:
-        index: "test_index1,test_index2,foo"
-        name: test_warmer1
         body:
-          query:
-            match_all: {}
-
-  - do:
-      indices.put_warmer:
-        index: "test_index1,test_index2,foo"
-        name: test_warmer2
-        body:
-          query:
-            match_all: {}
+          warmers:
+            test_warmer1:
+              source:
+                query:
+                  match_all: {}
+            test_warmer2:
+              source:
+                query:
+                  match_all: {}
 
 ---
 "Check setup":

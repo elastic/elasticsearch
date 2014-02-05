@@ -615,6 +615,7 @@ The following Similarities are configured out-of-box:
         details.
 
 
+[[copy-to]]
 [float]
 ===== Copy to field
 
@@ -682,7 +683,33 @@ processed as an analyzed string and this version is accessible under the field n
 its get processed as a not analyzed string and is accessible under the name `name.raw`.
 
 [float]
+==== Include in All
+
+The `include_in_all` setting is ignored on any field that is defined in
+the `fields` options. Setting the `include_in_all` only makes sense on
+the main field, since the raw field value to copied to the `_all` field,
+the tokens aren't copied.
+
+[float]
+==== Updating a field
+
+In the essence a field can't be updated. However multi fields can be
+added to existing fields. This allows for example to have a different
+`index_analyzer` configuration in addition to the already configured
+`index_analyzer` configuration specified in the main and other multi fields.
+
+Also the new multi field will only be applied on document that have been
+added after the multi field has been added and in fact the new multi field
+doesn't exist in existing documents.
+
+Another important note is that new multi fields will be merged into the
+list of existing multi fields, so when adding new multi fields for a field
+previous added multi fields don't need to be specified.
+
+[float]
 ==== Accessing Fields
+
+deprecated[1.0.0,Use <<copy-to,`copy_to`>> instead]
 
 The multi fields defined in the `fields` are prefixed with the
 name of the main field and can be accessed by their full path using the
@@ -723,26 +750,3 @@ fields under the same name. In the example below the content of both fields
 }
 --------------------------------------------------
 
-[float]
-==== Include in All
-
-The `include_in_all` setting is ignored on any field that is defined in
-the `fields` options. Setting the `include_in_all` only makes sense on
-the main field, since the raw field value to copied to the `_all` field,
-the tokens aren't copied.
-
-[float]
-==== Updating a field
-
-In the essence a field can't be updated. However multi fields can be
-added to existing fields. This allows for example to have a different
-`index_analyzer` configuration in addition to the already configured
-`index_analyzer` configuration specified in the main and other multi fields.
-
-Also the new multi field will only be applied on document that have been
-added after the multi field has been added and in fact the new multi field
-doesn't exist in existing documents.
-
-Another important note is that new multi fields will be merged into the
-list of existing multi fields, so when adding new multi fields for a field
-previous added multi fields don't need to be specified.

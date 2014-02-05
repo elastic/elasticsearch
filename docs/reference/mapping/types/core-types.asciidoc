@@ -615,6 +615,7 @@ The following Similarities are configured out-of-box:
         details.
 
 
+[[copy-to]]
 [float]
 ===== Copy to field
 
@@ -682,48 +683,6 @@ processed as an analyzed string and this version is accessible under the field n
 its get processed as a not analyzed string and is accessible under the name `name.raw`.
 
 [float]
-==== Accessing Fields
-
-The multi fields defined in the `fields` are prefixed with the
-name of the main field and can be accessed by their full path using the
-navigation notation: `name.raw`, or using the typed navigation notation
-`tweet.name.raw`. The `path` option allows to control how fields are accessed.
-If the `path` option is set to `full`, then the full path of the main field
-is prefixed, but if the `path` option is set to `just_name` the actual
-multi field name without any prefix is used. The default value for
-the `path` option is `full`.
-
-The `just_name` setting, among other things, allows indexing content of multiple
-fields under the same name. In the example below the content of both fields
-`first_name` and `last_name` can be accessed by using `any_name` or `tweet.any_name`.
-
-[source,js]
---------------------------------------------------
-{
-  "tweet" : {
-    "properties": {
-      "first_name": {
-        "type": "string",
-        "index": "analyzed",
-        "path": "just_name",
-        "fields": {
-          "any_name": {"type": "string","index": "analyzed"}
-        }
-      },
-      "last_name": {
-        "type": "string",
-        "index": "analyzed",
-        "path": "just_name",
-        "fields": {
-          "any_name": {"type": "string","index": "analyzed"}
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-[float]
 ==== Include in All
 
 The `include_in_all` setting is ignored on any field that is defined in
@@ -746,3 +705,4 @@ doesn't exist in existing documents.
 Another important note is that new multi fields will be merged into the
 list of existing multi fields, so when adding new multi fields for a field
 previous added multi fields don't need to be specified.
+

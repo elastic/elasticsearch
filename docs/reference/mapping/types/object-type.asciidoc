@@ -168,70 +168,6 @@ For example:
 
 In the above, `name` and its content will not be indexed at all.
 
-[float]
-==== path
-
-In the <<mapping-core-types,core_types>>
-section, a field can have a `index_name` associated with it in order to
-control the name of the field that will be stored within the index. When
-that field exists within an object(s) that are not the root object, the
-name of the field of the index can either include the full "path" to the
-field with its `index_name`, or just the `index_name`. For example
-(under mapping of _type_ `person`, removed the tweet type for clarity):
-
-[source,js]
---------------------------------------------------
-{
-    "person" : {
-        "properties" : {
-            "name1" : {
-                "type" : "object",
-                "path" : "just_name",
-                "properties" : {
-                    "first1" : {"type" : "string"},
-                    "last1" : {"type" : "string", "index_name" : "i_last_1"}
-                }
-            },
-            "name2" : {
-                "type" : "object",
-                "path" : "full",
-                "properties" : {
-                    "first2" : {"type" : "string"},
-                    "last2" : {"type" : "string", "index_name" : "i_last_2"}
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-
-In the above example, the `name1` and `name2` objects within the
-`person` object have different combination of `path` and `index_name`.
-The document fields that will be stored in the index as a result of that
-are:
-
-[cols="<,<",options="header",]
-|=================================
-|JSON Name |Document Field Name
-|`name1`/`first1` |`first1`
-|`name1`/`last1` |`i_last_1`
-|`name2`/`first2` |`name2.first2`
-|`name2`/`last2` |`name2.i_last_2`
-|=================================
-
-Note, when querying or using a field name in any of the APIs provided
-(search, query, selective loading, ...), there is an automatic detection
-from logical full path and into the `index_name` and vice versa. For
-example, even though `name1`/`last1` defines that it is stored with
-`just_name` and a different `index_name`, it can either be referred to
-using `name1.last1` (logical name), or its actual indexed name of
-`i_last_1`.
-
-More over, where applicable, for example, in queries, the full path
-including the type can be used such as `person.name.last1`, in this
-case, both the actual indexed name will be resolved to match against the
-index, and an automatic query filter will be added to only match
-`person` types.
 
 [float]
 ==== include_in_all
@@ -239,3 +175,4 @@ index, and an automatic query filter will be added to only match
 `include_in_all` can be set on the `object` type level. When set, it
 propagates down to all the inner mapping defined within the `object`
 that do no explicitly set it.
+

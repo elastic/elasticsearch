@@ -3,13 +3,15 @@ Stempel (Polish) Analysis for Elasticsearch
 
 The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-stempel/2.0.0.RC1`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-stempel/2.0.0.RC2`.
 
 |   Stempel Analysis Plugin  |    elasticsearch    | Release date |
 |----------------------------|---------------------|:------------:|
 | 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |              |
+| 2.0.0.RC2                  | 1.0.0.RC1 -> master |  2014-02-05  |
 | 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-01-15  |
-| 1.10.0-SNAPSHOT (1.x)      | 0.90.8 -> 0.90      |              |
+| 1.11.0-SNAPSHOT (1.x)      | 0.90.8 -> 0.90      |              |
+| 1.10.0                     | 0.90.8 -> 0.90      |  2014-02-05  |
 | 1.9.0                      | 0.90.8 -> 0.90      |  2013-12-19  |
 | 1.8.0                      | 0.90.6 -> 0.90.7    |  2013-11-06  |
 | 1.7.0                      | 0.90.3 -> 0.90.5    |  2013-08-08  |

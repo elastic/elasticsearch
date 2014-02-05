@@ -36,6 +36,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
@@ -81,6 +84,7 @@ public class CommonTermsQueryParser implements QueryParser {
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
         Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
         float maxTermFrequency = DEFAULT_MAX_TERM_DOC_FREQ;
+        List<String> fields = null;
         String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -149,6 +153,18 @@ public class CommonTermsQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
                     }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("fields".equals(currentFieldName)) {
+                        fields = new ArrayList<String>();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            fields.add(parser.text());
+                        }
+                        if (fields.isEmpty()) {
+                            throw new QueryParsingException(parseContext.index(), "[common] query does not support empty fields array.");
+                        }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[common] query does not support an array of [" + currentFieldName + "]");
+                    }
                 }
             }
             parser.nextToken();
@@ -166,7 +182,10 @@ public class CommonTermsQueryParser implements QueryParser {
         if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
+        if (fields == null) {
+            fields = Collections.singletonList(fieldName);
+        }
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, fields, disableCoords);
         commonsQuery.setBoost(boost);
         Query query = parseQueryString(commonsQuery, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
         if (queryName != null) {

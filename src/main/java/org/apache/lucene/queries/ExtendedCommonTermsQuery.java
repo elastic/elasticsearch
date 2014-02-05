@@ -22,19 +22,22 @@ package org.apache.lucene.queries;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.lucene.search.Queries;
 
+import java.util.List;
+
 /**
  * Extended version of {@link CommonTermsQuery} that allows to pass in a
  * <tt>minimumNumberShouldMatch</tt> specification that uses the actual num of high frequent terms
  * to calculate the minimum matching terms.
  */
-public class ExtendedCommonTermsQuery extends CommonTermsQuery {
+public class ExtendedCommonTermsQuery extends CommonTermsFieldsQuery {
 
-    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, boolean disableCoord) {
-        super(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord);
+    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, List<String> fields,
+            boolean disableCoord) {
+        super(highFreqOccur, lowFreqOccur, maxTermFrequency, fields, disableCoord);
     }
 
-    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
-        super(highFreqOccur, lowFreqOccur, maxTermFrequency);
+    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, List<String> fields) {
+        super(highFreqOccur, lowFreqOccur, maxTermFrequency, fields);
     }
 
     private String lowFreqMinNumShouldMatchSpec;

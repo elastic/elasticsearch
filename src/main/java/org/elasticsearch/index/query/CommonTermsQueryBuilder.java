@@ -19,10 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -65,6 +70,8 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
     private Boolean disableCoords = null;
 
     private Float cutoffFrequency = null;
+
+    private List<String> fields = null;
 
     private String queryName;
 
@@ -151,6 +158,14 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
+    public CommonTermsQueryBuilder fields(String... fields) {
+        this.fields = Arrays.asList(fields);
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
     public CommonTermsQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
         return this;
@@ -189,6 +204,13 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
                 builder.field("high_freq", highFreqMinimumShouldMatch);
             }
             builder.endObject();
+        }
+        if (fields != null && !fields.isEmpty()) {
+            builder.startArray("fields");
+            for(String field: fields) {
+                builder.value(field);
+            }
+            builder.endArray();
         }
         if (queryName != null) {
             builder.field("_name", queryName);

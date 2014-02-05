@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
@@ -235,7 +236,7 @@ public class MatchQuery {
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
             if (commonTermsCutoff != null) {
-                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1);
+                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, Collections.singletonList(field), positionCount == 1);
                 for (int i = 0; i < numTokens; i++) {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;

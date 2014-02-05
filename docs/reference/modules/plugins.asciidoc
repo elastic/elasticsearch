@@ -243,7 +243,9 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]
 * https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS Snapshot/Restore Plugin]
-* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin]
+* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin] - EC2 discovery and S3 Repository
+* https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
+* https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
 
 .Supported by the community
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)

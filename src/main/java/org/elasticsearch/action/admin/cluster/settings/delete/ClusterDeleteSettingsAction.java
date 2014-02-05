@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.action.admin.cluster.settings.delete;
 
 import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.client.ClusterAdminClient;
 
 /**
  */
-public class ClusterUpdateSettingsAction extends ClusterAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterDeleteSettingsAction extends ClusterAction<ClusterDeleteSettingsRequest, ClusterDeleteSettingsResponse, ClusterDeleteSettingsRequestBuilder> {
 
-    public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
-    public static final String NAME = "cluster/settings/update";
+    public static final ClusterDeleteSettingsAction INSTANCE = new ClusterDeleteSettingsAction();
+    public static final String NAME = "cluster/settings/delete";
 
-    private ClusterUpdateSettingsAction() {
+    private ClusterDeleteSettingsAction() {
         super(NAME);
     }
 
     @Override
-    public ClusterUpdateSettingsResponse newResponse() {
-        return new ClusterUpdateSettingsResponse();
+    public ClusterDeleteSettingsResponse newResponse() {
+        return new ClusterDeleteSettingsResponse();
     }
 
     @Override
-    public ClusterUpdateSettingsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new ClusterUpdateSettingsRequestBuilder(client);
+    public ClusterDeleteSettingsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
+        return new ClusterDeleteSettingsRequestBuilder(client);
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster.settings;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
@@ -33,6 +33,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+
 /**
  */
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
@@ -40,7 +42,24 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Inject
     public RestClusterUpdateSettingsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", new PutHandler());
+        controller.registerHandler(RestRequest.Method.POST, "/_cluster/settings", new PostHandler());
+    }
+
+    final class PutHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            request.params().put("override", "true");
+            RestClusterUpdateSettingsAction.this.handleRequest(request, channel);
+        }
+    }
+
+    final class PostHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            request.params().put("override", "false");
+            RestClusterUpdateSettingsAction.this.handleRequest(request, channel);
+        }
     }
 
     @Override
@@ -49,6 +68,15 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         clusterUpdateSettingsRequest.listenerThreaded(false);
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
+        String sOverride = request.param("op_type");
+        if (sOverride != null) {
+            if ("true".equals(sOverride)) {
+                clusterUpdateSettingsRequest.override(true);
+            } else if ("false".equals(sOverride)) {
+                clusterUpdateSettingsRequest.override(false);
+            }
+        }
+
         Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
         if (source.containsKey("transient")) {
             clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));

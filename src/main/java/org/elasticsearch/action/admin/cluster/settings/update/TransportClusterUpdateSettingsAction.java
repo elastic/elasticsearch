@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.action.admin.cluster.settings.update;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UpdateSettingValidationException;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -44,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.builder;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  *
@@ -186,8 +188,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
+                UpdateSettingValidationException validationException = null;
                 ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
-                transientSettings.put(currentState.metaData().transientSettings());
+                Settings existTransientSettings = currentState.metaData().transientSettings();
+                if (!request.override()) {  // add all existing setting if not override
+                    transientSettings.put(existTransientSettings);
+                }
                 for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
                     if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
                         String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
@@ -196,15 +202,29 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                             transientUpdates.put(entry.getKey(), entry.getValue());
                             changed = true;
                         } else {
-                            logger.warn("ignoring transient setting [{}], [{}]", entry.getKey(), error);
+                            StringBuilder sb = new StringBuilder();
+                            sb.append("Failed update transient setting [").append(entry.getKey()).append("] to [")
+                                    .append(entry.getValue()).append("], error: [").append(error).append("]");
+                            String errorStr = sb.toString();
+                            validationException = addValidationError(errorStr, validationException);
+                            logger.warn(errorStr);
                         }
                     } else {
-                        logger.warn("ignoring transient setting [{}], not dynamically updateable", entry.getKey());
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Failed update transient setting [").append(entry.getKey()).append("] to [")
+                                .append(entry.getValue()).append("], error: [not dynamically updateable]");
+                        String errorStr = sb.toString();
+                        validationException = addValidationError(errorStr, validationException);
+                        logger.warn(errorStr);
                     }
                 }
 
+
                 ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder();
-                persistentSettings.put(currentState.metaData().persistentSettings());
+                Settings existPersistentSettings = currentState.metaData().persistentSettings();
+                if (!request.override()) {  // add all existing setting if not override
+                    persistentSettings.put(existPersistentSettings);
+                }
                 for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
                     if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
                         String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
@@ -213,12 +233,27 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                             persistentUpdates.put(entry.getKey(), entry.getValue());
                             changed = true;
                         } else {
-                            logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                            StringBuilder sb = new StringBuilder();
+                            sb.append("Failed update persistent setting [").append(entry.getKey()).append("] to [")
+                                    .append(entry.getValue()).append("], error: [").append(error).append("]");
+                            String errorStr = sb.toString();
+                            validationException = addValidationError(errorStr, validationException);
+                            logger.warn(errorStr);
                         }
                     } else {
-                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Failed update persistent setting [").append(entry.getKey()).append("] to [")
+                                .append(entry.getValue()).append("], error: [not dynamically updateable]");
+                        String errorStr = sb.toString();
+                        validationException = addValidationError(errorStr, validationException);
+                        logger.warn(errorStr);
                     }
                 }
+
+                if (validationException != null) {  // if validate failed, don't update settings
+                    throw validationException;
+                }
+
 
                 if (!changed) {
                     return currentState;

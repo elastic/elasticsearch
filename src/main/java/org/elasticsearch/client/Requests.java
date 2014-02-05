@@ -28,7 +28,8 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -354,6 +355,10 @@ public class Requests {
 
     public static ClusterUpdateSettingsRequest clusterUpdateSettingsRequest() {
         return new ClusterUpdateSettingsRequest();
+    }
+
+    public static ClusterDeleteSettingsRequest clusterDeleteSettingsRequest() {
+        return new ClusterDeleteSettingsRequest();
     }
 
     /**

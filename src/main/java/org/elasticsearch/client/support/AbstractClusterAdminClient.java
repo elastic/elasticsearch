@@ -61,10 +61,14 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
@@ -171,6 +175,21 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     @Override
     public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
         return new ClusterUpdateSettingsRequestBuilder(this);
+    }
+
+    @Override
+    public ActionFuture<ClusterDeleteSettingsResponse> deleteSettings(ClusterDeleteSettingsRequest request) {
+        return execute(ClusterDeleteSettingsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deleteSettings(ClusterDeleteSettingsRequest request, ActionListener<ClusterDeleteSettingsResponse> listener) {
+        execute(ClusterDeleteSettingsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ClusterDeleteSettingsRequestBuilder prepareDeleteSettings() {
+        return new ClusterDeleteSettingsRequestBuilder(this);
     }
 
     @Override

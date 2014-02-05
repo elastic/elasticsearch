@@ -22,21 +22,5 @@ package org.elasticsearch.action;
 /**
  *
  */
-public class ValidateActions {
-
-    public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {
-        if (validationException == null) {
-            validationException = new ActionRequestValidationException();
-        }
-        validationException.addValidationError(error);
-        return validationException;
-    }
-
-    public static UpdateSettingValidationException addValidationError(String error, UpdateSettingValidationException validationException) {
-        if (validationException == null) {
-            validationException = new UpdateSettingValidationException();
-        }
-        validationException.addValidationError(error);
-        return validationException;
-    }
+public class UpdateSettingValidationException extends ActionRequestValidationException {
 }

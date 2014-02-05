@@ -40,8 +40,10 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryActi
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.delete.TransportClusterDeleteSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.update.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -207,6 +209,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         registerAction(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
+        registerAction(ClusterDeleteSettingsAction.INSTANCE, TransportClusterDeleteSettingsAction.class);
         registerAction(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         registerAction(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         registerAction(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);

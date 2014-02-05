@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.action.admin.cluster.settings.update;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
@@ -97,6 +97,14 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
      */
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Map settings) {
         request.persistentSettings(settings);
+        return this;
+    }
+
+    /**
+     * Set override to true to clear all existing settings
+     */
+    public ClusterUpdateSettingsRequestBuilder override(boolean override) {
+        request.override(override);
         return this;
     }
 

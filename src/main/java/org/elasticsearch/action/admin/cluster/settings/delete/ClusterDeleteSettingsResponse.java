@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.action.admin.cluster.settings.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,19 +28,19 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 
 /**
- * A response for a cluster update settings action.
+ * A response for a cluster delete settings action.
  */
-public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
+public class ClusterDeleteSettingsResponse extends AcknowledgedResponse {
 
     Settings transientSettings;
     Settings persistentSettings;
 
-    ClusterUpdateSettingsResponse() {
+    ClusterDeleteSettingsResponse() {
         this.persistentSettings = ImmutableSettings.EMPTY;
         this.transientSettings = ImmutableSettings.EMPTY;
     }
 
-    ClusterUpdateSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
+    ClusterDeleteSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
         super(acknowledged);
         this.persistentSettings = persistentSettings;
         this.transientSettings = transientSettings;

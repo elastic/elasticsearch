@@ -51,9 +51,12 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -155,6 +158,21 @@ public interface ClusterAdminClient {
      * Update settings in the cluster.
      */
     ClusterUpdateSettingsRequestBuilder prepareUpdateSettings();
+
+    /**
+     * Delete settings in the cluster.
+     */
+    ActionFuture<ClusterDeleteSettingsResponse> deleteSettings(ClusterDeleteSettingsRequest request);
+
+    /**
+     * Delete settings in the cluster.
+     */
+    void deleteSettings(ClusterDeleteSettingsRequest request, ActionListener<ClusterDeleteSettingsResponse> listener);
+
+    /**
+     * Delete settings in the cluster.
+     */
+    ClusterDeleteSettingsRequestBuilder prepareDeleteSettings();
 
     /**
      * Reroutes allocation of shards. Advance API.

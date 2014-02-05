@@ -19,7 +19,12 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.UpdateSettingValidationException;
+import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -105,6 +110,102 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response3.getTransientSettings().get(key2), nullValue());
         assertThat(response3.getPersistentSettings().get(key1), notNullValue());
         assertThat(response3.getPersistentSettings().get(key2), notNullValue());
+
+
+        // test delete persistent only
+        ClusterDeleteSettingsResponse deleteResponse1 = client().admin().cluster()
+                .prepareDeleteSettings()
+                .deleteTransient(false)
+                .execute()
+                .actionGet();
+
+        // delete should return exist settings
+        assertThat(deleteResponse1.getTransientSettings().get(key1), nullValue());
+        assertThat(deleteResponse1.getTransientSettings().get(key2), nullValue());
+        assertThat(deleteResponse1.getPersistentSettings().get(key1), notNullValue());
+        assertThat(deleteResponse1.getPersistentSettings().get(key2), notNullValue());
+
+        ClusterStateResponse stateResponse1 = client().admin().cluster().prepareState().setListenerThreaded(false).setRoutingTable(false).setNodes(false).get();
+
+        assertThat(stateResponse1.getState().metaData().persistentSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+        assertThat(stateResponse1.getState().metaData().transientSettings().getAsMap().entrySet(), hasSize(2));
+
+        // test delete transient only
+        ClusterDeleteSettingsResponse deleteResponse2 = client().admin().cluster()
+                .prepareDeleteSettings()
+                .deletePersistent(false)
+                .execute()
+                .actionGet();
+
+        assertThat(deleteResponse2.getTransientSettings().get(key1), notNullValue());
+        assertThat(deleteResponse2.getTransientSettings().get(key2), notNullValue());
+        assertThat(deleteResponse2.getPersistentSettings().get(key1), nullValue());
+        assertThat(deleteResponse2.getPersistentSettings().get(key2), nullValue());
+
+
+        ClusterStateResponse stateResponse2 = client().admin().cluster().prepareState().setListenerThreaded(false).setRoutingTable(false).setNodes(false).get();
+
+        assertThat(stateResponse2.getState().metaData().persistentSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+        assertThat(stateResponse2.getState().metaData().transientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+
+
+        // test override settings
+        Settings transientSettings4 = ImmutableSettings.builder().put(key1, value1).build();
+        Settings persistentSettings4 = ImmutableSettings.builder().put(key2, value2).build();
+
+        ClusterUpdateSettingsResponse response4 = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(transientSettings4)
+                .setPersistentSettings(persistentSettings4)
+                .execute()
+                .actionGet();
+
+        assertThat(response4.getTransientSettings().get(key1), notNullValue());
+        assertThat(response4.getTransientSettings().get(key2), nullValue());
+        assertThat(response4.getPersistentSettings().get(key1), nullValue());
+        assertThat(response4.getPersistentSettings().get(key2), notNullValue());
+
+        Settings transientSettings5 = ImmutableSettings.builder().put(key2, value2).build();
+        Settings persistentSettings5 = ImmutableSettings.builder().put(key1, value1).build();
+
+        ClusterUpdateSettingsResponse response5 = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(transientSettings5)
+                .setPersistentSettings(persistentSettings5)
+                .override(true)
+                .execute()
+                .actionGet();
+
+        assertThat(response5.getTransientSettings().get(key1), nullValue());
+        assertThat(response5.getTransientSettings().get(key2), notNullValue());
+        assertThat(response5.getPersistentSettings().get(key1), notNullValue());
+        assertThat(response5.getPersistentSettings().get(key2), nullValue());
+
+
+        // should be same as response5 as request will override old settings
+        ClusterStateResponse stateResponse3 = client().admin().cluster().prepareState().setListenerThreaded(false).setRoutingTable(false).setNodes(false).get();
+        assertThat(stateResponse3.getState().metaData().transientSettings().get(key1), nullValue());
+        assertThat(stateResponse3.getState().metaData().transientSettings().get(key2), notNullValue());
+        assertThat(stateResponse3.getState().metaData().persistentSettings().get(key1), notNullValue());
+        assertThat(stateResponse3.getState().metaData().persistentSettings().get(key2), nullValue());
+
+
+        // test delete all
+        ClusterDeleteSettingsResponse deleteResponse3 = client().admin().cluster()
+                .prepareDeleteSettings()
+                .execute()
+                .actionGet();
+
+        assertThat(deleteResponse3.getTransientSettings().get(key1), nullValue());
+        assertThat(deleteResponse3.getTransientSettings().get(key2), notNullValue());
+        assertThat(deleteResponse3.getPersistentSettings().get(key1), notNullValue());
+        assertThat(deleteResponse3.getPersistentSettings().get(key2), nullValue());
+
+        ClusterStateResponse stateResponse4 = client().admin().cluster().prepareState().setListenerThreaded(false).setRoutingTable(false).setNodes(false).get();
+        assertThat(stateResponse4.getState().metaData().persistentSettings().getAsMap().entrySet(),  Matchers.emptyIterable());
+        assertThat(stateResponse4.getState().metaData().transientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+
+
     }
 
     @Test

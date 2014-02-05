@@ -554,7 +554,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         Settings newSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.type", "zen")
+//                .put("discovery.type", "zen")  // this setting is not dynamically updateable
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
 

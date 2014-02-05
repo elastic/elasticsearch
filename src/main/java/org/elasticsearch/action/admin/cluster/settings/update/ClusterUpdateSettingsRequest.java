@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.elasticsearch.action.admin.cluster.settings.update;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -46,6 +46,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
 
+    /**
+     * set to true to clear all existing settings and put new settings
+     */
+    private boolean override = false;
+
     public ClusterUpdateSettingsRequest() {
     }
 
@@ -64,6 +69,10 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     Settings persistentSettings() {
         return persistentSettings;
+    }
+
+    boolean override() {
+        return override;
     }
 
     /**
@@ -144,11 +153,17 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return this;
     }
 
+    public ClusterUpdateSettingsRequest override(boolean override) {
+        this.override = override;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
+        override = in.readBoolean();
         readTimeout(in);
     }
 
@@ -157,6 +172,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
+        out.writeBoolean(override);
         writeTimeout(out);
     }
 }

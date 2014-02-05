@@ -55,7 +55,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         String field = null;
         int precision = DEFAULT_PRECISION;
         int requiredSize = DEFAULT_MAX_NUM_CELLS;
-        int shardSize = 0;
+        int shardSize = -1;
 
 
         XContentParser.Token token;
@@ -78,9 +78,22 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             }
         }
+
         if (shardSize == 0) {
+            shardSize = Integer.MAX_VALUE;
+        }
+
+        if (requiredSize == 0) {
+            requiredSize = Integer.MAX_VALUE;
+        }
+
+        if (shardSize < 0) {
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting            
             shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
+        }
+
+        if (shardSize < requiredSize) {
+            shardSize = requiredSize;
         }
 
         ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);

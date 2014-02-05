@@ -39,11 +39,11 @@ public class BucketUtils {
             return finalSize;
         }
         //Cap the multiplier used for shards to avoid excessive data transfer
-        final int shardSampleSize = finalSize * Math.min(10, numberOfShards);
+        final long shardSampleSize = (long) finalSize * Math.min(10, numberOfShards);
         // When finalSize is very small e.g. 1 and there is a low number of
         // shards then we need to ensure we still gather a reasonable sample of statistics from each
         // shard (at low cost) to improve the chances of the final result being accurate.
-        return Math.max(10, shardSampleSize);
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(10, shardSampleSize));
     }
     
 }

@@ -86,6 +86,14 @@ point to the root of the shared filesystem repository. The following settings ar
 
 
 [float]
+===== Repository plugins
+
+Other repository backends are available in these official plugins:
+
+* https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
+* https://github.com/elasticsearch/elasticsearch-hdfs[HDFS Plugin]
+
+[float]
 === Snapshot
 
 A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the

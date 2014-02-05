@@ -42,6 +42,7 @@ import java.util.Random;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  *
@@ -238,6 +239,27 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                 assertEquals("Geohash " + geohash + " has wrong doc count ",
                         expectedBucketCount, bucketCount);
             }
+        }
+    }
+
+    @Test
+    // making sure this doesn't runs into an OOME
+    public void sizeIsZero() {
+        for (int precision = 1; precision <= highestPrecisionGeohash; precision++) {
+            final int size = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
+            final int shardSize = randomBoolean() ? -1 : 0;
+            SearchResponse response = client().prepareSearch("idx")
+                    .addAggregation(geohashGrid("geohashgrid")
+                            .field("location")
+                            .size(size)
+                            .shardSize(shardSize)
+                            .precision(precision)
+                    )
+                    .execute().actionGet();
+
+            assertThat(response.getFailedShards(), equalTo(0));
+            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
+            assertThat(geoGrid.getBuckets().size(), greaterThanOrEqualTo(1));
         }
     }
 

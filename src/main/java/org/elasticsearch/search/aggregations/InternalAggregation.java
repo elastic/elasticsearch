@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -125,6 +128,23 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      */
     public abstract InternalAggregation reduce(ReduceContext reduceContext);
 
+    /**
+     * Read a size under the assumption that a value of 0 means unlimited.
+     */
+    protected static int readSize(StreamInput in) throws IOException {
+        final int size = in.readVInt();
+        return size == 0 ? Integer.MAX_VALUE : size;
+    }
+
+    /**
+     * Write a size under the assumption that a value of 0 means unlimited.
+     */
+    protected static void writeSize(int size, StreamOutput out) throws IOException {
+        if (size == Integer.MAX_VALUE) {
+            size = 0;
+        }
+        out.writeVInt(size);
+    }
 
     /**
      * Common xcontent fields that are shared among addAggregation

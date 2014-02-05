@@ -105,6 +105,10 @@ public class S3Repository extends BlobStoreRepository {
                     region = "ap-southeast-1";
                 } else if ("ap-southeast-2".equals(regionSetting)) {
                     region = "ap-southeast-2";
+                } else if ("ap-northeast".equals(regionSetting)) {
+                    region = "ap-northeast-1";
+                } else if ("ap-northeast-1".equals(regionSetting)) {
+                    region = "ap-northeast-1";
                 } else if ("eu-west".equals(regionSetting)) {
                     region = "EU";
                 } else if ("eu-west-1".equals(regionSetting)) {

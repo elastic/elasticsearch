@@ -168,8 +168,18 @@ For example:
 
 In the above, `name` and its content will not be indexed at all.
 
+
+[float]
+==== include_in_all
+
+`include_in_all` can be set on the `object` type level. When set, it
+propagates down to all the inner mapping defined within the `object`
+that do no explicitly set it.
+
 [float]
 ==== path
+
+deprecated[1.0.0,Use <<copy-to,`copy_to`>> instead]
 
 In the <<mapping-core-types,core_types>>
 section, a field can have a `index_name` associated with it in order to
@@ -232,10 +242,3 @@ including the type can be used such as `person.name.last1`, in this
 case, both the actual indexed name will be resolved to match against the
 index, and an automatic query filter will be added to only match
 `person` types.
-
-[float]
-==== include_in_all
-
-`include_in_all` can be set on the `object` type level. When set, it
-propagates down to all the inner mapping defined within the `object`
-that do no explicitly set it.

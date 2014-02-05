@@ -353,4 +353,6 @@ in the query string.
   been removed.  You can use the
   <<function-score-instead-of-boost,`function_score`>> instead.
 
+* The `path` parameter in mappings has been deprecated. Use the
+  <<copy-to,`copy_to`>> parameter instead.
 

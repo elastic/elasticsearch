@@ -21,6 +21,10 @@ The default value for the cluster name is `elasticsearch`, though it is
 recommended to change this to reflect the logical group name of the
 cluster running.
 
+include::discovery/azure.asciidoc[]
+
 include::discovery/ec2.asciidoc[]
+
+include::discovery/gce.asciidoc[]
 
 include::discovery/zen.asciidoc[]

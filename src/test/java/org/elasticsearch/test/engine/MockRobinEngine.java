@@ -22,8 +22,8 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.ElasticSearchException;
+import org.apache.lucene.search.XSearcherManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -96,7 +96,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
     }
 
     @Override
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, XSearcherManager manager) throws EngineException {
 
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;

@@ -22,10 +22,7 @@ package org.elasticsearch.index.engine.robin;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -117,7 +114,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile IndexWriter indexWriter;
 
     private final SearcherFactory searcherFactory = new RobinSearchFactory();
-    private volatile SearcherManager searcherManager;
+    private volatile XSearcherManager searcherManager;
 
     private volatile boolean closed = false;
 
@@ -735,7 +732,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
-        SearcherManager manager = this.searcherManager;
+        XSearcherManager manager = this.searcherManager;
         if (manager == null) {
             throw new EngineClosedException(shardId);
         }
@@ -748,7 +745,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
         return new RobinSearcher(source, searcher, manager);
     }
 
@@ -852,7 +849,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             translog.newTranslog(translogId);
                         }
 
-                        SearcherManager current = this.searcherManager;
+                        XSearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
                         try {
                             IOUtils.close(current);
@@ -1519,18 +1516,18 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    private SearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
-        return new SearcherManager(indexWriter, true, searcherFactory);
+    private XSearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
+        return new XSearcherManager(indexWriter, true, searcherFactory);
     }
 
     static class RobinSearcher implements Searcher {
 
         private final String source;
         private final IndexSearcher searcher;
-        private final SearcherManager manager;
+        private final XSearcherManager manager;
         private final AtomicBoolean released;
 
-        private RobinSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+        private RobinSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;

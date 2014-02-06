@@ -39,9 +39,9 @@ respond to. It provides the following settings with the
 
 |`address` |The address to bind to, defaults to `null` which means it
 will bind to all available network interfaces.
-|=======================================================================
 
-Multicast can be disabled by setting `multicast.enabled` to `false`.
+|`enabled` |Whether multicast ping discovery is enabled. Defaults to `true`.
+|=======================================================================
 
 [float]
 [[unicast]]

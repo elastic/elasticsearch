@@ -1,0 +1,6 @@
+[[modules-discovery-gce]]
+=== Google Compute Engine Discovery
+
+Google Compute Engine (GCE) discovery allows to use the GCE APIs to perform automatic discovery (similar to multicast).
+Please check the https://github.com/elasticsearch/elasticsearch-cloud-gce[plugin website]
+to find the full documentation.

@@ -250,6 +250,10 @@ you can now write:
 
 Existing multi-fields will be upgraded to the new format automatically.
 
+Also, instead of having to use the arcane `path` and `index_name` parameters
+in order to index multiple fields into a single ``custom +_all+ field'', you
+can now use the <<copy-to,`copy_to` parameter>>.
+
 == Stopwords
 
 Previously, the <<analysis-standard-analyzer,`standard`>> and

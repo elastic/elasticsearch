@@ -20,3 +20,7 @@ java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead
 
 org.apache.lucene.util.RamUsageEstimator#sizeOf(java.lang.Object) @ This can be a perfromance trap 
 
+@defaultMessage Reference management is tricky, leave it to SearcherManager
+org.apache.lucene.index.IndexReader#decRef()
+org.apache.lucene.index.IndexReader#incRef()
+org.apache.lucene.index.IndexReader#tryIncRef()

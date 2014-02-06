@@ -411,7 +411,7 @@ public class ParseContext {
             return null;
         }
 
-        if (!(externalValue().getClass().isAssignableFrom(clazz))) {
+        if (!clazz.isInstance(externalValue())) {
             throw new ElasticsearchIllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }

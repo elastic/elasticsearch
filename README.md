@@ -1,4 +1,3 @@
-
 # Installing the last release of Marvel
 
 The easiest way to play/get to know Marvel is to install the latest release version of it. To do so, just run the following command on every node on your cluster (restart node for it to have effect):
@@ -41,7 +40,7 @@ Merges kibana and marvel code, builds Kibana and the plugin (via mvn) and puts t
 
 ```grunt package```
 
-Zips and tar+gzips the build in ./packages. Includes grunt build
+Zips and tar+gzips the build in build/packages. Includes grunt build
 
 ```grunt release```
 
@@ -54,3 +53,7 @@ Uploads created archives to download.elasticsearch.org/elasticsearch/marvel/marv
 }
 
 ```
+
+To upload the current archive as the "latest" release, use:
+
+```grunt release --latest```

@@ -41,7 +41,7 @@ dependencies {
 
 
 jar {
-	manifest.attributes['Implementation-Title'] = 'elasticsearch-hadoop-hdfs-repository'
+	manifest.attributes['Implementation-Title'] = 'elasticsearch-repository-hdfs'
 }
 
 task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->

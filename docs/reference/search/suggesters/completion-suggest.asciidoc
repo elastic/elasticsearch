@@ -8,11 +8,6 @@ The `completion` suggester is a so-called prefix suggester. It does not
 do spell correction like the `term` or `phrase` suggesters but allows
 basic `auto-complete` functionality.
 
-IMPORTANT: This feature is marked as experimental. This means, that
-the API is not considered stable, and that you might need to reindex
-your data after an upgrade in order to get suggestions up and running
-again. Please keep this in mind.
-
 ==== Why another suggester? Why not prefix queries?
 
 The first question which comes to mind when reading about a prefix

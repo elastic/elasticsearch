@@ -73,7 +73,9 @@
 
 # Use the Cluster Health API [http://localhost:9200/_cluster/health], the
 # Node Info API [http://localhost:9200/_nodes] or GUI tools
-# such as <http://github.com/lukas-vlcek/bigdesk> and
+# such as <http://www.elasticsearch.org/overview/marvel/>,
+# <http://github.com/karmi/elasticsearch-paramedic>,
+# <http://github.com/lukas-vlcek/bigdesk> and
 # <http://mobz.github.com/elasticsearch-head> to inspect the cluster state.
 
 # A node can have generic attributes associated with it, which can later be used

@@ -57,7 +57,7 @@ public class StringTerms extends InternalTerms {
 
     public static class Bucket extends InternalTerms.Bucket {
 
-        final BytesRef termBytes;
+        BytesRef termBytes;
 
         public Bucket(BytesRef term, long docCount, InternalAggregations aggregations) {
             super(docCount, aggregations);

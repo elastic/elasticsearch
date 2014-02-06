@@ -4,8 +4,6 @@
 The _tribes_ feature allows a _tribe node_ to act as a federated client across
 multiple clusters.
 
-WARNING: This feature is EXPERIMENTAL -- use at your own risk.
-
 The tribe node works by retrieving the cluster state from all connected
 clusters and merging them into a global cluster state. With this information
 at hand, it is able to perform read and write operations against the nodes in

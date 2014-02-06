@@ -65,6 +65,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
+import java.util.Locale;
+
 /**
  *
  */
@@ -399,6 +401,19 @@ public enum PreBuiltAnalyzers {
         }
 
         return analyzer;
+    }
+
+    /**
+     * Get a pre built Analyzer by its name or fallback to the default one
+     * @param name Analyzer name
+     * @param defaultAnalyzer default Analyzer if name not found
+     */
+    public static PreBuiltAnalyzers getOrDefault(String name, PreBuiltAnalyzers defaultAnalyzer) {
+        try {
+            return valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return defaultAnalyzer;
+        }
     }
 
 }

@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -1468,11 +1467,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         private final String source;
         private final IndexSearcher searcher;
         private final SearcherManager manager;
+        private final AtomicBoolean released;
 
         private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;
+            this.released = new AtomicBoolean(false);
         }
 
         @Override
@@ -1492,6 +1493,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public boolean release() throws ElasticsearchException {
+            if (!released.compareAndSet(false, true)) {
+                throw new ElasticsearchIllegalStateException("Double release");
+            }
             try {
                 manager.release(searcher);
                 return true;

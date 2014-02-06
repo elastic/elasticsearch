@@ -91,7 +91,7 @@ point to the root of the shared filesystem repository. The following settings ar
 Other repository backends are available in these official plugins:
 
 * https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
-* https://github.com/elasticsearch/elasticsearch-hdfs[HDFS Plugin]
+* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
 
 [float]
 === Snapshot

@@ -169,6 +169,15 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
 
 [float]
+[[discovery-plugins]]
+==== Discovery Plugins
+
+.Supported by Elasticsearch
+* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin] - EC2 discovery and S3 Repository
+* https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
+* https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
+
+[float]
 [[river]]
 ==== River Plugins
 
@@ -237,15 +246,20 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 
 [float]
+[[repository-plugins]]
+==== Snapshot/Restore Repository Plugins
+
+.Supported by Elasticsearch
+
+* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS] Repository
+* https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS S3] Repository
+
+[float]
 [[misc]]
 ==== Misc Plugins
 
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]
-* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS Snapshot/Restore Plugin]
-* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin] - EC2 discovery and S3 Repository
-* https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
-* https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
 
 .Supported by the community
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)

@@ -474,17 +474,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         context.path().pathType(pathType);
         context.path().add(name());
 
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                return;
-            }
-
-            if (!(externalValue instanceof GeoPoint)) {
-                throw new ElasticsearchIllegalArgumentException("illegal external value class ["
-                        + externalValue.getClass().getName() + "]. Should be " + GeoPoint.class.getName());
-            }
-            GeoPoint value = (GeoPoint) externalValue;
+        GeoPoint value = (GeoPoint) context.parseExternalValue(GeoPoint.class);
+        if (value != null) {
             parseLatLon(context, value.lat(), value.lon());
         } else {
             XContentParser.Token token = context.parser().currentToken();

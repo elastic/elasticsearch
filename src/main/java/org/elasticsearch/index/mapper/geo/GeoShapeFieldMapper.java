@@ -225,19 +225,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Shape shape;
-            if (context.externalValueSet()) {
-                Object externalValue = context.externalValue();
-                if (externalValue == null) {
-                    return;
-                }
-
-                if (!(externalValue instanceof Shape)) {
-                    throw new ElasticsearchIllegalArgumentException("illegal external value class ["
-                            + externalValue.getClass().getName() + "]. Should be " + Shape.class.getName());
-                }
-                shape = (Shape) externalValue;
-            } else {
+            Shape shape = (Shape) context.parseExternalValue(Shape.class);
+            if (shape == null) {
                 ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
                 if (shapeBuilder == null) {
                     return;

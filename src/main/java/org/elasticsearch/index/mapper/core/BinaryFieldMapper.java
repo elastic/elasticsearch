@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -176,18 +175,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         if (!fieldType().stored()) {
             return;
         }
-        byte[] value;
-        if (context.externalValueSet()) {
-            if (context.externalValue() == null) {
-                return;
-            } else {
-                if (!(context.externalValue() instanceof byte[])) {
-                    throw new ElasticsearchIllegalArgumentException("illegal external value class ["
-                            + context.externalValue().getClass().getName() + "]. Should be " + byte[].class.getName());
-                }
-                value = (byte[]) context.externalValue();
-            }
-        } else {
+        byte[] value = (byte[]) context.parseExternalValue(byte[].class);
+        if (value == null) {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
                 return;
             } else {

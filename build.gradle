@@ -59,7 +59,6 @@ task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
 	from jar.archivePath
 	from configurations.hadoop1.allArtifacts.files
 	from configurations.hadoop1
-	into archiveName
 }
 
 task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
@@ -78,7 +77,6 @@ task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
 	from jar.archivePath
 	from configurations.hadoop2.allArtifacts.files
 	from configurations.hadoop2
-	into archiveName
 }
 
 task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
@@ -95,10 +93,12 @@ task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
 		include "README.md"
 	}
 	from jar.archivePath
-	into archiveName
 }
 
-task distZips(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {}
+task distZip(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {
+	group = "Distribution"
+	description = "Builds all distribution zips for Elasticsearch Repository HDFS"
+}
 
 artifacts {
 	archives distZipHadoop1

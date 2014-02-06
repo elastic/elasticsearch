@@ -8,7 +8,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 |      AWS Cloud Plugin      |    elasticsearch    | Release date |
 |----------------------------|---------------------|:------------:|
 | 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |              |
-| 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-10-15  |
+| 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-01-15  |
 | 1.17.0-SNAPSHOT (1.x)      | 0.90.4 -> 0.90      |              |
 | 1.16.0                     | 0.90.4 -> 0.90      |  2013-11-26  |
 | 1.15.0                     | 0.90.4 -> 0.90      |  2013-09-16  |

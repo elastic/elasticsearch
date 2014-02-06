@@ -114,7 +114,7 @@ Note that you can also add arrays with `startArray(String)` and
 other XContentBuilder objects.
 
 If you need to see the generated JSON content, you can use the
-@string()@method.
+`string()` method.
 
 [source,java]
 --------------------------------------------------

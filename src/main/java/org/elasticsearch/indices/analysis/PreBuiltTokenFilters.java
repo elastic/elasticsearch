@@ -309,4 +309,16 @@ public enum PreBuiltTokenFilters {
         return factory;
     }
 
+    /**
+     * Get a pre built TokenFilter by its name or fallback to the default one
+     * @param name TokenFilter name
+     * @param defaultTokenFilter default TokenFilter if name not found
+     */
+    public static PreBuiltTokenFilters getOrDefault(String name, PreBuiltTokenFilters defaultTokenFilter) {
+        try {
+            return valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return defaultTokenFilter;
+        }
+    }
 }

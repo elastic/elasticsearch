@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
-import java.util.Locale;
-
 public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory {
 
     private final TokenizerFactory tokenizerFactory;
@@ -38,8 +36,10 @@ public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory 
     public TokenizerFactory create(String name, Settings settings) {
         Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
         if (!Version.CURRENT.equals(indexVersion)) {
-            TokenizerFactory versionedTokenizerFactory = PreBuiltTokenizers.valueOf(name.toUpperCase(Locale.ROOT)).getTokenizerFactory(indexVersion);
-            return versionedTokenizerFactory;
+            PreBuiltTokenizers preBuiltTokenizers = PreBuiltTokenizers.getOrDefault(name, null);
+            if (preBuiltTokenizers != null) {
+                return preBuiltTokenizers.getTokenizerFactory(indexVersion);
+            }
         }
 
         return tokenizerFactory;

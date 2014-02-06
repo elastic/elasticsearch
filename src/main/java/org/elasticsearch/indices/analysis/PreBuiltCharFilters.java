@@ -67,4 +67,17 @@ public enum PreBuiltCharFilters {
 
         return charFilterFactory;
     }
+
+    /**
+     * Get a pre built CharFilter by its name or fallback to the default one
+     * @param name CharFilter name
+     * @param defaultCharFilter default CharFilter if name not found
+     */
+    public static PreBuiltCharFilters getOrDefault(String name, PreBuiltCharFilters defaultCharFilter) {
+        try {
+            return valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return defaultCharFilter;
+        }
+    }
 }

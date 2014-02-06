@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 
-import java.util.Locale;
-
 public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactory {
 
     private final CharFilterFactory charFilterFactory;
@@ -38,7 +36,10 @@ public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactor
     public CharFilterFactory create(String name, Settings settings) {
         Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
         if (!Version.CURRENT.equals(indexVersion)) {
-            return PreBuiltCharFilters.valueOf(name.toUpperCase(Locale.ROOT)).getCharFilterFactory(indexVersion);
+            PreBuiltCharFilters preBuiltCharFilters = PreBuiltCharFilters.getOrDefault(name, null);
+            if (preBuiltCharFilters != null) {
+                return preBuiltCharFilters.getCharFilterFactory(indexVersion);
+            }
         }
 
         return charFilterFactory;

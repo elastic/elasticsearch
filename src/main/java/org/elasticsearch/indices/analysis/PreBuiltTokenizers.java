@@ -151,4 +151,16 @@ public enum PreBuiltTokenizers {
         return tokenizerFactory;
     }
 
+    /**
+     * Get a pre built Tokenizer by its name or fallback to the default one
+     * @param name Tokenizer name
+     * @param defaultTokenizer default Tokenizer if name not found
+     */
+    public static PreBuiltTokenizers getOrDefault(String name, PreBuiltTokenizers defaultTokenizer) {
+        try {
+            return valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return defaultTokenizer;
+        }
+    }
 }

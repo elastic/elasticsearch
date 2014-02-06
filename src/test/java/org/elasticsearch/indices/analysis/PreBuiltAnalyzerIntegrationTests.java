@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.indices.analysis;
 
 import com.google.common.collect.Lists;
@@ -41,7 +42,16 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder()
+                .put("plugin.types", DummyAnalysisPlugin.class.getName())
+                .put(super.nodeSettings(nodeOrdinal))
+            .build();
+    }
 
     @Test
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {
@@ -106,6 +116,43 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
 
         // check that all of the prebuiltanalyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
+    }
+
+    /**
+     * Test case for #5030: Upgrading analysis plugins fails
+     * See https://github.com/elasticsearch/elasticsearch/issues/5030
+     */
+    @Test
+    public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", "string")
+                        .field("analyzer", "dummy")
+                    .endObject()
+                    .startObject("bar")
+                        .field("type", "string")
+                        .field("analyzer", "my_dummy")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject();
+
+        Settings versionSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion())
+                .put("index.analysis.analyzer.my_dummy.type", "custom")
+                .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
+                .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")
+                .put("index.analysis.analyzer.my_dummy.tokenizer", "my_dummy_tokenizer")
+                .put("index.analysis.tokenizer.my_dummy_tokenizer.type", "dummy_tokenizer")
+                .put("index.analysis.filter.my_dummy_token_filter.type", "dummy_token_filter")
+                .put("index.analysis.char_filter.my_dummy_char_filter.type", "dummy_char_filter")
+                .build();
+
+        client().admin().indices().prepareCreate("test-analysis-dummy").addMapping("type", mapping).setSettings(versionSettings).get();
+
+        ensureGreen();
     }
 
     private void assertThatAnalyzersHaveBeenLoaded(Map<PreBuiltAnalyzers, List<Version>> expectedLoadedAnalyzers) {

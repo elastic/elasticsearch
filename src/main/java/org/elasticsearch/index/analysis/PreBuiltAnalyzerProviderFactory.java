@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
-import java.util.Locale;
-
 /**
  *
  */
@@ -42,8 +40,11 @@ public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory 
     public AnalyzerProvider create(String name, Settings settings) {
         Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
         if (!Version.CURRENT.equals(indexVersion)) {
-            Analyzer analyzer = PreBuiltAnalyzers.valueOf(name.toUpperCase(Locale.ROOT)).getAnalyzer(indexVersion);
-            return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+            PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
+            if (preBuiltAnalyzers != null) {
+                Analyzer analyzer = preBuiltAnalyzers.getAnalyzer(indexVersion);
+                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+            }
         }
 
         return analyzerProvider;

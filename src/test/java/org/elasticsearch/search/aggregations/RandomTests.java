@@ -148,8 +148,9 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
     // test long/double/string terms aggs with high number of buckets that require array growth
     public void testDuelTerms() throws Exception {
-        final int numDocs = atLeast(1000);
-        final int maxNumTerms = randomIntBetween(10, 10000);
+        // These high numbers of docs and terms are important to trigger page recycling
+        final int numDocs = atLeast(10000);
+        final int maxNumTerms = randomIntBetween(10, 100000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
         wipeIndices("idx");

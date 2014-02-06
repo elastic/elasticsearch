@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.lang.reflect.Array;
 import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 
@@ -51,7 +52,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         random = new Random(seed);
     }
 
-    private static <T> V<T> wrap(final V<T> v) {
+    private <T> V<T> wrap(final V<T> v) {
         ACQUIRED_PAGES.put(v, new Throwable());
         final Thread t = Thread.currentThread();
         return new V<T>() {
@@ -66,6 +67,14 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 final Throwable t = ACQUIRED_PAGES.remove(v);
                 if (t == null) {
                     throw new IllegalStateException("Releasing a page that has not been acquired");
+                }
+                final T ref = v();
+                for (int i = 0; i < Array.getLength(ref); ++i) {
+                    if (ref instanceof Object[]) {
+                        Array.set(ref, i, null);
+                    } else {
+                        Array.set(ref, i, (byte) random.nextInt(256));
+                    }
                 }
                 return v.release();
             }

@@ -60,6 +60,7 @@ public final class BytesRefHash extends AbstractHash {
 
     /**
      * Return the key at <code>0 &lte; index &lte; capacity()</code>. The result is undefined if the slot is unused.
+     * <p color="red">Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #release()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
         final long startOffset = startOffsets.get(id);

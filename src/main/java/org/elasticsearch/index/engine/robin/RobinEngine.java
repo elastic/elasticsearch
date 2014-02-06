@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -1529,11 +1528,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         private final String source;
         private final IndexSearcher searcher;
         private final SearcherManager manager;
+        private final AtomicBoolean released;
 
         private RobinSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;
+            this.released = new AtomicBoolean(false);
         }
 
         @Override
@@ -1553,6 +1554,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         @Override
         public boolean release() throws ElasticSearchException {
+            if (!released.compareAndSet(false, true)) {
+                throw new ElasticSearchIllegalStateException("Double release");
+            }
             try {
                 manager.release(searcher);
                 return true;

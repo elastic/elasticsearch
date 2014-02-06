@@ -175,7 +175,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         if (!fieldType().stored()) {
             return;
         }
-        byte[] value = (byte[]) context.parseExternalValue(byte[].class);
+        byte[] value = context.parseExternalValue(byte[].class);
         if (value == null) {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
                 return;

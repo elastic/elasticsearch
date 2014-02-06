@@ -208,7 +208,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return;
         }
 
-        Boolean value = (Boolean) context.parseExternalValue(Boolean.class);
+        Boolean value = context.parseExternalValue(Boolean.class);
         if (value == null) {
             XContentParser.Token token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {

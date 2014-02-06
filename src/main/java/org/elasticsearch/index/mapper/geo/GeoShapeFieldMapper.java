@@ -225,7 +225,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Shape shape = (Shape) context.parseExternalValue(Shape.class);
+            Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
                 ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
                 if (shapeBuilder == null) {

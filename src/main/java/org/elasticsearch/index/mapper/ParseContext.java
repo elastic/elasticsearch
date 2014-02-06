@@ -406,16 +406,16 @@ public class ParseContext {
      * @param clazz Expected class for external value
      * @return null if no external value has been set or the value
      */
-    public Object parseExternalValue(Class<?> clazz) {
+    public <T> T parseExternalValue(Class<T> clazz) {
         if (!externalValueSet() || externalValue() == null) {
             return null;
         }
 
         if (!(externalValue().getClass().isAssignableFrom(clazz))) {
             throw new ElasticsearchIllegalArgumentException("illegal external value class ["
-                    + externalValue().getClass().getName() + "]. Should be " + clazz);
+                    + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
-        return externalValue();
+        return (T) externalValue();
     }
 
     public float fieldBoost(AbstractFieldMapper mapper) {

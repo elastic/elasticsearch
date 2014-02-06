@@ -474,7 +474,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         context.path().pathType(pathType);
         context.path().add(name());
 
-        GeoPoint value = (GeoPoint) context.parseExternalValue(GeoPoint.class);
+        GeoPoint value = context.parseExternalValue(GeoPoint.class);
         if (value != null) {
             parseLatLon(context, value.lat(), value.lon());
         } else {

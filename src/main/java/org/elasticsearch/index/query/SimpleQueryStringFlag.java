@@ -37,7 +37,11 @@ public enum SimpleQueryStringFlag {
     PHRASE(XSimpleQueryParser.PHRASE_OPERATOR),
     PRECEDENCE(XSimpleQueryParser.PRECEDENCE_OPERATORS),
     ESCAPE(XSimpleQueryParser.ESCAPE_OPERATOR),
-    WHITESPACE(XSimpleQueryParser.WHITESPACE_OPERATOR);
+    WHITESPACE(XSimpleQueryParser.WHITESPACE_OPERATOR),
+    FUZZY(XSimpleQueryParser.FUZZY_OPERATOR),
+    // NEAR and SLOP are synonymous, since "slop" is a more familiar term than "near"
+    NEAR(XSimpleQueryParser.NEAR_OPERATOR),
+    SLOP(XSimpleQueryParser.NEAR_OPERATOR);
 
     final int value;
 

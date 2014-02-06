@@ -19,16 +19,22 @@ package org.apache.lucene.queryparser;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.Version;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.Collections;
 import java.util.Map;
 
 /**
- * XSimpleQueryParser is used to parse human readable query syntax.
+ * SimpleQueryParser is used to parse human readable query syntax.
  * <p>
  * The main idea behind this parser is that a person should be able to type
  * whatever they want to represent a query, and this parser will do its best
@@ -46,6 +52,8 @@ import java.util.Map;
  *  <li>'{@code -}' negates a single token: <tt>-token0</tt>
  *  <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
  *  <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
+ *  <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
+ *  <li>'{@code ~}N' at the end of phrases specifies near query: <tt>"term1 term2"~5</tt>
  *  <li>'{@code (}' and '{@code )}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
  * </ul>
  * <p>
@@ -114,6 +122,11 @@ public class XSimpleQueryParser extends QueryBuilder {
     public static final int ESCAPE_OPERATOR      = 1<<6;
     /** Enables {@code WHITESPACE} operators: ' ' '\n' '\r' '\t' */
     public static final int WHITESPACE_OPERATOR  = 1<<7;
+    /** Enables {@code FUZZY} operators: (~) on single terms */
+    public static final int FUZZY_OPERATOR       = 1<<8;
+    /** Enables {@code NEAR} operators: (~) on phrases */
+    public static final int NEAR_OPERATOR        = 1<<9;
+
 
     private BooleanClause.Occur defaultOperator = BooleanClause.Occur.SHOULD;
 
@@ -269,6 +282,7 @@ public class XSimpleQueryParser extends QueryBuilder {
         int start = ++state.index;
         int copied = 0;
         boolean escaped = false;
+        boolean hasSlop = false;
 
         while (state.index < state.length) {
             if (!escaped) {
@@ -282,10 +296,23 @@ public class XSimpleQueryParser extends QueryBuilder {
 
                     continue;
                 } else if (state.data[state.index] == '"') {
-                    // this should be the end of the phrase
-                    // all characters found will used for
-                    // creating the phrase query
-                    break;
+                    // if there are still characters after the closing ", check for a
+                    // tilde
+                    if (state.length > (state.index + 1) &&
+                            state.data[state.index+1] == '~' &&
+                            (flags & NEAR_OPERATOR) != 0) {
+                        state.index++;
+                        // check for characters after the tilde
+                        if (state.length > (state.index + 1)) {
+                            hasSlop = true;
+                        }
+                        break;
+                    } else {
+                        // this should be the end of the phrase
+                        // all characters found will used for
+                        // creating the phrase query
+                        break;
+                    }
                 }
             }
 
@@ -308,7 +335,12 @@ public class XSimpleQueryParser extends QueryBuilder {
             // a complete phrase has been found and is parsed through
             // through the analyzer from the given field
             String phrase = new String(state.buffer, 0, copied);
-            Query branch = newPhraseQuery(phrase);
+            Query branch;
+            if (hasSlop) {
+                branch = newPhraseQuery(phrase, parseFuzziness(state));
+            } else {
+                branch = newPhraseQuery(phrase, 0);
+            }
             buildQueryTree(state, branch);
 
             ++state.index;
@@ -319,6 +351,7 @@ public class XSimpleQueryParser extends QueryBuilder {
         int copied = 0;
         boolean escaped = false;
         boolean prefix = false;
+        boolean fuzzy = false;
 
         while (state.index < state.length) {
             if (!escaped) {
@@ -332,18 +365,13 @@ public class XSimpleQueryParser extends QueryBuilder {
                     ++state.index;
 
                     continue;
-                } else if ((state.data[state.index] == '"' && (flags & PHRASE_OPERATOR) != 0)
-                        || (state.data[state.index] == '|' && (flags & OR_OPERATOR) != 0)
-                        || (state.data[state.index] == '+' && (flags & AND_OPERATOR) != 0)
-                        || (state.data[state.index] == '(' && (flags & PRECEDENCE_OPERATORS) != 0)
-                        || (state.data[state.index] == ')' && (flags & PRECEDENCE_OPERATORS) != 0)
-                        || ((state.data[state.index] == ' '
-                        || state.data[state.index] == '\t'
-                        || state.data[state.index] == '\n'
-                        || state.data[state.index] == '\r') && (flags & WHITESPACE_OPERATOR) != 0)) {
+                } else if (tokenFinished(state)) {
                     // this should be the end of the term
                     // all characters found will used for
                     // creating the term query
+                    break;
+                } else if (copied > 0 && state.data[state.index] == '~' && (flags & FUZZY_OPERATOR) != 0) {
+                    fuzzy = true;
                     break;
                 }
 
@@ -361,7 +389,17 @@ public class XSimpleQueryParser extends QueryBuilder {
         if (copied > 0) {
             final Query branch;
 
-            if (prefix) {
+            if (fuzzy && (flags & FUZZY_OPERATOR) != 0) {
+                String token = new String(state.buffer, 0, copied);
+                int fuzziness = parseFuzziness(state);
+                // edit distance has a maximum, limit to the maximum supported
+                fuzziness = Math.min(fuzziness, LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
+                if (fuzziness == 0) {
+                    branch = newDefaultQuery(token);
+                } else {
+                    branch = newFuzzyQuery(token, fuzziness);
+                }
+            } else if (prefix) {
                 // if a term is found with a closing '*' it is considered to be a prefix query
                 // and will have prefix added as an option
                 String token = new String(state.buffer, 0, copied - 1);
@@ -424,6 +462,60 @@ public class XSimpleQueryParser extends QueryBuilder {
     }
 
     /**
+     * Helper parsing fuzziness from parsing state
+     * @return slop/edit distance, 0 in the case of non-parsing slop/edit string
+     */
+    private int parseFuzziness(State state) {
+        char slopText[] = new char[state.length];
+        int slopLength = 0;
+
+        if (state.data[state.index] == '~') {
+            while (state.index < state.length) {
+                state.index++;
+                // it's possible that the ~ was at the end, so check after incrementing
+                // to make sure we don't go out of bounds
+                if (state.index < state.length) {
+                    if (tokenFinished(state)) {
+                        break;
+                    }
+                    slopText[slopLength] = state.data[state.index];
+                    slopLength++;
+                }
+            }
+            int fuzziness = 0;
+            try {
+                fuzziness = Integer.parseInt(new String(slopText, 0, slopLength));
+            } catch (NumberFormatException e) {
+                // swallow number format exceptions parsing fuzziness
+            }
+            // negative -> 0
+            if (fuzziness < 0) {
+                fuzziness = 0;
+            }
+            return fuzziness;
+        }
+        return 0;
+    }
+
+    /**
+     * Helper returning true if the state has reached the end of token.
+     */
+    private boolean tokenFinished(State state) {
+        if ((state.data[state.index] == '"' && (flags & PHRASE_OPERATOR) != 0)
+                || (state.data[state.index] == '|' && (flags & OR_OPERATOR) != 0)
+                || (state.data[state.index] == '+' && (flags & AND_OPERATOR) != 0)
+                || (state.data[state.index] == '(' && (flags & PRECEDENCE_OPERATORS) != 0)
+                || (state.data[state.index] == ')' && (flags & PRECEDENCE_OPERATORS) != 0)
+                || ((state.data[state.index] == ' '
+                || state.data[state.index] == '\t'
+                || state.data[state.index] == '\n'
+                || state.data[state.index] == '\r') && (flags & WHITESPACE_OPERATOR) != 0)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Factory method to generate a standard query (no phrase or prefix operators).
      */
     protected Query newDefaultQuery(String text) {
@@ -439,12 +531,27 @@ public class XSimpleQueryParser extends QueryBuilder {
     }
 
     /**
-     * Factory method to generate a phrase query.
+     * Factory method to generate a fuzzy query.
      */
-    protected Query newPhraseQuery(String text) {
+    protected Query newFuzzyQuery(String text, int fuzziness) {
         BooleanQuery bq = new BooleanQuery(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
-            Query q = createPhraseQuery(entry.getKey(), text);
+            Query q = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
+            if (q != null) {
+                q.setBoost(entry.getValue());
+                bq.add(q, BooleanClause.Occur.SHOULD);
+            }
+        }
+        return simplify(bq);
+    }
+
+    /**
+     * Factory method to generate a phrase query with slop.
+     */
+    protected Query newPhraseQuery(String text, int slop) {
+        BooleanQuery bq = new BooleanQuery(true);
+        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            Query q = createPhraseQuery(entry.getKey(), text, slop);
             if (q != null) {
                 q.setBoost(entry.getValue());
                 bq.add(q, BooleanClause.Occur.SHOULD);
@@ -518,4 +625,3 @@ public class XSimpleQueryParser extends QueryBuilder {
         }
     }
 }
-

@@ -198,7 +198,7 @@ Generating the terms using a script:
         "genders" : {
             "terms" : { 
                 "field" : "gender",
-                "script" : "doc['gender'].value"
+                "script" : "'Gender: ' +_value"
             }
         }
     }

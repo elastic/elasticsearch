@@ -7,6 +7,9 @@ This section includes information on how to setup *elasticsearch* and
 get it running. If you haven't already, http://www.elasticsearch.org/download[download] it, and
 then check the <<setup-installation,installation>> docs.
 
+NOTE: Elasticsearch can also be installed from our repositories using `apt` or `yum`.
+See <<setup-repositories>>.
+
 [[setup-installation]]
 [float]
 == Installation

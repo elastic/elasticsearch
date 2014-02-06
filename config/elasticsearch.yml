@@ -72,7 +72,7 @@
 # node.data: false
 
 # Use the Cluster Health API [http://localhost:9200/_cluster/health], the
-# Node Info API [http://localhost:9200/_cluster/nodes] or GUI tools
+# Node Info API [http://localhost:9200/_nodes] or GUI tools
 # such as <http://github.com/lukas-vlcek/bigdesk> and
 # <http://mobz.github.com/elasticsearch-head> to inspect the cluster state.
 

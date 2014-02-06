@@ -27,8 +27,6 @@ When looking for +light+ or +yarn+ artifacts use:
 To install the latest snapshot, please install the plugin manually using:
 +bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-1.3.0-BUILD-SNAPSHOT+
 
-NOTE: 1.3.0 M2 has not been released yet, please install the plugin manually
-
 === Development Snapshot
 Grab the latest nightly build from the http://oss.sonatype.org/content/repositories/snapshots/org/elasticsearch/elasticsearch-repository-hdfs/[repository] again through Maven:
 

@@ -90,7 +90,7 @@ task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
         //expand(yyyy: new Date().format("yyyy"), version: project.version)
     }
 	from (".") {
-		include "README.md"
+		include "README.asciidoc"
 	}
 	from jar.archivePath
 }

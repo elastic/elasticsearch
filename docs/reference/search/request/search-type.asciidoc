@@ -137,8 +137,6 @@ field) or faceting.
 [[clear-scroll]]
 ===== Clear scroll api
 
-added[0.90.4]
-
 Besides consuming the scroll search until no hits has been returned a scroll
 search can also be aborted by deleting the `scroll_id`. This can be done via
 the clear scroll api. When the the `scroll_id` has been deleted also all the

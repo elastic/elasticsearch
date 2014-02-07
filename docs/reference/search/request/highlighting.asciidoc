@@ -410,7 +410,6 @@ The `boundary_max_scan` allows to control how far to look for boundary
 characters, and defaults to `20`.
 
 
-added[0.90.8]
 [[matched-fields]]
 ==== Matched Fields
 The Fast Vector Highlighter can combine matches on multiple fields to
@@ -530,7 +529,6 @@ to
 --------------------------------------------------
 ===================================================================
 
-added[0.90.10]
 [[phrase-limit]]
 ==== Phrase Limit
 The `fast-vector-highlighter` has a `phrase_limit` parameter that prevents

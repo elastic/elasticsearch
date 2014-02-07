@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -869,5 +871,28 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    public void script_Score() {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .setQuery(functionScoreQuery(matchAllQuery()).add(ScoreFunctionBuilders.scriptFunction("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")))
+                .addAggregation(terms("terms")
+                        .script("ceil(_doc.score/3)")
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+
+        for (int i = 0; i < 3; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(i == 1 ? 3L : 1L));
+        }
+    }
 
 }

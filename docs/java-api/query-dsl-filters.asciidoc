@@ -251,7 +251,7 @@ filter = FilterBuilders.geoShapeFilter("location", "New Zealand", "countries")
 [[has-child-parent-filter]]
 === Has Child / Has Parent Filters
 
-See: 
+See:
  * {ref}/query-dsl-has-child-filter.html[Has Child Filter]
  * {ref}/query-dsl-has-parent-filter.html[Has Parent Filter]
 
@@ -303,26 +303,6 @@ See {ref}/query-dsl-not-filter.html[Not Filter]
 FilterBuilders.notFilter(
     FilterBuilders.rangeFilter("price").from("1").to("2"));
 --------------------------------------------------
-
-
-[[numeric-range-filter]]
-=== Numeric Range Filter
-
-See {ref}/query-dsl-numeric-range-filter.html[Numeric
-Range Filter]
-
-[source,java]
---------------------------------------------------
-FilterBuilders.numericRangeFilter("age")
-    .from(10)
-    .to(20)
-    .includeLower(true)
-    .includeUpper(false);
---------------------------------------------------
-
-Note that you can cache the result using
-`NumericRangeFilterBuilder#cache(boolean)` method. See
-<<query-dsl-filters-caching>>.
 
 
 [[or-filter]]

@@ -32,8 +32,8 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util._TestUtil;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import java.util.List;
 
 /**
  */
-public class BlendedTermQueryTest extends LuceneTestCase {
+public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
 
     public void testBooleanQuery() throws IOException {
         Directory dir = newDirectory();

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.XSearcherManager;
@@ -141,6 +144,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
         private final int initialRefCount;
+        private boolean released;
 
         public AssertingSearcher(IndexSearcher indexSearcher, Searcher wrappedSearcher, ShardId shardId) {
             // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
@@ -151,6 +155,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
             this.indexSearcher = indexSearcher;
             assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
             INFLIGHT_ENGINE_SEARCHERS.put(this, new RuntimeException("Unreleased Searcher, source [" + wrappedSearcher.source() + "]"));
+            released = false;
         }
 
         @Override
@@ -162,6 +167,10 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
         public boolean release() throws ElasticsearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
             synchronized (lock) {
+                // although double release might very rarely happen in production for long-running requests, this should never happen
+                // during our tests
+                assert !released;
+                released = true;
                 // make sure we only get this once and store the stack of the first caller!
                 if (remove == null) {
                     assert firstReleaseStack != null;

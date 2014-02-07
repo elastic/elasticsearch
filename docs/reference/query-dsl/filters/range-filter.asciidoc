@@ -30,12 +30,8 @@ The `range` filter accepts the following parameters:
 `lte`::     Less-than or equal to
 `lt`::      Less-than
 
-deprecated[0.90.4,The `from`, `to`, `include_lower` and `include_upper` parameters have been deprecated in favour of `gt`,`gte`,`lt`,`lte`]
-
 [float]
 ==== Execution
-
-added[0.90.8]
 
 The `execution` option controls how the range filter internally executes. The `execution` option accepts the following values:
 

@@ -237,7 +237,6 @@ defaults to `true` or to the parent `object` type setting.
 [float]
 [[token_count]]
 ==== Token Count
-added[0.90.8]
 The `token_count` type maps to the JSON string type but indexes and stores
 the number of tokens in the string rather than the string itself.  For
 example:

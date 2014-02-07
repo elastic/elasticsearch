@@ -1,6 +1,6 @@
 [[java-api]]
 = Java API
-:ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current
+:ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/0.90
 
 [preface]
 == Preface

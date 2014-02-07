@@ -255,6 +255,10 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS] Repository
 * https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS S3] Repository
 
+.Supported by the community
+
+* https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+
 [float]
 [[misc]]
 ==== Misc Plugins

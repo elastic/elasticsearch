@@ -63,7 +63,7 @@ To get list of all index templates you can use
 <<cluster-state,Cluster State>> API
 and check for the metadata/templates section of the response.
 
-added[0.90.4] Or run:
+Or run:
 
 [source,js]
 --------------------------------------------------

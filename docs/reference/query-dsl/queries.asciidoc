@@ -16,12 +16,6 @@ include::queries/boosting-query.asciidoc[]
 
 include::queries/common-terms-query.asciidoc[]
 
-include::queries/custom-filters-score-query.asciidoc[]
-
-include::queries/custom-score-query.asciidoc[]
-
-include::queries/custom-boost-factor-query.asciidoc[]
-
 include::queries/constant-score-query.asciidoc[]
 
 include::queries/dis-max-query.asciidoc[]

@@ -26,8 +26,6 @@ field, or a field without a large number of terms it breaks to.
 
 ==== Accuracy Control
 
-added[0.90.6]
-
 The `size` parameter defines how many top terms should be returned out
 of the overall terms list. By default, the node coordinating the
 search process will ask each shard to provide its own top `size` terms

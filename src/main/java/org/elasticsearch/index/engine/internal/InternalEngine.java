@@ -22,7 +22,10 @@ package org.elasticsearch.index.engine.internal;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.XSearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -1459,7 +1462,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return new XSearcherManager(indexWriter, true, searcherFactory);
     }
 
-    static class EngineSearcher implements Searcher {
+    class EngineSearcher implements Searcher {
 
         private final String source;
         private final IndexSearcher searcher;
@@ -1491,7 +1494,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         @Override
         public boolean release() throws ElasticsearchException {
             if (!released.compareAndSet(false, true)) {
-                throw new ElasticsearchIllegalStateException("Double release");
+                /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                 * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
+                 * of time, this is why we only log a warning instead of throwing an exception.
+                 */
+                logger.warn("Searcher was released twice", new ElasticsearchIllegalStateException("Double release"));
+                return false;
             }
             try {
                 manager.release(searcher);

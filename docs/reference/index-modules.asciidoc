@@ -28,7 +28,7 @@ Alternatively, `compound_format` can be set to a number between `0` and
 `1`, where `0` means `false`, `1` means `true` and a number inbetween
 represents a percentage: if the merged segment is less than this
 percentage of the total index, then it is written in compound format,
-otherwise it is written in non-compound format.  added[0.90.2]
+otherwise it is written in non-compound format.
 
 [[index-compound-on-flush]]`index.compound_on_flush`::
 

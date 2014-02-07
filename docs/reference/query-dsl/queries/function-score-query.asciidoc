@@ -1,17 +1,14 @@
 [[query-dsl-function-score-query]]
 === Function Score Query
 
-added[0.90.4]
-
 The `function_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score
 function is computationally expensive and it is sufficient to compute
 the score on a filtered set of documents.
 
 `function_score` provides the same functionality that
-<<query-dsl-custom-boost-factor-query>>,
-<<query-dsl-custom-score-query>> and
-<<query-dsl-custom-filters-score-query>> provided
+`custom_boost_factor`, `custom_score` and
+`custom_filters_score` provided
 but furthermore adds futher scoring functionality such as
 distance and recency scoring (see description below).
 
@@ -125,7 +122,7 @@ script, and provide parameters to it:
 }
 --------------------------------------------------
 
-Note that unlike the <<query-dsl-custom-score-query>>, the
+Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
 you wish to inhibit this, set `"boost_mode": "replace"`
 
@@ -178,7 +175,7 @@ decay function is specified as
 }
 --------------------------------------------------
 
-where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below). The specified field must be a numeric field. In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example: 
+where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below). The specified field must be a numeric field. In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
 
 [source,js]
 --------------------------------------------------
@@ -193,9 +190,9 @@ where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below). The speci
 --------------------------------------------------
 
 
-The format of the origin depends on the <<mapping-date-format>> defined in your mapping. If you do not define the origin, the current time is used. 
+The format of the origin depends on the <<mapping-date-format>> defined in your mapping. If you do not define the origin, the current time is used.
 
- 
+
 The `offset` and `decay` parameters are optional.
 
 [horizontal]
@@ -220,7 +217,7 @@ the score function computes a score of 0.5 for hotels that are 2km away
 from the desired location.
 
 
-In the second example, documents with a field value between 2013-09-12 and 2013-09-22 would get a weight of 1.0 and documents which are 15 days from that date a weight of 0.5. 
+In the second example, documents with a field value between 2013-09-12 and 2013-09-22 would get a weight of 1.0 and documents which are 15 days from that date a weight of 0.5.
 
 
 
@@ -390,7 +387,7 @@ return 1.
 
 ==== Relation to `custom_boost`, `custom_score` and `custom_filters_score`
 
-The <<query-dsl-custom-boost-factor-query>>
+The `custom_boost_factor` query
 
 [source,js]
 --------------------------------------------------
@@ -410,7 +407,7 @@ becomes
 }
 --------------------------------------------------
 
-The <<query-dsl-custom-score-query>>
+The `custom_score` query
 
 [source,js]
 --------------------------------------------------
@@ -441,7 +438,7 @@ becomes
 }
 --------------------------------------------------
 
-and the <<query-dsl-custom-filters-score-query>>
+and the `custom_filters_score`
 
 [source,js]
 --------------------------------------------------

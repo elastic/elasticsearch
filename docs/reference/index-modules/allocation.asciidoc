@@ -99,8 +99,6 @@ settings API.
 [[disk]]
 === Disk-based Shard Allocation
 
-added[0.90.4]
-
 Elasticsearch con be configured to prevent shard
 allocation on nodes depending on disk usage for the node. This
 functionality is disabled by default, and can be changed either in the

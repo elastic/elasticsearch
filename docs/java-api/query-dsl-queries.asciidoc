@@ -38,7 +38,7 @@ QueryBuilder qb = QueryBuilders.matchQuery("name", "kimchy elasticsearch");
 === MultiMatch Query
 
 See {ref}/query-dsl-multi-match-query.html[MultiMatch
-Query] 
+Query]
 
 [source,java]
 --------------------------------------------------
@@ -92,45 +92,11 @@ See {ref}/query-dsl-ids-query.html[IDs Query]
 QueryBuilders.idsQuery().ids("1", "2");
 --------------------------------------------------
 
-
-[[custom-score]]
-=== Custom Score Query
-
-See {ref}/query-dsl-custom-score-query.html[Custom Score
-Query] 
-
-[source,java]
---------------------------------------------------
-QueryBuilders.customScoreQuery(QueryBuilders.matchAllQuery())   // Your query here
-                .script("_score * doc['price'].value");         // Your script here
-
-// If the script have parameters, use the same script and provide parameters to it.
-QueryBuilders.customScoreQuery(QueryBuilders.matchAllQuery())
-                .script("_score * doc['price'].value / pow(param1, param2)")
-                .param("param1", 2)
-                .param("param2", 3.1);
---------------------------------------------------
-
-
-[[custom-boost-factor]]
-=== Custom Boost Factor Query
-
-See
-{ref}/query-dsl-custom-boost-factor-query.html[Custom
-Boost Factor Query] 
-
-[source,java]
---------------------------------------------------
-QueryBuilders.customBoostFactorQuery(QueryBuilders.matchAllQuery()) // Your query
-                .boostFactor(3.1f);
---------------------------------------------------
-
-
 [[constant-score]]
 === Constant Score Query
 
 See {ref}/query-dsl-constant-score-query.html[Constant
-Score Query] 
+Score Query]
 
 [source,java]
 --------------------------------------------------
@@ -148,7 +114,7 @@ QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("name","kimchy"))
 === Disjunction Max Query
 
 See {ref}/query-dsl-dis-max-query.html[Disjunction Max
-Query] 
+Query]
 
 [source,java]
 --------------------------------------------------
@@ -160,27 +126,12 @@ QueryBuilders.disMaxQuery()
 --------------------------------------------------
 
 
-[[field]]
-=== Field Query
-
-See {ref}/query-dsl-field-query.html[Field Query]
-
-
-[source,java]
---------------------------------------------------
-QueryBuilders.fieldQuery("name", "+kimchy -dadoonet");
-
-// Note that you can write the same query using queryString query.
-QueryBuilders.queryString("+kimchy -dadoonet").field("name");
---------------------------------------------------
-
-
 [[flt]]
 === Fuzzy Like This (Field) Query (flt and flt_field)
 
-See: 
- * {ref}/query-dsl-flt-query.html[Fuzzy Like This Query]  
- * {ref}/query-dsl-flt-field-query.html[Fuzzy Like This Field Query] 
+See:
+ * {ref}/query-dsl-flt-query.html[Fuzzy Like This Query]
+ * {ref}/query-dsl-flt-field-query.html[Fuzzy Like This Field Query]
 
 [source,java]
 --------------------------------------------------
@@ -212,7 +163,7 @@ QueryBuilder qb = QueryBuilders.fuzzyQuery("name", "kimzhy");
 [[has-child-parent]]
 === Has Child / Has Parent
 
-See: 
+See:
  * {ref}/query-dsl-has-child-query.html[Has Child Query]
  * {ref}/query-dsl-has-parent-query.html[Has Parent]
 
@@ -232,7 +183,7 @@ QueryBuilders.hasParentQuery("blog",
 === MatchAll Query
 
 See {ref}/query-dsl-match-all-query.html[Match All
-Query] 
+Query]
 
 [source,java]
 --------------------------------------------------
@@ -243,7 +194,7 @@ QueryBuilder qb = QueryBuilders.matchAllQuery();
 [[mlt]]
 === More Like This (Field) Query (mlt and mlt_field)
 
-See: 
+See:
  * {ref}/query-dsl-mlt-query.html[More Like This Query]
  * {ref}/query-dsl-mlt-field-query.html[More Like This Field Query]
 
@@ -278,7 +229,7 @@ QueryBuilders.prefixQuery("brand", "heine");
 [[query-string]]
 === QueryString Query
 
-See {ref}/query-dsl-query-string-query.html[QueryString Query] 
+See {ref}/query-dsl-query-string-query.html[QueryString Query]
 
 [source,java]
 --------------------------------------------------
@@ -304,8 +255,8 @@ QueryBuilder qb = QueryBuilders
 
 === Span Queries (first, near, not, or, term)
 
-See: 
- * {ref}/query-dsl-span-first-query.html[Span First Query] 
+See:
+ * {ref}/query-dsl-span-first-query.html[Span First Query]
  * {ref}/query-dsl-span-near-query.html[Span Near Query]
  * {ref}/query-dsl-span-not-query.html[Span Not Query]
  * {ref}/query-dsl-span-or-query.html[Span Or Query]
@@ -371,7 +322,7 @@ QueryBuilders.termsQuery("tags",    // field
 [[top-children]]
 === Top Children Query
 
-See {ref}/query-dsl-top-children-query.html[Top Children Query] 
+See {ref}/query-dsl-top-children-query.html[Top Children Query]
 
 [source,java]
 --------------------------------------------------
@@ -413,22 +364,6 @@ QueryBuilders.nestedQuery("obj1",               // Path
             .scoreMode("avg");                  // max, total, avg or none
 --------------------------------------------------
 
-
-[[custom-filters-score]]
-=== Custom Filters Score Query
-
-See
-{ref}/query-dsl-custom-filters-score-query.html[Custom Filters Score Query] 
-
-[source,java]
---------------------------------------------------
-QueryBuilders.customFiltersScoreQuery(
-                QueryBuilders.matchAllQuery())  // Query
-            // Filters with their boost factors
-            .add(FilterBuilders.rangeFilter("age").from(0).to(10), 3)
-            .add(FilterBuilders.rangeFilter("age").from(10).to(20), 2)
-            .scoreMode("first");    // first, min, max, total, avg or multiply
---------------------------------------------------
 
 
 [[indices]]

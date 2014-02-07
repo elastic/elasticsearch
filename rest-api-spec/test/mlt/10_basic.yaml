@@ -11,6 +11,10 @@
       indices.refresh: {}
 
   - do:
+      cluster.health:
+           wait_for_status: green
+           timeout: 1s   
+  - do:
       mlt:
           index:  test_1
           type:   test

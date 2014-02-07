@@ -32,7 +32,6 @@ memory, are not cached by default. Those filters are already very fast,
 and the process of caching them requires extra processing in order to
 allow the filter result to be used with different queries than the one
 executed. These filters, including the geo,
-<<query-dsl-numeric-range-filter,numeric_range>>,
 and <<query-dsl-script-filter,script>> filters
 are not cached by default.
 
@@ -82,8 +81,6 @@ include::filters/missing-filter.asciidoc[]
 include::filters/nested-filter.asciidoc[]
 
 include::filters/not-filter.asciidoc[]
-
-include::filters/numeric-range-filter.asciidoc[]
 
 include::filters/or-filter.asciidoc[]
 

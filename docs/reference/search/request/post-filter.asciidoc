@@ -88,4 +88,3 @@ And now, we get only 1 hit back, but the facets remain the same.
 Note, if additional filters are required on specific facets, they can be
 added as a `facet_filter` to the relevant facets.
 
-deprecated[0.90.8, The top level `filter` has been renamed to `post_filter`]

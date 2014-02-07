@@ -12,7 +12,9 @@ body. Here is an example:
 $ curl -XDELETE 'http://localhost:9200/twitter/tweet/_query?q=user:kimchy'
 
 $ curl -XDELETE 'http://localhost:9200/twitter/tweet/_query' -d '{
-    "term" : { "user" : "kimchy" }
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
 }
 '
 --------------------------------------------------

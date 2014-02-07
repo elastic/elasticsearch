@@ -1,0 +1,187 @@
+---
+setup:
+  - skip:
+      features: regex
+
+---
+"Help":
+  - do:
+      cat.allocation:
+        help: true
+
+  - match:
+      $body: >
+               /^  shards           .+   \n
+                   disk.used        .+   \n
+                   disk.avail       .+   \n
+                   disk.total       .+   \n
+                   disk.percent     .+   \n
+                   host             .+   \n
+                   ip               .+   \n
+                   node             .+   \n
+               $/
+
+---
+"Empty cluster":
+
+  - do:
+      cat.allocation: {}
+
+  - match:
+      $body: >
+            /^
+              ( 0                   \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+                 \s+
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                \w[-\w ]*           \n
+              )+
+            $/
+
+---
+"One index":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        cluster.health:
+            wait_for_status: green
+            timeout: 1s
+
+  - do:
+        cat.allocation: {}
+
+  - match:
+      $body: >
+            /^
+              ( [1-5]               \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+                 \s+
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                \w[-\w ]*           \n
+              )+
+            $/
+
+---
+"Node ID":
+
+  - do:
+        cat.allocation:
+            node_id: _master
+
+  - match:
+      $body: >
+            /^
+              ( 0                   \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+                 \s+
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                [-\w ]+             \n
+              )
+            $/
+
+  - do:
+        cat.allocation:
+            node_id: non_existent
+
+  - match:
+      $body: >
+            /^
+            $/
+
+---
+"Column headers":
+
+  - do:
+        cat.allocation:
+            v: true
+  - match:
+
+      $body: >
+           /^  shards               \s+
+               disk.used            \s+
+               disk.avail           \s+
+               disk.total           \s+
+               disk.percent         \s+
+               host                 \s+
+               ip                   \s+
+               node                 \s+
+               \n
+
+              ( \s+0                \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+(\.\d+)?+gb      \s+
+                \d+                 \s+
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                [-\w ]+             \n
+              )*
+            $/
+
+---
+"Select columns":
+
+  - do:
+        cat.allocation:
+            h: [disk.percent, node]
+
+  - match:
+      $body: >
+            /^
+              ( \d+                 \s+
+                \w[-\w ]*           \n
+              )+
+            $/
+
+  - do:
+        cat.allocation:
+            h: [disk.percent, node]
+            v: true
+
+  - match:
+      $body: >
+            /^
+              disk.percent          \s+
+              node                  \s+
+              \n
+              (
+                \s+\d+              \s+
+                \w[-\w ]*           \n
+              )+
+            $/
+
+
+---
+
+"Bytes":
+
+  - do:
+      cat.allocation:
+        bytes: g
+
+  - match:
+      $body: >
+            /^
+              ( 0                   \s+
+                \d+                 \s+
+                \d+                 \s+
+                \d+                 \s+
+                \d+                 \s+
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                \w[-\w ]*           \n
+              )+
+            $/
+

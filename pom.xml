@@ -395,9 +395,6 @@
                                 <exclude>**/Abstract*.class</exclude>
                                 <exclude>**/*StressTest.class</exclude>
                             </excludes>
-                            <argLine>
-                                ${tests.jvm.argline}
-                            </argLine>
                             <jvmArgs>
                                 <param>-Xmx512m</param>
                                 <param>-Xss256k</param>
@@ -1193,4 +1190,81 @@
             </plugins>
         </pluginManagement>
     </build>
+    <profiles>
+      <!-- default profile, with randomization setting kicks in -->
+      <profile>
+        <id>default</id>
+        <activation>
+          <activeByDefault>true</activeByDefault>
+        </activation>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>com.carrotsearch.randomizedtesting</groupId>
+              <artifactId>junit4-maven-plugin</artifactId>
+              <configuration>
+                <argLine>${tests.jvm.argline}</argLine>
+              </configuration>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+      <!-- jacoco coverage profile.  This will insert -jagent -->
+      <profile>
+        <id>coverage</id>
+        <activation>
+          <property>
+            <name>tests.coverage</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <dependencies>
+          <dependency>
+            <!--  must be on the classpath  -->
+            <groupId>org.jacoco</groupId>
+            <artifactId>org.jacoco.agent</artifactId>
+            <classifier>runtime</classifier>
+            <version>0.6.4.201312101107</version>
+            <scope>test</scope>
+          </dependency>
+        </dependencies>        
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>org.jacoco</groupId>
+              <artifactId>jacoco-maven-plugin</artifactId>
+              <version>0.6.4.201312101107</version>
+              <executions>
+                <execution>
+                  <id>default-prepare-agent</id>
+                  <goals>
+                    <goal>prepare-agent</goal>
+                  </goals>
+                </execution>
+                <execution>
+                  <id>default-report</id>
+                  <phase>prepare-package</phase>
+                  <goals>
+                    <goal>report</goal>
+                  </goals>
+                </execution>
+                <execution>
+                  <id>default-check</id>
+                  <goals>
+                    <goal>check</goal>
+                  </goals>                  
+                </execution>
+              </executions>
+              <configuration>
+                <excludes>
+                  <exclude>jsr166e/**</exclude>
+                  <exclude>jsr166y/**</exclude>
+                  <exclude>org/apache/lucene/**</exclude>
+                </excludes>
+              </configuration>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+    </profiles>
 </project>

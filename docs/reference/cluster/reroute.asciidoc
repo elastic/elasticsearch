@@ -58,7 +58,9 @@ The commands supported are:
     and `shard` for index name and shard number, and `node` for the node to
     cancel the shard allocation on. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to cancel allocation for a primary
-    shard. 
+    shard.  This can be used to force resynchronization of existing replicas
+    from the primary shard by cancelling them and allowing them to be
+    reinitialized through the standard reallocation process.
 
 `allocate`:: 
     Allocate an unassigned shard to a node. Accepts the

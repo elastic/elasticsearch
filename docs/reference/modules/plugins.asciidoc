@@ -194,6 +194,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * http://www.pilato.fr/dropbox/[Dropbox River Plugin] (by David Pilato)
 * http://www.pilato.fr/fsriver/[FileSystem River Plugin] (by David Pilato)
 * https://github.com/obazoud/elasticsearch-river-git[Git River Plugin] (by Olivier Bazoud)
+* https://github.com/uberVU/elasticsearch-river-github[GitHub River Plugin] (by uberVU)
 * https://github.com/sksamuel/elasticsearch-river-hazelcast[Hazelcast River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
 * https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)

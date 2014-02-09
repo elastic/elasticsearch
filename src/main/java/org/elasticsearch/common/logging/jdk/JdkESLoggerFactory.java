@@ -22,8 +22,6 @@ package org.elasticsearch.common.logging.jdk;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
-import java.util.logging.LogManager;
-
 /**
  *
  */
@@ -37,6 +35,6 @@ public class JdkESLoggerFactory extends ESLoggerFactory {
     @Override
     protected ESLogger newInstance(String prefix, String name) {
         final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(name);
-        return new JdkESLogger(prefix, name, logger);
+        return new JdkESLogger(prefix, logger);
     }
 }

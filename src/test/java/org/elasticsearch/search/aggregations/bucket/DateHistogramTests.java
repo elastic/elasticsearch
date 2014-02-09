@@ -22,6 +22,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
@@ -33,6 +35,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -116,6 +119,78 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(3l));
+    }
+
+    @Test
+    public void singleValuedField_WithPostTimeZone() throws Exception {
+        SearchResponse response;
+        if (randomBoolean()) {
+            response = client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).postZone("-01:00"))
+                .execute().actionGet();
+        } else {
+
+            // checking post_zone setting as an int
+
+            response = client().prepareSearch("idx")
+                .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        return builder.startObject(name)
+                                .startObject(type)
+                                    .field("field", "date")
+                                    .field("interval", "1d")
+                                    .field("post_zone", -1)
+                                .endObject()
+                            .endObject();
+                    }
+                })
+                .execute().actionGet();
+        }
+
+        assertSearchResponse(response);
+
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(6));
+
+        long key = new DateTime(2012, 1, 2, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        DateHistogram.Bucket bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 2, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 15, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 2, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 15, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 23, 0, 0, DateTimeZone.forID("+01:00")).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
     @Test

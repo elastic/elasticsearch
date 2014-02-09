@@ -110,13 +110,13 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser, token);
+                    preZone = parseZone(parser.text());
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser, token);
+                    preZone = parseZone(parser.text());
                 } else if ("pre_zone_adjust_large_interval".equals(currentFieldName) || "preZoneAdjustLargeInterval".equals(currentFieldName)) {
                     preZoneAdjustLargeInterval = parser.booleanValue();
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = parseZone(parser, token);
+                    postZone = parseZone(parser.text());
                 } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
                 } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
@@ -139,6 +139,12 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
+                } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
+                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
+                    postZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -247,23 +253,18 @@ public class DateHistogramParser implements Aggregator.Parser {
         return TimeValue.parseTimeValue(offset.substring(beginIndex), null).millis();
     }
 
-    private DateTimeZone parseZone(XContentParser parser, XContentParser.Token token) throws IOException {
-        if (token == XContentParser.Token.VALUE_NUMBER) {
-            return DateTimeZone.forOffsetHours(parser.intValue());
+    private DateTimeZone parseZone(String text) throws IOException {
+        int index = text.indexOf(':');
+        if (index != -1) {
+            int beginIndex = text.charAt(0) == '+' ? 1 : 0;
+            // format like -02:30
+            return DateTimeZone.forOffsetHoursMinutes(
+                    Integer.parseInt(text.substring(beginIndex, index)),
+                    Integer.parseInt(text.substring(index + 1))
+            );
         } else {
-            String text = parser.text();
-            int index = text.indexOf(':');
-            if (index != -1) {
-                int beginIndex = text.charAt(0) == '+' ? 1 : 0;
-                // format like -02:30
-                return DateTimeZone.forOffsetHoursMinutes(
-                        Integer.parseInt(text.substring(beginIndex, index)),
-                        Integer.parseInt(text.substring(index + 1))
-                );
-            } else {
-                // id, listed here: http://joda-time.sourceforge.net/timezones.html
-                return DateTimeZone.forID(text);
-            }
+            // id, listed here: http://joda-time.sourceforge.net/timezones.html
+            return DateTimeZone.forID(text);
         }
     }
 

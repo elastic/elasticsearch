@@ -41,6 +41,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleConfigs() throws Exception {
+        LogConfigurator.reset();
         File configDir = resolveConfigDir();
         Settings settings = ImmutableSettings.builder()
                 .put("path.conf", configDir.getAbsolutePath())

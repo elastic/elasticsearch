@@ -53,6 +53,11 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeOpera
     }
 
     @Override
+    protected boolean localExecute(PendingClusterTasksRequest request) {
+        return request.local();
+    }
+
+    @Override
     protected PendingClusterTasksRequest newRequest() {
         return new PendingClusterTasksRequest();
     }

@@ -19,15 +19,47 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  */
 public class PendingClusterTasksRequest extends MasterNodeOperationRequest<PendingClusterTasksRequest> {
 
+    private boolean local = false;
+
+    public PendingClusterTasksRequest local(boolean local) {
+        this.local = local;
+        return this;
+    }
+
+    public boolean local() {
+        return local;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_0_90_12)) {
+            local = in.readBoolean();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_0_90_12)) {
+            out.writeBoolean(local);
+        }
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -37,15 +36,14 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.rest.AbstractRestResponseActionListener;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
-import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -125,17 +123,17 @@ public class RestThreadPoolAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final String[] pools = fetchSortedPools(request, DEFAULT_THREAD_POOLS);
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.clear().process(true);
-                client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
+                client.admin().cluster().nodesInfo(nodesInfoRequest, new AbstractRestResponseActionListener<NodesInfoResponse>(request, channel, logger) {
                     @Override
                     public void onResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
                         nodesStatsRequest.clear().threadPool(true);
-                        client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
+                        client.admin().cluster().nodesStats(nodesStatsRequest, new AbstractRestResponseActionListener<NodesStatsResponse>(request, channel, logger) {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
                                 try {
@@ -144,36 +142,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                                     onFailure(e);
                                 }
                             }
-
-                            @Override
-                            public void onFailure(Throwable e) {
-                                try {
-                                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                                } catch (IOException e1) {
-                                    logger.error("Failed to send failure response", e1);
-                                }
-                            }
                         });
                     }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        try {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                        } catch (IOException e1) {
-                            logger.error("Failed to send failure response", e1);
-                        }
-                    }
                 });
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
             }
         });
     }
@@ -296,7 +267,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 }
 
             }
-            return requestedPools.toArray(new String[0]);
+            return requestedPools.toArray(new String[requestedPools.size()]);
         }
     }
 }

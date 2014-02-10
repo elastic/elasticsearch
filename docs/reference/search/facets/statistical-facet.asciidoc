@@ -99,3 +99,9 @@ should be enough memory to contain them. Since by default, dynamic
 introduced types are `long` and `double`, one option to reduce the
 memory footprint is to explicitly set the types for the relevant fields
 to either `short`, `integer`, or `float` when possible.
+
+==== Note on documents missing faceted field
+
+Statistical data is computed only for documents that have the numeric
+field which we are faceting on. Any documents that are missing the
+numeric field in question are excluded.

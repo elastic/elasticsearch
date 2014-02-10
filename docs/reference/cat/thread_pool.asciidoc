@@ -11,7 +11,7 @@ host1 192.168.1.35 0 0 0 0 0 0 0 0 0
 host2 192.168.1.36 0 0 0 0 0 0 0 0 0
 --------------------------------------------------
 
-The first two columns tell your the host and ip of a node.
+The first two columns contain the host and ip of a node.
 
 [source,shell]
 --------------------------------------------------

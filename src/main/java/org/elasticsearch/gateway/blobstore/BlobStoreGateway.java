@@ -119,8 +119,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     public CommitPoint findCommitPoint(String index, int shardId) throws IOException {
         BlobPath path = BlobStoreIndexGateway.shardPath(basePath, index, shardId);
-        ImmutableBlobContainer container = blobStore.immutableBlobContainer(path);
-        ImmutableMap<String, BlobMetaData> blobs = container.listBlobs();
+        ImmutableBlobContainer blobContainer = blobStore.immutableBlobContainer(path);
+        ImmutableMap<String, BlobMetaData> blobs = blobContainer.listBlobs();
         List<CommitPoint> commitPointsList = Lists.newArrayList();
         for (BlobMetaData md : blobs.values()) {
             if (md.length() == 0) { // a commit point that was not flushed yet...
@@ -128,7 +128,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             }
             if (md.name().startsWith("commit-")) {
                 try {
-                    commitPointsList.add(CommitPoints.fromXContent(container.readBlobFully(md.name())));
+                    commitPointsList.add(CommitPoints.fromXContent(blobContainer.readBlobFully(md.name())));
                 } catch (Exception e) {
                     logger.warn("failed to read commit point at path {} with name [{}]", e, path, md.name());
                 }

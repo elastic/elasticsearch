@@ -62,7 +62,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final ClusterName clusterName;
     private final Version version;
 
-    private final TimeValue publishTimeout;
+    private final DiscoverySettings discoverySettings;
 
     private DiscoveryNode localNode;
 
@@ -76,15 +76,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                          DiscoveryNodeService discoveryNodeService, Version version) {
+                          DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
-
-        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", DEFAULT_PUBLISH_TIMEOUT);
+        this.discoverySettings = discoverySettings;
     }
 
     @Override
@@ -336,6 +335,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 }
             }
 
+            TimeValue publishTimeout = discoverySettings.getPublishTimeout();
             if (publishTimeout.millis() > 0) {
                 try {
                     boolean awaited = publishResponseHandler.awaitAllNodes(publishTimeout);

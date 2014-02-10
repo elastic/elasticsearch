@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -1001,97 +1002,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.getExplanation().getDescription(), equalTo("not implemented yet..."));
-    }
-
-    @Test
-    public void testScoreForParentChildQueries() throws Exception {
-
-        client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping(
-                        "child",
-                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
-                                .endObject().endObject())
-                .addMapping(
-                        "child1",
-                        jsonBuilder().startObject().startObject("child1").startObject("_parent").field("type", "parent").endObject()
-                                .endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        indexRandom(false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
-        refresh();
-
-        SearchResponse response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("sum"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(3f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("max"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(2f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("avg"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(1.5f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasParentQuery("parent",
-                                QueryBuilders.customScoreQuery(matchQuery("p_field1", "p_value3")).script("doc['p_field2'].value"))
-                                .scoreType("score")).addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort())
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(7l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("13"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("14"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("15"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[3].id(), equalTo("16"));
-        assertThat(response.getHits().hits()[3].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[4].id(), equalTo("17"));
-        assertThat(response.getHits().hits()[4].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[5].id(), equalTo("18"));
-        assertThat(response.getHits().hits()[5].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[6].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[6].score(), equalTo(5f));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {

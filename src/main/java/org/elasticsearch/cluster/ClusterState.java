@@ -234,6 +234,7 @@ public class ClusterState implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("version", version);
         if (!params.paramAsBoolean("filter_nodes", false)) {
             builder.field("master_node", nodes().masterNodeId());
         }

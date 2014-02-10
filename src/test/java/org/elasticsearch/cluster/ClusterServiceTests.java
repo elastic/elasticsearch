@@ -580,7 +580,86 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             assertThat(testService1.master(), is(false));
             assertThat(testService2.master(), is(true));
         }
+    }
 
+    /**
+     * Note, this test can only work as long as we have a single thread executor executing the state update tasks!
+     */
+    @Test
+    public void testPriorizedTasks() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+        cluster().startNode(settings);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        BlockingTask block = new BlockingTask();
+        clusterService.submitStateUpdateTask("test", Priority.IMMEDIATE, block);
+        int taskCount = randomIntBetween(5, 20);
+        Priority[] priorities = Priority.values();
+
+        // will hold all the tasks in the order in which they were executed
+        List<PrioritiezedTask> tasks = new ArrayList<PrioritiezedTask>(taskCount);
+        CountDownLatch latch = new CountDownLatch(taskCount);
+        for (int i = 0; i < taskCount; i++) {
+            Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
+            clusterService.submitStateUpdateTask("test", priority, new PrioritiezedTask(priority, latch, tasks));
+        }
+
+        block.release();
+        latch.await();
+
+        Priority prevPriority = null;
+        for (PrioritiezedTask task : tasks) {
+            if (prevPriority == null) {
+                prevPriority = task.priority;
+            } else {
+                assertThat(task.priority.sameOrAfter(prevPriority), is(true));
+            }
+        }
+    }
+
+    private static class BlockingTask implements ClusterStateUpdateTask {
+        private final CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            latch.await();
+            return currentState;
+        }
+
+        @Override
+        public void onFailure(String source, Throwable t) {
+        }
+
+        public void release() {
+            latch.countDown();
+        }
+
+    }
+
+    private static class PrioritiezedTask implements ClusterStateUpdateTask {
+
+        private final Priority priority;
+        private final CountDownLatch latch;
+        private final List<PrioritiezedTask> tasks;
+
+        private PrioritiezedTask(Priority priority, CountDownLatch latch, List<PrioritiezedTask> tasks) {
+            this.priority = priority;
+            this.latch = latch;
+            this.tasks = tasks;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            tasks.add(this);
+            latch.countDown();
+            return currentState;
+        }
+
+        @Override
+        public void onFailure(String source, Throwable t) {
+            latch.countDown();
+        }
     }
 
     public static class TestPlugin extends AbstractPlugin {

@@ -18,18 +18,20 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -39,37 +41,42 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<Priority>();
-        queue.add(Priority.LANGUID);
-        queue.add(Priority.NORMAL);
-        queue.add(Priority.HIGH);
-        queue.add(Priority.LOW);
-        queue.add(Priority.URGENT);
+        List<Priority> priorities = Lists.newArrayList(Priority.values());
+        Collections.shuffle(priorities);
 
-        assertThat(queue.poll(), equalTo(Priority.URGENT));
-        assertThat(queue.poll(), equalTo(Priority.HIGH));
-        assertThat(queue.poll(), equalTo(Priority.NORMAL));
-        assertThat(queue.poll(), equalTo(Priority.LOW));
-        assertThat(queue.poll(), equalTo(Priority.LANGUID));
+        for (Priority priority : priorities) {
+            queue.add(priority);
+        }
+
+        Priority prevPriority = null;
+        while (!queue.isEmpty()) {
+            if (prevPriority == null) {
+                prevPriority = queue.poll();
+            } else {
+                assertThat(queue.poll().after(prevPriority), is(true));
+            }
+        }
     }
 
     @Test
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(7);
+        List<Integer> results = new ArrayList<Integer>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));
-        executor.submit(new Job(6, Priority.LANGUID, results, finishedLatch));
-        executor.submit(new Job(4, Priority.LOW, results, finishedLatch));
-        executor.submit(new Job(1, Priority.HIGH, results, finishedLatch));
-        executor.submit(new Job(5, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
-        executor.submit(new Job(0, Priority.URGENT, results, finishedLatch));
-        executor.submit(new Job(3, Priority.NORMAL, results, finishedLatch));
-        executor.submit(new Job(2, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new Job(7, Priority.LANGUID, results, finishedLatch));
+        executor.submit(new Job(5, Priority.LOW, results, finishedLatch));
+        executor.submit(new Job(2, Priority.HIGH, results, finishedLatch));
+        executor.submit(new Job(6, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
+        executor.submit(new Job(1, Priority.URGENT, results, finishedLatch));
+        executor.submit(new Job(4, Priority.NORMAL, results, finishedLatch));
+        executor.submit(new Job(3, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new Job(0, Priority.IMMEDIATE, results, finishedLatch));
         awaitingLatch.countDown();
         finishedLatch.await();
 
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         assertThat(results.get(0), equalTo(0));
         assertThat(results.get(1), equalTo(1));
         assertThat(results.get(2), equalTo(2));
@@ -77,26 +84,28 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(4), equalTo(4));
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
+        assertThat(results.get(7), equalTo(7));
     }
 
     @Test
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(7);
+        List<Integer> results = new ArrayList<Integer>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.execute(new AwaitingJob(awaitingLatch));
-        executor.execute(new Job(6, Priority.LANGUID, results, finishedLatch));
-        executor.execute(new Job(4, Priority.LOW, results, finishedLatch));
-        executor.execute(new Job(1, Priority.HIGH, results, finishedLatch));
-        executor.execute(new Job(5, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
-        executor.execute(new Job(0, Priority.URGENT, results, finishedLatch));
-        executor.execute(new Job(3, Priority.NORMAL, results, finishedLatch));
-        executor.execute(new Job(2, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.execute(new Job(7, Priority.LANGUID, results, finishedLatch));
+        executor.execute(new Job(5, Priority.LOW, results, finishedLatch));
+        executor.execute(new Job(2, Priority.HIGH, results, finishedLatch));
+        executor.execute(new Job(6, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
+        executor.execute(new Job(1, Priority.URGENT, results, finishedLatch));
+        executor.execute(new Job(4, Priority.NORMAL, results, finishedLatch));
+        executor.execute(new Job(3, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.execute(new Job(0, Priority.IMMEDIATE, results, finishedLatch));
         awaitingLatch.countDown();
         finishedLatch.await();
 
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         assertThat(results.get(0), equalTo(0));
         assertThat(results.get(1), equalTo(1));
         assertThat(results.get(2), equalTo(2));
@@ -104,26 +113,28 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(4), equalTo(4));
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
+        assertThat(results.get(7), equalTo(7));
     }
 
     @Test
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(7);
+        List<Integer> results = new ArrayList<Integer>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));
-        executor.submit(new CallableJob(6, Priority.LANGUID, results, finishedLatch));
-        executor.submit(new CallableJob(4, Priority.LOW, results, finishedLatch));
-        executor.submit(new CallableJob(1, Priority.HIGH, results, finishedLatch));
-        executor.submit(new CallableJob(5, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
-        executor.submit(new CallableJob(0, Priority.URGENT, results, finishedLatch));
-        executor.submit(new CallableJob(3, Priority.NORMAL, results, finishedLatch));
-        executor.submit(new CallableJob(2, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new CallableJob(7, Priority.LANGUID, results, finishedLatch));
+        executor.submit(new CallableJob(5, Priority.LOW, results, finishedLatch));
+        executor.submit(new CallableJob(2, Priority.HIGH, results, finishedLatch));
+        executor.submit(new CallableJob(6, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
+        executor.submit(new CallableJob(1, Priority.URGENT, results, finishedLatch));
+        executor.submit(new CallableJob(4, Priority.NORMAL, results, finishedLatch));
+        executor.submit(new CallableJob(3, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new CallableJob(0, Priority.IMMEDIATE, results, finishedLatch));
         awaitingLatch.countDown();
         finishedLatch.await();
 
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         assertThat(results.get(0), equalTo(0));
         assertThat(results.get(1), equalTo(1));
         assertThat(results.get(2), equalTo(2));
@@ -131,26 +142,28 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(4), equalTo(4));
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
+        assertThat(results.get(7), equalTo(7));
     }
 
     @Test
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(7);
+        List<Integer> results = new ArrayList<Integer>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));
-        executor.submit(new CallableJob(6, Priority.LANGUID, results, finishedLatch));
-        executor.submit(new Job(4, Priority.LOW, results, finishedLatch));
-        executor.submit(new CallableJob(1, Priority.HIGH, results, finishedLatch));
-        executor.submit(new Job(5, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
-        executor.submit(new CallableJob(0, Priority.URGENT, results, finishedLatch));
-        executor.submit(new Job(3, Priority.NORMAL, results, finishedLatch));
-        executor.submit(new CallableJob(2, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new CallableJob(7, Priority.LANGUID, results, finishedLatch));
+        executor.submit(new Job(5, Priority.LOW, results, finishedLatch));
+        executor.submit(new CallableJob(2, Priority.HIGH, results, finishedLatch));
+        executor.submit(new Job(6, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
+        executor.submit(new CallableJob(1, Priority.URGENT, results, finishedLatch));
+        executor.submit(new Job(4, Priority.NORMAL, results, finishedLatch));
+        executor.submit(new CallableJob(3, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        executor.submit(new Job(0, Priority.IMMEDIATE, results, finishedLatch));
         awaitingLatch.countDown();
         finishedLatch.await();
 
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         assertThat(results.get(0), equalTo(0));
         assertThat(results.get(1), equalTo(1));
         assertThat(results.get(2), equalTo(2));
@@ -158,6 +171,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         assertThat(results.get(4), equalTo(4));
         assertThat(results.get(5), equalTo(5));
         assertThat(results.get(6), equalTo(6));
+        assertThat(results.get(7), equalTo(7));
     }
 
     @Test

@@ -159,7 +159,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         waitForNodes = in.readString();
         readLocal(in);
         if (in.readBoolean()) {
-            waitForEvents = Priority.fromByte(in.readByte());
+            waitForEvents = Priority.readFrom(in);
         }
     }
 
@@ -189,7 +189,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeByte(waitForEvents.value());
+            Priority.writeTo(waitForEvents, out);
         }
     }
 }

@@ -534,13 +534,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         XContentType xContentType = XContentFactory.xContentType(source);
         XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
         try {
-            XContentParser.Token t = parser.nextToken();
-            if (t == null) {
+            XContentParser.Token token = parser.nextToken();
+            if (token == null) {
                 return this;
             }
             String currentFieldName = null;
-            while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (t == XContentParser.Token.FIELD_NAME) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.textOrNull();

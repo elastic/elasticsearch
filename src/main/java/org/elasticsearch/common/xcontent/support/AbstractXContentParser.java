@@ -260,38 +260,38 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
         Map<String, Object> map = mapFactory.newMap();
-        XContentParser.Token t = parser.currentToken();
-        if (t == null) {
-            t = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
         }
-        if (t == XContentParser.Token.START_OBJECT) {
-            t = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
         }
-        for (; t == XContentParser.Token.FIELD_NAME; t = parser.nextToken()) {
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             // Must point to field name
             String fieldName = parser.currentName();
             // And then the value...
-            t = parser.nextToken();
-            Object value = readValue(parser, mapFactory, t);
+            token = parser.nextToken();
+            Object value = readValue(parser, mapFactory, token);
             map.put(fieldName, value);
         }
         return map;
     }
 
-    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
+    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
         ArrayList<Object> list = new ArrayList<>();
-        while ((t = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            list.add(readValue(parser, mapFactory, t));
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            list.add(readValue(parser, mapFactory, token));
         }
         return list;
     }
 
-    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
-        if (t == XContentParser.Token.VALUE_NULL) {
+    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
+        if (token == XContentParser.Token.VALUE_NULL) {
             return null;
-        } else if (t == XContentParser.Token.VALUE_STRING) {
+        } else if (token == XContentParser.Token.VALUE_STRING) {
             return parser.text();
-        } else if (t == XContentParser.Token.VALUE_NUMBER) {
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = parser.numberType();
             if (numberType == XContentParser.NumberType.INT) {
                 return parser.intValue();
@@ -302,13 +302,13 @@ public abstract class AbstractXContentParser implements XContentParser {
             } else if (numberType == XContentParser.NumberType.DOUBLE) {
                 return parser.doubleValue();
             }
-        } else if (t == XContentParser.Token.VALUE_BOOLEAN) {
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
-        } else if (t == XContentParser.Token.START_OBJECT) {
+        } else if (token == XContentParser.Token.START_OBJECT) {
             return readMap(parser, mapFactory);
-        } else if (t == XContentParser.Token.START_ARRAY) {
-            return readList(parser, mapFactory, t);
-        } else if (t == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            return readList(parser, mapFactory, token);
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             return parser.binaryValue();
         }
         return null;

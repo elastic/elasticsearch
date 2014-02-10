@@ -434,28 +434,28 @@ public class MappingMetaData {
             return;
         }
 
-        XContentParser.Token t = parser.currentToken();
-        if (t == null) {
-            t = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
         }
-        if (t == XContentParser.Token.START_OBJECT) {
-            t = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
         }
         String idPart = context.idParsingStillNeeded() ? id().pathElements()[context.locationId] : null;
         String routingPart = context.routingParsingStillNeeded() ? routing().pathElements()[context.locationRouting] : null;
         String timestampPart = context.timestampParsingStillNeeded() ? timestamp().pathElements()[context.locationTimestamp] : null;
 
-        for (; t == XContentParser.Token.FIELD_NAME; t = parser.nextToken()) {
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             // Must point to field name
             String fieldName = parser.currentName();
             // And then the value...
-            t = parser.nextToken();
+            token = parser.nextToken();
             boolean incLocationId = false;
             boolean incLocationRouting = false;
             boolean incLocationTimestamp = false;
             if (context.idParsingStillNeeded() && fieldName.equals(idPart)) {
                 if (context.locationId + 1 == id.pathElements().length) {
-                    if (!t.isValue()) {
+                    if (!token.isValue()) {
                         throw new MapperParsingException("id field must be a value but was either an object or an array");
                     }
                     context.id = parser.textOrNull();
@@ -482,7 +482,7 @@ public class MappingMetaData {
             }
 
             if (incLocationId || incLocationRouting || incLocationTimestamp) {
-                if (t == XContentParser.Token.START_OBJECT) {
+                if (token == XContentParser.Token.START_OBJECT) {
                     context.locationId += incLocationId ? 1 : 0;
                     context.locationRouting += incLocationRouting ? 1 : 0;
                     context.locationTimestamp += incLocationTimestamp ? 1 : 0;

@@ -12,7 +12,7 @@
 
  - do:
       cluster.health:
-          wait_for_status: yellow
+          wait_for_status: green
 
  - do:
       index:

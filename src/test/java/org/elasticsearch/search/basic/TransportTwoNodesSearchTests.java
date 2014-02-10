@@ -109,10 +109,8 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
-//        System.out.println("max_score: " + searchResponse.hits().maxScore());
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.getHits().hits()[i];
-//            System.out.println(hit.shard() + ": " + hit.score() + ":" +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
@@ -141,7 +139,6 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.getHits().hits()[i];
-//            System.out.println(hit.shard() + ": " +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
@@ -171,7 +168,6 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.getHits().hits()[i];
-//            System.out.println(hit.shard() + ": " +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
@@ -395,8 +391,8 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
-                // Add custom score query with missing script
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("nid", 1))))
+                // Add function score with a bogus score mode
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1)).scoreMode("foobar")))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();

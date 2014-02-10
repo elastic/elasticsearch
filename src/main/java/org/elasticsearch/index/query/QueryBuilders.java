@@ -420,44 +420,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that simply applies the boost fact to the wrapped query (multiplies it).
-     *
-     * @param queryBuilder The query to apply the boost factor to.
-     * @deprecated use {@link #functionScoreQuery(QueryBuilder)} instead
-     */
-    public static CustomBoostFactorQueryBuilder customBoostFactorQuery(QueryBuilder queryBuilder) {
-        return new CustomBoostFactorQueryBuilder(queryBuilder);
-    }
-
-    /**
-     * A query that allows to define a custom scoring script.
-     *
-     * @param queryBuilder The query to custom score
-     * @deprecated use {@link #functionScoreQuery(QueryBuilder)} instead
-     */
-    public static CustomScoreQueryBuilder customScoreQuery(QueryBuilder queryBuilder) {
-        return new CustomScoreQueryBuilder(queryBuilder);
-    }
-
-    /**
-     * A query that allows to define a custom scoring script, that defines the score for each document that match
-     * with the specified filter.
-     *
-     * @param filterBuilder The filter that defines which documents are scored by a script.
-     * @deprecated use {@link #functionScoreQuery(QueryBuilder)} instead
-     */
-    public static CustomScoreQueryBuilder customScoreQuery(FilterBuilder filterBuilder) {
-        return new CustomScoreQueryBuilder(filterBuilder);
-    }
-    
-    /** 
-     * @deprecated use {@link #functionScoreQuery(QueryBuilder)} instead
-     */
-    public static CustomFiltersScoreQueryBuilder customFiltersScoreQuery(QueryBuilder queryBuilder) {
-        return new CustomFiltersScoreQueryBuilder(queryBuilder);
-    }
-
-    /**
      * A query that allows to define a custom scoring function.
      *
      * @param queryBuilder The query to custom score

@@ -86,7 +86,7 @@ public class PendingClusterTask implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         insertOrder = in.readVLong();
-        priority = Priority.fromByte(in.readByte());
+        priority = Priority.readFrom(in);
         source = in.readText();
         timeInQueue = in.readVLong();
     }
@@ -94,7 +94,7 @@ public class PendingClusterTask implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(insertOrder);
-        out.writeByte(priority.value());
+        Priority.writeTo(priority, out);
         out.writeText(source);
         out.writeVLong(timeInQueue);
     }

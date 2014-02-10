@@ -73,7 +73,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.IMMEDIATE, new AckedClusterStateUpdateTask() {
 
             private volatile ClusterState clusterStateToSend;
             private volatile RoutingExplanations explanations;

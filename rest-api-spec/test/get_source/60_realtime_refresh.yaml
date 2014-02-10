@@ -4,6 +4,14 @@
  - skip:
       version:  "0 - 0.90.0"
       reason:   "Get source not supported in pre 0.90.1 versions."
+
+ - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            refresh_interval: 1800s
+
  - do:
       index:
           index:   test_1

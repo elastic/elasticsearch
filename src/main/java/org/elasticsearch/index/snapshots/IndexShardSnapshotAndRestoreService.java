@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.recovery.RecoveryMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreService;
 
@@ -104,9 +105,9 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
     /**
      * Restores shard from {@link RestoreSource} associated with this shard in routing table
      *
-     * @param recoveryStatus recovery status
+     * @param recoveryMetrics recovery metrics
      */
-    public void restore(final RecoveryStatus recoveryStatus) {
+    public void restore(final RecoveryMetrics recoveryMetrics) {
         RestoreSource restoreSource = indexShard.routingEntry().restoreSource();
         if (restoreSource == null) {
             throw new IndexShardRestoreFailedException(shardId, "empty restore source");
@@ -120,7 +121,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
             if (!shardId.getIndex().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
-            indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryStatus);
+            indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryMetrics);
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);
         } catch (Throwable t) {
             throw new IndexShardRestoreFailedException(shardId, "restore failed", t);

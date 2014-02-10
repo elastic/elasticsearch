@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.recovery.RecoveryMetrics;
 
 import java.io.IOException;
 
@@ -60,8 +61,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override
-    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
-        recoveryStatus.index().startTime(System.currentTimeMillis());
+    public void recover(boolean indexShouldExists, RecoveryMetrics recoveryMetrics) throws IndexShardGatewayRecoveryException {
+        recoveryMetrics.state(RecoveryMetrics.State.INDEX);
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
@@ -71,9 +72,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             logger.warn("failed to clean store before starting shard", e);
         }
         indexShard.postRecovery("post recovery from gateway");
-        recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
-        recoveryStatus.translog().startTime(System.currentTimeMillis());
-        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryMetrics.indexTimer().stop();
     }
 
     @Override

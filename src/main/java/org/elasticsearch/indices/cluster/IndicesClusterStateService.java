@@ -679,19 +679,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we are the first primary, recover from the gateway
                 // if its post api allocation, the index should exists
                 boolean indexShouldExists = indexShardRouting.primaryAllocatedPostApi();
-                IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
+                final IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
                 shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
                     @Override
                     public void onRecoveryDone() {
+                        shardGatewayService.recoveryMetrics().completed(true);
                         shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(), "after recovery from gateway");
                     }
 
                     @Override
                     public void onIgnoreRecovery(String reason) {
+                        shardGatewayService.recoveryMetrics().ignored(reason);
                     }
 
                     @Override
                     public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
+                        shardGatewayService.recoveryMetrics().failed(e);
                         handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
                     }
                 });
@@ -716,6 +719,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         private final ShardRouting shardRouting;
         private final IndexService indexService;
         private final IndexMetaData indexMetaData;
+        private RecoveryStatus recoveryStatus;
 
         private PeerRecoveryListener(StartRecoveryRequest request, ShardRouting shardRouting, IndexService indexService, IndexMetaData indexMetaData) {
             this.request = request;
@@ -725,17 +729,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         @Override
+        public void setRecoveryStatus(RecoveryStatus recoveryStatus) {
+            this.recoveryStatus = recoveryStatus;
+        }
+
+        @Override
         public void onRecoveryDone() {
+            recoveryStatus.metrics().completed(true);
             shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(), "after recovery (replica) from node [" + request.sourceNode() + "]");
         }
 
         @Override
         public void onRetryRecovery(TimeValue retryAfter, RecoveryStatus recoveryStatus) {
+            recoveryStatus.metrics().incrementRetries();
             recoveryTarget.retryRecovery(request, recoveryStatus, PeerRecoveryListener.this);
         }
 
         @Override
         public void onIgnoreRecovery(boolean removeShard, String reason) {
+            RecoveryStatus recoveryStatus = recoveryTarget.peerRecoveryStatus(request.shardId());
+            if (recoveryStatus != null) {
+                recoveryStatus.metrics().ignored(reason);
+            }
             if (!removeShard) {
                 return;
             }
@@ -757,6 +772,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            RecoveryStatus recoveryStatus = recoveryTarget.peerRecoveryStatus(request.shardId());
+            recoveryStatus.metrics().failed(e);
             handleRecoveryFailure(indexService, indexMetaData, shardRouting, sendShardFailure, e);
         }
     }

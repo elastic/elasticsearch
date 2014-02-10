@@ -48,11 +48,16 @@ public class RecoveryStatus {
     final ShardId shardId;
     final long recoveryId;
     final InternalIndexShard indexShard;
+    final RecoveryMetrics metrics;
 
     public RecoveryStatus(long recoveryId, InternalIndexShard indexShard) {
         this.recoveryId = recoveryId;
         this.indexShard = indexShard;
         this.shardId = indexShard.shardId();
+        this.metrics = new RecoveryMetrics(indexShard.shardId());
+
+        // XXX - (andrew) - parameterize recovery type; for now hard-code to peer.
+        this.metrics.type(RecoveryMetrics.Type.PEER);
     }
 
     volatile Thread recoveryThread;
@@ -74,6 +79,10 @@ public class RecoveryStatus {
     volatile Stage stage = Stage.INIT;
     volatile long currentTranslogOperations = 0;
     AtomicLong currentFilesSize = new AtomicLong();
+
+    public RecoveryMetrics metrics() {
+        return metrics;
+    }
 
     public long startTime() {
         return startTime;
@@ -119,7 +128,7 @@ public class RecoveryStatus {
         return outputs.get(key);
     }
     
-    public synchronized Set<Entry<String, IndexOutput>> cancleAndClearOpenIndexInputs() {
+    public synchronized Set<Entry<String, IndexOutput>> cancelAndClearOpenIndexInputs() {
         cancel();
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
         openIndexOutputs = null;
@@ -129,7 +138,6 @@ public class RecoveryStatus {
         Set<Entry<String, IndexOutput>> entrySet = outputs.entrySet();
         return entrySet;
     }
-    
 
     public IndexOutput removeOpenIndexOutputs(String name) {
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;

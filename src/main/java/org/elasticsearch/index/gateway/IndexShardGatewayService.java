@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.gateway;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +36,9 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryMetrics;
+import org.elasticsearch.indices.recovery.RecoveryMetrics.Type;
+import org.elasticsearch.indices.recovery.RecoveryMetrics.State;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -48,49 +52,40 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableIndexComponent {
 
     private final boolean snapshotOnClose;
-
     private final ThreadPool threadPool;
-
     private final IndexSettingsService indexSettingsService;
-
     private final InternalIndexShard indexShard;
-
     private final IndexShardGateway shardGateway;
-
     private final IndexShardSnapshotAndRestoreService snapshotService;
-
+    private final ClusterService clusterService;
 
     private volatile long lastIndexVersion;
-
     private volatile long lastTranslogId = -1;
-
     private volatile int lastTotalTranslogOperations;
-
     private volatile long lastTranslogLength;
-
     private volatile TimeValue snapshotInterval;
-
     private volatile ScheduledFuture snapshotScheduleFuture;
 
     private RecoveryStatus recoveryStatus;
-
+    private RecoveryMetrics recoveryMetrics;
     private IndexShardGateway.SnapshotLock snapshotLock;
 
     private final SnapshotRunnable snapshotRunnable = new SnapshotRunnable();
-
     private final ApplySettings applySettings = new ApplySettings();
 
 
     @Inject
     public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
                                     ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway, IndexShardSnapshotAndRestoreService snapshotService,
-                                    RepositoriesService repositoriesService) {
+                                    RepositoriesService repositoriesService, ClusterService clusterService) {
         super(shardId, indexSettings);
+
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
+        this.clusterService = clusterService;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -131,6 +126,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         void onRecoveryFailed(IndexShardGatewayRecoveryException e);
     }
 
+    public RecoveryMetrics recoveryMetrics() {
+        return recoveryMetrics;
+    }
+
     public RecoveryStatus recoveryStatus() {
         if (recoveryStatus == null) {
             return recoveryStatus;
@@ -153,6 +152,17 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
      * Recovers the state of the shard from the gateway.
      */
     public void recover(final boolean indexShouldExists, final RecoveryListener listener) throws IndexShardGatewayRecoveryException, IgnoreGatewayRecoveryException {
+
+        // XXX - (andrew) - Is it always local node?
+        recoveryMetrics = new RecoveryMetrics(shardId, clusterService.localNode(), clusterService.localNode());
+
+        if (indexShard.routingEntry().restoreSource() != null) {
+            recoveryMetrics.restoreSource(indexShard.routingEntry().restoreSource());
+            recoveryMetrics.type(Type.RESTORE);
+        } else {
+            recoveryMetrics.type(Type.GATEWAY);
+        }
+
         if (indexShard.state() == IndexShardState.CLOSED) {
             // got closed on us, just ignore this recovery
             listener.onIgnoreRecovery("shard closed");
@@ -183,16 +193,16 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 try {
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
-                        snapshotService.restore(recoveryStatus);
+                        snapshotService.restore(recoveryMetrics);
                     } else {
                         logger.debug("starting recovery from {} ...", shardGateway);
-                        shardGateway.recover(indexShouldExists, recoveryStatus);
+                        shardGateway.recover(indexShouldExists, recoveryMetrics);
                     }
 
-                    lastIndexVersion = recoveryStatus.index().version();
+                    lastIndexVersion = recoveryMetrics.index().version();
                     lastTranslogId = -1;
                     lastTranslogLength = 0;
-                    lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
+                    lastTotalTranslogOperations = recoveryMetrics.translog().currentTranslogOperations();
 
                     // start the shard if the gateway has not started it already. Note that if the gateway
                     // moved shard to POST_RECOVERY, it may have been started as well if:

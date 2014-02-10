@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
@@ -151,10 +152,16 @@ public class RecoveryTarget extends AbstractComponent {
         } finally {
             removeAndCleanOnGoingRecovery(recoveryStatus);
         }
-
     }
 
     public void startRecovery(final StartRecoveryRequest request, final InternalIndexShard indexShard, final RecoveryListener listener) {
+
+        // create a new recovery status, and process...
+        final RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
+        recoveryStatus.metrics().sourceNode(request.sourceNode());
+        recoveryStatus.metrics().targetNode(request.targetNode());
+        listener.setRecoveryStatus(recoveryStatus);
+
         try {
             indexShard.recovering("from " + request.sourceNode());
         } catch (IllegalIndexShardStateException e) {
@@ -165,8 +172,6 @@ public class RecoveryTarget extends AbstractComponent {
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                // create a new recovery status, and process...
-                RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
                 onGoingRecoveries.put(recoveryStatus.recoveryId, recoveryStatus);
                 doRecovery(request, recoveryStatus, listener);
             }
@@ -221,6 +226,9 @@ public class RecoveryTarget extends AbstractComponent {
             }
             stopWatch.stop();
             if (logger.isTraceEnabled()) {
+
+                // XXX - (andrew) - CLEAN UP LOGGING
+
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
@@ -312,6 +320,8 @@ public class RecoveryTarget extends AbstractComponent {
         void onIgnoreRecovery(boolean removeShard, String reason);
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
+
+        void setRecoveryStatus(RecoveryStatus recoveryStatus);
     }
 
     @Nullable
@@ -347,7 +357,7 @@ public class RecoveryTarget extends AbstractComponent {
         // coming from the recovery target
         status.cancel();
         // clean open index outputs
-        Set<Entry<String, IndexOutput>> entrySet = status.cancleAndClearOpenIndexInputs();
+        Set<Entry<String, IndexOutput>> entrySet = status.cancelAndClearOpenIndexInputs();
         Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, IndexOutput> entry = iterator.next();
@@ -385,6 +395,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             onGoingRecovery.stage = RecoveryStatus.Stage.TRANSLOG;
+            onGoingRecovery.metrics().state(RecoveryMetrics.State.TRANSLOG);
 
             onGoingRecovery.indexShard.performRecoveryPrepareForTranslog();
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -424,7 +435,6 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     class TranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryTranslogOperationsRequest> {
-
 
         @Override
         public RecoveryTranslogOperationsRequest newInstance() {
@@ -485,6 +495,12 @@ public class RecoveryTarget extends AbstractComponent {
                 throw new IndexShardClosedException(request.shardId());
             }
 
+            onGoingRecovery.metrics().state(RecoveryMetrics.State.INDEX);
+            // XXX - (andrew) - What are the proper values here?
+            onGoingRecovery.metrics().index().addFiles(request.phase1FileNames, request.phase1FileSizes);
+            onGoingRecovery.metrics().index().files(request.phase1FileNames.size(), request.phase1TotalSize, 0, 0);
+
+
             onGoingRecovery.phase1FileNames = request.phase1FileNames;
             onGoingRecovery.phase1FileSizes = request.phase1FileSizes;
             onGoingRecovery.phase1ExistingFileNames = request.phase1ExistingFileNames;
@@ -492,6 +508,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecovery.phase1TotalSize = request.phase1TotalSize;
             onGoingRecovery.phase1ExistingTotalSize = request.phase1ExistingTotalSize;
             onGoingRecovery.stage = RecoveryStatus.Stage.INDEX;
+
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -566,7 +583,6 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
 
-
         @Override
         public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
@@ -629,6 +645,8 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                     indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
                     onGoingRecovery.currentFilesSize.addAndGet(request.length());
+                    onGoingRecovery.metrics().index().addBytesRecovered(request.length());
+
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();
@@ -640,6 +658,7 @@ public class RecoveryTarget extends AbstractComponent {
                         IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
                         assert remove == indexOutput;
 
+                        onGoingRecovery.metrics().index().fileCompleted(request.name());
                     }
                     success = true;
                 } finally {

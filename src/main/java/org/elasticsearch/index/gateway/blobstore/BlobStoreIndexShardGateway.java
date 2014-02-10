@@ -46,6 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.indices.recovery.RecoveryMetrics;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -78,6 +79,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     protected final ImmutableBlobContainer blobContainer;
 
     private volatile RecoveryStatus recoveryStatus;
+    private volatile RecoveryMetrics recoveryMetrics;
 
     private volatile SnapshotStatus lastSnapshotStatus;
 
@@ -365,8 +367,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     @Override
-    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
-        this.recoveryStatus = recoveryStatus;
+    public void recover(boolean indexShouldExists, RecoveryMetrics recoveryMetrics) throws IndexShardGatewayRecoveryException {
+
+        this.recoveryMetrics = recoveryMetrics;
+        recoveryMetrics.state(RecoveryMetrics.State.INDEX);
 
         final ImmutableMap<String, BlobMetaData> blobs;
         try {
@@ -400,8 +404,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             } catch (IOException e) {
                 logger.warn("failed to clean store before starting shard", e);
             }
-            recoveryStatus.index().startTime(System.currentTimeMillis());
-            recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
             return;
         }
 
@@ -411,11 +413,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 continue;
             }
             try {
-                recoveryStatus.index().startTime(System.currentTimeMillis());
                 recoverIndex(commitPoint, blobs);
-                recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
-
+                recoveryMetrics.state(RecoveryMetrics.State.TRANSLOG);
                 recoverTranslog(commitPoint, blobs);
+                recoveryMetrics.translogTimer().stop();
                 return;
             } catch (Exception e) {
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover commit_point [" + commitPoint.name() + "]/[" + commitPoint.version() + "]", e);
@@ -427,23 +428,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private void recoverTranslog(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws IndexShardGatewayRecoveryException {
         if (commitPoint.translogFiles().isEmpty()) {
             // no translog files, bail
-            recoveryStatus.start().startTime(System.currentTimeMillis());
-            recoveryStatus.updateStage(RecoveryStatus.Stage.START);
             indexShard.postRecovery("post recovery from gateway, no translog");
-            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
-            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
+            recoveryMetrics.index().checkIndexTime(indexShard.checkIndexTook());
             return;
         }
 
         try {
-            recoveryStatus.start().startTime(System.currentTimeMillis());
-            recoveryStatus.updateStage(RecoveryStatus.Stage.START);
             indexShard.performRecoveryPrepareForTranslog();
-            recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
-            recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
-
-            recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
-            recoveryStatus.translog().startTime(System.currentTimeMillis());
+            recoveryMetrics.state(RecoveryMetrics.State.TRANSLOG);
 
             final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
             final CountDownLatch latch = new CountDownLatch(1);
@@ -481,14 +473,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                             if ((si.position() - curPos) != opSize) {
                                 logger.warn("mismatch in size, expected [{}], got [{}]", opSize, si.position() - curPos);
                             }
-                            recoveryStatus.translog().addTranslogOperations(1);
+                            recoveryMetrics.translog().addTranslogOperations(1);
                             indexShard.performRecoveryOperation(operation);
                             if (si.position() >= bos.size()) {
                                 position = si.position();
                                 break;
                             }
                         } catch (Throwable e) {
-                            logger.warn("failed to retrieve translog after [{}] operations, ignoring the rest, considered corrupted", e, recoveryStatus.translog().currentTranslogOperations());
+                            logger.warn("failed to retrieve translog after [{}] operations, ignoring the rest, considered corrupted", e, recoveryMetrics.translog().currentTranslogOperations());
                             ignore = true;
                             latch.countDown();
                             return;
@@ -531,14 +523,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
 
             indexShard.performRecoveryFinalization(true);
-            recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.translog().startTime());
+            recoveryMetrics.translogTimer().stop();
         } catch (Throwable e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recover translog", e);
         }
     }
 
     private void recoverIndex(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws Exception {
-        recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
+
         int numberOfFiles = 0;
         long totalSize = 0;
         int numberOfReusedFiles = 0;
@@ -576,7 +568,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
         }
 
-        recoveryStatus.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
+        recoveryMetrics.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
+
         if (filesToRecover.isEmpty()) {
             logger.trace("no files to recover, all exists within the local store");
         }
@@ -611,7 +604,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
-        recoveryStatus.index().updateVersion(version);
+        recoveryMetrics.index().version(version);
 
         /// now, go over and clean files that are in the store, but were not in the gateway
         try {
@@ -657,7 +650,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         blobContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
             @Override
             public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
-                recoveryStatus.index().addCurrentFilesSize(size);
+
+                recoveryMetrics.index().addBytesRecovered(size);
+                // XXX - (andrew) - Have not added any files at this point; do we really want file-level recovery? overkill?
+                recoveryMetrics.index().getFile(fileInfo.name()).bytesRecovered(size);
+
                 indexOutput.writeBytes(data, offset, size);
             }
 
@@ -678,6 +675,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                             store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
                         }
                         store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                        // XXX - (andrew) - Have not added any files at this point; do we really want file-level recovery? overkill?
+                        recoveryMetrics.index().fileCompleted(fileInfo.name());
                     } catch (IOException e) {
                         onFailure(e);
                         return;

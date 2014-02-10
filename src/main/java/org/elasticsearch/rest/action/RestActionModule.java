@@ -78,6 +78,7 @@ import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQu
 import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
+import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -205,10 +206,9 @@ public class RestActionModule extends AbstractModule {
         bind(RestMultiSearchAction.class).asEagerSingleton();
 
         bind(RestValidateQueryAction.class).asEagerSingleton();
-
         bind(RestMoreLikeThisAction.class).asEagerSingleton();
-
         bind(RestExplainAction.class).asEagerSingleton();
+        bind(RestRecoveryAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
@@ -219,7 +219,8 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestIndicesAction.class).asEagerSingleton();
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
-        catActionMultibinder.addBinding().to(RestRecoveryAction.class).asEagerSingleton();
+        // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
+        catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestRecoveryAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestHealthAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestAliasAction.class).asEagerSingleton();

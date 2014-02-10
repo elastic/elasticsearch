@@ -497,8 +497,8 @@ public class ClusterState implements ToXContent {
             return blocks(blocksBuilder.build());
         }
 
-        public Builder blocks(ClusterBlocks block) {
-            this.blocks = block;
+        public Builder blocks(ClusterBlocks blocks) {
+            this.blocks = blocks;
             return this;
         }
 

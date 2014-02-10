@@ -58,6 +58,9 @@ Before starting, you need to have:
 
 * A [Windows Azure account](http://www.windowsazure.com/)
 * SSH keys and certificate
+* OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
+  2014` doesn't seem to create a valid keypair for ssh.  FWIW,
+  `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 12.04 LTS is known to work.
 
 Here is a description on how to generate this using `openssl`:
 

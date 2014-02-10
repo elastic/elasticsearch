@@ -209,6 +209,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)
 * https://github.com/sunnygleason/elasticsearch-river-st9[St9 River Plugin] (by Sunny Gleason)
 * https://github.com/plombard/SubversionRiver[Subversion River Plugin] (by Pascal Lombard)
+* https://github.com/kzwang/elasticsearch-river-dynamodb[DynamoDB River Plugin] (by Kevin Wang)
 
 [float]
 [[transport]]

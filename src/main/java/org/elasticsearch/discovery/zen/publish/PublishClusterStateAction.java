@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -59,18 +60,15 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final TransportService transportService;
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
-
-    private final TimeValue publishTimeout;
+    private final DiscoverySettings discoverySettings;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener) {
+                                     NewClusterStateListener listener, DiscoverySettings discoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
-
-        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", Discovery.DEFAULT_PUBLISH_TIMEOUT);
-
+        this.discoverySettings = discoverySettings;
         transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
     }
 
@@ -137,6 +135,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
         }
 
+        TimeValue publishTimeout = discoverySettings.getPublishTimeout();
         if (publishTimeout.millis() > 0) {
             // only wait if the publish timeout is configured...
             try {

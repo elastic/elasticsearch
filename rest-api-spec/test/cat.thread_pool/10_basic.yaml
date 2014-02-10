@@ -1,0 +1,45 @@
+---
+setup:
+  - skip:
+      features: regex
+
+---
+"Test cat thread_pool output":
+
+  - do:
+      cat.thread_pool: {}
+
+  - match:
+      $body: >
+               /  #host       ip                          bulk.active       bulk.queue       bulk.rejected       index.active       index.queue       index.rejected       search.active       search.queue       search.rejected
+               ^  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+          \s+  \d+         \s+  \d+            \s+  \d+           \s+  \d+          \s+  \d+             \s+  \d+            \s+  \d+           \s+  \d+              \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          v: true
+
+  - match:
+      $body: >
+               /^ host  \s+  ip                     \s+  bulk.active  \s+  bulk.queue  \s+  bulk.rejected  \s+  index.active  \s+  index.queue  \s+  index.rejected  \s+  search.active  \s+  search.queue  \s+  search.rejected  \s+  \n
+                 (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+          \s+  \d+         \s+  \d+            \s+  \d+           \s+  \d+          \s+  \d+             \s+  \d+            \s+  \d+           \s+  \d+              \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: pid,id,h,i,po
+
+  - match:
+      $body: >
+               /  #pid       id          host       ip                          port
+               ^  (\d+  \s+  \S{4}  \s+  \S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d{4}  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,ba,fa,gea,ga,ia,maa,ma,oa,pa
+          v: true
+          full_id: true
+
+  - match:
+      $body: >
+               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  ma   \s+  oa   \s+  pa  \s+  \n
+                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+ \s+  \n)+  $/
+

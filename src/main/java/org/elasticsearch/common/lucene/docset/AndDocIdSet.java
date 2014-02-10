@@ -79,7 +79,7 @@ public class AndDocIdSet extends DocIdSet {
             }
         }
         if (bits.isEmpty()) {
-            return new IteratorBasedIterator(iterators.toArray(new DocIdSet[iterators.size()]));
+            return IteratorBasedIterator.newDocIdSetIterator(iterators.toArray(new DocIdSet[iterators.size()]));
         }
         if (iterators.isEmpty()) {
             return new BitsDocIdSetIterator(new AndBits(bits.toArray(new Bits[bits.size()])));
@@ -87,7 +87,7 @@ public class AndDocIdSet extends DocIdSet {
         // combination of both..., first iterating over the "fast" ones, and then checking on the more
         // expensive ones
         return new BitsDocIdSetIterator.FilteredIterator(
-                new IteratorBasedIterator(iterators.toArray(new DocIdSet[iterators.size()])),
+                IteratorBasedIterator.newDocIdSetIterator(iterators.toArray(new DocIdSet[iterators.size()])),
                 new AndBits(bits.toArray(new Bits[bits.size()]))
         );
     }
@@ -117,33 +117,40 @@ public class AndDocIdSet extends DocIdSet {
     }
 
     static class IteratorBasedIterator extends DocIdSetIterator {
-        int lastReturn = -1;
-        private DocIdSetIterator[] iterators = null;
+        private int lastReturn = -1;
+        private final DocIdSetIterator[] iterators;
         private final long cost;
 
-        IteratorBasedIterator(DocIdSet[] sets) throws IOException {
-            iterators = new DocIdSetIterator[sets.length];
+
+        public static DocIdSetIterator newDocIdSetIterator(DocIdSet[] sets) throws IOException {
+            if (sets.length == 0) {
+                return  DocIdSetIterator.empty();
+            }
+            final DocIdSetIterator[] iterators = new DocIdSetIterator[sets.length];
             int j = 0;
             long cost = Integer.MAX_VALUE;
             for (DocIdSet set : sets) {
                 if (set == null) {
-                    lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
-                    break;
+                    return DocIdSetIterator.empty();
                 } else {
-                   
-                    DocIdSetIterator dcit = set.iterator();
-                    if (dcit == null) {
-                        lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
-                        break;
+                    DocIdSetIterator docIdSetIterator = set.iterator();
+                    if (docIdSetIterator == null) {
+                        return DocIdSetIterator.empty();// non matching
                     }
-                    iterators[j++] = dcit;
-                    cost = Math.min(cost, dcit.cost());
+                    iterators[j++] = docIdSetIterator;
+                    cost = Math.min(cost, docIdSetIterator.cost());
                 }
             }
-            this.cost = cost;
-            if (lastReturn != DocIdSetIterator.NO_MORE_DOCS) {
-                lastReturn = (iterators.length > 0 ? -1 : DocIdSetIterator.NO_MORE_DOCS);
+            if (sets.length == 1) {
+               // shortcut if there is only one valid iterator.
+               return iterators[0];
             }
+            return new IteratorBasedIterator(iterators, cost);
+        }
+
+        private IteratorBasedIterator(DocIdSetIterator[] iterators, long cost) throws IOException {
+            this.iterators = iterators;
+            this.cost = cost;
         }
 
         @Override
@@ -154,7 +161,10 @@ public class AndDocIdSet extends DocIdSet {
         @Override
         public final int nextDoc() throws IOException {
 
-            if (lastReturn == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+            if (lastReturn == DocIdSetIterator.NO_MORE_DOCS) {
+                assert false : "Illegal State - DocIdSetIterator is already exhausted";
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
 
             DocIdSetIterator dcit = iterators[0];
             int target = dcit.nextDoc();
@@ -183,7 +193,10 @@ public class AndDocIdSet extends DocIdSet {
         @Override
         public final int advance(int target) throws IOException {
 
-            if (lastReturn == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+            if (lastReturn == DocIdSetIterator.NO_MORE_DOCS) {
+                assert false : "Illegal State - DocIdSetIterator is already exhausted";
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
 
             DocIdSetIterator dcit = iterators[0];
             target = dcit.advance(target);

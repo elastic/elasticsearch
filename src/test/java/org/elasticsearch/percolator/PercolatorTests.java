@@ -1548,4 +1548,29 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         return strings;
     }
 
+    @Test
+    public void percolateNonMatchingConstantScoreQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test"));
+        ensureGreen();
+
+        logger.info("--> register a query");
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject()
+                        .field("query", QueryBuilders.constantScoreQuery(FilterBuilders.andFilter(
+                                FilterBuilders.queryFilter(QueryBuilders.queryString("root")),
+                                FilterBuilders.termFilter("message", "tree"))))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        PercolateResponse percolate = client().preparePercolate()
+                .setIndices("test").setDocumentType("doc")
+                .setSource(jsonBuilder().startObject()
+                        .startObject("doc").field("message", "A new bonsai tree ").endObject()
+                        .endObject())
+                .execute().actionGet();
+        assertThat(percolate.getFailedShards(), equalTo(0));
+        assertMatchCount(percolate, 0l);
+    }
+
 }

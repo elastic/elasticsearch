@@ -235,7 +235,11 @@ public class ClusterState implements ToXContent {
         Set<String> metrics = Strings.splitStringByCommaToSet(params.param("metric", "_all"));
         boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
 
-        if (isAllMetricsOnly || metrics.contains("nodes")) {
+        if (isAllMetricsOnly || metrics.contains("version")) {
+            builder.field("version", version);
+        }
+
+        if (isAllMetricsOnly || metrics.contains("master_node")) {
             builder.field("master_node", nodes().masterNodeId());
         }
 

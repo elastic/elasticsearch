@@ -27,10 +27,16 @@ $ curl -XGET 'http://localhost:9200/_cluster/state/{metrics}/{indices}'
 
 `metrics` can be a comma-separated list of
 
+`version`::
+    Shows the cluster state version.
+
+`master_node`::
+    Shows the elected `master_node` part of the response
+
 `nodes`::
     Shows the `nodes` part of the response
 
-`routing_table`:: 
+`routing_table`::
     Shows the `routing_table` part of the response. If you supply a comma separated list of indices, the returned output will only contain the indices listed.
 
 `metadata`::

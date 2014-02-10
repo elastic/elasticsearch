@@ -23,12 +23,12 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 1)
 public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
@@ -98,5 +98,29 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response3.getTransientSettings().get(key2), nullValue());
         assertThat(response3.getPersistentSettings().get(key1), notNullValue());
         assertThat(response3.getPersistentSettings().get(key2), notNullValue());
+    }
+
+    @Test
+    public void testUpdateDiscoveryPublishTimeout() {
+        ClusterUpdateSettingsResponse response = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "1s").build())
+                .get();
+
+        assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT), equalTo("1s"));
+
+        response = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "whatever").build())
+                .get();
+
+        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+
+        response = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, -1).build())
+                .get();
+
+        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
     }
 }

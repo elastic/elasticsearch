@@ -55,6 +55,24 @@ public interface Validator {
         }
     };
 
+    public static final Validator TIME_NON_NEGATIVE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                TimeValue timeValue = TimeValue.parseTimeValue(value, null);
+                if (timeValue == null) {
+                    return "cannot parse value [" + value + "] as time";
+                }
+                if (timeValue.millis() < 0) {
+                    return "cannot parse value [" + value + "] as non negative time";
+                }
+            } catch (ElasticsearchParseException ex) {
+                return "cannot parse value [" + value + "] as time";
+            }
+            return null;
+        }
+    };
+
     public static final Validator FLOAT = new Validator() {
         @Override
         public String validate(String setting, String value) {

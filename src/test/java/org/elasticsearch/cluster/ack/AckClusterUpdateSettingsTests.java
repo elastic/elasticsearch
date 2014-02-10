@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -45,7 +46,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     protected Settings nodeSettings(int nodeOrdinal) {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        return ImmutableSettings.builder().put("discovery.zen.publish_timeout", 0).build();
+        return ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
     }
 
     @Test

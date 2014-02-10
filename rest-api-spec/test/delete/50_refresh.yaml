@@ -6,10 +6,11 @@
           index:    test_1
           body:
               settings:
-                  index.refresh_interval: -1
+                  refresh_interval: -1
+                  number_of_replicas: 0
  - do:
       cluster.health:
-          wait_for_status: yellow
+          wait_for_status: green
 
  - do:
       index:
@@ -57,6 +58,10 @@
           type:    test
           id:      2
           refresh: 1
+
+# If a replica shard where doc 1 is located gets initialized at this point, doc 1
+# won't be found by the following search as the shard gets automatically refreshed
+# right before getting started. This is why this test only works with 0 replicas.
 
  - do:
       search:

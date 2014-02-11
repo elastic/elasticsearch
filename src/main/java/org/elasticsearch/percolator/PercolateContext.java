@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -73,7 +72,6 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +98,7 @@ public class PercolateContext extends SearchContext {
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
     private String[] types;
 
-    private Engine.Searcher docEngineSearcher;
+    private Engine.Searcher docSearcher;
     private Engine.Searcher engineSearcher;
     private ContextIndexSearcher searcher;
 
@@ -134,38 +132,16 @@ public class PercolateContext extends SearchContext {
         this.scriptService = scriptService;
     }
 
-    public void initialize(final MemoryIndex memoryIndex, ParsedDocument parsedDocument) {
-        final IndexSearcher docSearcher = memoryIndex.createSearcher();
-        final IndexReader topLevelReader = docSearcher.getIndexReader();
-        AtomicReaderContext readerContext = topLevelReader.leaves().get(0);
-        docEngineSearcher = new Engine.Searcher() {
-            @Override
-            public String source() {
-                return "percolate";
-            }
+    public IndexSearcher docSearcher() {
+        return docSearcher.searcher();
+    }
 
-            @Override
-            public IndexReader reader() {
-                return topLevelReader;
-            }
+    public void initialize(Engine.Searcher docSearcher, ParsedDocument parsedDocument) {
+        this.docSearcher = docSearcher;
 
-            @Override
-            public IndexSearcher searcher() {
-                return docSearcher;
-            }
-
-            @Override
-            public boolean release() throws ElasticsearchException {
-                try {
-                    docSearcher.getIndexReader().close();
-                    memoryIndex.reset();
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to close percolator in-memory index", e);
-                }
-                return true;
-            }
-        };
-        lookup().setNextReader(readerContext);
+        IndexReader indexReader = docSearcher.reader();
+        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+        lookup().setNextReader(atomicReaderContext);
         lookup().setNextDocId(0);
         lookup().source().setNextSource(parsedDocument.source());
 
@@ -173,12 +149,10 @@ public class PercolateContext extends SearchContext {
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
             fields.put(field.name(), new InternalSearchHitField(field.name(), ImmutableList.of()));
         }
-        hitContext = new FetchSubPhase.HitContext();
-        hitContext.reset(new InternalSearchHit(0, "unknown", new StringText(request.documentType()), fields), readerContext, 0, topLevelReader, 0, new JustSourceFieldsVisitor());
-    }
-
-    public IndexSearcher docSearcher() {
-        return docEngineSearcher.searcher();
+        hitContext().reset(
+                new InternalSearchHit(0, "unknown", new StringText(parsedDocument.type()), fields),
+                atomicReaderContext, 0, indexReader, 0, new JustSourceFieldsVisitor()
+        );
     }
 
     public IndexShard indexShard() {
@@ -202,6 +176,9 @@ public class PercolateContext extends SearchContext {
     }
 
     public FetchSubPhase.HitContext hitContext() {
+        if (hitContext == null) {
+            hitContext = new FetchSubPhase.HitContext();
+        }
         return hitContext;
     }
 
@@ -231,11 +208,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public boolean release() throws ElasticsearchException {
         try {
-            if (docEngineSearcher != null) {
-                IndexReader indexReader = docEngineSearcher.reader();
+            if (docSearcher != null) {
+                IndexReader indexReader = docSearcher.reader();
                 fieldDataService.clear(indexReader);
                 indexService.cache().clear(indexReader);
-                return docEngineSearcher.release();
+                return docSearcher.release();
             } else {
                 return false;
             }

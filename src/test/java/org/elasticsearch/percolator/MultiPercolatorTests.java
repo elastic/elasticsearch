@@ -19,17 +19,23 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
-import org.elasticsearch.action.percolate.MultiPercolateResponse;
+import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.hamcrest.Matchers.*;
 
@@ -259,6 +265,54 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.items()[numPercolateRequest].isFailure(), equalTo(false));
         assertMatchCount(response.items()[numPercolateRequest].response(), numQueries);
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
+    }
+
+
+    @Test
+    public void testNestedMultiPercolation() throws IOException {
+        initNestedIndexAndPercolation();
+        MultiPercolateRequestBuilder mpercolate= client().prepareMultiPercolate();
+        mpercolate.add(client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(getNotMatchingNestedDoc())).setIndices("nestedindex").setDocumentType("company"));
+        mpercolate.add(client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(getMatchingNestedDoc())).setIndices("nestedindex").setDocumentType("company"));
+        MultiPercolateResponse response = mpercolate.get();
+        assertEquals(response.getItems()[0].getResponse().getMatches().length, 0);
+        assertEquals(response.getItems()[1].getResponse().getMatches().length, 1);
+        assertEquals(response.getItems()[1].getResponse().getMatches()[0].getId().string(), "Q");
+    }
+
+    void initNestedIndexAndPercolation() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "string").endObject()
+                .startObject("employee").field("type", "nested").startObject("properties")
+                .startObject("name").field("type", "string").endObject().endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));
+        ensureGreen("nestedindex");
+
+        client().prepareIndex("nestedindex", PercolatorService.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(MatchQueryBuilder.Operator.AND)).scoreMode("avg")).endObject()).get();
+
+        refresh();
+
+    }
+
+    XContentBuilder getMatchingNestedDoc() throws IOException {
+        XContentBuilder doc = XContentFactory.jsonBuilder();
+        doc.startObject().field("companyname", "stark").startArray("employee")
+                .startObject().field("name", "virginia potts").endObject()
+                .startObject().field("name", "tony stark").endObject()
+                .endArray().endObject();
+        return doc;
+    }
+
+    XContentBuilder getNotMatchingNestedDoc() throws IOException {
+        XContentBuilder doc = XContentFactory.jsonBuilder();
+        doc.startObject().field("companyname", "notstark").startArray("employee")
+                .startObject().field("name", "virginia stark").endObject()
+                .startObject().field("name", "tony potts").endObject()
+                .endArray().endObject();
+        return doc;
     }
 
 }

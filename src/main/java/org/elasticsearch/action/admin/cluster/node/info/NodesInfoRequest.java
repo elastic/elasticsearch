@@ -38,7 +38,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     private boolean network = true;
     private boolean transport = true;
     private boolean http = true;
-    private boolean plugin = true;
+    private boolean plugins = true;
 
     public NodesInfoRequest() {
     }
@@ -63,7 +63,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = false;
         transport = false;
         http = false;
-        plugin = false;
+        plugins = false;
         return this;
     }
 
@@ -79,7 +79,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = true;
         transport = true;
         http = true;
-        plugin = true;
+        plugins = true;
         return this;
     }
 
@@ -205,19 +205,19 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
 
     /**
      * Should information about plugins be returned
-     * @param plugin true if you want info
+     * @param plugins true if you want info
      * @return The request
      */
-    public NodesInfoRequest plugin(boolean plugin) {
-        this.plugin = plugin;
+    public NodesInfoRequest plugins(boolean plugins) {
+        this.plugins = plugins;
         return this;
     }
 
     /**
      * @return true if information about plugins is requested
      */
-    public boolean plugin() {
-        return plugin;
+    public boolean plugins() {
+        return plugins;
     }
 
     @Override
@@ -231,7 +231,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
-        plugin = in.readBoolean();
+        plugins = in.readBoolean();
     }
 
     @Override
@@ -245,6 +245,6 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);
-        out.writeBoolean(plugin);
+        out.writeBoolean(plugins);
     }
 }

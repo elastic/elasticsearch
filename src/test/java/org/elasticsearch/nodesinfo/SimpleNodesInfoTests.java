@@ -129,7 +129,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugin(true).execute().actionGet();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).execute().actionGet();
         logger.info("--> full json answer, status " + response.toString());
 
         assertNodeContainsPlugins(response, server1NodeId,

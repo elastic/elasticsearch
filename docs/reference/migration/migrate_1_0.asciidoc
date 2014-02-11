@@ -360,3 +360,5 @@ in the query string.
 * The `path` parameter in mappings has been deprecated. Use the
   <<copy-to,`copy_to`>> parameter instead.
 
+* The `custom_score` and `custom_boost_score` is no longer supported. You can
+  use <<query-dsl-function-score-query,`function_score`>> instead.

@@ -470,7 +470,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public IndexQueryParserService queryParserService() {
-        throw new UnsupportedOperationException();
+        return indexService.queryParserService();
     }
 
     @Override

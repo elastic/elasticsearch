@@ -171,7 +171,7 @@ Kilometer::     `km` or `kilometers`
 Meter::         `m` or `meters`
 Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
-
+Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
 [[fuzziness]]
 [float]

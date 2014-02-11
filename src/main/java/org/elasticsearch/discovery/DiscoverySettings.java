@@ -32,7 +32,7 @@ public class DiscoverySettings extends AbstractComponent {
 
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
 
-    private static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
 

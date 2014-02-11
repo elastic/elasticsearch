@@ -17,7 +17,7 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node.
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `network`, `transport`, `http` and `plugin`:
+`thread_pool`, `network`, `transport`, `http` and `plugins`:
 
 [source,js]
 --------------------------------------------------
@@ -30,9 +30,9 @@ curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/info/jvm,process'
 curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/_all
 --------------------------------------------------
 
-The `all` flag can be set to return all the information - or you can simply omit it.
+The `_all` flag can be set to return all the information - or you can simply omit it.
 
-`plugin` - if set, the result will contain details about the loaded
+`plugins` - if set, the result will contain details about the loaded
 plugins per node:
 
 * `name`: plugin name

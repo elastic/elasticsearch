@@ -146,6 +146,9 @@ All the disable allocation settings have been deprecated in favour for
 `discovery.zen.minimum_master_nodes`::
      See <<modules-discovery-zen>>
 
+`discovery.zen.publish_timeout`::
+     See <<modules-discovery-zen>>
+
 [float]
 ==== Threadpools
 

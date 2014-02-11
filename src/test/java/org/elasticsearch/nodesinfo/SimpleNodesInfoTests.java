@@ -133,37 +133,43 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         logger.info("--> full json answer, status " + response.toString());
 
         assertNodeContainsPlugins(response, server1NodeId,
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, // No JVM Plugin
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No Site Plugin
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST,// No JVM Plugin
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No Site Plugin
 
         assertNodeContainsPlugins(response, server2NodeId,
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, // No JVM Plugin
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, // No JVM Plugin
                 Lists.newArrayList(Fields.SITE_PLUGIN),                                 // Site Plugin
                 Lists.newArrayList(Fields.SITE_PLUGIN_DESCRIPTION),
-                Lists.newArrayList(Fields.SITE_PLUGIN_VERSION));
+                Lists.newArrayList(Fields.SITE_PLUGIN_VERSION),
+                Lists.newArrayList(Boolean.FALSE));
 
         assertNodeContainsPlugins(response, server3NodeId,
                 Lists.newArrayList(TestPlugin.Fields.NAME),                             // JVM Plugin
                 Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
                 Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No site Plugin
+                Lists.newArrayList(Boolean.FALSE),
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No site Plugin
 
         assertNodeContainsPlugins(response, server4NodeId,
                 Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),                    // JVM Plugin
                 Lists.newArrayList(TestNoVersionPlugin.Fields.DESCRIPTION),
                 Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
+                Lists.newArrayList(Boolean.FALSE),
                 Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),// Site Plugin
                 Lists.newArrayList(PluginInfo.DESCRIPTION_NOT_AVAILABLE),
-                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE));
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
+                Lists.newArrayList(Boolean.FALSE));
     }
 
     private void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
                                            List<String> expectedJvmPluginNames,
                                            List<String> expectedJvmPluginDescriptions,
                                            List<String> expectedJvmVersions,
+                                           List<Boolean> expectedJvmIsolations,
                                            List<String> expectedSitePluginNames,
                                            List<String> expectedSitePluginDescriptions,
-                                           List<String> expectedSiteVersions) {
+                                           List<String> expectedSiteVersions,
+                                           List<Boolean> expectedSiteIsolations) {
 
         assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
@@ -183,6 +189,11 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
         for (String pluginVersion : expectedJvmVersions) {
             assertThat(jvmPluginVersions, hasItem(pluginVersion));
+        }
+
+        List<Boolean> jvmPluginIsolations = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(isolationFunction).toList();
+        for (Boolean pluginIsolation : expectedJvmIsolations) {
+            assertThat(jvmPluginIsolations, hasItem(pluginIsolation));
         }
 
         FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
@@ -208,6 +219,11 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
         for (String pluginVersion : expectedSiteVersions) {
             assertThat(sitePluginVersions, hasItem(pluginVersion));
+        }
+
+        List<Boolean> sitePluginIsolations = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(isolationFunction).toList();
+        for (Boolean pluginIsolation : expectedSiteIsolations) {
+            assertThat(sitePluginIsolations, hasItem(pluginIsolation));
         }
     }
 
@@ -266,6 +282,12 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
     private Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getVersion();
+        }
+    };
+
+    private Function<PluginInfo, Boolean> isolationFunction = new Function<PluginInfo, Boolean>() {
+        public Boolean apply(PluginInfo pluginInfo) {
+            return pluginInfo.isIsolation();
         }
     };
 }

@@ -41,6 +41,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString JVM = new XContentBuilderString("jvm");
         static final XContentBuilderString SITE = new XContentBuilderString("site");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final XContentBuilderString ISOLATION = new XContentBuilderString("isolation");
     }
 
     private String name;
@@ -48,6 +49,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
     private boolean site;
     private boolean jvm;
     private String version;
+    private boolean isolation;
 
     public PluginInfo() {
     }
@@ -60,8 +62,9 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
      * @param site        true if it's a site plugin
      * @param jvm         true if it's a jvm plugin
      * @param version     Version number is applicable (NA otherwise)
+     * @param isolation   true if it's an isolated plugin
      */
-    public PluginInfo(String name, String description, boolean site, boolean jvm, String version) {
+    public PluginInfo(String name, String description, boolean site, boolean jvm, String version, boolean isolation) {
         this.name = name;
         this.description = description;
         this.site = site;
@@ -71,6 +74,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         } else {
             this.version = VERSION_NOT_AVAILABLE;
         }
+        this.isolation = isolation;
     }
 
     /**
@@ -121,6 +125,13 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         return version;
     }
 
+    /**
+     * @return Plugin isolation
+     */
+    public boolean isIsolation() {
+        return isolation;
+    }
+
     public static PluginInfo readPluginInfo(StreamInput in) throws IOException {
         PluginInfo info = new PluginInfo();
         info.readFrom(in);
@@ -138,6 +149,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         } else {
             this.version = VERSION_NOT_AVAILABLE;
         }
+        this.isolation = in.readBoolean();
     }
 
     @Override
@@ -149,6 +161,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
             out.writeString(version);
         }
+        out.writeBoolean(isolation);
     }
 
     @Override
@@ -162,6 +175,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         }
         builder.field(Fields.JVM, jvm);
         builder.field(Fields.SITE, site);
+        builder.field(Fields.ISOLATION, isolation);
         builder.endObject();
 
         return builder;
@@ -193,6 +207,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         sb.append(", site=").append(site);
         sb.append(", jvm=").append(jvm);
         sb.append(", version='").append(version).append('\'');
+        sb.append(", isolation='").append(isolation);
         sb.append('}');
         return sb.toString();
     }

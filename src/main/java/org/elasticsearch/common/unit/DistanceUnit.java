@@ -37,10 +37,13 @@ public enum DistanceUnit {
     INCH(0.0254, "in", "inch"),
     YARD(0.9144, "yd", "yards"),
     FEET(0.3048, "ft", "feet"),
-    MILES(1609.344, "mi", "miles"),
     KILOMETERS(1000.0, "km", "kilometers"),
+    NAUTICALMILES(1852.0, "NM", "nmi", "nauticalmiles"),
     MILLIMETERS(0.001, "mm", "millimeters"),
     CENTIMETERS(0.01, "cm", "centimeters"),
+
+    // 'm' is a suffix of 'nmi' so it must follow 'nmi'
+    MILES(1609.344, "mi", "miles"),
 
     // since 'm' is suffix of other unit
     // it must be the last entry of unit

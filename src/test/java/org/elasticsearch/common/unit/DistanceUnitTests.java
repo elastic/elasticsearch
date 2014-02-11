@@ -35,6 +35,7 @@ public class DistanceUnitTests extends ElasticsearchTestCase {
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.MILES), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.convert(10, DistanceUnit.MILES), closeTo(10, 0.001));
         assertThat(DistanceUnit.MILES.convert(10, DistanceUnit.KILOMETERS), closeTo(6.21371192, 0.001));
+        assertThat(DistanceUnit.NAUTICALMILES.convert(10, DistanceUnit.MILES), closeTo(8.689762, 0.001));
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.KILOMETERS), closeTo(10, 0.001));
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.METERS), closeTo(0.01, 0.00001));
         assertThat(DistanceUnit.KILOMETERS.convert(1000,DistanceUnit.METERS), closeTo(1, 0.001));
@@ -46,6 +47,8 @@ public class DistanceUnitTests extends ElasticsearchTestCase {
         assertThat(DistanceUnit.Distance.parseDistance("50km").unit, equalTo(DistanceUnit.KILOMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("500m").unit, equalTo(DistanceUnit.METERS));
         assertThat(DistanceUnit.Distance.parseDistance("51mi").unit, equalTo(DistanceUnit.MILES));
+        assertThat(DistanceUnit.Distance.parseDistance("53nmi").unit, equalTo(DistanceUnit.NAUTICALMILES));
+        assertThat(DistanceUnit.Distance.parseDistance("53NM").unit, equalTo(DistanceUnit.NAUTICALMILES));
         assertThat(DistanceUnit.Distance.parseDistance("52yd").unit, equalTo(DistanceUnit.YARD));
         assertThat(DistanceUnit.Distance.parseDistance("12in").unit, equalTo(DistanceUnit.INCH));
         assertThat(DistanceUnit.Distance.parseDistance("23mm").unit, equalTo(DistanceUnit.MILLIMETERS));

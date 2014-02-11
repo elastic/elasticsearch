@@ -29,8 +29,11 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 1)
+@ClusterScope(scope = TEST)
 public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -43,6 +46,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
                 .setTransientSettings(ImmutableSettings.builder().put(key1, value1).build())
                 .get();
 
+        assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
     }
 
@@ -64,6 +68,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
                 .execute()
                 .actionGet();
 
+        assertAcked(response1);
         assertThat(response1.getTransientSettings().get(key1), notNullValue());
         assertThat(response1.getTransientSettings().get(key2), nullValue());
         assertThat(response1.getPersistentSettings().get(key1), nullValue());
@@ -79,6 +84,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
                 .execute()
                 .actionGet();
 
+        assertAcked(response2);
         assertThat(response2.getTransientSettings().get(key1), notNullValue());
         assertThat(response2.getTransientSettings().get(key2), notNullValue());
         assertThat(response2.getPersistentSettings().get(key1), nullValue());
@@ -94,6 +100,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
                 .execute()
                 .actionGet();
 
+        assertAcked(response3);
         assertThat(response3.getTransientSettings().get(key1), nullValue());
         assertThat(response3.getTransientSettings().get(key2), nullValue());
         assertThat(response3.getPersistentSettings().get(key1), notNullValue());

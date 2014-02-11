@@ -19,9 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
@@ -134,37 +132,11 @@ public class PercolateContext extends SearchContext {
         this.scriptService = scriptService;
     }
 
-    public void initialize(final MemoryIndex memoryIndex, ParsedDocument parsedDocument) {
-        final IndexSearcher docSearcher = memoryIndex.createSearcher();
-        final IndexReader topLevelReader = docSearcher.getIndexReader();
-        AtomicReaderContext readerContext = topLevelReader.leaves().get(0);
-        docEngineSearcher = new Engine.Searcher() {
-            @Override
-            public String source() {
-                return "percolate";
-            }
+    public void initialize(final PercolatorIndex percolatorIndex, ParsedDocument parsedDocument) {
 
-            @Override
-            public IndexReader reader() {
-                return topLevelReader;
-            }
-
-            @Override
-            public IndexSearcher searcher() {
-                return docSearcher;
-            }
-
-            @Override
-            public boolean release() throws ElasticsearchException {
-                try {
-                    docSearcher.getIndexReader().close();
-                    memoryIndex.reset();
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to close percolator in-memory index", e);
-                }
-                return true;
-            }
-        };
+        final IndexReader topLevelReader = percolatorIndex.getIndexReader();
+        AtomicReaderContext readerContext = percolatorIndex.getAtomicReaderContext();
+        docEngineSearcher = percolatorIndex.getSearcher();
         lookup().setNextReader(readerContext);
         lookup().setNextDocId(0);
         lookup().source().setNextSource(parsedDocument.source());

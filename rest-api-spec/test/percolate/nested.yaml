@@ -1,0 +1,43 @@
+---
+"Basic percolation tests on nested doc":
+
+  - do:
+      indices.create:
+          index: nestedindex
+          body:
+              mappings:
+                  company:
+                      properties:
+                          companyname:
+                              type: string
+                          employee:
+                              type: nested
+                              properties:
+                                  name:
+                                      type: string
+
+
+  - do:
+      indices.refresh: {}
+  - do:
+      index:
+          index: nestedindex
+          type:  ".percolator"
+          id:    query
+          body:  {"query":{"nested":{"path":"employee","score_mode":"avg","query":{"match":{"employee.name":{"query":"virginia potts","operator":"and"}}}}}}
+  - do:
+      percolate:
+        index: nestedindex
+        type:  company
+        body: {"doc":{"companyname":"stark","employee":[{"name":"virginia stark"},{"name":"tony potts"}]}}
+
+  - match: {'total': 0}
+
+  - do:
+      percolate:
+          index: nestedindex
+          type:  company
+          body: {"doc":{"companyname":"stark","employee":[{"name":"virginia potts"},{"name":"tony stark"}]}}
+
+  - match: {'total': 1}
+

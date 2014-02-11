@@ -22,17 +22,17 @@ import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.*;
+import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
@@ -198,23 +198,14 @@ public class PercolatorService extends AbstractComponent {
                 context.size = 0;
             }
 
-            // first, parse the source doc into a MemoryIndex
-            final MemoryIndex memoryIndex = cache.get();
-            // TODO: This means percolation does not support nested docs...
-            // So look into: ByteBufferDirectory
-            for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-                if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
-                    continue;
-                }
-                try {
-                    TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer());
-                    if (tokenStream != null) {
-                        memoryIndex.addField(field.name(), tokenStream, field.boost());
-                    }
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to create token stream", e);
-                }
+            // parse the source either into a MemoryIndex, if it is a single document or create ByteBufferDirectory in case this is a nested docuemnt
+            PercolatorIndex percolatorIndex = null;
+            if (indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects()) {
+                percolatorIndex = new MultiDocumentPercolatorIndex(parsedDocument);
+            } else {
+                percolatorIndex = new SingleDocumentPercolatorIndex(parsedDocument, cache.get());
             }
+            context.initialize(percolatorIndex, parsedDocument);
 
             PercolatorType action;
             if (request.onlyCount()) {
@@ -230,7 +221,6 @@ public class PercolatorService extends AbstractComponent {
             }
             context.percolatorTypeId = action.id();
 
-            context.initialize(memoryIndex, parsedDocument);
             indexShard.readAllowed();
             return action.doPercolate(request, context);
         } finally {

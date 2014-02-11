@@ -67,7 +67,7 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 throw new ElasticsearchException("Failed to create token stream", e);
             }
         }
-        context.initialize(new DocEngineSearcher(memoryIndex.createSearcher(), memoryIndex), parsedDocument);
+        context.initialize(new DocEngineSearcher(memoryIndex), parsedDocument);
     }
 
     @Override
@@ -80,8 +80,8 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
         private final IndexSearcher searcher;
         private final MemoryIndex memoryIndex;
 
-        public DocEngineSearcher(IndexSearcher searcher, MemoryIndex memoryIndex) {
-            this.searcher = searcher;
+        public DocEngineSearcher(MemoryIndex memoryIndex) {
+            this.searcher = memoryIndex.createSearcher();
             this.memoryIndex = memoryIndex;
         }
 

@@ -129,7 +129,7 @@ public class PercolatorService extends AbstractComponent {
         this.sortParseElement = new SortParseElement();
 
         single = new SingleDocumentPercolatorIndex(settings);
-        multi = new MultiDocumentPercolatorIndex();
+        multi = new MultiDocumentPercolatorIndex(settings);
 
         percolatorTypes = new ByteObjectOpenHashMap<PercolatorType>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
@@ -186,14 +186,13 @@ public class PercolatorService extends AbstractComponent {
                 context.size = 0;
             }
 
-            // parse the source either into a MemoryIndex, if it is a single document or create ByteBufferDirectory in case this is a nested docuemnt
+            // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
             if (indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects()) {
                 percolatorIndex = multi;
             } else {
                 percolatorIndex = single;
             }
-            percolatorIndex.prepare(context, parsedDocument);
 
             PercolatorType action;
             if (request.onlyCount()) {
@@ -208,6 +207,8 @@ public class PercolatorService extends AbstractComponent {
                 }
             }
             context.percolatorTypeId = action.id();
+
+            percolatorIndex.prepare(context, parsedDocument);
 
             indexShard.readAllowed();
             return action.doPercolate(request, context);

@@ -20,39 +20,72 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.*;
+import org.apache.lucene.index.memory.ExtendedMemoryIndex;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 
 
+
 class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
-    public MultiDocumentPercolatorIndex() {
+    final Settings settings;
+
+    public MultiDocumentPercolatorIndex(Settings settings) {
+        this.settings = settings;
     }
 
     @Override
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
-        ByteBufferDirectory directory = new ByteBufferDirectory();
-        IndexWriterConfig writerConfig = new IndexWriterConfig(Version.CURRENT.luceneVersion, parsedDocument.analyzer());
+        int docCounter = 0;
+        IndexReader[] memoryIndices = new IndexReader[parsedDocument.docs().size()];
+        for (ParseContext.Document d : parsedDocument.docs()) {
+            memoryIndices[docCounter] = indexDoc(d, parsedDocument.analyzer()).createSearcher().getIndexReader();
+            docCounter++;
+        }
+        MultiReader mReader = new MultiReader(memoryIndices, true);
         try {
-            IndexWriter indexWriter = new IndexWriter(directory, writerConfig);
-            indexWriter.addDocuments(parsedDocument.docs());
-            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(DirectoryReader.open(indexWriter, false)), directory);
+            AtomicReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
+            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader));
             context.initialize(docSearcher, parsedDocument);
-            indexWriter.close();
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
         }
+    }
+
+    MemoryIndex getMemoryIndex() {
+        final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
+        return new ExtendedMemoryIndex(true, maxReuseBytes);
+    }
+
+    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer) {
+        MemoryIndex memoryIndex = getMemoryIndex();
+        for (IndexableField field : d.getFields()) {
+            if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
+                continue;
+            }
+            try {
+                TokenStream tokenStream = field.tokenStream(analyzer);
+                if (tokenStream != null) {
+                    memoryIndex.addField(field.name(), tokenStream, field.boost());
+                }
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to create token stream", e);
+            }
+        }
+        return memoryIndex;
     }
 
     @Override
@@ -63,11 +96,9 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
     private class DocSearcher implements Engine.Searcher {
 
         private final IndexSearcher searcher;
-        private final Directory directory;
 
-        private DocSearcher(IndexSearcher searcher, Directory directory) {
+        private DocSearcher(IndexSearcher searcher) {
             this.searcher = searcher;
-            this.directory = directory;
         }
 
         @Override
@@ -89,7 +120,6 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         public boolean release() throws ElasticsearchException {
             try {
                 searcher.getIndexReader().close();
-                directory.close();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);
             }

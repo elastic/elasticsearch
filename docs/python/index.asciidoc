@@ -14,6 +14,15 @@ It can be installed with:
 pip install elasticsearch
 ------------------------------------
 
+=== Versioning
+
+There are two branches for development - `master` and `0.4`. Master branch is
+used to track all the changes for Elasticsearch 1.0 and beyond whereas 0.4
+tracks Elasticsearch 0.90.
+
+Releases with major version 1 (1.X.Y) are to be used with Elasticsearch 1.* and
+later, 0.4 releases are meant to work with Elasticsearch 0.90.*.
+
 === Example use
 
 Simple use-case:

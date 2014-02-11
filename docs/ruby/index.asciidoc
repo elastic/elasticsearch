@@ -10,7 +10,7 @@ See the full documentation at http://github.com/elasticsearch/elasticsearch-ruby
 === Elasticsearch Version Compatibility
 
 The Ruby libraries are compatible with both Elasticsearch 0.90.x and 1.0.x versions,
-but you have to install a matching gem version:
+but you have to install a matching http://rubygems.org/gems/elasticsearch/versions[gem version]:
 
 [cols="<,<",options="header",]
 |=========================================
@@ -39,7 +39,7 @@ Install the Ruby gem for Elasticsearch *0.90.x*:
 
 [source,sh]
 ------------------------------------
-gem install elasticsearch -v 0.4.8
+gem install elasticsearch -v 0.4.10
 ------------------------------------
 
 ...or add it do your Gemfile:

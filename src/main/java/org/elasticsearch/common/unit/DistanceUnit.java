@@ -39,6 +39,7 @@ public enum DistanceUnit {
     FEET(0.3048, "ft", "feet"),
     MILES(1609.344, "mi", "miles"),
     KILOMETERS(1000.0, "km", "kilometers"),
+    NAUTICALMILES(1852.0, "nm", "nauticalmiles"),
     MILLIMETERS(0.001, "mm", "millimeters"),
     CENTIMETERS(0.01, "cm", "centimeters"),
 

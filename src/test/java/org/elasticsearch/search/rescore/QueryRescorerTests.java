@@ -44,12 +44,47 @@ import org.junit.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class QueryRescorerTests extends ElasticsearchIntegrationTest {
+
+    @Test
+    public void testEnforceWindowSize() {
+        final int numShards = between(1, 5);
+        assertAcked(client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numShards)));
+        // this
+        int iters = atLeast(10);
+        for (int i = 0; i < iters; i ++) {
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).execute().actionGet();
+        }
+        refresh();
+        for (int j = 0 ; j < iters; j++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .setRescorer(RescoreBuilder.queryRescorer(
+                            QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery())
+                                    .boostMode("replace").add(ScoreFunctionBuilders.factorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
+                    .setRescoreWindow(1).setSize(randomIntBetween(2,10)).execute().actionGet();
+            assertFirstHit(searchResponse, hasScore(100.f));
+            int numPending100 = numShards;
+            for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
+                float score = searchResponse.getHits().hits()[i].getScore();
+                if  (score == 100f) {
+                    assertThat(numPending100--, greaterThanOrEqualTo(0));
+                } else {
+                    assertThat(numPending100, equalTo(0));
+                }
+            }
+        }
+
+    }
 
     @Test
     public void testRescorePhrase() throws Exception {

@@ -22,16 +22,11 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * In the simplest case, parse template string and variables from the request, compile the template and
@@ -68,47 +63,7 @@ public class TemplateQueryParser implements QueryParser {
     @Nullable
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        
-        
-        String template = "";
-        Map<String, Object> vars = new HashMap<String, Object>();
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (QUERY.equals(currentFieldName)) {
-                if (token == XContentParser.Token.START_OBJECT && ! parser.hasTextCharacters()) {
-                    // when called with un-escaped json string
-                    XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
-                    builder.copyCurrentStructure(parser);
-                    template = builder.string();
-                } else {
-                    // when called with excaped json string or when called with filename
-                    template = parser.text();
-                }
-            } else if (PARAMS.equals(currentFieldName)) {
-                XContentParser.Token innerToken;
-                String key = null;
-                while ((innerToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    // parsing template parameter map
-                    if (innerToken == XContentParser.Token.FIELD_NAME) {
-                        key = parser.currentName();
-                    } else {
-                        if (key != null) {
-                            vars.put(key, parser.text());
-                        } else {
-                            throw new IllegalStateException("Template parameter key must not be null.");
-                        }
-                        key = null;
-                    }
-                }
-            }
-        }
-
-        ExecutableScript executable = this.scriptService.executable("mustache", template, vars);
-        BytesReference querySource = (BytesReference) executable.run();
+        BytesReference querySource = TemplateParser.parse(parser, scriptService, QUERY, PARAMS);
 
         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
         try {

@@ -562,8 +562,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void cleanContext(SearchContext context) {
         SearchContext.removeCurrent();
     }
-
-    private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {
+    
+    public void parseSource(SearchContext context, BytesReference source) throws SearchParseException {
         // nothing to parse...
         if (source == null || source.length() == 0) {
             return;

@@ -25,9 +25,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -48,14 +51,19 @@ public class QueryPhase implements SearchPhase {
     private final FacetPhase facetPhase;
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
+    private final ScriptService scriptService;
+    private final Provider<SearchService> searchServiceProvider; 
     private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
+    public QueryPhase(FacetPhase facetPhase, AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase,
+            ScriptService scriptService, Provider<SearchService> searchServiceProvider) {
         this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
+        this.scriptService = scriptService;
+        this.searchServiceProvider = searchServiceProvider;
     }
 
     @Override
@@ -78,6 +86,7 @@ public class QueryPhase implements SearchPhase {
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
+                .put("template", new TemplateParseElement(scriptService, searchServiceProvider))
                 .putAll(facetPhase.parseElements())
                 .putAll(aggregationPhase.parseElements())
                 .putAll(suggestPhase.parseElements())

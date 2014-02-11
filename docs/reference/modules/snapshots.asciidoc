@@ -194,7 +194,7 @@ $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
     "indices": "index_1,index_2",
     "ignore_unavailable": "true",
     "include_global_state": false,
-    "rename_pattern": "index_(.)+",
+    "rename_pattern": "index_(.+)",
     "rename_replacement": "restored_index_$1"
 }'
 -----------------------------------

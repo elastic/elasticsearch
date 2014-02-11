@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,11 +36,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -48,10 +51,12 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -1642,4 +1647,61 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(percolate, 0l);
     }
 
+    @Test
+    public void testNestedPercolation() throws IOException {
+        initNestedIndexAndPercolation();
+        PercolateResponse response = client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(getNotMatchingNestedDoc())).setIndices("nestedindex").setDocumentType("company").get();
+        assertEquals(response.getMatches().length, 0);
+        response = client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(getMatchingNestedDoc())).setIndices("nestedindex").setDocumentType("company").get();
+        assertEquals(response.getMatches().length, 1);
+        assertEquals(response.getMatches()[0].getId().string(), "Q");
+    }
+
+    @Test
+    public void testNestedPercolationOnExistingDoc() throws IOException {
+        initNestedIndexAndPercolation();
+        client().prepareIndex("nestedindex", "company", "notmatching").setSource(getNotMatchingNestedDoc()).get();
+        client().prepareIndex("nestedindex", "company", "matching").setSource(getMatchingNestedDoc()).get();
+        refresh();
+        PercolateResponse response = client().preparePercolate().setGetRequest(Requests.getRequest("nestedindex").type("company").id("notmatching")).setDocumentType("company").setIndices("nestedindex").get();
+        assertEquals(response.getMatches().length, 0);
+        response = client().preparePercolate().setGetRequest(Requests.getRequest("nestedindex").type("company").id("matching")).setDocumentType("company").setIndices("nestedindex").get();
+        assertEquals(response.getMatches().length, 1);
+        assertEquals(response.getMatches()[0].getId().string(), "Q");
+    }
+
+    void initNestedIndexAndPercolation() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "string").endObject()
+                .startObject("employee").field("type", "nested").startObject("properties")
+                .startObject("name").field("type", "string").endObject().endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));
+        ensureGreen("nestedindex");
+
+        client().prepareIndex("nestedindex", PercolatorService.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(MatchQueryBuilder.Operator.AND)).scoreMode("avg")).endObject()).get();
+
+        refresh();
+
+    }
+
+    XContentBuilder getMatchingNestedDoc() throws IOException {
+        XContentBuilder doc = XContentFactory.jsonBuilder();
+        doc.startObject().field("companyname", "stark").startArray("employee")
+                .startObject().field("name", "virginia potts").endObject()
+                .startObject().field("name", "tony stark").endObject()
+                .endArray().endObject();
+        return doc;
+    }
+
+    XContentBuilder getNotMatchingNestedDoc() throws IOException {
+        XContentBuilder doc = XContentFactory.jsonBuilder();
+        doc.startObject().field("companyname", "notstark").startArray("employee")
+                .startObject().field("name", "virginia stark").endObject()
+                .startObject().field("name", "tony potts").endObject()
+                .endArray().endObject();
+        return doc;
+    }
 }

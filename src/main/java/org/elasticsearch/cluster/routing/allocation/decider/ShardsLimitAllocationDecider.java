@@ -50,8 +50,8 @@ import org.elasticsearch.common.settings.Settings;
 public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     /**
-     * Controls the maximum number of shards per index on a single elastic
-     * search node. Negative values are interpreted as unlimited.
+     * Controls the maximum number of shards per index on a single Elasticsearch
+     * node. Negative values are interpreted as unlimited.
      */
     public static final String INDEX_TOTAL_SHARDS_PER_NODE = "index.routing.allocation.total_shards_per_node";
 
@@ -95,7 +95,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         }
 
         int nodeCount = 0;
-        for (MutableShardRouting nodeShard : node) {;
+        for (MutableShardRouting nodeShard : node) {
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }

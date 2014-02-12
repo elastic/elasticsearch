@@ -1,0 +1,85 @@
+---
+"Create index with mappings":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            type_1: {}
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.type_1.properties: {}}
+
+---
+"Create index with settings":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - do:
+      indices.get_settings:
+        index: test_index
+
+  - match: { test_index.settings.index.number_of_replicas: "0"}
+
+---
+"Create index with warmers":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          warmers:
+            test_warmer:
+              source:
+                query:
+                  match_all: {}
+
+  - do:
+      indices.get_warmer:
+        index: test_index
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+
+---
+"Create index with mappings, settings and warmers":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            type_1: {}
+          settings:
+            number_of_replicas: "0"
+          warmers:
+            test_warmer:
+              source:
+                query:
+                  match_all: {}
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.type_1.properties: {}}
+
+  - do:
+      indices.get_settings:
+        index: test_index
+
+  - match: { test_index.settings.index.number_of_replicas: "0"}
+
+  - do:
+      indices.get_warmer:
+        index: test_index
+
+  - match: { test_index.warmers.test_warmer.source.query.match_all: {}}

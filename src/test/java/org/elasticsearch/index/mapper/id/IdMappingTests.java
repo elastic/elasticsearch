@@ -57,7 +57,7 @@ public class IdMappingTests extends ElasticsearchTestCase {
                     .startObject()
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
         }
 

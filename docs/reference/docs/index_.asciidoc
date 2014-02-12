@@ -19,11 +19,11 @@ The result of the above index operation is:
 [source,js]
 --------------------------------------------------
 {
-    "ok" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
-    "_version" : 1
+    "_version" : 1,
+    "created" : true
 }
 --------------------------------------------------
 
@@ -33,7 +33,7 @@ The result of the above index operation is:
 
 The index operation automatically creates an index if it has not been
 created before (check out the
-<<indices-create-index,create index API>> for manually 
+<<indices-create-index,create index API>> for manually
 creating an index), and also automatically creates a
 dynamic type mapping for the specific type if one has not yet been
 created (check out the <<indices-put-mapping,put mapping>>
@@ -44,12 +44,21 @@ objects will automatically be added to the mapping definition of the
 type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
-Though explained on the <<mapping,mapping>> section,
-it's important to note that the format of the JSON document can also
-include the type (very handy when using JSON mappers), for example:
+Note that the format of the JSON document can also include the type (very handy
+when using JSON mappers) if the `index.mapping.allow_type_wrapper` setting is
+set to true, for example:
 
 [source,js]
 --------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter' -d '{
+  "settings": {
+    "index": {
+      "mapping.allow_type_wrapper": true
+    }
+  }
+}'
+{"acknowledged":true}
+
 $ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
     "tweet" : {
         "user" : "kimchy",
@@ -97,11 +106,11 @@ near real time aspects of search operations. If no version is provided,
 then the operation is executed without any version checks.
 
 By default, internal versioning is used that starts at 1 and increments
-with each update. Optionally, the version number can be supplemented
-with an external value (for example, if maintained in a database). To
-enable this functionality, `version_type` should be set to `external`.
-The value provided must be a numeric, long value greater than 0, and
-less than around 9.2e+18. When using the external version type, instead
+with each update, deletes included. Optionally, the version number can be
+supplemented with an external value (for example, if maintained in a
+database). To enable this functionality, `version_type` should be set to
+`external`. The value provided must be a numeric, long value greater than 0,
+and less than around 9.2e+18. When using the external version type, instead
 of checking for a matching version number, the system checks to see if
 the version number passed to the index request is greater than the
 version of the currently stored document. If true, the document will be
@@ -170,11 +179,11 @@ The result of the above index operation is:
 [source,js]
 --------------------------------------------------
 {
-    "ok" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
-    "_version" : 1
+    "_version" : 1,
+    "created" : true
 }
 --------------------------------------------------
 

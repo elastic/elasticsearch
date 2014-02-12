@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -119,6 +118,9 @@ public class ShardStateAction extends AbstractComponent {
         clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                if (shardRoutingEntry.processed) {
+                    return currentState;
+                }
 
                 List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<ShardRoutingEntry>();
                 failedShardQueue.drainTo(shardRoutingEntries);
@@ -133,6 +135,7 @@ public class ShardStateAction extends AbstractComponent {
                 List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<ShardRouting>(shardRoutingEntries.size());
                 for (int i = 0; i < shardRoutingEntries.size(); i++) {
                     ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);
+                    shardRoutingEntry.processed = true;
                     ShardRouting shardRouting = shardRoutingEntry.shardRouting;
                     IndexMetaData indexMetaData = metaData.index(shardRouting.index());
                     // if there is no metadata or the current index is not of the right uuid, the index has been deleted while it was being allocated
@@ -176,6 +179,10 @@ public class ShardStateAction extends AbstractComponent {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
 
+                        if (shardRoutingEntry.processed) {
+                            return currentState;
+                        }
+
                         List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<ShardRoutingEntry>();
                         startedShardsQueue.drainTo(shardRoutingEntries);
 
@@ -191,6 +198,7 @@ public class ShardStateAction extends AbstractComponent {
 
                         for (int i = 0; i < shardRoutingEntries.size(); i++) {
                             ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);
+                            shardRoutingEntry.processed = true;
                             ShardRouting shardRouting = shardRoutingEntry.shardRouting;
                             try {
                                 IndexMetaData indexMetaData = metaData.index(shardRouting.index());
@@ -306,6 +314,8 @@ public class ShardStateAction extends AbstractComponent {
 
         private String reason;
 
+        volatile boolean processed; // state field, no need to serialize
+
         private ShardRoutingEntry() {
         }
 
@@ -320,9 +330,7 @@ public class ShardStateAction extends AbstractComponent {
             super.readFrom(in);
             shardRouting = readShardRoutingEntry(in);
             reason = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readString();
-            }
+            indexUUID = in.readString();
         }
 
         @Override
@@ -330,9 +338,7 @@ public class ShardStateAction extends AbstractComponent {
             super.writeTo(out);
             shardRouting.writeTo(out);
             out.writeString(reason);
-            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeString(indexUUID);
-            }
+            out.writeString(indexUUID);
         }
 
         @Override

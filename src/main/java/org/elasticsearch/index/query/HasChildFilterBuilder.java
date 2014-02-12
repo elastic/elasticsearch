@@ -31,8 +31,6 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private final QueryBuilder queryBuilder;
     private String childType;
     private String filterName;
-    private Boolean cache;
-    private String cacheKey;
     private Integer shortCircuitCutoff;
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
@@ -56,19 +54,16 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     * This is a noop since has_child can't be cached.
      */
     public HasChildFilterBuilder cache(boolean cache) {
-        this.cache = cache;
         return this;
     }
 
     /**
-     * Defines what should be used as key to represent this filter in the filter cache.
-     * By default the filter itself is used as key.
+     * This is a noop since has_child can't be cached.
      */
     public HasChildFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
         return this;
     }
 
@@ -94,12 +89,6 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         builder.field("child_type", childType);
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);

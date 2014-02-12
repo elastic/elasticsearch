@@ -69,10 +69,8 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.documentType(restRequest.param("type"));
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
-        percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
+        percolateRequest.source(RestActions.getRestContent(restRequest), restRequest.contentUnsafe());
 
-        percolateRequest.routing(restRequest.param("routing"));
-        percolateRequest.preference(restRequest.param("preference"));
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restRequest, restChannel);
     }
@@ -88,7 +86,7 @@ public class RestPercolateAction extends BaseRestHandler {
         getRequest.routing(restRequest.param("routing"));
         getRequest.preference(restRequest.param("preference"));
         getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.realtime(restRequest.paramAsBooleanOptional("realtime", null));
+        getRequest.realtime(restRequest.paramAsBoolean("realtime", null));
         getRequest.version(RestActions.parseVersion(restRequest));
         getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
 
@@ -96,9 +94,6 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.routing(restRequest.param("percolate_routing"));
         percolateRequest.preference(restRequest.param("percolate_preference"));
         percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
-
-        percolateRequest.routing(restRequest.param("percolate_routing"));
-        percolateRequest.preference(restRequest.param("percolate_preference"));
 
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restRequest, restChannel);

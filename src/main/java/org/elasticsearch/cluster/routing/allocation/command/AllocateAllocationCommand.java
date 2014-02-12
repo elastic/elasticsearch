@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -183,6 +184,14 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
+        if (routingNode == null) {
+            if (!discoNode.dataNode()) {
+                throw new ElasticsearchIllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
+            } else {
+                throw new ElasticsearchIllegalStateException("Could not find [" + node + "] among the routing nodes");
+            }
+        }
+
         Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
         if (decision.type() == Decision.Type.NO) {
             throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);

@@ -230,12 +230,13 @@ defaults to `true` or to the parent `object` type setting.
 
 |`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
 
+|`coerce` |Try convert strings to numbers and truncate fractions for integers. Defaults to `true`.
+
 |=======================================================================
 
 [float]
 [[token_count]]
 ==== Token Count
-added[0.90.8]
 The `token_count` type maps to the JSON string type but indexes and stores
 the number of tokens in the string rather than the string itself.  For
 example:
@@ -245,12 +246,9 @@ example:
 {
     "tweet" : {
         "properties" : {
-            "message" : {
-                "type" : "multi_field",
+            "name" : {
+                "type" : "string",
                 "fields" : {
-                    "name": {
-                        "type": "string"
-                    },
                     "word_count": {
                         "type" : "token_count",
                         "store" : "yes",
@@ -614,3 +612,96 @@ The following Similarities are configured out-of-box:
         The BM25 algorithm.
         http://en.wikipedia.org/wiki/Okapi_BM25[See Okapi_BM25] for more
         details.
+
+
+[[copy-to]]
+[float]
+===== Copy to field
+
+added[1.0.0.RC2]
+
+Adding `copy_to` parameter to any field mapping will cause all values of this field to be copied to fields specified in
+the parameter. In the following example all values from fields `title` and `abstract` will be copied to the field
+`meta_data`.
+
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : { "type" : "string", "copy_to" : "meta_data" },
+      "abstract" : { "type" : "string", "copy_to" : "meta_data" },
+      "meta_data" : { "type" : "string" },
+    }
+}
+--------------------------------------------------
+
+Multiple fields are also supported:
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] },
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Multi fields
+
+added[1.0.0.RC1]
+
+The `fields` options allows to map several core types fields into a single
+json source field. This can be useful if a single field need to be
+used in different ways. For example a single field is to be used for both
+free text search and sorting.
+
+[source,js]
+--------------------------------------------------
+{
+  "tweet" : {
+    "properties" : {
+      "name" : {
+        "type" : "string",
+        "index" : "analyzed",
+        "fields" : {
+          "raw" : {"type" : "string", "index" : "not_analyzed"}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+In the above example the field name gets processed twice. The first time is gets
+processed as an analyzed string and this version is accessible under the field name
+`name`, this is the main field and is in fact just like any other field. The second time
+its get processed as a not analyzed string and is accessible under the name `name.raw`.
+
+[float]
+==== Include in All
+
+The `include_in_all` setting is ignored on any field that is defined in
+the `fields` options. Setting the `include_in_all` only makes sense on
+the main field, since the raw field value to copied to the `_all` field,
+the tokens aren't copied.
+
+[float]
+==== Updating a field
+
+In the essence a field can't be updated. However multi fields can be
+added to existing fields. This allows for example to have a different
+`index_analyzer` configuration in addition to the already configured
+`index_analyzer` configuration specified in the main and other multi fields.
+
+Also the new multi field will only be applied on document that have been
+added after the multi field has been added and in fact the new multi field
+doesn't exist in existing documents.
+
+Another important note is that new multi fields will be merged into the
+list of existing multi fields, so when adding new multi fields for a field
+previous added multi fields don't need to be specified.
+

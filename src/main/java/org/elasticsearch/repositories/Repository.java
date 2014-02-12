@@ -97,4 +97,16 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param snapshotId snapshot id
      */
     void deleteSnapshot(SnapshotId snapshotId);
+
+    /**
+     * Returns snapshot throttle time in nanoseconds
+     */
+    long snapshotThrottleTimeInNanos();
+
+    /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long restoreThrottleTimeInNanos();
+
+
 }

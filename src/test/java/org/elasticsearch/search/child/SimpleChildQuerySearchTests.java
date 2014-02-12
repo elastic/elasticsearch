@@ -33,8 +33,10 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -50,12 +52,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -997,97 +1002,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.getExplanation().getDescription(), equalTo("not implemented yet..."));
-    }
-
-    @Test
-    public void testScoreForParentChildQueries() throws Exception {
-
-        client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping(
-                        "child",
-                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
-                                .endObject().endObject())
-                .addMapping(
-                        "child1",
-                        jsonBuilder().startObject().startObject("child1").startObject("_parent").field("type", "parent").endObject()
-                                .endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        indexRandom(false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
-        refresh();
-
-        SearchResponse response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("sum"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(3f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("max"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(2f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasChildQuery("child",
-                                QueryBuilders.customScoreQuery(matchQuery("c_field2", 0)).script("doc['c_field1'].value")).scoreType("avg"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(1.5f));
-
-        response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        QueryBuilders.hasParentQuery("parent",
-                                QueryBuilders.customScoreQuery(matchQuery("p_field1", "p_value3")).script("doc['p_field2'].value"))
-                                .scoreType("score")).addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort())
-                .execute().actionGet();
-
-        assertThat(response.getHits().totalHits(), equalTo(7l));
-        assertThat(response.getHits().hits()[0].id(), equalTo("13"));
-        assertThat(response.getHits().hits()[0].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[1].id(), equalTo("14"));
-        assertThat(response.getHits().hits()[1].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[2].id(), equalTo("15"));
-        assertThat(response.getHits().hits()[2].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[3].id(), equalTo("16"));
-        assertThat(response.getHits().hits()[3].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[4].id(), equalTo("17"));
-        assertThat(response.getHits().hits()[4].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[5].id(), equalTo("18"));
-        assertThat(response.getHits().hits()[5].score(), equalTo(5f));
-        assertThat(response.getHits().hits()[6].id(), equalTo("1"));
-        assertThat(response.getHits().hits()[6].score(), equalTo(5f));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
@@ -2168,6 +2082,207 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "c1");
+    }
+
+    @Test
+    public void testParentChildCaching() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                                .put("index.refresh_interval", -1)
+                ).get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).get();
+
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
+        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
+        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
+        client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).get();
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
+        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
+        client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();
+        client().prepareIndex("test", "child", "c5").setParent("p3").setSource("c_field", "blue").get();
+        client().prepareIndex("test", "child", "c6").setParent("p4").setSource("c_field", "blue").get();
+        client().admin().indices().prepareFlush("test").get();
+        client().admin().indices().prepareRefresh("test").get();
+
+        for (int i = 0; i < 2; i++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(filteredQuery(matchAllQuery(), boolFilter()
+                            .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
+                            .must(matchAllFilter())
+                            .cache(true)))
+                    .get();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        }
+
+
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "blue").get();
+        client().admin().indices().prepareRefresh("test").get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), boolFilter()
+                        .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
+                        .must(matchAllFilter())
+                        .cache(true)))
+                .get();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testParentChildQueriesViaScrollApi() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("child")
+                .setSource(
+                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
+                                .endObject().endObject()).execute().actionGet();
+
+
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "parent", "p" + i).setSource("{}").execute().actionGet();
+            client().prepareIndex("test", "child", "c" + i).setSource("{}").setParent("p" + i).execute().actionGet();
+        }
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        QueryBuilder[] queries = new QueryBuilder[]{
+                hasChildQuery("child", matchAllQuery()),
+                filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery())),
+                hasParentQuery("parent", matchAllQuery()),
+                filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery())),
+                topChildrenQuery("child", matchAllQuery()).factor(10)
+        };
+
+        for (QueryBuilder query : queries) {
+            SearchResponse scrollResponse = client().prepareSearch("test")
+                    .setScroll(TimeValue.timeValueSeconds(30))
+                    .setSize(1)
+                    .addField("_id")
+                    .setQuery(query)
+                    .setSearchType("scan")
+                    .execute()
+                    .actionGet();
+
+            assertThat(scrollResponse.getFailedShards(), equalTo(0));
+            assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
+
+            int scannedDocs = 0;
+            do {
+                scrollResponse = client()
+                        .prepareSearchScroll(scrollResponse.getScrollId())
+                        .setScroll(TimeValue.timeValueSeconds(30)).execute().actionGet();
+                assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
+                scannedDocs += scrollResponse.getHits().getHits().length;
+            } while (scrollResponse.getHits().getHits().length > 0);
+            assertThat(scannedDocs, equalTo(10));
+        }
+    }
+
+    @Test
+    public void testValidateThatHasChildAndHasParentFilterAreNeverCached() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "1").setSource("field", "value")
+                .get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("field", "value")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // Internally the has_child and has_parent use filter for the type field, which end up in the filter cache,
+        // so by first checking how much they take by executing has_child and has_parent *query* we can set a base line
+        // for the filter cache size in this test.
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        long initialCacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true)))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true)))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {

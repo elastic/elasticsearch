@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.*;
@@ -47,6 +48,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoryName;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -71,6 +73,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private final IndicesService indicesService;
 
+    private RateLimiter snapshotRateLimiter;
+
+    private RateLimiter restoreRateLimiter;
+
+    private RateLimiterListener rateLimiterListener;
+
+    private RateLimitingInputStream.Listener snapshotThrottleListener;
+
     private static final String SNAPSHOT_PREFIX = "snapshot-";
 
     @Inject
@@ -87,10 +97,21 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * @param basePath  base path to blob store
      * @param chunkSize chunk size
      */
-    public void initialize(BlobStore blobStore, BlobPath basePath, ByteSizeValue chunkSize) {
+    public void initialize(BlobStore blobStore, BlobPath basePath, ByteSizeValue chunkSize,
+                           RateLimiter snapshotRateLimiter, RateLimiter restoreRateLimiter,
+                           final RateLimiterListener rateLimiterListener) {
         this.blobStore = blobStore;
         this.basePath = basePath;
         this.chunkSize = chunkSize;
+        this.snapshotRateLimiter = snapshotRateLimiter;
+        this.restoreRateLimiter = restoreRateLimiter;
+        this.rateLimiterListener = rateLimiterListener;
+        this.snapshotThrottleListener = new RateLimitingInputStream.Listener() {
+            @Override
+            public void onPause(long nanos) {
+                rateLimiterListener.onSnapshotPause(nanos);
+            }
+        };
     }
 
     /**
@@ -469,10 +490,17 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 try {
                     indexInput = store.openInputRaw(fileInfo.physicalName(), IOContext.READONCE);
                     indexInput.seek(i * fileInfo.partBytes());
-                    InputStreamIndexInput is = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
+                    InputStreamIndexInput inputStreamIndexInput = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
 
                     final IndexInput fIndexInput = indexInput;
-                    blobContainer.writeBlob(fileInfo.partName(i), is, is.actualSizeToRead(), new ImmutableBlobContainer.WriterListener() {
+                    long size = inputStreamIndexInput.actualSizeToRead();
+                    InputStream inputStream;
+                    if (snapshotRateLimiter != null) {
+                        inputStream = new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
+                    } else {
+                        inputStream = inputStreamIndexInput;
+                    }
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, size, new ImmutableBlobContainer.WriterListener() {
                         @Override
                         public void onCompleted() {
                             IOUtils.closeWhileHandlingException(fIndexInput);
@@ -683,6 +711,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
                     recoveryStatus.index().addCurrentFilesSize(size);
                     indexOutput.writeBytes(data, offset, size);
+                    if (restoreRateLimiter != null) {
+                        rateLimiterListener.onRestorePause(restoreRateLimiter.pause(size));
+                    }
                 }
 
                 @Override
@@ -718,6 +749,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             });
         }
 
+    }
+
+    public interface RateLimiterListener {
+        void onRestorePause(long nanos);
+
+        void onSnapshotPause(long nanos);
     }
 
 }

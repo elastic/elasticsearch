@@ -26,12 +26,10 @@ field, or a field without a large number of terms it breaks to.
 
 ==== Accuracy Control
 
-added[0.90.6]
-
 The `size` parameter defines how many top terms should be returned out
 of the overall terms list. By default, the node coordinating the
 search process will ask each shard to provide its own top `size` terms
-and once all shards respond, it will reduces the results to the final list
+and once all shards respond, it will reduce the results to the final list
 that will then be sent back to the client. This means that if the number
 of unique terms is greater than `size`, the returned list is slightly off
 and not accurate (it could be that the term counts are slightly off and it

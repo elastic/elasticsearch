@@ -36,7 +36,7 @@ The above aggregation computes the grades statistics over all documents. The agg
 }
 --------------------------------------------------
 
-The name of the aggregation (`grades_stats` above) also serves as the key by which the aggreagtion result can be retrieved from the returned response.
+The name of the aggregation (`grades_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 
@@ -55,7 +55,7 @@ Computing the grades stats based on a script:
 
 ===== Value Script
 
-It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use value script to get the new stats
+It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use a value script to get the new stats:
 
 [source,js]
 --------------------------------------------------

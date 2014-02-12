@@ -92,6 +92,41 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAnalyzerChangedIn10RC1() throws IOException {
+        Analyzer pattern = PreBuiltAnalyzers.PATTERN.getAnalyzer(Version.V_1_0_0_RC1);
+        Analyzer standardHtml = PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(Version.V_1_0_0_RC1);
+        final int n = atLeast(10);
+        Version version = Version.CURRENT;
+        for(int i = 0; i < n; i++) {
+            if (version.equals(Version.V_1_0_0_RC1)) {
+                assertThat(pattern, is(PreBuiltAnalyzers.PATTERN.getAnalyzer(version)));
+                assertThat(standardHtml, is(PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(version)));
+            } else {
+                assertThat(pattern, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
+                assertThat(standardHtml, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
+            }
+            Analyzer analyzer = randomBoolean() ? PreBuiltAnalyzers.PATTERN.getAnalyzer(version) :  PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(version);
+            TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
+            ts.reset();
+            CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
+            List<String> list = new ArrayList<String>();
+            while(ts.incrementToken()) {
+                list.add(charTermAttribute.toString());
+            }
+            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
+                assertThat(list.toString(), list.size(), is(4));
+                assertThat(list, contains("this", "is", "it", "dude"));
+
+            } else {
+                assertThat(list.size(), is(1));
+                assertThat(list, contains("dude"));
+            }
+            ts.close();
+            version = randomVersion();
+        }
+    }
+
+    @Test
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
                 is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_0_18_0)));

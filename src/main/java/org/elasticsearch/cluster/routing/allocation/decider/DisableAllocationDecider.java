@@ -104,20 +104,28 @@ public class DisableAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "allocation disabling is ignored");
         }
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
         if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
             // if its primary, and it hasn't been allocated post API (meaning its a "fresh newly created shard"), only disable allocation
             // on a special disable allocation flag
-            return indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, disableNewAllocation) ? Decision.NO : Decision.YES;
+            if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, disableNewAllocation)) {
+                return allocation.decision(Decision.NO, "new primary allocation is disabled");
+            } else {
+                return allocation.decision(Decision.YES, "new primary allocation is enabled");
+            }
         }
         if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION, disableAllocation)) {
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "all allocation is disabled");
         }
         if (indexSettings.getAsBoolean(INDEX_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, disableReplicaAllocation)) {
-            return shardRouting.primary() ? Decision.YES : Decision.NO;
+            if (shardRouting.primary()) {
+                return allocation.decision(Decision.YES, "primary allocation is enabled");
+            } else {
+                return allocation.decision(Decision.NO, "replica allocation is disabled");
+            }
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "all allocation is enabled");
     }
 }

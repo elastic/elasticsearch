@@ -41,8 +41,9 @@ filter>> and defaults to `English`. Note that not all the language
 analyzers have a default set of stopwords provided.
 
 The `stopwords` parameter can be used to provide stopwords for the
-languages that has no defaults, or to simply replace the default set
-with your custom list. A default set of stopwords for many of these
+languages that have no defaults, or to simply replace the default set
+with your custom list. Check <<analysis-stop-analyzer,Stop Analyzer>>
+for more details. A default set of stopwords for many of these
 languages is available from for instance
 https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/[here]
 and

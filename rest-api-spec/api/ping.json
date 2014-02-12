@@ -1,0 +1,15 @@
+{
+  "ping": {
+    "documentation": "http://www.elasticsearch.org/guide/",
+    "methods": ["HEAD"],
+    "url": {
+      "path": "/",
+      "paths": ["/"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

@@ -1,6 +1,6 @@
 {
   "indices.optimize": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-optimize.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-optimize.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_optimize",
@@ -40,10 +40,6 @@
         },
         "operation_threading": {
           "description" : "TODO: ?"
-        },
-        "refresh": {
-          "type" : "boolean",
-          "description" : "Specify whether the index should be refreshed after performing the operation (default: true)"
         },
         "wait_for_merge": {
           "type" : "boolean",

@@ -43,10 +43,6 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
 
     public static final Factory FACTORY = new Factory();
 
-    static {
-        IndexMetaData.registerFactory(TYPE, FACTORY);
-    }
-
     public static class Entry {
         private final String name;
         private final String[] types;

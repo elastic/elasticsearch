@@ -91,7 +91,7 @@ public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
                     .startObject("point").field("lat", -91).field("lon", 1.3).endObject()
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
 
         }
@@ -102,7 +102,7 @@ public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
                     .startObject("point").field("lat", 91).field("lon", 1.3).endObject()
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
 
         }
@@ -113,7 +113,7 @@ public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
                     .startObject("point").field("lat", 1.2).field("lon", -181).endObject()
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
 
         }
@@ -124,7 +124,7 @@ public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
                     .startObject("point").field("lat", 1.2).field("lon", 181).endObject()
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (MapperParsingException e) {
 
         }

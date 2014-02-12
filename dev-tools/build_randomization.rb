@@ -65,16 +65,23 @@ def get_env_matrix(data_array)
   tests_nightly = get_random_one([true, false])
   tests_nightly = get_random_one([false]) #bug
 
+  test_assert_off = (rand(10) == 9) #10 percent chance turning it off 
+  tests_security_manager = (rand(10) != 9) #10 percent chance running without security manager
+  arg_line = [es_test_jvm_option1, es_test_jvm_option2, es_test_jvm_option3]
   [*data_array].map do |x|
-    {
+    data_hash = {
       'PATH' => File.join(x,'bin') + ':' + ENV['PATH'],
       'JAVA_HOME' => x,
-      'BUILD_DESC' => "%s,%s,%s%s,%s %s"%[File.basename(x), es_node_mode, tests_nightly ? 'nightly,':'',
-                                            es_test_jvm_option1[1..-1], es_test_jvm_option2[4..-1], es_test_jvm_option3[4..-1]],
+      'BUILD_DESC' => "%s,%s,%s%s,%s %s%s%s"%[File.basename(x), es_node_mode, tests_nightly ? 'nightly,':'',
+                                            es_test_jvm_option1[1..-1], es_test_jvm_option2[4..-1], es_test_jvm_option3[4..-1],
+                                            test_assert_off ? ',assert off' : '', tests_security_manager ? ', security manager enabled' : ''], 
       'es.node.mode' => es_node_mode,
       'tests.nightly' => tests_nightly,
-      'tests.jvm.argline' => "%s %s %s"%[es_test_jvm_option1, es_test_jvm_option2, es_test_jvm_option3]
+      'tests.security.manager' => tests_security_manager,
+      'tests.jvm.argline' => arg_line.join(" "),
     }
+    data_hash['tests.assertion.disabled'] = 'org.elasticsearch' if test_assert_off
+    data_hash
   end
 end
 
@@ -91,9 +98,19 @@ def generate_property_file(directory, data)
   end
 end
 
+working_directory = ENV['WORKSPACE'] || '/var/tmp'
+unless(ENV['BUILD_ID'])
+  #local mode set up fake environment 
+  test_directory = 'tools/hudson.model.JDK/'
+  unless(File.exist?(test_directory))
+    puts "running local mode, setting up running environment"
+    puts "properties are written to file prop.txt"
+    system("mkdir -p %sJDK{6,7}"%test_directory)
+  end
+  working_directory = ENV['PWD']
+end
 # jenkins sets pwd prior to execution
 jdk_selector = JDKSelector.new(File.join(ENV['PWD'],'tools','hudson.model.JDK'))
 environment_matrix = get_env_matrix(jdk_selector.get_jdk.select_one)
 
-working_directory = ENV['WORKSPACE'] || '/var/tmp'
 generate_property_file(working_directory, environment_matrix)

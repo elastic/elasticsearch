@@ -84,6 +84,25 @@ to a string with sufficient digits to allow string comparison, eg
 Snapshot versions and versions of the form `1.0.0.Beta1` can be treated
 as the rounded down version, eg `1.0.0`.
 
+The skip section can also be used to list new features that need to be
+supported in order to run a test. This way the up-to-date runners will
+run the test, while the ones that don't support the feature yet can
+temporarily skip it, and avoid having lots of test failures in the meantime.
+Once all runners have implemented the feature, it can be declared supported
+by default, thus the related skip sections can be removed from the tests.
+
+....
+    "Parent":
+     - skip:
+          features:    regex
+
+     - do:
+       ... test definitions ...
+....
+
+The `features` field can either be a string or an array of strings.
+The skip section requires to specify either a `version` or a `features` list.
+
 Required operators:
 -------------------
 
@@ -145,6 +164,17 @@ testing indexing a document without a specified ID:
     - match: { _id: $id } # the returned `response._id` matches the stashed `id`
 ....
 
+The last response obtained gets always stashed automatically as a string, called `body`.
+This is useful when needing to test apis that return text rather than json (e.g. cat api),
+as it allows to treat the whole body as an ordinary string field.
+
+Note that not only expected values can be retrieved from the stashed values (as in the
+example above), but the same goes for actual values:
+
+....
+    - match: { $body: /^.+$/ } # the returned `body` matches the provided regex
+....
+
 The stash should be reset at the beginning of each test file.
 
 === `is_true`
@@ -172,6 +202,15 @@ should be identical, eg:
 
 ....
     - match: { _source: { foo: bar }}
+....
+
+Supports also regular expressions with flag X for more readability (accepts whitespaces and comments):
+
+....
+  - match:
+      $body: >
+               /^  epoch  \s+  timestamp          \s+  count  \s+  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
 ....
 
 === `lt` and `gt`

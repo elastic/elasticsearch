@@ -20,7 +20,10 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -32,6 +35,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
@@ -48,6 +52,8 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -56,6 +62,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -78,6 +85,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public static final float BOOST = 1.0f;
+        public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
@@ -97,10 +105,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected Loading normsLoading;
         @Nullable
         protected Settings fieldDataSettings;
+        protected final MultiFields.Builder multiFieldsBuilder;
+        protected CopyTo copyTo;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
             this.fieldType = fieldType;
+            multiFieldsBuilder = new MultiFields.Builder();
         }
 
         public T index(boolean index) {
@@ -216,6 +227,21 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return builder;
         }
 
+        public T multiFieldPathType(ContentPath.Type pathType) {
+            multiFieldsBuilder.pathType(pathType);
+            return builder;
+        }
+
+        public T addMultiField(Mapper.Builder mapperBuilder) {
+            multiFieldsBuilder.add(mapperBuilder);
+            return builder;
+        }
+
+        public T copyTo(CopyTo copyTo) {
+            this.copyTo = copyTo;
+            return builder;
+        }
+
         public Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
@@ -248,11 +274,21 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected Loading normsLoading;
     protected Settings customFieldDataSettings;
     protected FieldDataType fieldDataType;
+    protected final MultiFields multiFields;
+    protected CopyTo copyTo;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
                                   Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity,
+                normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+    }
+
+    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
+                                  DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -296,6 +332,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } else {
             this.docValues = FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings));
         }
+        this.multiFields = multiFields;
+        this.copyTo = copyTo;
     }
 
     @Nullable
@@ -358,6 +396,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
+    public CopyTo copyTo() {
+        return copyTo;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         final List<Field> fields = FIELD_LIST.get();
         assert fields.isEmpty();
@@ -376,12 +419,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } finally {
             fields.clear();
         }
+        multiFields.parse(this, context);
+        if (copyTo != null) {
+            copyTo.parse(context);
+        }
     }
 
-    /** Parse the field value and populate <code>fields</code>. */
+    /**
+     * Parse the field value and populate <code>fields</code>.
+     */
     protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
-    /** Derived classes can override it to specify that boost value is set by derived classes. */
+    /**
+     * Derived classes can override it to specify that boost value is set by derived classes.
+     */
     protected boolean customBoost() {
         return false;
     }
@@ -389,6 +440,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Override
     public void traverse(FieldMapperListener fieldMapperListener) {
         fieldMapperListener.fieldMapper(this);
+        multiFields.traverse(fieldMapperListener);
     }
 
     @Override
@@ -527,6 +579,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             // when the doc_values field data format is configured
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
+        if (this.fieldType().omitNorms() != fieldMergeWith.fieldType.omitNorms()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different `norms.enabled` values");
+        }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
@@ -561,11 +616,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } else if (!this.similarity().equals(fieldMergeWith.similarity())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
         }
+        multiFields.merge(mergeWith, mergeContext);
 
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;
             this.normsLoading = fieldMergeWith.normsLoading;
+            this.copyTo = fieldMergeWith.copyTo;
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
@@ -707,6 +764,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
+        multiFields.toXContent(builder, params);
+
+        if (copyTo != null) {
+            copyTo.toXContent(builder, params);
+        }
     }
 
     protected static String indexOptionToString(IndexOptions indexOption) {
@@ -761,7 +823,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public void close() {
-        // nothing to do here, sub classes to override if needed
+        multiFields.close();
     }
 
     @Override
@@ -781,6 +843,267 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Override
     public Loading normsLoading(Loading defaultLoading) {
         return normsLoading == null ? defaultLoading : normsLoading;
+    }
+
+    public static class MultiFields {
+
+        public static MultiFields empty() {
+            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, Mapper>of());
+        }
+
+        public static class Builder {
+
+            private final ImmutableOpenMap.Builder<String, Mapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
+            private ContentPath.Type pathType = Defaults.PATH_TYPE;
+
+            public Builder pathType(ContentPath.Type pathType) {
+                this.pathType = pathType;
+                return this;
+            }
+
+            public Builder add(Mapper.Builder builder) {
+                mapperBuilders.put(builder.name(), builder);
+                return this;
+            }
+
+            @SuppressWarnings("unchecked")
+            public MultiFields build(AbstractFieldMapper.Builder mainFieldBuilder, BuilderContext context) {
+                if (pathType == Defaults.PATH_TYPE && mapperBuilders.isEmpty()) {
+                    return empty();
+                } else if (mapperBuilders.isEmpty()) {
+                    return new MultiFields(pathType, ImmutableOpenMap.<String, Mapper>of());
+                } else {
+                    ContentPath.Type origPathType = context.path().pathType();
+                    context.path().pathType(pathType);
+                    context.path().add(mainFieldBuilder.name());
+                    ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
+                    for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
+                        String key = cursor.key;
+                        Mapper.Builder value = cursor.value;
+                        mapperBuilders.put(key, value.build(context));
+                    }
+                    context.path().remove();
+                    context.path().pathType(origPathType);
+                    ImmutableOpenMap.Builder<String, Mapper> mappers = mapperBuilders.cast();
+                    return new MultiFields(pathType, mappers.build());
+                }
+            }
+
+        }
+
+        private final ContentPath.Type pathType;
+        private volatile ImmutableOpenMap<String, Mapper> mappers;
+
+        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, Mapper> mappers) {
+            this.pathType = pathType;
+            this.mappers = mappers;
+            // we disable the all in multi-field mappers
+            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+                Mapper mapper = cursor.value;
+                if (mapper instanceof AllFieldMapper.IncludeInAll) {
+                    ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
+                }
+            }
+        }
+
+        public void parse(AbstractFieldMapper mainField, ParseContext context) throws IOException {
+            if (mappers.isEmpty()) {
+                return;
+            }
+
+            ContentPath.Type origPathType = context.path().pathType();
+            context.path().pathType(pathType);
+
+            context.path().add(mainField.name());
+            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+                cursor.value.parse(context);
+            }
+            context.path().remove();
+            context.path().pathType(origPathType);
+        }
+
+        // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
+        public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+            AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
+
+            List<FieldMapper> newFieldMappers = null;
+            ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
+
+            for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+                Mapper mergeWithMapper = cursor.value;
+                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+                if (mergeIntoMapper == null) {
+                    // no mapping, simply add it if not simulating
+                    if (!mergeContext.mergeFlags().simulate()) {
+                        // we disable the all in multi-field mappers
+                        if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
+                            ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
+                        }
+                        if (newMappersBuilder == null) {
+                            newMappersBuilder = ImmutableOpenMap.builder(mappers);
+                        }
+                        newMappersBuilder.put(mergeWithMapper.name(), mergeWithMapper);
+                        if (mergeWithMapper instanceof AbstractFieldMapper) {
+                            if (newFieldMappers == null) {
+                                newFieldMappers = new ArrayList<FieldMapper>(2);
+                            }
+                            newFieldMappers.add((FieldMapper) mergeWithMapper);
+                        }
+                    }
+                } else {
+                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                }
+            }
+
+            // first add all field mappers
+            if (newFieldMappers != null) {
+                mergeContext.docMapper().addFieldMappers(newFieldMappers);
+            }
+            // now publish mappers
+            if (newMappersBuilder != null) {
+                mappers = newMappersBuilder.build();
+            }
+        }
+
+        public void traverse(FieldMapperListener fieldMapperListener) {
+            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+                cursor.value.traverse(fieldMapperListener);
+            }
+        }
+
+        public void close() {
+            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+                cursor.value.close();
+            }
+        }
+
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (pathType != Defaults.PATH_TYPE) {
+                builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
+            }
+            if (!mappers.isEmpty()) {
+                builder.startObject("fields");
+                for (ObjectCursor<Mapper> cursor : mappers.values()) {
+                    cursor.value.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            return builder;
+        }
+    }
+
+    /**
+     * Represents a list of fields with optional boost factor where the current field should be copied to
+     */
+    public static class CopyTo {
+
+        private final ImmutableList<String> copyToFields;
+
+        private CopyTo(ImmutableList<String> copyToFields) {
+            this.copyToFields = copyToFields;
+        }
+
+        /**
+         * Creates instances of the fields that the current field should be copied to
+         */
+        public void parse(ParseContext context) throws IOException {
+            if (!context.isWithinCopyTo()) {
+                for (String field : copyToFields) {
+                    parse(field, context);
+                }
+            }
+        }
+
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (!copyToFields.isEmpty()) {
+                builder.startArray("copy_to");
+                for (String field : copyToFields) {
+                    builder.value(field);
+                }
+                builder.endArray();
+            }
+            return builder;
+        }
+
+        public static class Builder {
+            private final ImmutableList.Builder<String> copyToBuilders = ImmutableList.builder();
+
+            public Builder add(String field) {
+                copyToBuilders.add(field);
+                return this;
+            }
+
+            public CopyTo build() {
+                return new CopyTo(copyToBuilders.build());
+            }
+        }
+
+        public ImmutableList<String> copyToFields() {
+            return copyToFields;
+        }
+
+        /**
+         * Creates an copy of the current field with given field name and boost
+         */
+        public void parse(String field, ParseContext context) throws IOException {
+            context.setWithinCopyTo();
+            FieldMappers mappers = context.docMapper().mappers().indexName(field);
+            if (mappers != null && !mappers.isEmpty()) {
+                mappers.mapper().parse(context);
+            } else {
+                int posDot = field.lastIndexOf('.');
+                if (posDot > 0) {
+                    // Compound name
+                    String objectPath = field.substring(0, posDot);
+                    String fieldPath = field.substring(posDot + 1);
+                    ObjectMapper mapper = context.docMapper().objectMappers().get(objectPath);
+                    if (mapper == null) {
+                        //TODO: Create an object dynamically?
+                        throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
+                    }
+
+                    ContentPath.Type origPathType = context.path().pathType();
+                    context.path().pathType(ContentPath.Type.FULL);
+                    context.path().add(objectPath);
+
+                    // We might be in dynamically created field already, so need to clean withinNewMapper flag
+                    // and then restore it, so we wouldn't miss new mappers created from copy_to fields
+                    boolean origWithinNewMapper = context.isWithinNewMapper();
+                    context.clearWithinNewMapper();
+
+                    try {
+                        mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
+                    } finally {
+                        if (origWithinNewMapper) {
+                            context.setWithinNewMapper();
+                        } else {
+                            context.clearWithinNewMapper();
+                        }
+                        context.path().remove();
+                        context.path().pathType(origPathType);
+                    }
+
+                } else {
+                    // We might be in dynamically created field already, so need to clean withinNewMapper flag
+                    // and then restore it, so we wouldn't miss new mappers created from copy_to fields
+                    boolean origWithinNewMapper = context.isWithinNewMapper();
+                    context.clearWithinNewMapper();
+                    try {
+                        context.docMapper().root().parseDynamicValue(context, field, context.parser().currentToken());
+                    } finally {
+                        if (origWithinNewMapper) {
+                            context.setWithinNewMapper();
+                        } else {
+                            context.clearWithinNewMapper();
+                        }
+                    }
+
+                }
+            }
+            context.clearWithinCopyTo();
+        }
+
+
     }
 
 }

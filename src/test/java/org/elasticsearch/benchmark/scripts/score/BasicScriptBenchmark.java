@@ -142,7 +142,6 @@ public class BasicScriptBenchmark {
     }
 
     static String[] getTerms(int numTerms) {
-        assert numTerms <= termsList.size();
         String[] terms = new String[numTerms];
         for (int i = 0; i < numTerms; i++) {
             terms[i] = termsList.get(i);

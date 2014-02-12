@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -30,13 +27,16 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.test.engine.MockRobinEngine;
+import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -65,11 +65,19 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
+    public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
+
+    public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
+
     public static final boolean ASSERTIONS_ENABLED;
     static {
         boolean enabled = false;
         assert enabled = true;
         ASSERTIONS_ENABLED = enabled;
+        if (Boolean.parseBoolean(Strings.hasLength(TESTS_SECURITY_MANAGER) ? TESTS_SECURITY_MANAGER : "true") && JAVA_SECURTY_POLICY != null) {
+            System.setSecurityManager(new SecurityManager());
+        }
+
     }
 
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
@@ -112,6 +120,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return new File(uri);
     }
 
+    @After
+    public void ensureAllPagesReleased() {
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
     public static void ensureAllFilesClosed() throws IOException {
         try {
             for (MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
@@ -131,27 +144,27 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         try {
             if (awaitBusy(new Predicate<Object>() {
                 public boolean apply(Object o) {
-                    return MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Entry<MockRobinEngine.AssertingSearcher, RuntimeException> entry : MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 

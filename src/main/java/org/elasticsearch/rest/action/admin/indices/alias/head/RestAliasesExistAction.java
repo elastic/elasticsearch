@@ -53,6 +53,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
+        getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
         client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
 

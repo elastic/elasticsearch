@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper.simple;
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -127,5 +129,19 @@ public class SimpleMapperTests extends ElasticsearchTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
         }
+    }
+
+    @Test
+    public void testTypeWrapperWithSetting() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
+        Settings settings = ImmutableSettings.settingsBuilder().put("index.mapping.allow_type_wrapper", true).build();
+        DocumentMapper docMapper = MapperTestUtils.newParser(settings).parse(mapping);
+
+        assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
+
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-withtype.json"));
+        Document doc = docMapper.parse(json).rootDoc();
+        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
     }
 }

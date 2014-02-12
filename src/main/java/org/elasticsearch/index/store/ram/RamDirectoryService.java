@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.store.ram;
 
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.RAMFile;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -73,6 +75,11 @@ public final class RamDirectoryService extends AbstractIndexShardComponent imple
                 fileMap.remove(from);
             }
             fileMap.put(to, fromFile);
+        }
+
+        @Override
+        public String toString() {
+            return "ram";
         }
     }
 }

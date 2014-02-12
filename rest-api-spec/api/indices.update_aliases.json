@@ -1,15 +1,11 @@
 {
   "indices.update_aliases": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-aliases.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-aliases.html",
     "methods": ["POST"],
     "url": {
       "path": "/_aliases",
       "paths": ["/_aliases"],
       "parts": {
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of index names to filter aliases"
-        }
       },
       "params": {
         "timeout": {

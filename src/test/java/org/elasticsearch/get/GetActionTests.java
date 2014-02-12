@@ -552,7 +552,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
         }
 
@@ -572,7 +572,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
         }
 
@@ -589,7 +589,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
         }
 
@@ -609,7 +609,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
-            assert false;
+            fail();
         } catch (VersionConflictEngineException e) {
         }
 
@@ -777,14 +777,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
 
         client().admin().indices().prepareFlush("my-index").get();
 
         try {
             client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
     }
 

@@ -1,5 +1,4 @@
----
-"Get template":
+setup:
   - do:
       indices.put_template:
         name: test
@@ -8,6 +7,9 @@
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+
+---
+"Get template":
 
   - do:
       indices.get_template:
@@ -18,13 +20,6 @@
 ---
 "Get all templates":
 
-  - do:
-      indices.put_template:
-        name: test
-        body:
-          template: test-*
-          settings:
-            number_of_shards:   1
   - do:
       indices.put_template:
         name: test2
@@ -39,3 +34,12 @@
   - match: {test.template: "test-*"}
   - match: {test2.template: "test2-*"}
 
+---
+"Get template with local flag":
+
+  - do:
+      indices.get_template:
+        name: test
+        local: true
+
+  - is_true: test

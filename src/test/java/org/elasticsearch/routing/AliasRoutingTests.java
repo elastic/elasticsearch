@@ -342,7 +342,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
-            assert false;
+            fail();
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
@@ -357,7 +357,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet("test", "type1", "1").get();
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
@@ -374,7 +374,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             try {
                 assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-                assert false;
+                fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }

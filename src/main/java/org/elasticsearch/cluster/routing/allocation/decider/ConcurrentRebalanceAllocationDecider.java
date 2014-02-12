@@ -65,11 +65,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "all concurrent rebalances are allowed");
         }
         if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "too man concurrent rebalances [%d], limit: [%d]",
+                    allocation.routingNodes().getRelocatingShardCount(), clusterConcurrentRebalance);
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);
     }
 }

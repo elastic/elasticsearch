@@ -14,7 +14,7 @@ of the recovery:
 [source,shell]
 --------------------------------------------------
 % curl -XPUT 192.168.56.30:9200/_settings -d'{"number_of_replicas":1}'
-{"ok":true,"acknowledged":true}
+{"acknowledged":true}
 % curl '192.168.56.30:9200/_cat/recovery?v'
 index shard   target recovered     % ip            node
 wiki1 2     68083830   7865837 11.6% 192.168.56.20 Adam II

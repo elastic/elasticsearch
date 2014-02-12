@@ -18,21 +18,30 @@
  */
 package org.elasticsearch.test.rest.section;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.rest.support.Features;
 import org.elasticsearch.test.rest.support.VersionUtils;
+
+import java.util.List;
 
 /**
  * Represents a skip section that tells whether a specific test section or suite needs to be skipped
- * based on the elasticsearch version the tests are running against.
+ * based on:
+ * - the elasticsearch version the tests are running against
+ * - a specific test feature required that might not be implemented yet by the runner
  */
 public class SkipSection {
 
-    public static final SkipSection EMPTY = new SkipSection("", "");
+    public static final SkipSection EMPTY = new SkipSection("", Lists.<String>newArrayList(), "");
 
     private final String version;
+    private final List<String> features;
     private final String reason;
 
-    public SkipSection(String version, String reason) {
+    public SkipSection(String version, List<String> features, String reason) {
         this.version = version;
+        this.features = features;
         this.reason = reason;
     }
 
@@ -40,15 +49,32 @@ public class SkipSection {
         return version;
     }
 
+    public List<String> getFeatures() {
+        return features;
+    }
+
     public String getReason() {
         return reason;
     }
 
-    public boolean skipVersion(String currentVersion) {
+    public boolean skip(String currentVersion) {
         if (isEmpty()) {
             return false;
         }
-        return VersionUtils.skipCurrentVersion(version, currentVersion);
+
+        if (version != null) {
+            return VersionUtils.skipCurrentVersion(version, currentVersion);
+        }
+
+        if (features != null && !this.features.isEmpty()) {
+            return !Features.areAllSupported(this.features);
+        }
+
+        throw new IllegalArgumentException("version or feature should be not null in a non empty skip section");
+    }
+
+    public boolean isVersionCheck() {
+        return Strings.hasLength(version);
     }
 
     public boolean isEmpty() {

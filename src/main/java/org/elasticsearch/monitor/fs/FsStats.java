@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.fs;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,11 +64,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            if (in.getVersion().after(Version.V_0_90_7)) {
-                path = in.readOptionalString();
-            } else {
-                path = in.readString();
-            }
+            path = in.readOptionalString();
             mount = in.readOptionalString();
             dev = in.readOptionalString();
             total = in.readLong();
@@ -85,11 +80,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().after(Version.V_0_90_7)) {
-                out.writeOptionalString(path); // total aggregates do not have a path
-            } else {
-                out.writeString(path);
-            }
+            out.writeOptionalString(path); // total aggregates do not have a path
             out.writeOptionalString(mount);
             out.writeOptionalString(dev);
             out.writeLong(total);

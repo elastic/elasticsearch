@@ -452,10 +452,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             count = in.readVInt();
             cpuPercent = in.readVInt();
             totalOpenFileDescriptors = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_0_90_10)) {
-                minOpenFileDescriptors = in.readLong();
-                maxOpenFileDescriptors = in.readLong();
-            }
+            minOpenFileDescriptors = in.readLong();
+            maxOpenFileDescriptors = in.readLong();
         }
 
         @Override
@@ -463,10 +461,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             out.writeVInt(count);
             out.writeVInt(cpuPercent);
             out.writeVLong(totalOpenFileDescriptors);
-            if (out.getVersion().onOrAfter(Version.V_0_90_10)) {
-                out.writeLong(minOpenFileDescriptors);
-                out.writeLong(maxOpenFileDescriptors);
-            }
+            out.writeLong(minOpenFileDescriptors);
+            out.writeLong(maxOpenFileDescriptors);
         }
 
         public static ProcessStats readStats(StreamInput in) throws IOException {

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -603,9 +602,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_0_90_2)) {
-            docAsUpsert = in.readBoolean();
-        }
+        docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -651,9 +648,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_0_90_2)) {
-            out.writeBoolean(docAsUpsert);
-        }
+        out.writeBoolean(docAsUpsert);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }

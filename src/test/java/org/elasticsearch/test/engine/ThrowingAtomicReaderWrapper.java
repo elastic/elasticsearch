@@ -59,6 +59,13 @@ public class ThrowingAtomicReaderWrapper extends FilterAtomicReader {
          * Maybe throws an exception ;)
          */
         public void maybeThrow(Flags flag) throws IOException;
+
+        /**
+         * If this method returns true the {@link Terms} instance for the given field
+         * is wrapped with Thrower support otherwise no exception will be thrown for
+         * the current {@link Terms} instance or any other instance obtained from it.
+         */
+        public boolean wrapTerms(String field);
     }
 
     public ThrowingAtomicReaderWrapper(AtomicReader in, Thrower thrower) {
@@ -95,8 +102,11 @@ public class ThrowingAtomicReaderWrapper extends FilterAtomicReader {
         @Override
         public Terms terms(String field) throws IOException {
             Terms terms = super.terms(field);
-            thrower.maybeThrow(Flags.Terms);
-            return terms == null ? null : new ThrowingTerms(terms, thrower);
+            if (thrower.wrapTerms(field)) {
+                thrower.maybeThrow(Flags.Terms);
+                return terms == null ? null : new ThrowingTerms(terms, thrower);
+            }
+            return terms;
         }
     }
 

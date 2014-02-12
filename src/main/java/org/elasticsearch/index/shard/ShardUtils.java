@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 
@@ -36,14 +37,21 @@ public class ShardUtils {
      * This will be the case in almost all cases, except for percolator currently.
      */
     @Nullable
-    public static ShardId extractShardId(IndexReader reader) {
-        if (reader instanceof SegmentReader) {
-            SegmentReader sReader = (SegmentReader) reader;
-            Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(sReader.directory());
+    public static ShardId extractShardId(AtomicReader reader) {
+        return extractShardId(SegmentReaderUtils.segmentReaderOrNull(reader));
+    }
+
+    @Nullable
+    private static ShardId extractShardId(SegmentReader reader) {
+        if (reader != null) {
+            assert reader.getRefCount() > 0 : "SegmentReader is already closed";
+            // reader.directory doesn't call ensureOpen for internal reasons.
+            Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(reader.directory());
             if (storeDir != null) {
                 return storeDir.shardId();
             }
         }
         return null;
     }
+
 }

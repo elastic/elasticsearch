@@ -69,7 +69,29 @@ on all data and master nodes. The following settings are supported:
 `concurrent_streams`:: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
+`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
 
+
+[float]
+===== Read-only URL Repository
+
+The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by shared file
+system repository  is using shared file system to store snapshot. The URL specified in the `url` parameter should
+point to the root of the shared filesystem repository. The following settings are supported:
+
+[horizontal]
+`url`:: Location of the snapshots. Mandatory.
+`concurrent_streams`:: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`
+
+
+[float]
+===== Repository plugins
+
+Other repository backends are available in these official plugins:
+
+* https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
+* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
 
 [float]
 === Snapshot
@@ -101,7 +123,8 @@ supports <<search-multi-index-type,multi index syntax>>. The snapshot request al
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exists to be ignored during snapshot
 creation. By default, when `ignore_unavailable` option is not set and an index is missing the snapshot request will fail.
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
-the snapshot.
+the snapshot. By default, entire snapshot will fail if one or more indices participating in the snapshot don't have
+all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
@@ -169,9 +192,9 @@ http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendRepl
 -----------------------------------
 $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
     "indices": "index_1,index_2",
-    "ignore_unavailable": "missing",
+    "ignore_unavailable": "true",
     "include_global_state": false,
-    "rename_pattern": "index_(.)+",
+    "rename_pattern": "index_(.+)",
     "rename_replacement": "restored_index_$1"
 }'
 -----------------------------------

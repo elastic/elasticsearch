@@ -19,9 +19,10 @@
 package org.elasticsearch.test.rest.section;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
-import java.io.File;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -34,11 +35,11 @@ public class RestTestSuite {
 
     private SetupSection setupSection;
 
-    private List<TestSection> testSections = Lists.newArrayList();
+    private Set<TestSection> testSections = Sets.newHashSet();
 
     public RestTestSuite(String api, String name) {
-        this.api = replaceDot(api);
-        this.name = replaceDot(name);
+        this.api = api;
+        this.name = name;
     }
 
     public String getApi() {
@@ -52,12 +53,7 @@ public class RestTestSuite {
     //describes the rest test suite (e.g. index/10_with_id)
     //useful also to reproduce failures (RestReproduceInfoPrinter)
     public String getDescription() {
-        return api + File.separator + name;
-    }
-
-    private static String replaceDot(String value) {
-        // '.' is used as separator internally and not expected to be within suite or test names, better replace it
-        return value.replace('.', '_');
+        return api + "/" + name;
     }
 
     public SetupSection getSetupSection() {
@@ -68,11 +64,15 @@ public class RestTestSuite {
         this.setupSection = setupSection;
     }
 
-    public void addTestSection(TestSection testSection) {
-        this.testSections.add(testSection);
+    /**
+     * Adds a {@link org.elasticsearch.test.rest.section.TestSection} to the REST suite
+     * @return true if the test section was not already present, false otherwise
+     */
+    public boolean addTestSection(TestSection testSection) {
+        return this.testSections.add(testSection);
     }
 
     public List<TestSection> getTestSections() {
-        return testSections;
+        return Lists.newArrayList(testSections);
     }
 }

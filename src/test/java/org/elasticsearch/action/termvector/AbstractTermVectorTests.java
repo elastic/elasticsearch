@@ -117,7 +117,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
 
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
             this.id = id;
-            assert fieldSettings.length == fieldContent.length;
+            assertEquals(fieldSettings.length, fieldContent.length);
             this.fieldSettings = fieldSettings;
             this.fieldContent = fieldContent;
         }
@@ -404,7 +404,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         TopDocs search = searcher.search(new TermQuery(new Term("id", doc.id)), 1);
 
         ScoreDoc[] scoreDocs = search.scoreDocs;
-        assert (scoreDocs.length == 1);
+        assertEquals(1, scoreDocs.length);
         return directoryReader.getTermVectors(scoreDocs[0].doc);
     }
 

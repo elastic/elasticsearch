@@ -68,7 +68,12 @@ public class DoubleTerms extends InternalTerms {
         }
 
         @Override
-        public Text getKey() {
+        public String getKey() {
+            return String.valueOf(term);
+        }
+
+        @Override
+        public Text getKeyAsText() {
             return new StringText(String.valueOf(term));
         }
 
@@ -88,12 +93,12 @@ public class DoubleTerms extends InternalTerms {
 
     DoubleTerms() {} // for serialization
 
-    public DoubleTerms(String name, InternalOrder order, int requiredSize, Collection<InternalTerms.Bucket> buckets) {
-        this(name, order, null, requiredSize, buckets);
+    public DoubleTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+        this(name, order, null, requiredSize, minDocCount, buckets);
     }
 
-    public DoubleTerms(String name, InternalOrder order, ValueFormatter valueFormatter, int requiredSize, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, buckets);
+    public DoubleTerms(String name, InternalOrder order, ValueFormatter valueFormatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+        super(name, order, requiredSize, minDocCount, buckets);
         this.valueFormatter = valueFormatter;
     }
 
@@ -107,7 +112,7 @@ public class DoubleTerms extends InternalTerms {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries();
+            terms.trimExcessEntries(reduceContext.cacheRecycler());
             return terms;
         }
         InternalTerms reduced = null;
@@ -147,7 +152,10 @@ public class DoubleTerms extends InternalTerms {
         for (int i = 0; i < states.length; i++) {
             if (states[i]) {
                 List<DoubleTerms.Bucket> sameTermBuckets = (List<DoubleTerms.Bucket>) internalBuckets[i];
-                ordered.insertWithOverflow(sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler()));
+                final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
+                if (b.getDocCount() >= minDocCount) {
+                    ordered.insertWithOverflow(b);
+                }
             }
         }
         buckets.release();
@@ -164,7 +172,8 @@ public class DoubleTerms extends InternalTerms {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
         this.valueFormatter = ValueFormatterStreams.readOptional(in);
-        this.requiredSize = in.readVInt();
+        this.requiredSize = readSize(in);
+        this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
         for (int i = 0; i < size; i++) {
@@ -179,7 +188,8 @@ public class DoubleTerms extends InternalTerms {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeVInt(requiredSize);
+        writeSize(requiredSize, out);
+        out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeDouble(((Bucket) bucket).term);

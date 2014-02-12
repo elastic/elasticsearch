@@ -385,7 +385,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-mapping [" + Arrays.toString(request.types()) + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -428,21 +428,30 @@ public class MetaDataMappingService extends AbstractComponent {
                 String latestIndexWithout = null;
                 for (String indexName : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                    IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData);
+                    
                     if (indexMetaData != null) {
-                        if (indexMetaData.mappings().containsKey(request.type())) {
-                            builder.put(IndexMetaData.builder(indexMetaData).removeMapping(request.type()));
-                            changed = true;
-                        } else {
+                        boolean isLatestIndexWithout = true;
+                        for (String type : request.types()) {
+                            if (indexMetaData.mappings().containsKey(type)) {
+                                indexBuilder.removeMapping(type);
+                                changed = true;
+                                isLatestIndexWithout = false;
+                            }
+                        }
+                        if (isLatestIndexWithout) {
                             latestIndexWithout = indexMetaData.index();
                         }
+
                     }
+                    builder.put(indexBuilder);
                 }
 
                 if (!changed) {
-                    throw new TypeMissingException(new Index(latestIndexWithout), request.type());
+                    throw new TypeMissingException(new Index(latestIndexWithout), request.types());
                 }
 
-                logger.info("[{}] remove_mapping [{}]", request.indices(), request.type());
+                logger.info("[{}] remove_mapping [{}]", request.indices(), request.types());
 
                 return ClusterState.builder(currentState).metaData(builder).build();
             }

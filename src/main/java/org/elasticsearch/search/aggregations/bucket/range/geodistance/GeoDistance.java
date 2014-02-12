@@ -18,13 +18,21 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.elasticsearch.search.aggregations.bucket.range.RangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+
+import java.util.Collection;
 
 /**
  *
  */
-public interface GeoDistance extends RangeBase<GeoDistance.Bucket> {
+public interface GeoDistance extends Range {
 
-    public static interface Bucket extends RangeBase.Bucket {}
+    public static interface Bucket extends Range.Bucket {
+    }
 
+    @Override
+    Collection<? extends GeoDistance.Bucket> getBuckets();
+
+    @Override
+    GeoDistance.Bucket getBucketByKey(String key);
 }

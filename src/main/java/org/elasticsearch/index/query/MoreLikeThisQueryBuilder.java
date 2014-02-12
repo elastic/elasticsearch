@@ -39,8 +39,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private String[] stopWords = null;
     private int minDocFreq = -1;
     private int maxDocFreq = -1;
-    private int minWordLen = -1;
-    private int maxWordLen = -1;
+    private int minWordLength = -1;
+    private int maxWordLength = -1;
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
@@ -131,8 +131,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * Sets the minimum word length below which words will be ignored. Defaults
      * to <tt>0</tt>.
      */
-    public MoreLikeThisQueryBuilder minWordLen(int minWordLen) {
-        this.minWordLen = minWordLen;
+    public MoreLikeThisQueryBuilder minWordLength(int minWordLength) {
+        this.minWordLength = minWordLength;
         return this;
     }
 
@@ -140,8 +140,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * Sets the maximum word length above which words will be ignored. Defaults to
      * unbounded (<tt>0</tt>).
      */
-    public MoreLikeThisQueryBuilder maxWordLen(int maxWordLen) {
-        this.maxWordLen = maxWordLen;
+    public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
+        this.maxWordLength = maxWordLength;
         return this;
     }
 
@@ -193,39 +193,40 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.endArray();
         }
         if (likeText == null) {
-            throw new ElasticsearchIllegalArgumentException("moreLikeThis requires 'likeText' to be provided");
+            throw new ElasticsearchIllegalArgumentException("moreLikeThis requires '"+
+                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' to be provided");
         }
-        builder.field("like_text", likeText);
+        builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
         if (percentTermsToMatch != -1) {
-            builder.field("percent_terms_to_match", percentTermsToMatch);
+            builder.field(MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.getPreferredName(), percentTermsToMatch);
         }
         if (minTermFreq != -1) {
-            builder.field("min_term_freq", minTermFreq);
+            builder.field(MoreLikeThisQueryParser.Fields.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
         }
         if (maxQueryTerms != -1) {
-            builder.field("max_query_terms", maxQueryTerms);
+            builder.field(MoreLikeThisQueryParser.Fields.MAX_QUERY_TERMS.getPreferredName(), maxQueryTerms);
         }
         if (stopWords != null && stopWords.length > 0) {
-            builder.startArray("stop_words");
+            builder.startArray(MoreLikeThisQueryParser.Fields.STOP_WORDS.getPreferredName());
             for (String stopWord : stopWords) {
                 builder.value(stopWord);
             }
             builder.endArray();
         }
         if (minDocFreq != -1) {
-            builder.field("min_doc_freq", minDocFreq);
+            builder.field(MoreLikeThisQueryParser.Fields.MIN_DOC_FREQ.getPreferredName(), minDocFreq);
         }
         if (maxDocFreq != -1) {
-            builder.field("max_doc_freq", maxDocFreq);
+            builder.field(MoreLikeThisQueryParser.Fields.MAX_DOC_FREQ.getPreferredName(), maxDocFreq);
         }
-        if (minWordLen != -1) {
-            builder.field("min_word_len", minWordLen);
+        if (minWordLength != -1) {
+            builder.field(MoreLikeThisQueryParser.Fields.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         }
-        if (maxWordLen != -1) {
-            builder.field("max_word_len", maxWordLen);
+        if (maxWordLength != -1) {
+            builder.field(MoreLikeThisQueryParser.Fields.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
         }
         if (boostTerms != -1) {
-            builder.field("boost_terms", boostTerms);
+            builder.field(MoreLikeThisQueryParser.Fields.BOOST_TERMS.getPreferredName(), boostTerms);
         }
         if (boost != -1) {
             builder.field("boost", boost);
@@ -234,7 +235,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.field("analyzer", analyzer);
         }
         if (failOnUnsupportedField != null) {
-            builder.field("fail_on_unsupported_field", failOnUnsupportedField);
+            builder.field(MoreLikeThisQueryParser.Fields.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
         }
         if (queryName != null) {
             builder.field("_name", queryName);

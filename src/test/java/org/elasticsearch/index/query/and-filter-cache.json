@@ -1,0 +1,21 @@
+{
+    "filtered":{
+      "filter":{
+            "and":{
+                "filters":[
+                    {
+                        "term":{
+                            "name.first":"shay1"
+                        }
+                    },
+                    {
+                        "term":{
+                            "name.first":"shay4"
+                        }
+                    }
+                ],
+                "_cache" : true
+            }
+        }
+    }
+}

@@ -48,13 +48,14 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteAllOneIndex() {
-
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
-
-        client().prepareIndex("twitter", "tweet").setSource(json).setRefresh(true).execute().actionGet();
-
+        final long iters = randomIntBetween(1, 50);
+        for (int i = 0; i < iters; i++) {
+            client().prepareIndex("twitter", "tweet", "" + i).setSource(json).execute().actionGet();
+        }
+        refresh();
         SearchResponse search = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        assertThat(search.getHits().totalHits(), equalTo(1l));
+        assertThat(search.getHits().totalHits(), equalTo(iters));
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
 

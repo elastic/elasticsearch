@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -479,19 +478,13 @@ public class CommonStats implements Streamable, ToXContent {
         if (in.readBoolean()) {
             percolate = PercolateStats.readPercolateStats(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
-            if (in.readBoolean()) {
-                completion = CompletionStats.readCompletionStats(in);
-            }
+        if (in.readBoolean()) {
+            completion = CompletionStats.readCompletionStats(in);
         }
-        if (in.getVersion().after(Version.V_0_90_6)) {
-            if (in.readBoolean()) {
-                segments = SegmentsStats.readSegmentsStats(in);
-            }
+        if (in.readBoolean()) {
+            segments = SegmentsStats.readSegmentsStats(in);
         }
-        if (in.getVersion().after(Version.V_1_0_0_Beta2)) {
-            translog = in.readOptionalStreamable(new TranslogStats());
-        }
+        translog = in.readOptionalStreamable(new TranslogStats());
     }
 
     @Override
@@ -574,25 +567,19 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             percolate.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
-            if (completion == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                completion.writeTo(out);
-            }
+        if (completion == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            completion.writeTo(out);
         }
-        if (out.getVersion().after(Version.V_0_90_6)) {
-            if (segments == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                segments.writeTo(out);
-            }
+        if (segments == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            segments.writeTo(out);
         }
-        if (out.getVersion().after(Version.V_1_0_0_Beta2)) {
-            out.writeOptionalStreamable(translog);
-        }
+        out.writeOptionalStreamable(translog);
     }
 
     // note, requires a wrapping object

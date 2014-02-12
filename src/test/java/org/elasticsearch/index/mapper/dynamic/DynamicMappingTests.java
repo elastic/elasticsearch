@@ -94,7 +94,7 @@ public class DynamicMappingTests extends ElasticsearchTestCase {
                     .field("field1", "value1")
                     .field("field2", "value2")
                     .bytes());
-            assert false;
+            fail();
         } catch (StrictDynamicMappingException e) {
             // all is well
         }
@@ -144,7 +144,7 @@ public class DynamicMappingTests extends ElasticsearchTestCase {
                     .field("field2", "value2")
                     .endObject()
                     .bytes());
-            assert false;
+            fail();
         } catch (StrictDynamicMappingException e) {
             // all is well
         }

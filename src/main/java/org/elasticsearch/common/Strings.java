@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -1565,4 +1566,14 @@ public class Strings {
             return s.substring(beginIndex, endIndex);
         }
     }
+
+    /**
+     * If an array only consists of zero or one element, which is "*" or "_all" return an empty array
+     * which is usually used as everything
+     */
+    public static boolean isAllOrWildcard(String[] data) {
+        return CollectionUtils.isEmpty(data) ||
+               data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
+    }
+
 }

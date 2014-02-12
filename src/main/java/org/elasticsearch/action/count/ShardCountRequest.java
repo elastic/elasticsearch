@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -99,11 +98,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
                 filteringAliases[i] = in.readString();
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-            nowInMillis = in.readVLong();
-        } else {
-            nowInMillis = System.currentTimeMillis();
-        }
+        nowInMillis = in.readVLong();
     }
 
     @Override
@@ -125,8 +120,6 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         } else {
             out.writeVInt(0);
         }
-        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-            out.writeVLong(nowInMillis);
-        }
+        out.writeVLong(nowInMillis);
     }
 }

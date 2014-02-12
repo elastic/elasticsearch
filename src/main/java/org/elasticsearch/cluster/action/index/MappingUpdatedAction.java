@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -174,13 +173,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             index = in.readString();
             type = in.readString();
             mappingSource = CompressedString.readCompressedString(in);
-            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readString();
-            }
-            if (in.getVersion().after(Version.V_0_90_7)) {
-                order = in.readLong();
-                nodeId = in.readOptionalString();
-            }
+            indexUUID = in.readString();
+            order = in.readLong();
+            nodeId = in.readOptionalString();
         }
 
         @Override
@@ -189,13 +184,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             out.writeString(index);
             out.writeString(type);
             mappingSource.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeString(indexUUID);
-            }
-            if (out.getVersion().after(Version.V_0_90_7)) {
-                out.writeLong(order);
-                out.writeOptionalString(nodeId);
-            }
+            out.writeString(indexUUID);
+            out.writeLong(order);
+            out.writeOptionalString(nodeId);
         }
 
         @Override

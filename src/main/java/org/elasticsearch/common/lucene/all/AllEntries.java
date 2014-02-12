@@ -145,20 +145,23 @@ public class AllEntries extends Reader {
 
     // compute the boost for a token with the given startOffset
     public float boost(int startOffset) {
-        int lo = 0, hi = entries.size() - 1;
-        while (lo <= hi) {
-            final int mid = (lo + hi) >>> 1;
-            final int midOffset = entries.get(mid).startOffset();
-            if (startOffset < midOffset) {
-                hi = mid - 1;
-            } else {
-                lo = mid + 1;
+        if (!entries.isEmpty()) {
+            int lo = 0, hi = entries.size() - 1;
+            while (lo <= hi) {
+                final int mid = (lo + hi) >>> 1;
+                final int midOffset = entries.get(mid).startOffset();
+                if (startOffset < midOffset) {
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
             }
+            final int index = Math.max(0, hi); // protection against broken token streams
+            assert entries.get(index).startOffset() <= startOffset;
+            assert index == entries.size() - 1 || entries.get(index + 1).startOffset() > startOffset;
+            return entries.get(index).boost();
         }
-        final int index = Math.max(0, hi); // protection against broken token streams
-        assert entries.get(index).startOffset() <= startOffset;
-        assert index == entries.size() - 1 || entries.get(index + 1).startOffset() > startOffset;
-        return entries.get(index).boost();
+        return 1.0f;
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -32,16 +33,22 @@ public class UnmappedTermsAggregator extends Aggregator {
 
     private final InternalOrder order;
     private final int requiredSize;
+    private final long minDocCount;
 
-    public UnmappedTermsAggregator(String name, InternalOrder order, int requiredSize, AggregationContext aggregationContext, Aggregator parent) {
+    public UnmappedTermsAggregator(String name, InternalOrder order, int requiredSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
         this.order = order;
         this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
     }
 
     @Override
     public boolean shouldCollect() {
         return false;
+    }
+
+    @Override
+    public void setNextReader(AtomicReaderContext reader) {
     }
 
     @Override
@@ -51,11 +58,11 @@ public class UnmappedTermsAggregator extends Aggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
-        return new UnmappedTerms(name, order, requiredSize);
+        return new UnmappedTerms(name, order, requiredSize, minDocCount);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new UnmappedTerms(name, order, requiredSize);
+        return new UnmappedTerms(name, order, requiredSize, minDocCount);
     }
 }

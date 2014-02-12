@@ -25,6 +25,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -134,9 +135,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             return (FD) cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    if (context.reader() instanceof SegmentReader) {
-                        ((SegmentReader) context.reader()).addCoreClosedListener(IndexFieldCache.this);
-                    }
+                    SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
 
                     if (indexService != null) {

@@ -87,6 +87,7 @@ public class ParentConstantScoreQuery extends Query {
             parentQuery = rewrittenParentQuery = originalParentQuery.rewrite(searcher.getIndexReader());
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         indexSearcher.search(parentQuery, collector);
 
         if (parents.v().isEmpty()) {

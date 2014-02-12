@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -141,12 +140,8 @@ public class Segment implements Streamable {
         sizeInBytes = in.readLong();
         version = in.readOptionalString();
         compound = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-            mergeId = in.readOptionalString();
-        }
-        if (in.getVersion().after(Version.V_0_90_8)) {
-            memoryInBytes = in.readLong();
-        }
+        mergeId = in.readOptionalString();
+        memoryInBytes = in.readLong();
     }
 
     @Override
@@ -159,11 +154,7 @@ public class Segment implements Streamable {
         out.writeLong(sizeInBytes);
         out.writeOptionalString(version);
         out.writeOptionalBoolean(compound);
-        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-            out.writeOptionalString(mergeId);
-        }
-        if (out.getVersion().after(Version.V_0_90_8)) {
-            out.writeLong(memoryInBytes);
-        }
+        out.writeOptionalString(mergeId);
+        out.writeLong(memoryInBytes);
     }
 }

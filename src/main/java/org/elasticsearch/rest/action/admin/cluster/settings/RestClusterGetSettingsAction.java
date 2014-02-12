@@ -48,6 +48,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                 .listenerThreaded(false)
                 .routingTable(false)
                 .nodes(false);
+        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {

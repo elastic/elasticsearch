@@ -103,14 +103,14 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
             CreateIndexResponse r = client().admin().indices().prepareCreate(index).execute().actionGet();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
-            assert false;
+            fail();
         }
     }
 
     private void canNotCreateIndex(String index) {
         try {
             client().admin().indices().prepareCreate(index).execute().actionGet();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }
@@ -123,7 +123,7 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
             IndexResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
-            assert false;
+            fail();
         }
     }
 
@@ -132,7 +132,7 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
             IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
             builder.setSource("foo", "bar");
             builder.execute().actionGet();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }
@@ -143,14 +143,14 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
             IndicesExistsResponse r = client().admin().indices().prepareExists(index).execute().actionGet();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
-            assert false;
+            fail();
         }
     }
 
     private void canNotIndexExists(String index) {
         try {
             IndicesExistsResponse r = client().admin().indices().prepareExists(index).execute().actionGet();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }

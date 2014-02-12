@@ -94,7 +94,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         dataPaths = dataPaths();
-        assertThat(storeString, equalTo("store(least_used[byte_buffer])"));
+        assertThat(storeString, equalTo("store(least_used[ram])"));
 
         createIndexWithoutRateLimitingStoreType("test", "niofs", "least_used");
         storeString = getStoreDirectory("test", 0).toString();

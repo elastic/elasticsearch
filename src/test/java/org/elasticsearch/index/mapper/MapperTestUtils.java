@@ -45,7 +45,7 @@ import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 public class MapperTestUtils {
 
     public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), newAnalysisService(), new PostingsFormatService(new Index("test")),
+        return new DocumentMapperParser(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newAnalysisService(), new PostingsFormatService(new Index("test")),
                 new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
     }
 

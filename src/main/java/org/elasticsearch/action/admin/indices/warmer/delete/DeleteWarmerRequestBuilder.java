@@ -43,8 +43,8 @@ public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<Delet
      * The name (or wildcard expression) of the index warmer to delete, or null
      * to delete all warmers.
      */
-    public DeleteWarmerRequestBuilder setName(String name) {
-        request.name(name);
+    public DeleteWarmerRequestBuilder setNames(String... names) {
+        request.names(names);
         return this;
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  *
  */
-public class TransportClusterStateAction extends TransportMasterNodeOperationAction<ClusterStateRequest, ClusterStateResponse> {
+public class TransportClusterStateAction extends TransportMasterNodeReadOperationAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final ClusterName clusterName;
 
@@ -67,11 +67,6 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     @Override
     protected ClusterStateResponse newResponse() {
         return new ClusterStateResponse();
-    }
-
-    @Override
-    protected boolean localExecute(ClusterStateRequest request) {
-        return request.local();
     }
 
     @Override

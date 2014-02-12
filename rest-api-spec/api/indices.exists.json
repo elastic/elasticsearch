@@ -1,6 +1,6 @@
 {
   "indices.exists": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-get-settings.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-get-settings.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}",
@@ -26,6 +26,10 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "local": {
+            "type": "boolean",
+            "description": "Return local information, do not retrieve the state from master node (default: false)"
         }
       }
     },

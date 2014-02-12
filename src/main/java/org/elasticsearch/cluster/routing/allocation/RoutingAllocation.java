@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -98,6 +99,8 @@ public class RoutingAllocation {
     private Map<ShardId, String> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
+
+    private boolean debugDecision = false;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -173,6 +176,14 @@ public class RoutingAllocation {
         return this.ignoreDisable;
     }
 
+    public void debugDecision(boolean debug) {
+        this.debugDecision = debug;
+    }
+
+    public boolean debugDecision() {
+        return this.debugDecision;
+    }
+
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
             ignoredShardToNodes = new HashMap<ShardId, String>();
@@ -182,5 +193,17 @@ public class RoutingAllocation {
 
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
         return ignoredShardToNodes != null && nodeId.equals(ignoredShardToNodes.get(shardId));
+    }
+
+    /**
+     * Create a routing decision, including the reason if the debug flag is
+     * turned on
+     */
+    public Decision decision(Decision decision, String reason, Object... params) {
+        if (debugDecision()) {
+            return Decision.single(decision.type(), reason, params);
+        } else {
+            return decision;
+        }
     }
 }

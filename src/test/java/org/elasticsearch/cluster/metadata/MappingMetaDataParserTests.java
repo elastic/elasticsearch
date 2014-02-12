@@ -60,7 +60,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "1");
         try {
             md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
-        assert false;
+        fail();
         } catch (MapperParsingException ex) {
             // bogus its an array
         }
@@ -70,7 +70,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         parseContext = md.createParseContext(null, "routing_value", "1");
         try {
             md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
-        assert false;
+        fail();
         } catch (MapperParsingException ex) {
             // bogus its an object
         }

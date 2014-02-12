@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -42,6 +41,8 @@ public class SnapshotInfo implements ToXContent, Streamable {
     private String name;
 
     private SnapshotState state;
+
+    private String reason;
 
     private ImmutableList<String> indices;
 
@@ -67,6 +68,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
     public SnapshotInfo(Snapshot snapshot) {
         name = snapshot.name();
         state = snapshot.state();
+        reason = snapshot.reason();
         indices = snapshot.indices();
         startTime = snapshot.startTime();
         endTime = snapshot.endTime();
@@ -91,6 +93,15 @@ public class SnapshotInfo implements ToXContent, Streamable {
      */
     public SnapshotState state() {
         return state;
+    }
+
+    /**
+     * Returns snapshot failure reason
+     *
+     * @return snapshot failure reason
+     */
+    public String reason() {
+        return reason;
     }
 
     /**
@@ -137,7 +148,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards -  successfulShards;
+        return totalShards - successfulShards;
     }
 
     /**
@@ -162,6 +173,9 @@ public class SnapshotInfo implements ToXContent, Streamable {
      * Returns snapshot REST status
      */
     public RestStatus status() {
+        if (state == SnapshotState.FAILED) {
+            return RestStatus.INTERNAL_SERVER_ERROR;
+        }
         if (shardFailures.size() == 0) {
             return RestStatus.OK;
         }
@@ -179,6 +193,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
         static final XContentBuilderString STATE = new XContentBuilderString("state");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
         static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
         static final XContentBuilderString END_TIME = new XContentBuilderString("end_time");
@@ -202,6 +217,9 @@ public class SnapshotInfo implements ToXContent, Streamable {
         }
         builder.endArray();
         builder.field(Fields.STATE, state);
+        if (reason != null) {
+            builder.field(Fields.REASON, reason);
+        }
         if (startTime != 0) {
             builder.field(Fields.START_TIME, DATE_TIME_FORMATTER.printer().print(startTime));
             builder.field(Fields.START_TIME_IN_MILLIS, startTime);
@@ -235,6 +253,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
         }
         indices = indicesListBuilder.build();
         state = SnapshotState.fromValue(in.readByte());
+        reason = in.readOptionalString();
         startTime = in.readVLong();
         endTime = in.readVLong();
         totalShards = in.readVInt();
@@ -259,6 +278,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
             out.writeString(index);
         }
         out.writeByte(state.value());
+        out.writeOptionalString(reason);
         out.writeVLong(startTime);
         out.writeVLong(endTime);
         out.writeVInt(totalShards);

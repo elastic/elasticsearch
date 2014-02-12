@@ -1,6 +1,6 @@
 {
   "indices.delete_template": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-templates.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-templates.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/_template/{name}",

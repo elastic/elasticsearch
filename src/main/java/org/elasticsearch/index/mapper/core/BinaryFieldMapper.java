@@ -59,7 +59,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         static {
             FIELD_TYPE.setIndexed(false);
-            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -87,7 +86,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, postingsProvider, docValuesProvider);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, postingsProvider,
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -120,8 +120,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     private long compressThreshold;
 
     protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold,
-                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider) {
-        super(names, 1.0f, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null);
+                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }

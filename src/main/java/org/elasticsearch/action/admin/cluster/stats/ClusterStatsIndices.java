@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +50,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     private IdCacheStats idCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private PercolateStats peroclate;
+    private PercolateStats percolate;
 
     private ClusterStatsIndices() {
     }
@@ -66,7 +65,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         this.idCache = new IdCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
-        this.peroclate = new PercolateStats();
+        this.percolate = new PercolateStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -90,7 +89,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
                 idCache.add(shardCommonStats.idCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
-                peroclate.add(shardCommonStats.percolate);
+                percolate.add(shardCommonStats.percolate);
             }
         }
 
@@ -138,7 +137,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     }
 
     public PercolateStats getPercolate() {
-        return peroclate;
+        return percolate;
     }
 
     @Override
@@ -152,11 +151,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache = IdCacheStats.readIdCacheStats(in);
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
-        if (in.getVersion().after(Version.V_1_0_0_RC1)) {
-            peroclate = PercolateStats.readPercolateStats(in);
-        } else {
-            peroclate = new PercolateStats();
-        }
+        percolate = PercolateStats.readPercolateStats(in);
     }
 
     @Override
@@ -170,9 +165,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache.writeTo(out);
         completion.writeTo(out);
         segments.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_1_0_0_RC1)) {
-            peroclate.writeTo(out);
-        }
+        percolate.writeTo(out);
     }
 
     public static ClusterStatsIndices readIndicesStats(StreamInput in) throws IOException {
@@ -196,7 +189,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         idCache.toXContent(builder, params);
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
-        peroclate.toXContent(builder, params);
+        percolate.toXContent(builder, params);
         return builder;
     }
 

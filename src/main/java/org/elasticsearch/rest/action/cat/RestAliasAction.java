@@ -57,6 +57,7 @@ public class RestAliasAction extends AbstractCatAction {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
+        getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
         client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
             @Override
@@ -82,19 +83,19 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     void documentation(StringBuilder sb) {
-        sb.append("/_cat/aliases");
-        sb.append("/_cat/aliases/{alias}");
+        sb.append("/_cat/aliases\n");
+        sb.append("/_cat/aliases/{alias}\n");
     }
 
     @Override
     Table getTableWithHeader(RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
-        table.addCell("alias", "desc:alias name");
-        table.addCell("index", "desc:index alias points to");
-        table.addCell("filter", "desc:filter");
-        table.addCell("index_routing", "desc:index routing");
-        table.addCell("search_routing", "desc:search routing");
+        table.addCell("alias", "alias:a;desc:alias name");
+        table.addCell("index", "alias:i,idx;desc:index alias points to");
+        table.addCell("filter", "alias:f,fi;desc:filter");
+        table.addCell("routing.index", "alias:ri,routingIndex;desc:index routing");
+        table.addCell("routing.search", "alias:rs,routingSearch;desc:search routing");
         table.endHeaders();
         return table;
     }

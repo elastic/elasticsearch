@@ -1,0 +1,26 @@
+{
+    "constant_score": {
+        "filter": {
+            "bool": {
+                "_cache" : true,
+                "must": [
+                    {
+                        "term": {
+                            "foo": {
+                                "value": "bar"
+                            }
+                        }
+                    },
+                    {
+                        "range" : {
+                            "born" : {
+                                "gte": "2012-01-01",
+                                "lte": "now/d"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

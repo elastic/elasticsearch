@@ -86,7 +86,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         String scriptLang = null;
         Map<String, Object> scriptParams = null;
         boolean keyed = false;
-        boolean computeEmptyBuckets = false;
+        long minDocCount = 1;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
         boolean preZoneAdjustLargeInterval = false;
@@ -110,13 +110,13 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser, token);
+                    preZone = parseZone(parser.text());
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser, token);
+                    preZone = parseZone(parser.text());
                 } else if ("pre_zone_adjust_large_interval".equals(currentFieldName) || "preZoneAdjustLargeInterval".equals(currentFieldName)) {
                     preZoneAdjustLargeInterval = parser.booleanValue();
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = parseZone(parser, token);
+                    postZone = parseZone(parser.text());
                 } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
                 } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
@@ -131,10 +131,20 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("compute_empty_buckets".equals(currentFieldName) || "computeEmptyBuckets".equals(currentFieldName)) {
-                    computeEmptyBuckets = parser.booleanValue();
-                } else if ("script_values_sorted".equals(currentFieldName)) {
+                } else if ("script_values_sorted".equals(currentFieldName) || "scriptValuesSorted".equals(currentFieldName)) {
                     assumeSorted = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
+                    minDocCount = parser.longValue();
+                } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
+                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
+                    postZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -199,17 +209,17 @@ public class DateHistogramParser implements Aggregator.Parser {
             if (searchScript != null) {
                 ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
                 config.parser(valueParser);
-                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
             }
 
             // falling back on the get field data context
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
@@ -218,7 +228,7 @@ public class DateHistogramParser implements Aggregator.Parser {
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, computeEmptyBuckets, InternalDateHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
     }
 
     private static InternalOrder resolveOrder(String key, boolean asc) {
@@ -230,9 +240,9 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
         int i = key.indexOf('.');
         if (i < 0) {
-            return HistogramBase.Order.aggregation(key, asc);
+            return new InternalOrder.Aggregation(key, null, asc);
         }
-        return HistogramBase.Order.aggregation(key.substring(0, i), key.substring(i + 1), asc);
+        return new InternalOrder.Aggregation(key.substring(0, i), key.substring(i + 1), asc);
     }
 
     private long parseOffset(String offset) throws IOException {
@@ -243,23 +253,18 @@ public class DateHistogramParser implements Aggregator.Parser {
         return TimeValue.parseTimeValue(offset.substring(beginIndex), null).millis();
     }
 
-    private DateTimeZone parseZone(XContentParser parser, XContentParser.Token token) throws IOException {
-        if (token == XContentParser.Token.VALUE_NUMBER) {
-            return DateTimeZone.forOffsetHours(parser.intValue());
+    private DateTimeZone parseZone(String text) throws IOException {
+        int index = text.indexOf(':');
+        if (index != -1) {
+            int beginIndex = text.charAt(0) == '+' ? 1 : 0;
+            // format like -02:30
+            return DateTimeZone.forOffsetHoursMinutes(
+                    Integer.parseInt(text.substring(beginIndex, index)),
+                    Integer.parseInt(text.substring(index + 1))
+            );
         } else {
-            String text = parser.text();
-            int index = text.indexOf(':');
-            if (index != -1) {
-                int beginIndex = text.charAt(0) == '+' ? 1 : 0;
-                // format like -02:30
-                return DateTimeZone.forOffsetHoursMinutes(
-                        Integer.parseInt(text.substring(beginIndex, index)),
-                        Integer.parseInt(text.substring(index + 1))
-                );
-            } else {
-                // id, listed here: http://joda-time.sourceforge.net/timezones.html
-                return DateTimeZone.forID(text);
-            }
+            // id, listed here: http://joda-time.sourceforge.net/timezones.html
+            return DateTimeZone.forID(text);
         }
     }
 

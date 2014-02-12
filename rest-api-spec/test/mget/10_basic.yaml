@@ -11,8 +11,7 @@
           body:   { foo: bar }
 
   - do:
-      indices.flush:
-        refresh: true
+      indices.refresh: {}
 
   - do:
       mget:

@@ -18,16 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
- *
+ * A {@code missing} aggregation. Defines a single bucket of all documents that are missing a specific field.
  */
-public interface Missing extends Aggregation {
-
-    long getDocCount();
-
-    Aggregations getAggregations();
-
+public interface Missing extends SingleBucketAggregation {
 }

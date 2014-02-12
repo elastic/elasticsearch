@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
@@ -61,9 +62,9 @@ public class FetchPhase implements SearchPhase {
     @Inject
     public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
                       MatchedQueriesFetchSubPhase matchedQueriesPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
-                      FetchSourceSubPhase fetchSourceSubPhase) {
+                      FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase) {
         this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
-                fetchSourceSubPhase, versionPhase};
+                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase};
     }
 
     @Override

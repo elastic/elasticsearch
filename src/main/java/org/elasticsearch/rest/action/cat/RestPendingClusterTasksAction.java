@@ -49,6 +49,8 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
+        pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
+        pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new ActionListener<PendingClusterTasksResponse>() {
             @Override
             public void onResponse(PendingClusterTasksResponse pendingClusterTasks) {
@@ -75,10 +77,10 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
         t.startHeaders();
-        t.addCell("insertOrder", "text-align:right;desc:task insertion order");
-        t.addCell("timeInQueue", "text-align:right;desc:how long task has been in queue");
-        t.addCell("priority", "desc:task priority");
-        t.addCell("source", "desc:task source");
+        t.addCell("insertOrder", "alias:o;text-align:right;desc:task insertion order");
+        t.addCell("timeInQueue", "alias:t;text-align:right;desc:how long task has been in queue");
+        t.addCell("priority", "alias:p;desc:task priority");
+        t.addCell("source", "alias:s;desc:task source");
         t.endHeaders();
         return t;
     }

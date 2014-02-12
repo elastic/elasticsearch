@@ -98,6 +98,10 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             } else {
                 numChildDocs = random().nextInt(TEST_NIGHTLY ? 40 : 10);
             }
+            if (parentDocId == numParentDocs - 1 && childIdToParentId.isEmpty()) {
+                // ensure there is at least one child in the index
+                numChildDocs = Math.max(1, numChildDocs);
+            }
             for (int i = 0; i < numChildDocs; i++) {
                 String child = Integer.toString(childDocId++);
                 boolean markChildAsDeleted = rarely();
@@ -122,7 +126,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                         parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<String, Float>());
                     }
                     if (!markChildAsDeleted && !filterMe) {
-                        assert !childIdToScore.containsKey(child);
+                        assertFalse("child ["+ child + "] already has a score", childIdToScore.containsKey(child));
                         childIdToScore.put(child, 1f);
                         childIdToParentId.put(Integer.valueOf(child), parentDocId);
                     }

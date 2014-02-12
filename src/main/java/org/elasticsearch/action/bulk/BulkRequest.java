@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -495,9 +494,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             }
         }
         refresh = in.readBoolean();
-        if (in.getVersion().after(Version.V_0_90_7)) {
-            timeout = TimeValue.readTimeValue(in);
-        }
+        timeout = TimeValue.readTimeValue(in);
     }
 
     @Override
@@ -517,8 +514,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             request.writeTo(out);
         }
         out.writeBoolean(refresh);
-        if (out.getVersion().after(Version.V_0_90_7)) {
-            timeout.writeTo(out);
-        }
+        timeout.writeTo(out);
     }
 }

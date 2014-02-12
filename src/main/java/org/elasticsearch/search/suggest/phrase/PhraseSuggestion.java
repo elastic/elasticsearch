@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -98,22 +97,12 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            // If the other side is older than 0.90.4 then it shouldn't be sending suggestions of this type but just in case
-            // we're going to assume that they are regular suggestions so we won't read anything.
-            if (in.getVersion().before(Version.V_0_90_4)) {
-                return;
-            }
             cutoffScore = in.readDouble();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            // If the other side of the message is older than 0.90.4 it'll interpret these suggestions as regular suggestions
-            // so we have to pretend to be one which we can do by just calling the superclass writeTo and doing nothing else
-            if (out.getVersion().before(Version.V_0_90_4)) {
-                return;
-            }
             out.writeDouble(cutoffScore);
         }
     }

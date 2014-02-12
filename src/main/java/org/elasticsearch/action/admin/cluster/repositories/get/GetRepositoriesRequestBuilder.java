@@ -21,14 +21,14 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Get repository request builder
  */
-public class GetRepositoriesRequestBuilder extends MasterNodeOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
+public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
 
     /**
      * Creates new get repository request builder

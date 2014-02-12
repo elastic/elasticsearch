@@ -733,20 +733,20 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .size(1);
         try {
             searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
-            assert false : "field does not exists";
+            fail("field does not exists");
         } catch (SearchPhaseExecutionException e) {}
 
         phraseSuggestion.clearCandidateGenerators().analyzer(null);
         try {
             searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
-            assert false : "analyzer does only produce ngrams";
+            fail("analyzer does only produce ngrams");
         } catch (SearchPhaseExecutionException e) {
         }
 
         phraseSuggestion.analyzer("bigram");
         try {
             searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
-            assert false : "analyzer does only produce ngrams";
+            fail("analyzer does only produce ngrams");
         } catch (SearchPhaseExecutionException e) {
         }
 

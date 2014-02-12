@@ -36,7 +36,7 @@ public class SetupSectionParser implements RestTestFragmentParser<SetupSection> 
         SetupSection setupSection = new SetupSection();
         setupSection.setSkipSection(parseContext.parseSkipSection());
 
-        boolean skip = setupSection.getSkipSection().skipVersion(parseContext.getCurrentVersion());
+        boolean skip = setupSection.getSkipSection().skip(parseContext.getCurrentVersion());
 
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             if (skip) {

@@ -80,7 +80,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> trying to index into a closed index ...");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
-            assert false;
+            fail();
         } catch (ClusterBlockException e) {
             // all is well
         }
@@ -148,7 +148,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> creating test index with invalid settings ");
         try {
             client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", "bad")).get();
-            assert false;
+            fail();
         } catch (SettingsException ex) {
             // Expected
         }

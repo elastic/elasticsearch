@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -59,7 +60,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
         public Bucket reduce(List<? extends Bucket> buckets, CacheRecycler cacheRecycler) {
             if (buckets.size() == 1) {
-                return buckets.get(0);
+                Bucket bucket = buckets.get(0);
+                bucket.aggregations.reduce(cacheRecycler);
+                return bucket;
             }
             Bucket reduced = null;
             List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(buckets.size());
@@ -78,36 +81,32 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
     protected InternalOrder order;
     protected int requiredSize;
+    protected long minDocCount;
     protected Collection<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, InternalOrder order, int requiredSize, Collection<Bucket> buckets) {
+    protected InternalTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
         super(name);
         this.order = order;
         this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
         this.buckets = buckets;
     }
 
     @Override
-    public Iterator<Terms.Bucket> iterator() {
-        Object o = buckets.iterator();
-        return (Iterator<Terms.Bucket>) o;
-    }
-
-    @Override
-    public Collection<Terms.Bucket> buckets() {
+    public Collection<Terms.Bucket> getBuckets() {
         Object o = buckets;
         return (Collection<Terms.Bucket>) o;
     }
 
     @Override
-    public Terms.Bucket getByTerm(String term) {
+    public Terms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey().string(), bucket);
+                bucketMap.put(bucket.getKey(), bucket);
             }
         }
         return bucketMap.get(term);
@@ -118,12 +117,11 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries();
+            terms.trimExcessEntries(reduceContext.cacheRecycler());
             return terms;
         }
-        InternalTerms reduced = null;
 
-        // TODO: would it be better to use a hppc map and then directly work on the backing array instead of using a PQ?
+        InternalTerms reduced = null;
 
         Map<Text, List<InternalTerms.Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
@@ -138,10 +136,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 buckets = new HashMap<Text, List<Bucket>>(terms.buckets.size());
             }
             for (Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.getKey());
+                List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsText());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<Bucket>(aggregations.size());
-                    buckets.put(bucket.getKey(), existingBuckets);
+                    buckets.put(bucket.getKeyAsText(), existingBuckets);
                 }
                 existingBuckets.add(bucket);
             }
@@ -156,7 +154,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
         for (Map.Entry<Text, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
-            ordered.insertWithOverflow(sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler()));
+            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
+            if (b.docCount >= minDocCount) {
+                ordered.insertWithOverflow(b);
+            }
         }
         Bucket[] list = new Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -166,23 +167,18 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         return reduced;
     }
 
-    protected void trimExcessEntries() {
-        if (requiredSize >= buckets.size()) {
-            return;
-        }
-
-        if (buckets instanceof List) {
-            buckets = ((List) buckets).subList(0, requiredSize);
-            return;
-        }
-
-        int i = 0;
-        for (Iterator<Bucket> iter  = buckets.iterator(); iter.hasNext();) {
-            iter.next();
-            if (i++ >= requiredSize) {
-                iter.remove();
+    final void trimExcessEntries(CacheRecycler cacheRecycler) {
+        final List<Bucket> newBuckets = Lists.newArrayList();
+        for (Bucket b : buckets) {
+            if (newBuckets.size() >= requiredSize) {
+                break;
+            }
+            if (b.docCount >= minDocCount) {
+                newBuckets.add(b);
+                b.aggregations.reduce(cacheRecycler);
             }
         }
+        buckets = newBuckets;
     }
 
 }

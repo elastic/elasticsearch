@@ -28,6 +28,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -869,5 +870,15 @@ public class MapperQueryParser extends QueryParser {
             fields = settings.fields();
         }
         return fields;
+    }
+
+    public Query parse(String query) throws ParseException {
+        if (query.trim().isEmpty()) {
+            // if the query string is empty we return no docs / empty result
+            // the behavior is simple to change in the client if all docs is required
+            // or a default query
+            return new MatchNoDocsQuery();
+        }
+        return super.parse(query);
     }
 }

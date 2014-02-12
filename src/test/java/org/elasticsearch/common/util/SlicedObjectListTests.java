@@ -23,7 +23,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link SlicedObjectList}
@@ -46,7 +45,7 @@ public class SlicedObjectListTests extends ElasticsearchTestCase {
 
         @Override
         public void grow(int newLength) {
-            assert offset == 0; // NOTE: senseless if offset != 0
+            assertThat(offset, equalTo(0)); // NOTE: senseless if offset != 0
             if (values.length >= newLength) {
                 return;
             }
@@ -124,12 +123,12 @@ public class SlicedObjectListTests extends ElasticsearchTestCase {
         TestList list = new TestList(5);
         try {
             list.set(0, (double)4);
-            assert false;
+            fail();
         } catch (UnsupportedOperationException ex) {
         }
         try {
             list.add((double)4);
-            assert false;
+            fail();
         } catch (UnsupportedOperationException ex) {
         }
     }

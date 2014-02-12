@@ -50,8 +50,8 @@ import org.elasticsearch.common.settings.Settings;
 public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     /**
-     * Controls the maximum number of shards per index on a single elastic
-     * search node. Negative values are interpreted as unlimited.
+     * Controls the maximum number of shards per index on a single Elasticsearch
+     * node. Negative values are interpreted as unlimited.
      */
     public static final String INDEX_TOTAL_SHARDS_PER_NODE = "index.routing.allocation.total_shards_per_node";
 
@@ -65,7 +65,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
         int totalShardsPerNode = indexMd.settings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
         if (totalShardsPerNode <= 0) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "total shard limit disabled: [%d] <= 0", totalShardsPerNode);
         }
 
         int nodeCount = 0;
@@ -80,9 +80,10 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             nodeCount++;
         }
         if (nodeCount >= totalShardsPerNode) {
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "too many shards for this index on node [%d], limit: [%d]",
+                    nodeCount, totalShardsPerNode);
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "shard count under limit [%d] of total shards per node", totalShardsPerNode);
     }
 
     @Override
@@ -90,11 +91,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
         int totalShardsPerNode = indexMd.settings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
         if (totalShardsPerNode <= 0) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "total shard limit disabled: [%d] <= 0", totalShardsPerNode);
         }
 
         int nodeCount = 0;
-        for (MutableShardRouting nodeShard : node) {;
+        for (MutableShardRouting nodeShard : node) {
             if (!nodeShard.index().equals(shardRouting.index())) {
                 continue;
             }
@@ -105,8 +106,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             nodeCount++;
         }
         if (nodeCount > totalShardsPerNode) {
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "too many shards for this index on node [%d], limit: [%d]",
+                    nodeCount, totalShardsPerNode);
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "shard count under limit [%d] of total shards per node", totalShardsPerNode);
     }
 }

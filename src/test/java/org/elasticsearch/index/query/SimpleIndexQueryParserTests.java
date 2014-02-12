@@ -1355,28 +1355,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 
-    // Disabled since we need a current context to execute it...
-//    @Test public void testCustomScoreQuery1() throws IOException {
-//        IndexQueryParser queryParser = queryParser();
-//        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/custom_score1.json");
-//        Query parsedQuery = queryParser.parse(query).query();
-//        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
-//        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-//        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
-//        assertThat(functionScoreQuery.getFunction(), instanceOf(CustomScoreQueryParser.ScriptScoreFunction.class));
-//    }
-
-    @Test
-    public void testCustomBoostFactorQueryBuilder() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(customBoostFactorQuery(termQuery("name.last", "banon")).boostFactor(1.3f)).query();
-        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
-        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
-        assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
-    }
-
-
     @Test
     public void testCustomBoostFactorQueryBuilder_withFunctionScore() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1395,18 +1373,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof XConstantScoreQuery, equalTo(true));
         assertThat(((XConstantScoreQuery) functionScoreQuery.getSubQuery()).getFilter() instanceof MatchAllDocsFilter, equalTo(true));
-        assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
-    }
-
-
-    @Test
-    public void testCustomBoostFactorQuery() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/custom-boost-factor-query.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
-        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
         assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
     }
 
@@ -2210,6 +2176,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat((double) (parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
+    
+    @Test
+    public void testBadTypeMatchQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-query-bad-type.json");
+        QueryParsingException expectedException = null;
+        try {
+            queryParser.parse(query).query();
+        } catch (QueryParsingException qpe) {
+            expectedException = qpe;
+        }
+        assertThat(expectedException, notNullValue());
+    }     
 
     @Test
     public void testMultiMatchQuery() throws Exception {
@@ -2217,6 +2196,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-simple.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+    }
+
+    @Test
+    public void testBadTypeMultiMatchQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-bad-type.json");
+        QueryParsingException expectedException = null;
+        try {
+            queryParser.parse(query).query();
+        } catch (QueryParsingException qpe) {
+            expectedException = qpe;
+        }
+        assertThat(expectedException, notNullValue());
     }
 
     @Test

@@ -1,6 +1,6 @@
 {
   "indices.get_template": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-templates.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-templates.html",
     "methods": ["GET"],
     "url": {
       "path": "/_template/{name}",
@@ -16,6 +16,10 @@
           "flat_settings": {
               "type": "boolean",
               "description": "Return settings in flat format (default: false)"
+          },
+          "local": {
+              "type": "boolean",
+              "description": "Return local information, do not retrieve the state from master node (default: false)"
           }
       }
     },

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -31,13 +30,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -63,13 +57,12 @@ public class RestShardsAction extends AbstractCatAction {
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
-
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
-                client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                client.admin().indices().stats(indicesStatsRequest, new AbstractRestResponseActionListener<IndicesStatsResponse>(request, channel, logger) {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         try {
@@ -78,25 +71,7 @@ public class RestShardsAction extends AbstractCatAction {
                             onFailure(e);
                         }
                     }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        try {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                        } catch (IOException e1) {
-                            logger.error("Failed to send failure response", e1);
-                        }
-                    }
                 });
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
             }
         });
     }
@@ -105,14 +80,14 @@ public class RestShardsAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("index", "default:true;desc:index name")
-                .addCell("shard", "default:true;desc:shard name")
-                .addCell("prirep", "alias:pr,primaryOrReplica;default:true;desc:primary or replica")
-                .addCell("state", "default:true;desc:shard state")
-                .addCell("docs", "text-align:right;desc:number of docs in shard")
-                .addCell("store", "text-align:right;desc:store size of shard (how much disk it uses)")
+                .addCell("index", "default:true;alias:i,idx;desc:index name")
+                .addCell("shard", "default:true;alias:s,sh;desc:shard name")
+                .addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica")
+                .addCell("state", "default:true;alias:st;desc:shard state")
+                .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
+                .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
                 .addCell("ip", "default:true;desc:ip of node where it lives")
-                .addCell("node", "default:true;desc:name of node where it lives");
+                .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 

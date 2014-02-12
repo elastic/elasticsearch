@@ -1,18 +1,17 @@
 {
   "indices.get_warmer": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-warmers.html",
     "methods": ["GET"],
     "url": {
-      "path": "/{index}/_warmer",
-      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "path": "/_warmer",
+      "paths": [ "/_warmer", "/{index}/_warmer", "/{index}/_warmer/{name}", "/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
       "parts": {
         "index": {
           "type" : "list",
-          "required" : true,
           "description" : "A comma-separated list of index names to restrict the operation; use `_all` to perform the operation on all indices"
         },
         "name": {
-          "type" : "string",
+          "type" : "list",
           "description" : "The name of the warmer (supports wildcards); leave empty to get all warmers"
         },
         "type": {
@@ -34,6 +33,10 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "local": {
+            "type": "boolean",
+            "description": "Return local information, do not retrieve the state from master node (default: false)"
         }
       }
     },

@@ -704,7 +704,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     if (fieldMapper instanceof ParentFieldMapper) {
-                        parentChild = true;
+                        ParentFieldMapper parentFieldMapper = (ParentFieldMapper) fieldMapper;
+                        if (parentFieldMapper.active()) {
+                            parentChild = true;
+                        }
                     }
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {

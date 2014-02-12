@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.mapper.string;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
@@ -74,6 +77,35 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         assertThat(doc.rootDoc().getField("field"), nullValue());
     }
 
+    private void assertDefaultAnalyzedFieldType(IndexableFieldType fieldType) {
+        assertThat(fieldType.omitNorms(), equalTo(false));
+        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+    }
+
+    private void assertEquals(IndexableFieldType ft1, IndexableFieldType ft2) {
+        assertEquals(ft1.indexed(), ft2.indexed());
+        assertEquals(ft1.tokenized(), ft2.tokenized());
+        assertEquals(ft1.omitNorms(), ft2.omitNorms());
+        assertEquals(ft1.indexOptions(), ft2.indexOptions());
+        assertEquals(ft1.storeTermVectors(), ft2.storeTermVectors());
+        assertEquals(ft1.docValueType(), ft2.docValueType());
+    }
+
+    private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
+        String mapping = mapper.toXContent(XContentFactory.jsonBuilder().startObject(), new ToXContent.MapParams(ImmutableMap.<String, String>of())).endObject().string();
+        mapper = MapperTestUtils.newParser().parse(mapping);
+        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "2345")
+                .endObject()
+                .bytes());
+        assertEquals(expected, doc.rootDoc().getField("field").fieldType());
+    }
+
     @Test
     public void testDefaultsForAnalyzed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -88,12 +120,9 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
+        IndexableFieldType fieldType = doc.rootDoc().getField("field").fieldType();
+        assertDefaultAnalyzedFieldType(fieldType);
+        assertParseIdemPotent(fieldType, defaultMapper);
     }
 
     @Test
@@ -110,12 +139,14 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(true));
-        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
+        IndexableFieldType fieldType = doc.rootDoc().getField("field").fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertParseIdemPotent(fieldType, defaultMapper);
 
         // now test it explicitly set
 
@@ -131,12 +162,14 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
-        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
+        fieldType = doc.rootDoc().getField("field").fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(false));
+        assertThat(fieldType.indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertParseIdemPotent(fieldType, defaultMapper);
 
         // also test the deprecated omit_norms
 
@@ -152,7 +185,9 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
+        fieldType = doc.rootDoc().getField("field").fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(false));
+        assertParseIdemPotent(fieldType, defaultMapper);
     }
 
     @Test

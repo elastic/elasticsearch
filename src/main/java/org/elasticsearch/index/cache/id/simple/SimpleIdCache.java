@@ -120,7 +120,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // do the refresh
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
-                Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
+                Map<Object, AtomicReader> cacheToReader = new HashMap<Object, AtomicReader>();
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
@@ -237,7 +237,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
-                    IndexReader indexReader = cacheToReader.get(readerKey);
+                    AtomicReader indexReader = cacheToReader.get(readerKey);
                     SimpleIdReaderCache readerCache = new SimpleIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
                     idReaders.put(readerKey, readerCache);
                     onCached(readerCache);

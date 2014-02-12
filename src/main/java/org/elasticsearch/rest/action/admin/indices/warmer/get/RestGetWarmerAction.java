@@ -29,8 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -48,9 +46,11 @@ public class RestGetWarmerAction extends BaseRestHandler {
     @Inject
     public RestGetWarmerAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-
+        controller.registerHandler(GET, "/_warmer", this);
+        controller.registerHandler(GET, "/_warmer/{name}", this);
         controller.registerHandler(GET, "/{index}/_warmer", this);
         controller.registerHandler(GET, "/{index}/_warmer/{name}", this);
+        controller.registerHandler(GET, "/{index}/_warmers/{name}", this);
         controller.registerHandler(GET, "/{index}/{type}/_warmer/{name}", this);
     }
 
@@ -59,10 +59,10 @@ public class RestGetWarmerAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         final String[] names = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        boolean local = request.paramAsBooleanOptional("local", false);
 
         GetWarmersRequest getWarmersRequest = new GetWarmersRequest();
-        getWarmersRequest.indices(indices).types(types).warmers(names).local(local);
+        getWarmersRequest.indices(indices).types(types).warmers(names);
+        getWarmersRequest.local(request.paramAsBoolean("local", getWarmersRequest.local()));
         getWarmersRequest.indicesOptions(IndicesOptions.fromRequest(request, getWarmersRequest.indicesOptions()));
         client.admin().indices().getWarmers(getWarmersRequest, new ActionListener<GetWarmersResponse>() {
 
@@ -70,7 +70,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
             public void onResponse(GetWarmersResponse response) {
                 try {
                     if (indices.length > 0 && response.warmers().isEmpty()) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
                         return;
                     }
 

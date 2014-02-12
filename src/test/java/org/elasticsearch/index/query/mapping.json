@@ -6,6 +6,9 @@
             },
             "country" : {
                 "type" : "geo_shape"
+            },
+            "born":{
+                "type":"date"
             }
         }
     }

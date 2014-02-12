@@ -318,4 +318,25 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.close();
     }
+
+    @Test
+    public void testNoTokensWithKeywordAnalyzer() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.KEYWORD_ANALYZER));
+
+        Document doc = new Document();
+        doc.add(new Field("_id", "1", StoredField.TYPE));
+        AllEntries allEntries = new AllEntries();
+        allEntries.reset();
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.KEYWORD_ANALYZER)));
+
+        indexWriter.addDocument(doc);
+
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        TopDocs docs = searcher.search(new MatchAllDocsQuery(), 10);
+        assertThat(docs.totalHits, equalTo(1));
+        assertThat(docs.scoreDocs[0].doc, equalTo(0));
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -98,16 +97,12 @@ public class SegmentsStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (in.getVersion().after(Version.V_0_90_8)) {
-            memoryInBytes = in.readLong();
-        }
+        memoryInBytes = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        if (out.getVersion().after(Version.V_0_90_8)) {
-            out.writeLong(memoryInBytes);
-        }
+        out.writeLong(memoryInBytes);
     }
 }

@@ -26,15 +26,14 @@ import java.io.IOException;
 
 /**
  * Creates an aggregation based on bucketing points into GeoHashes
- *
  */
 public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
 
 
     private String field;
-    private int precision=GeoHashGridParser.DEFAULT_PRECISION;
-    private int requiredSize=GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
-    private int shardSize=0;
+    private int precision = GeoHashGridParser.DEFAULT_PRECISION;
+    private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
+    private int shardSize = 0;
 
     public GeoHashGridBuilder(String name) {
         super(name, InternalGeoHashGrid.TYPE.name());
@@ -46,18 +45,19 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
     }
 
     public GeoHashGridBuilder precision(int precision) {
-        if((precision<1)||(precision>12))
-        {
-            throw new ElasticsearchIllegalArgumentException("Invalid geohash aggregation precision of "+precision
-                    +"must be between 1 and 12");
+        if ((precision < 1) || (precision > 12)) {
+            throw new ElasticsearchIllegalArgumentException("Invalid geohash aggregation precision of " + precision
+                    + "must be between 1 and 12");
         }
         this.precision = precision;
         return this;
     }
+
     public GeoHashGridBuilder size(int requiredSize) {
         this.requiredSize = requiredSize;
         return this;
     }
+
     public GeoHashGridBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;

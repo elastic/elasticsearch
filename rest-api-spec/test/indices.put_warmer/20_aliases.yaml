@@ -1,0 +1,30 @@
+---
+"Getting warmer for aliases should return the real index as key":
+
+  - do:
+      indices.create:
+          index: test_index
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.put_warmer:
+          index: test_index
+          name: test_warmer
+          body:
+            query:
+              match_all: {}
+
+  - do:
+      indices.put_alias:
+          index: test_index
+          name:  test_alias
+
+  - do:
+      indices.get_warmer:
+          index: test_alias
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+

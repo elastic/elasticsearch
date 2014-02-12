@@ -133,8 +133,8 @@ when dynamic introduction of fields / objects happens.
 
 For example, we might want to have all fields to be stored by default,
 or all `string` fields to be stored, or have `string` fields to always
-be indexed as `multi_field`, once analyzed and once not_analyzed. Here
-is a simple example:
+be indexed with multi fields syntax, once analyzed and once not_analyzed.
+Here is a simple example:
 
 [source,js]
 --------------------------------------------------
@@ -145,9 +145,9 @@ is a simple example:
                 "template_1" : {
                     "match" : "multi*",
                     "mapping" : {
-                        "type" : "multi_field",
+                        "type" : "{dynamic_type}",
+                        "index" : "analyzed",
                         "fields" : {
-                            "{name}" : {"type": "{dynamic_type}", "index" : "analyzed"},
                             "org" : {"type": "{dynamic_type}", "index" : "not_analyzed"}
                         }
                     }
@@ -168,7 +168,7 @@ is a simple example:
 }
 --------------------------------------------------
 
-The above mapping will create a `multi_field` mapping for all field
+The above mapping will create a field with multi fields for all field
 names starting with multi, and will map all `string` types to be
 `not_analyzed`.
 

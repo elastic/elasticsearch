@@ -48,6 +48,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -98,6 +99,7 @@ public class SearchSourceBuilder implements ToXContent {
     private long timeoutInMillis = -1;
 
     private List<String> fieldNames;
+    private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
@@ -113,7 +115,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private SuggestBuilder suggestBuilder;
 
-    private RescoreBuilder rescoreBuilder;
+    private List<RescoreBuilder> rescoreBuilders;
+    private Integer defaultRescoreWindowSize;
 
     private ObjectFloatOpenHashMap<String> indexBoost = null;
 
@@ -438,6 +441,16 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Set the rescore window size for rescores that don't specify their window.
+     * @param defaultRescoreWindowSize
+     * @return
+     */
+    public SearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
+        this.defaultRescoreWindowSize = defaultRescoreWindowSize;
+        return this;
+    }
+
+    /**
      * Sets a raw (xcontent / json) addAggregation.
      */
     public SearchSourceBuilder aggregations(Map aggregations) {
@@ -472,11 +485,17 @@ public class SearchSourceBuilder implements ToXContent {
         return suggestBuilder;
     }
 
-    public RescoreBuilder rescore() {
-        if (rescoreBuilder == null) {
-            rescoreBuilder = new RescoreBuilder();
+    public SearchSourceBuilder addRescorer(RescoreBuilder rescoreBuilder) {
+        if (rescoreBuilders == null) {
+            rescoreBuilders = new ArrayList<RescoreBuilder>();
         }
-        return rescoreBuilder;
+        rescoreBuilders.add(rescoreBuilder);
+        return this;
+    }
+
+    public SearchSourceBuilder clearRescorers() {
+        rescoreBuilders = null;
+        return this;
     }
 
     /**
@@ -569,6 +588,17 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Adds a field to load from the field data cache and return as part of the search request.
+     */
+    public SearchSourceBuilder fieldDataField(String name) {
+        if (fieldDataFields == null) {
+            fieldDataFields = new ArrayList<String>();
+        }
+        fieldDataFields.add(name);
+        return this;
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name   The name of the field
@@ -596,7 +626,6 @@ public class SearchSourceBuilder implements ToXContent {
      * @param lang   The language of the script
      * @param script The script to execute
      * @param params The script parameters (can be <tt>null</tt>)
-     * @return
      */
     public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
         if (scriptFields == null) {
@@ -610,10 +639,14 @@ public class SearchSourceBuilder implements ToXContent {
      * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link SearchSourceBuilder#fetchSource(String, String)} instead
+     *
      * @param name    The name of the field
      * @param include An optional include (optionally wildcarded) pattern from _source
      * @param exclude An optional exclude (optionally wildcarded) pattern from _source
      */
+    @Deprecated
     public SearchSourceBuilder partialField(String name, @Nullable String include, @Nullable String exclude) {
         if (partialFields == null) {
             partialFields = Lists.newArrayList();
@@ -626,10 +659,14 @@ public class SearchSourceBuilder implements ToXContent {
      * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link SearchSourceBuilder#fetchSource(String[], String[])} instead
+     *
      * @param name     The name of the field
      * @param includes An optional list of includes (optionally wildcarded) patterns from _source
      * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
      */
+    @Deprecated
     public SearchSourceBuilder partialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
         if (partialFields == null) {
             partialFields = Lists.newArrayList();
@@ -762,6 +799,14 @@ public class SearchSourceBuilder implements ToXContent {
             }
         }
 
+        if (fieldDataFields != null) {
+            builder.startArray("fielddata_fields");
+            for (String fieldName : fieldDataFields) {
+                builder.value(fieldName);
+            }
+            builder.endArray();
+        }
+
         if (partialFields != null) {
             builder.startObject("partial_fields");
             for (PartialField partialField : partialFields) {
@@ -871,8 +916,36 @@ public class SearchSourceBuilder implements ToXContent {
             suggestBuilder.toXContent(builder, params);
         }
 
-        if (rescoreBuilder != null) {
-            rescoreBuilder.toXContent(builder, params);
+        if (rescoreBuilders != null) {
+            // Strip empty rescoreBuilders from the request
+            Iterator<RescoreBuilder> itr = rescoreBuilders.iterator();
+            while (itr.hasNext()) {
+                if (itr.next().isEmpty()) {
+                    itr.remove();
+                }
+            }
+
+            // Now build the request taking care to skip empty lists and only send the object form
+            // if there is just one builder.
+            if (rescoreBuilders.size() == 1) {
+                builder.startObject("rescore");
+                rescoreBuilders.get(0).toXContent(builder, params);
+                if (rescoreBuilders.get(0).windowSize() == null && defaultRescoreWindowSize != null) {
+                    builder.field("window_size", defaultRescoreWindowSize);
+                }
+                builder.endObject();
+            } else if (!rescoreBuilders.isEmpty()) {
+                builder.startArray("rescore");
+                for (RescoreBuilder rescoreBuilder : rescoreBuilders) {
+                    builder.startObject();
+                    rescoreBuilder.toXContent(builder, params);
+                    if (rescoreBuilder.windowSize() == null && defaultRescoreWindowSize != null) {
+                        builder.field("window_size", defaultRescoreWindowSize);
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
         }
 
         if (stats != null) {

@@ -6,6 +6,7 @@ We also have repositories available for APT and YUM based distributions.
 We have split the major versions in separate urls to avoid accidental upgrades across major version.
 For all 0.90.x releases use 0.90 as version number, for 1.0.x use 1.0, etc.
 
+[float]
 === APT
 
 Download and install the Public Signing Key
@@ -25,6 +26,7 @@ deb http://packages.elasticsearch.org/elasticsearch/0.90/debian stable main
 Run apt-get update and the repository is ready for use.
 
 
+[float]
 === YUM
 
 Download and install the Public Signing Key

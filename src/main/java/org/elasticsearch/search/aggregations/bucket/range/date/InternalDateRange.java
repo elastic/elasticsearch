@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -33,13 +33,13 @@ import java.util.List;
 /**
  *
  */
-public class InternalDateRange extends AbstractRangeBase<DateRange.Bucket> implements DateRange {
+public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> implements DateRange {
 
     public final static Type TYPE = new Type("date_range", "drange");
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public AbstractRangeBase<?> readResult(StreamInput in) throws IOException {
+        public InternalDateRange readResult(StreamInput in) throws IOException {
             InternalDateRange ranges = new InternalDateRange();
             ranges.readFrom(in);
             return ranges;
@@ -52,7 +52,7 @@ public class InternalDateRange extends AbstractRangeBase<DateRange.Bucket> imple
 
     public static final Factory FACTORY = new Factory();
 
-    public static class Bucket extends AbstractRangeBase.Bucket implements DateRange.Bucket {
+    public static class Bucket extends InternalRange.Bucket implements DateRange.Bucket {
 
         public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, ValueFormatter formatter) {
             super(key, from, to, docCount, new InternalAggregations(aggregations), formatter);
@@ -64,16 +64,16 @@ public class InternalDateRange extends AbstractRangeBase<DateRange.Bucket> imple
 
         @Override
         public DateTime getFromAsDate() {
-            return Double.isInfinite(getFrom()) ? null : new DateTime((long) getFrom(), DateTimeZone.UTC);
+            return Double.isInfinite(getFrom().doubleValue()) ? null : new DateTime(getFrom().longValue(), DateTimeZone.UTC);
         }
 
         @Override
         public DateTime getToAsDate() {
-            return Double.isInfinite(getTo()) ? null : new DateTime((long) getTo(), DateTimeZone.UTC);
+            return Double.isInfinite(getTo().doubleValue()) ? null : new DateTime(getTo().longValue(), DateTimeZone.UTC);
         }
     }
 
-    private static class Factory implements AbstractRangeBase.Factory<DateRange.Bucket> {
+    private static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
 
         @Override
         public String type() {
@@ -81,8 +81,8 @@ public class InternalDateRange extends AbstractRangeBase<DateRange.Bucket> imple
         }
 
         @Override
-        public AbstractRangeBase<DateRange.Bucket> create(String name, List<DateRange.Bucket> buckets, ValueFormatter formatter, boolean keyed) {
-            return new InternalDateRange(name, buckets, formatter, keyed);
+        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+            return new InternalDateRange(name, ranges, formatter, keyed, unmapped);
         }
 
         @Override
@@ -91,20 +91,19 @@ public class InternalDateRange extends AbstractRangeBase<DateRange.Bucket> imple
         }
     }
 
-    public InternalDateRange() {
-    }
+    InternalDateRange() {} // for serialization
 
-    public InternalDateRange(String name, List<DateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
-        super(name, ranges, formatter, keyed);
-    }
-
-    @Override
-    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, from, to, docCount, aggregations, formatter);
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+        super(name, ranges, formatter, keyed, unmapped);
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+        return new Bucket(key, from, to, docCount, aggregations, formatter);
     }
 }

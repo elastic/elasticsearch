@@ -84,9 +84,9 @@ public class RestMasterAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")
-                .addCell("host", "desc:host name")
+                .addCell("host", "alias:h;desc:host name")
                 .addCell("ip", "desc:ip address ")
-                .addCell("node", "desc:node name")
+                .addCell("node", "alias:n;desc:node name")
                 .endHeaders();
         return table;
     }

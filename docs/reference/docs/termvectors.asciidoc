@@ -1,0 +1,224 @@
+[[docs-termvectors]]
+== Term Vectors
+
+added[1.0.0.Beta1]
+
+Returns information and statistics on terms in the fields of a
+particular document as stored in the index.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true'
+--------------------------------------------------
+
+Optionally, you can specify the fields for which the information is
+retrieved either with a parameter in the url
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
+--------------------------------------------------
+
+or adding by adding the requested fields in the request body (see
+example below).
+
+[float]
+=== Return values
+
+Three types of values can be requested: _term information_, _term statistics_
+and _field statistics_. By default, all term information and field
+statistics are returned for all fields but no term statistics.
+
+[float]
+==== Term information
+
+ * term frequency in the field (always returned)
+ * term positions (`positions` : true)
+ * start and end offsets (`offsets` : true)
+ * term payloads (`payloads` : true), as base64 encoded bytes
+
+If the requested information wasn't stored in the index, it will be
+omitted without further warning. See <<mapping-types,type mapping>>
+for how to configure your index to store term vectors.
+
+[WARNING]
+======
+Start and end offsets assume UTF-16 encoding is being used. If you want to use
+these offsets in order to get the original text that produced this token, you
+should make sure that the string you are taking a sub-string of is also encoded
+using UTF-16.
+======
+
+[float]
+==== Term statistics
+
+Setting `term_statistics` to `true` (default is `false`) will
+return
+
+ * total term frequency (how often a term occurs in all documents) +
+ * document frequency (the number of documents containing the current
+   term)
+
+By default these values are not returned since term statistics can
+have a serious performance impact.
+
+[float]
+==== Field statistics
+
+Setting `field_statistics` to `false` (default is `true`) will
+omit :
+
+ * document count (how many documents contain this field)
+ * sum of document frequencies (the sum of document frequencies for all
+   terms in this field)
+ * sum of total term frequencies (the sum of total term frequencies of
+   each term in this field)
+
+[float]
+=== Behaviour
+
+The term and field statistics are not accurate. Deleted documents
+are not taken into account. The information is only retrieved for the
+shard the requested document resides in. The term and field statistics
+are therefore only useful as relative measures whereas the absolute
+numbers have no meaning in this context.
+
+[float]
+=== Example
+
+First, we create an index that stores term vectors, payloads etc. :
+
+[source,js]
+--------------------------------------------------
+curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
+  "mappings": {
+    "tweet": {
+      "properties": {
+        "text": {
+          "type": "string",
+          "term_vector": "with_positions_offsets_payloads",
+          "store" : true,
+          "index_analyzer" : "fulltext_analyzer"
+         },
+         "fullname": {
+          "type": "string",
+          "term_vector": "with_positions_offsets_payloads",
+          "index_analyzer" : "fulltext_analyzer"
+        }
+      }
+    }
+  },
+  "settings" : {
+    "index" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 0
+    },
+    "analysis": {
+      "analyzer": {
+        "fulltext_analyzer": {
+          "type": "custom",
+          "tokenizer": "whitespace",
+          "filter": [
+            "lowercase",
+            "type_as_payload"
+          ]
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Second, we add some documents:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty=true' -d '{
+  "fullname" : "John Doe",
+  "text" : "twitter test test test "
+}'
+
+curl -XPUT 'http://localhost:9200/twitter/tweet/2?pretty=true' -d '{
+  "fullname" : "Jane Doe",
+  "text" : "Another twitter test ..."
+}'
+--------------------------------------------------
+
+The following request returns all information and statistics for field
+`text` in document `1` (John Doe):
+
+[source,js]
+--------------------------------------------------
+
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
+  "fields" : ["text"],
+  "offsets" : true,
+  "payloads" : true,
+  "positions" : true,
+  "term_statistics" : true,
+  "field_statistics" : true
+}'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+
+{
+    "_id": "1",
+    "_index": "twitter",
+    "_type": "tweet",
+    "_version": 1,
+    "found": true,
+    "term_vectors": {
+        "text": {
+            "field_statistics": {
+                "doc_count": 2,
+                "sum_doc_freq": 6,
+                "sum_ttf": 8
+            },
+            "terms": {
+                "test": {
+                    "doc_freq": 2,
+                    "term_freq": 3,
+                    "tokens": [
+                        {
+                            "end_offset": 12,
+                            "payload": "d29yZA==",
+                            "position": 1,
+                            "start_offset": 8
+                        },
+                        {
+                            "end_offset": 17,
+                            "payload": "d29yZA==",
+                            "position": 2,
+                            "start_offset": 13
+                        },
+                        {
+                            "end_offset": 22,
+                            "payload": "d29yZA==",
+                            "position": 3,
+                            "start_offset": 18
+                        }
+                    ],
+                    "ttf": 4
+                },
+                "twitter": {
+                    "doc_freq": 2,
+                    "term_freq": 1,
+                    "tokens": [
+                        {
+                            "end_offset": 7,
+                            "payload": "d29yZA==",
+                            "position": 0,
+                            "start_offset": 0
+                        }
+                    ],
+                    "ttf": 2
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

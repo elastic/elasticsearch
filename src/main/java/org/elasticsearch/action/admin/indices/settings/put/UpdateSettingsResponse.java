@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,12 +40,12 @@ public class UpdateSettingsResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in, Version.V_0_90_6);
+        readAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out, Version.V_0_90_6);
+        writeAcknowledged(out);
     }
 }

@@ -187,5 +187,16 @@ public enum CollectionUtils {
         }
         return uniqueCount;
     }
+    
+    /**
+     * Checks if the given array contains any elements.
+     * 
+     * @param array The array to check
+     * 
+     * @return false if the array contains an element, true if not or the array is null.
+     */
+    public static boolean isEmpty(Object[] array) {
+        return array == null || array.length == 0;
+    }
 
 }

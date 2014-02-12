@@ -16,11 +16,11 @@ The result of the above delete operation is:
 [source,js]
 --------------------------------------------------
 {
-    "ok" : true,
+    "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
-    "found" : true
+    "_version" : 2
 }
 --------------------------------------------------
 
@@ -31,7 +31,8 @@ The result of the above delete operation is:
 Each document indexed is versioned. When deleting a document, the
 `version` can be specified to make sure the relevant document we are
 trying to delete is actually being deleted and it has not changed in the
-meantime.
+meantime. Every write operation executed on a document, deletes included,
+causes its version to be incremented.
 
 [float]
 [[delete-routing]]

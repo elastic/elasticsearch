@@ -40,6 +40,7 @@ import org.elasticsearch.test.rest.section.ExecutableSection;
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestSpec;
+import org.elasticsearch.test.rest.support.Features;
 import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -50,8 +51,10 @@ import org.junit.runners.model.Statement;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 import static com.carrotsearch.randomizedtesting.SeedUtils.parseSeedChain;
 import static com.carrotsearch.randomizedtesting.StandaloneRandomizedContext.*;
@@ -60,7 +63,6 @@ import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.rest.junit.DescriptionHelper.*;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -72,6 +74,8 @@ import static org.junit.Assert.assertThat;
  * - tests.rest.suite: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test)
  *                     it is possible to run only a subset of the tests providing a directory or a single yaml file
  *                     (the default /rest-api-spec/test prefix is optional when files are loaded from classpath)
+ * - tests.rest.section: regex that allows to filter the test sections that are going to be run. If provided, only the
+ *                       section names that match (case insensitive) against it will be executed
  * - tests.rest.spec: REST spec path (default /rest-api-spec/api)
  * - tests.iters: runs multiple iterations
  * - tests.seed: seed to base the random behaviours on
@@ -85,6 +89,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
 
     public static final String REST_TESTS_MODE = "tests.rest";
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
+    public static final String REST_TESTS_SECTION = "tests.rest.section";
     public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
@@ -177,37 +182,40 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         this.testSectionRandomnessOverride = randomnessOverride;
         logger.info("Master seed: {}", SeedUtils.formatSeed(initialSeed));
 
-        String host;
-        int port;
+        List<InetSocketAddress> addresses = Lists.newArrayList();
         if (runMode == RunMode.TEST_CLUSTER) {
-            this.testCluster = new TestCluster(SHARED_CLUSTER_SEED, 1, clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+            this.testCluster = new TestCluster(SHARED_CLUSTER_SEED, 1, 3,
+                    clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
             this.testCluster.beforeTest(runnerRandomness.getRandom(), 0.0f);
-            HttpServerTransport httpServerTransport = testCluster.getInstance(HttpServerTransport.class);
-            InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
-            host = inetSocketTransportAddress.address().getHostName();
-            port = inetSocketTransportAddress.address().getPort();
+            for (HttpServerTransport httpServerTransport : testCluster.getInstances(HttpServerTransport.class)) {
+                addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+            }
         } else {
             this.testCluster = null;
             String testsMode = System.getProperty(REST_TESTS_MODE);
-            String[] split = testsMode.split(":");
-            if (split.length < 2) {
-                throw new InitializationError("address [" + testsMode + "] not valid");
-            }
-            host = split[0];
-            try {
-                port = Integer.valueOf(split[1]);
-            } catch(NumberFormatException e) {
-                throw new InitializationError("port is not valid, expected number but was [" + split[1] + "]");
+            String[] stringAddresses = testsMode.split(",");
+            for (String stringAddress : stringAddresses) {
+                String[] split = stringAddress.split(":");
+                if (split.length < 2) {
+                    throw new InitializationError("address [" + testsMode + "] not valid");
+                }
+                try {
+                    addresses.add(new InetSocketAddress(split[0], Integer.valueOf(split[1])));
+                } catch(NumberFormatException e) {
+                    throw new InitializationError("port is not valid, expected number but was [" + split[1] + "]");
+                }
             }
         }
 
         try {
             String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
-
-            this.restTestExecutionContext = new RestTestExecutionContext(host, port, restSpec);
+            this.restTestExecutionContext = new RestTestExecutionContext(addresses.toArray(new InetSocketAddress[addresses.size()]), restSpec);
             this.rootDescription = createRootDescription(getRootSuiteTitle());
             this.restTestCandidates = collectTestCandidates(rootDescription);
+        } catch (InitializationError e) {
+          stopTestCluster();
+            throw e;
         } catch (Throwable e) {
             stopTestCluster();
             throw new InitializationError(e);
@@ -219,11 +227,16 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
      * The descriptions will be part of a tree containing api/yaml file/test section/eventual multiple iterations.
      * The test candidates will be instead flattened out to the leaves level (iterations), the part that needs to be run.
      */
-    protected List<RestTestCandidate> collectTestCandidates(Description rootDescription)
-            throws RestTestParseException, IOException {
+    protected List<RestTestCandidate> collectTestCandidates(Description rootDescription) throws InitializationError, IOException {
 
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
+
+        String sectionFilter = System.getProperty(REST_TESTS_SECTION);
+        Pattern sectionFilterPattern = null;
+        if (Strings.hasLength(sectionFilter)) {
+            sectionFilterPattern = Pattern.compile(sectionFilter, Pattern.CASE_INSENSITIVE);
+        }
 
         int iterations = determineTestSectionIterationCount();
         boolean appendSeedParameter = RandomizedTest.systemPropertyAsBoolean(SYSPROP_APPEND_SEED(), false);
@@ -238,23 +251,30 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         final boolean fixedSeed = testSectionRandomnessOverride != null;
         final boolean hasRepetitions = iterations > 1;
 
+        List<Throwable> parseExceptions = Lists.newArrayList();
         List<RestTestCandidate> testCandidates = Lists.newArrayList();
         RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
         for (String api : apis) {
 
             Description apiDescription = createApiDescription(api);
-            rootDescription.addChild(apiDescription);
 
             List<File> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
             Collections.shuffle(yamlFiles, runnerRandomness.getRandom());
 
             for (File yamlFile : yamlFiles) {
-                RestTestSuite restTestSuite = restTestSuiteParser.parse(restTestExecutionContext.esVersion(), api, yamlFile);
+                RestTestSuite restTestSuite;
+                try {
+                    restTestSuite = restTestSuiteParser.parse(restTestExecutionContext.esVersion(), api, yamlFile);
+                } catch (RestTestParseException e) {
+                    parseExceptions.add(e);
+                    //we continue so that we collect all parse errors and show them all at once
+                    continue;
+                }
+
                 Description testSuiteDescription = createTestSuiteDescription(restTestSuite);
-                apiDescription.addChild(testSuiteDescription);
 
                 if (restTestSuite.getTestSections().size() == 0) {
-                    assert restTestSuite.getSetupSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion());
+                    assert restTestSuite.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion());
                     testCandidates.add(RestTestCandidate.empty(restTestSuite, testSuiteDescription));
                     continue;
                 }
@@ -263,8 +283,14 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
 
                 for (TestSection testSection : restTestSuite.getTestSections()) {
 
+                    if (sectionFilterPattern != null) {
+                        if (!sectionFilterPattern.matcher(testSection.getName()).find()) {
+                            continue;
+                        }
+                    }
+
                     //no need to generate seed if we are going to skip the test section
-                    if (testSection.getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
+                    if (testSection.getSkipSection().skip(restTestExecutionContext.esVersion())) {
                         Description testSectionDescription = createTestSectionIterationDescription(restTestSuite, testSection, null);
                         testSuiteDescription.addChild(testSectionDescription);
                         testCandidates.add(new RestTestCandidate(restTestSuite, testSuiteDescription, testSection, testSectionDescription, -1));
@@ -298,7 +324,25 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                         testCandidates.add(new RestTestCandidate(restTestSuite, testSuiteDescription, testSection, testSectionDescription, thisSeed));
                     }
                 }
+
+                //we add the suite only if it has at least a section left
+                if (testSuiteDescription.getChildren().size() > 0) {
+                    apiDescription.addChild(testSuiteDescription);
+                }
             }
+
+            //we add the api only if it has at least a suite left
+            if (apiDescription.getChildren().size() > 0) {
+                rootDescription.addChild(apiDescription);
+            }
+        }
+
+        if (rootDescription.getChildren().size() == 0) {
+            throw new InitializationError("No tests to run");
+        }
+
+        if (!parseExceptions.isEmpty()) {
+            throw new InitializationError(parseExceptions);
         }
 
         return testCandidates;
@@ -398,29 +442,35 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             notifier.fireTestIgnored(rootDescription.getChildren().get(0));
             return;
         }
-
-        notifier.addListener(new RestReproduceInfoPrinter());
-
-        //the test suite gets run on a separate thread as the randomized context is per thread
-        //once the randomized context is disposed it's not possible to create it again on the same thread
-        final Thread thread = new Thread() {
-            @Override
-            public void run() {
-                try {
-                    createRandomizedContext(getTestClass().getJavaClass(), runnerRandomness);
-                    RestTestSuiteRunner.super.run(notifier);
-                } finally {
-                    disposeRandomizedContext();
-                }
-            }
-        };
-
-        thread.start();
+        final RestReproduceInfoPrinter restReproduceInfoPrinter = new RestReproduceInfoPrinter();
+        notifier.addListener(restReproduceInfoPrinter);
         try {
-            thread.join();
-        } catch (InterruptedException e) {
-            notifier.fireTestFailure(new Failure(getDescription(),
-                    new RuntimeException("Interrupted while waiting for the suite runner? Weird.", e)));
+            //the test suite gets run on a separate thread as the randomized context is per thread
+            //once the randomized context is disposed it's not possible to create it again on the same thread
+            final Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        createRandomizedContext(getTestClass().getJavaClass(), runnerRandomness);
+                        RestTestSuiteRunner.super.run(notifier);
+                    } finally {
+                        disposeRandomizedContext();
+                    }
+                }
+            };
+
+            thread.start();
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                notifier.fireTestFailure(new Failure(getDescription(),
+                        new RuntimeException("Interrupted while waiting for the suite runner? Weird.", e)));
+            }
+        } finally {
+            // remove the listener once the suite is done otherwise it will print
+            // a bogus line if a subsequent test fails that is not a
+            // REST test. The RunNotifier is used across suites!
+            notifier.removeListener(restReproduceInfoPrinter);
         }
     }
 
@@ -428,11 +478,17 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
     protected void runChild(RestTestCandidate testCandidate, RunNotifier notifier) {
 
         //if the while suite needs to be skipped, no test sections were loaded, only an empty one that we need to mark as ignored
-        if (testCandidate.getSetupSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
-            logger.info("skipped test suite [{}]\nreason: {}\nskip versions: {} (current version: {})",
-                    testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getReason(),
-                    testCandidate.getSetupSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
-
+        if (testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())) {
+            if (logger.isInfoEnabled()) {
+                if (testCandidate.getSetupSection().getSkipSection().isVersionCheck()) {
+                    logger.info("skipped test suite [{}]\nreason: {}\nskip versions: {} (current version: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getReason(),
+                            testCandidate.getSetupSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+                } else {
+                    logger.info("skipped test suite [{}]\nreason: feature not supported\nrequired features: {} (supported features: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection().getFeatures(), Features.getSupported());
+                }
+            }
             notifier.fireTestIgnored(testCandidate.describeSuite());
             return;
         }
@@ -440,11 +496,19 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         //from now on no more empty test candidates are expected
         assert testCandidate.getTestSection() != null;
 
-        if (testCandidate.getTestSection().getSkipSection().skipVersion(restTestExecutionContext.esVersion())) {
-            logger.info("skipped test [{}/{}]\nreason: {}\nskip versions: {} (current version: {})",
-                    testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
-                    testCandidate.getTestSection().getSkipSection().getReason(),
-                    testCandidate.getTestSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+        if (testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())) {
+            if (logger.isInfoEnabled()) {
+                if (testCandidate.getTestSection().getSkipSection().isVersionCheck()) {
+                    logger.info("skipped test [{}/{}]\nreason: {}\nskip versions: {} (current version: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
+                            testCandidate.getTestSection().getSkipSection().getReason(),
+                            testCandidate.getTestSection().getSkipSection().getVersion(), restTestExecutionContext.esVersion());
+                } else {
+                    logger.info("skipped test [{}/{}]\nreason: feature not supported\nrequired features: {} (supported features: {})",
+                            testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName(),
+                            testCandidate.getTestSection().getSkipSection().getFeatures(), Features.getSupported());
+                }
+            }
 
             notifier.fireTestIgnored(testCandidate.describeTest());
             return;
@@ -522,18 +586,8 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
     @SuppressWarnings("unchecked")
     public void wipeTemplates() throws IOException, RestException {
         logger.debug("deleting all templates");
-        //delete templates by wildcard was only added in 0.90.6
-        //httpResponse = restTestExecutionContext.callApi("indices.delete_template", "name", "*");
-        RestResponse restResponse = restTestExecutionContext.callApiInternal("cluster.state", "filter_nodes", "true",
-                "filter_routing_table", "true", "filter_blocks", "true");
+        RestResponse restResponse = restTestExecutionContext.callApiInternal("indices.delete_template", "name", "*");
         assertThat(restResponse.getStatusCode(), equalTo(200));
-        Object object = restResponse.evaluate("metadata.templates");
-        assertThat(object, instanceOf(Map.class));
-        Set<String> templates = ((Map<String, Object>) object).keySet();
-        for (String template : templates) {
-            restResponse = restTestExecutionContext.callApiInternal("indices.delete_template", "name", template);
-            assertThat(restResponse.getStatusCode(), equalTo(200));
-        }
     }
 
     private void stopTestCluster() {

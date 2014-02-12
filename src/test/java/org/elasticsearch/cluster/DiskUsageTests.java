@@ -47,7 +47,6 @@ public class DiskUsageTests extends ElasticsearchTestCase {
                     new DiskUsage("random", total, free);
                     fail("should never reach this");
                 } catch (IllegalStateException e) {
-                    assert true;
                 }
             } else {
                 DiskUsage du = new DiskUsage("random", total, free);

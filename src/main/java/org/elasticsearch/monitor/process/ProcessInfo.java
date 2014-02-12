@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.process;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -122,9 +121,7 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
         refreshInterval = in.readLong();
         id = in.readLong();
         maxFileDescriptors = in.readLong();
-        if (in.getVersion().after(Version.V_0_90_7)) {
-            mlockall = in.readBoolean();
-        }
+        mlockall = in.readBoolean();
     }
 
     @Override
@@ -132,8 +129,6 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
         out.writeLong(refreshInterval);
         out.writeLong(id);
         out.writeLong(maxFileDescriptors);
-        if (out.getVersion().after(Version.V_0_90_7)) {
-            out.writeBoolean(mlockall);
-        }
+        out.writeBoolean(mlockall);
     }
 }

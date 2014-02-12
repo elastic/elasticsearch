@@ -18,18 +18,26 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
-import org.elasticsearch.search.aggregations.bucket.range.RangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+
+import java.util.Collection;
 
 /**
  *
  */
-public interface IPv4Range extends RangeBase<IPv4Range.Bucket> {
+public interface IPv4Range extends Range {
 
-    static interface Bucket extends RangeBase.Bucket {
+    static interface Bucket extends Range.Bucket {
 
         String getFromAsString();
 
         String getToAsString();
 
     }
+
+    @Override
+    Collection<? extends IPv4Range.Bucket> getBuckets();
+
+    @Override
+    IPv4Range.Bucket getBucketByKey(String key);
 }

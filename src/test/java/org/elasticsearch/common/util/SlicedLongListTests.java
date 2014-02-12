@@ -72,12 +72,12 @@ public class SlicedLongListTests extends ElasticsearchTestCase {
         SlicedLongList list = new SlicedLongList(5);
         try {
             list.set(0, (long)4);
-            assert false;
+            fail();
         } catch (UnsupportedOperationException ex) {
         }
         try {
             list.add((long)4);
-            assert false;
+            fail();
         } catch (UnsupportedOperationException ex) {
         }
     }

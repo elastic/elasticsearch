@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -126,9 +125,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             out.writeString(index);
             out.writeStringArray(types);
             out.writeString(nodeId);
-            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeString(indexUUID);
-            }
+            out.writeString(indexUUID);
         }
 
         @Override
@@ -137,9 +134,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             index = in.readString();
             types = in.readStringArray();
             nodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readString();
-            }
+            indexUUID = in.readString();
         }
     }
 }

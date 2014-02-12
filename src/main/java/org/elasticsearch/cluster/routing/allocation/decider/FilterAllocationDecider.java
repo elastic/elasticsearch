@@ -98,49 +98,49 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node, allocation) ? Decision.NO : Decision.YES;
+        return shouldFilter(shardRouting, node, allocation);
     }
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node, allocation) ? Decision.NO : Decision.YES;
+        return shouldFilter(shardRouting, node, allocation);
     }
 
-    private boolean shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    private Decision shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
             if (!clusterRequireFilters.match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node does not match global required filters [%s]", clusterRequireFilters);
             }
         }
         if (clusterIncludeFilters != null) {
             if (!clusterIncludeFilters.match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node does not match global include filters [%s]", clusterIncludeFilters);
             }
         }
         if (clusterExcludeFilters != null) {
             if (clusterExcludeFilters.match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node matches global exclude filters [%s]", clusterExcludeFilters);
             }
         }
 
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
         if (indexMd.requireFilters() != null) {
             if (!indexMd.requireFilters().match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node does not match index required filters [%s]", indexMd.requireFilters());
             }
         }
         if (indexMd.includeFilters() != null) {
             if (!indexMd.includeFilters().match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node does not match index include filters [%s]", indexMd.includeFilters());
             }
         }
         if (indexMd.excludeFilters() != null) {
             if (indexMd.excludeFilters().match(node.node())) {
-                return true;
+                return allocation.decision(Decision.NO, "node matches index exclude filters [%s]", indexMd.excludeFilters());
             }
         }
 
-        return false;
+        return allocation.decision(Decision.YES, "node passes include/exclude/require filters");
     }
 
     class ApplySettings implements NodeSettingsService.Listener {

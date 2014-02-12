@@ -224,7 +224,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             long offset = input.readVLong();
             meta.put(offset, name);
         }
-
+        long sizeInBytes = 0;
         for (Map.Entry<Long, String> entry : meta.entrySet()) {
             input.seek(entry.getKey());
             FST<Pair<Long, BytesRef>> fst = new FST<Pair<Long, BytesRef>>(input, new PairOutputs<Long, BytesRef>(
@@ -236,9 +236,11 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             boolean preserveSep = (options & SERIALIZE_PRESERVE_SEPERATORS) != 0;
             boolean hasPayloads = (options & SERIALIZE_HAS_PAYLOADS) != 0;
             boolean preservePositionIncrements = (options & SERIALIZE_PRESERVE_POSITION_INCREMENTS) != 0;
+            sizeInBytes += fst.sizeInBytes();
             lookupMap.put(entry.getValue(), new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst));
         }
+        final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
             public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
@@ -294,6 +296,11 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper) {
                 return lookupMap.get(mapper.names().indexName());
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return ramBytesUsed;
             }
         };
     }

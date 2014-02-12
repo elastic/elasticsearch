@@ -65,6 +65,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
+import java.util.Locale;
+
 /**
  *
  */
@@ -131,16 +133,22 @@ public enum PreBuiltAnalyzers {
         }
     },
 
-    PATTERN {
+    PATTERN(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
+            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
+                return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
+            }
             return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
-    STANDARD_HTML_STRIP {
+    STANDARD_HTML_STRIP(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
+            if (version.onOrAfter(Version.V_1_0_0_RC1)) {
+                return new StandardHtmlStripAnalyzer(version.luceneVersion, CharArraySet.EMPTY_SET);
+            }
             return new StandardHtmlStripAnalyzer(version.luceneVersion);
         }
     },
@@ -393,6 +401,19 @@ public enum PreBuiltAnalyzers {
         }
 
         return analyzer;
+    }
+
+    /**
+     * Get a pre built Analyzer by its name or fallback to the default one
+     * @param name Analyzer name
+     * @param defaultAnalyzer default Analyzer if name not found
+     */
+    public static PreBuiltAnalyzers getOrDefault(String name, PreBuiltAnalyzers defaultAnalyzer) {
+        try {
+            return valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return defaultAnalyzer;
+        }
     }
 
 }

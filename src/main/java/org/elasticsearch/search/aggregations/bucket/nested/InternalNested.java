@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class InternalNested extends SingleBucketAggregation<InternalNested> implements Nested {
+public class InternalNested extends InternalSingleBucketAggregation implements Nested {
 
     public static final Type TYPE = new Type("nested");
 
@@ -56,6 +56,5 @@ public class InternalNested extends SingleBucketAggregation<InternalNested> impl
     public Type type() {
         return TYPE;
     }
-
 
 }

@@ -1238,8 +1238,8 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         XPostingsHighlighter highlighter = new XPostingsHighlighter(10000) {
             @Override
             protected String[][] loadFieldValues(IndexSearcher searcher, String[] fields, int[] docids, int maxLength) throws IOException {
-                assert fields.length == 1;
-                assert docids.length == 1;
+                assertThat(fields.length, equalTo(1));
+                assertThat(docids.length, equalTo(1));
                 String[][] contents = new String[1][1];
                 contents[0][0] = text;
                 return contents;

@@ -67,6 +67,10 @@ public class RestXContentBuilder {
         return builder;
     }
 
+    public static XContentBuilder emptyBuilder(RestRequest request) throws IOException {
+        return restContentBuilder(request, request.hasContent() ? request.content() : null).startObject().endObject();
+    }
+
     /**
      * Directly writes the source to the output builder
      */

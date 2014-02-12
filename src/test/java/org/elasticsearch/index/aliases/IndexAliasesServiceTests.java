@@ -156,7 +156,7 @@ public class IndexAliasesServiceTests extends ElasticsearchTestCase {
 
         try {
             indexAliasesService.aliasFilter("unknown");
-            assert false;
+            fail();
         } catch (InvalidAliasNameException e) {
             // all is well
         }

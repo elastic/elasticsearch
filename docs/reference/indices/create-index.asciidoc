@@ -3,7 +3,13 @@
 
 The create index API allows to instantiate an index. Elasticsearch
 provides support for multiple indices, including executing operations
-across several indices. Each index created can have specific settings
+across several indices.
+
+[float]
+[[create-index-settings]]
+=== Index Settings
+
+Each index created can have specific settings
 associated with it.
 
 [source,js]
@@ -47,7 +53,12 @@ $ curl -XPUT 'http://localhost:9200/twitter/' -d '{
 --------------------------------------------------
 
 _Note you do not have to explicitly specify `index` section inside
-`settings` section._
+`settings` section.
+
+For more information regarding all the different index level settings
+that can be set when creating an index, please check the
+<<index-modules,index modules>> section.
+
 
 [float]
 [[mappings]]
@@ -73,9 +84,22 @@ curl -XPOST localhost:9200/test -d '{
 --------------------------------------------------
 
 [float]
-[[create-index-settings]]
-=== Index Settings
+[[warmers]]
+=== Warmers
 
-For more information regarding all the different index level settings
-that can be set when creating an index, please check the
-<<index-modules,index modules>> section.
+The create index API allows also to provide a set of <<indices-warmers,warmers>>:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test -d '{
+    "warmers" : {
+        "warmer_1" : {
+            "source" : {
+                "query" : {
+                    ...
+                }
+            }
+        }
+    }
+}'
+--------------------------------------------------

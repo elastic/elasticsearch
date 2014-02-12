@@ -156,7 +156,7 @@ public class RestSearchAction extends BaseRestHandler {
             queryBuilder.analyzer(request.param("analyzer"));
             queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
             queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryBuilder.lenient(request.paramAsBooleanOptional("lenient", null));
+            queryBuilder.lenient(request.paramAsBoolean("lenient", null));
             String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
                 if ("OR".equals(defaultOperator)) {
@@ -192,13 +192,13 @@ public class RestSearchAction extends BaseRestHandler {
             if (searchSourceBuilder == null) {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
-            searchSourceBuilder.explain(request.paramAsBooleanOptional("explain", null));
+            searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
         }
         if (request.hasParam("version")) {
             if (searchSourceBuilder == null) {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
-            searchSourceBuilder.version(request.paramAsBooleanOptional("version", null));
+            searchSourceBuilder.version(request.paramAsBoolean("version", null));
         }
         if (request.hasParam("timeout")) {
             if (searchSourceBuilder == null) {

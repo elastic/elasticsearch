@@ -29,6 +29,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -52,10 +53,12 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -148,6 +151,11 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(percolateResponse);
     }
 
+    public static void assertExists(GetResponse response) {
+        String message = String.format(Locale.ROOT, "Expected %s/%s/%s to exist, but does not", response.getIndex(), response.getType(), response.getId());
+        assertThat(message, response.isExists(), is(true));
+    }
+
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
         assertSearchHit(searchResponse, 1, matcher);
     }
@@ -161,7 +169,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
-        assert number > 0;
+        assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
         assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
@@ -171,6 +179,12 @@ public class ElasticsearchAssertions {
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
                 searchResponse.getShardFailures().length, equalTo(0));
+        assertVersionSerializable(searchResponse);
+    }
+
+    public static void assertFailures(SearchResponse searchResponse) {
+        assertThat("Expected at least one shard failure, got none",
+                searchResponse.getShardFailures().length, greaterThan(0));
         assertVersionSerializable(searchResponse);
     }
 
@@ -324,7 +338,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assert Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion());
+        assertTrue(Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion()));
         assertVersionSerializable(ElasticsearchTestCase.randomVersion(), streamable);
     }
 

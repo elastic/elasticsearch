@@ -38,7 +38,7 @@ which means conflicts are *not* ignored.
 The definition of conflict is really dependent on the type merged, but
 in general, if a different core type is defined, it is considered as a
 conflict. New mapping definitions can be added to object types, and core
-type mapping can be upgraded to `multi_field` type.
+type mapping can be upgraded by specifying multi fields on a core type.
 
 [float]
 [[put-mapping-multi-index]]
@@ -59,3 +59,25 @@ $ curl -XPUT 'http://localhost:9200/kimchy,elasticsearch/tweet/_mapping' -d '
 }
 '
 --------------------------------------------------
+
+All options:
+
+[source,js]
+--------------------------------------------------
+
+PUT /{index}/_mapping/{type}        
+         
+
+--------------------------------------------------
+    
+
+where
+
+[horizontal]
+`{index}`:: `blank | * | _all | glob pattern | name1, name2, …`
+    
+`{type}`:: Name of the type to add. Must be the name of the type defined in the body.
+
+
+Instead of `_mapping` you can also use the plural `_mappings`.
+The uri `PUT /{index}/{type}/_mapping` is still supported for backwardscompatibility.  

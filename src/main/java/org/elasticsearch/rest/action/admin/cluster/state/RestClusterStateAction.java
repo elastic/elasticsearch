@@ -71,7 +71,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
         boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
         if (!isAllMetricsOnly) {
-            clusterStateRequest.nodes(metrics.contains("nodes"));
+            clusterStateRequest.nodes(metrics.contains("nodes") || metrics.contains("master_node"));
             clusterStateRequest.routingTable(metrics.contains("routing_table"));
             clusterStateRequest.metaData(metrics.contains("metadata"));
             clusterStateRequest.blocks(metrics.contains("blocks"));

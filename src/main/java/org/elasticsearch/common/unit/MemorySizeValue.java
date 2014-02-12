@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -32,8 +33,16 @@ public enum MemorySizeValue {
      *  the heap is 1G, <tt>10%</tt> will be parsed as <tt>100mb</tt>.  */
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue) {
         if (sValue.endsWith("%")) {
-            double percent = Double.parseDouble(sValue.substring(0, sValue.length() - 1));
-            return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes()), ByteSizeUnit.BYTES);
+            final String percentAsString = sValue.substring(0, sValue.length() - 1);
+            try {
+                final double percent = Double.parseDouble(percentAsString);
+                if (percent < 0 || percent > 100) {
+                    throw new ElasticsearchParseException("Percentage should be in [0-100], got " + percentAsString);
+                }
+                return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes()), ByteSizeUnit.BYTES);
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);
+            }
         } else {
             return parseBytesSizeValue(sValue);
         }

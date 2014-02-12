@@ -1,0 +1,201 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_1
+          body:
+            warmers:
+              warmer_1:
+                source: { query: { match_all: { }}}
+              warmer_2:
+                source: { query: { match_all: { }}}
+
+
+  - do:
+        indices.create:
+          index: test_2
+          body:
+            warmers:
+              warmer_2:
+                source: { query: { match_all: { }}}
+              warmer_3:
+                source: { query: { match_all: { }}}
+
+  - do:
+        cluster.health:
+            wait_for_status: yellow
+
+---
+"Get /_warmer":
+
+ - do:
+    indices.get_warmer: {}
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_3.source.query.match_all: {}}
+
+---
+"Get /{index}/_warmer":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_2
+
+
+---
+"Get /{index}/_warmer/_all":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+        name:  _all
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_warmer/*":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+        name:  '*'
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+        name:  warmer_1
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - is_false: test_1.warmers.warmer_2
+ - is_false: test_2
+
+---
+"Get /{index}/_warmer/{name,name}":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+        name:  warmer_1,warmer_2
+
+ - match: { test_1.warmers.warmer_1.source.query.match_all: {}}
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_warmer/{name*}":
+
+ - do:
+    indices.get_warmer:
+        index: test_1
+        name:  '*2'
+
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_1.warmers.warmer_1
+ - is_false: test_2
+
+---
+"Get /_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        name: warmer_2
+
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_1.warmers.warmer_1
+ - is_false: test_2.warmers.warmer_3
+
+---
+"Get /_all/_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        index: _all
+        name: warmer_2
+
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_1.warmers.warmer_1
+ - is_false: test_2.warmers.warmer_3
+
+---
+"Get /*/_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        index: '*'
+        name: warmer_2
+
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_1.warmers.warmer_1
+ - is_false: test_2.warmers.warmer_3
+
+---
+"Get /index,index/_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        index: test_1,test_2
+        name: warmer_2
+
+ - match: { test_1.warmers.warmer_2.source.query.match_all: {}}
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_2.warmers.warmer_3
+
+---
+"Get /index*/_warmer/{name}":
+
+ - do:
+    indices.get_warmer:
+        index: '*2'
+        name: warmer_2
+
+ - match: { test_2.warmers.warmer_2.source.query.match_all: {}}
+ - is_false: test_1
+ - is_false: test_2.warmers.warmer_3
+
+---
+"Empty response when no matching warmer":
+
+ - do:
+    indices.get_warmer:
+        index: '*'
+        name:  non_existent
+
+ - match: { '': {}}
+
+---
+"Throw 404 on missing index":
+
+ - do:
+    catch: missing
+    indices.get_warmer:
+        index: non_existent
+        name:  '*'
+
+---
+"Get /_warmer with local flag":
+
+ - do:
+    indices.get_warmer:
+        local: true
+
+ - is_true: test_1
+ - is_true: test_2
+

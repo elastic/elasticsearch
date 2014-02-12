@@ -108,32 +108,32 @@ public final class QueryRescorer implements Rescorer {
     @Override
     public void rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
         assert rescoreContext != null;
-        QueryRescoreContext rescore = ((QueryRescoreContext) rescoreContext);
-        TopDocs queryTopDocs = context.queryResult().topDocs();
-        if (queryTopDocs == null || queryTopDocs.totalHits == 0 || queryTopDocs.scoreDocs.length == 0) {
+        if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return;
         }
 
+        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
         ContextIndexSearcher searcher = context.searcher();
-        topDocs = searcher.search(rescore.query(), new TopDocsFilter(queryTopDocs), queryTopDocs.scoreDocs.length);
-        context.queryResult().topDocs(merge(queryTopDocs, topDocs, rescore));
+        TopDocsFilter filter = new TopDocsFilter(topDocs, rescoreContext.window());
+        TopDocs rescored = searcher.search(rescore.query(), filter, rescoreContext.window());
+        context.queryResult().topDocs(merge(topDocs, rescored, rescore));
     }
 
     @Override
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
-        QueryRescoreContext rescore = ((QueryRescoreContext) context.rescore());
+    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+            Explanation sourceExplanation) throws IOException {
+        QueryRescoreContext rescore = ((QueryRescoreContext) rescoreContext);
         ContextIndexSearcher searcher = context.searcher();
-        Explanation primaryExplain = searcher.explain(context.query(), topLevelDocId);
-        if (primaryExplain == null) {
+        if (sourceExplanation == null) {
             // this should not happen but just in case
             return new ComplexExplanation(false, 0.0f, "nothing matched");
         }
         Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
         float primaryWeight = rescore.queryWeight();
-        ComplexExplanation prim = new ComplexExplanation(primaryExplain.isMatch(),
-                primaryExplain.getValue() * primaryWeight,
+        ComplexExplanation prim = new ComplexExplanation(sourceExplanation.isMatch(),
+                sourceExplanation.getValue() * primaryWeight,
                 "product of:");
-        prim.addDetail(primaryExplain);
+        prim.addDetail(sourceExplanation);
         prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
         if (rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
@@ -341,14 +341,14 @@ public final class QueryRescorer implements Rescorer {
 
         private final int[] docIds;
 
-        public TopDocsFilter(TopDocs topDocs) {
-            this.docIds = new int[topDocs.scoreDocs.length];
+        public TopDocsFilter(TopDocs topDocs, int max) {
             ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-            for (int i = 0; i < scoreDocs.length; i++) {
+            max = Math.min(max, scoreDocs.length);
+            this.docIds = new int[max];
+            for (int i = 0; i < max; i++) {
                 docIds[i] = scoreDocs[i].doc;
             }
             Arrays.sort(docIds);
-
         }
 
         @Override
@@ -411,7 +411,7 @@ public final class QueryRescorer implements Rescorer {
 
     @Override
     public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet) {
-        ((QueryRescoreContext) context.rescore()).query().extractTerms(termsSet);
+        ((QueryRescoreContext) rescoreContext).query().extractTerms(termsSet);
     }
 
 }

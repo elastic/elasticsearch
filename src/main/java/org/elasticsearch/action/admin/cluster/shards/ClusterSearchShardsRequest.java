@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,13 +32,12 @@ import java.io.IOException;
 
 /**
  */
-public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<ClusterSearchShardsRequest> {
+public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<ClusterSearchShardsRequest> {
     private String[] indices;
     @Nullable
     private String routing;
     @Nullable
     private String preference;
-    private boolean local = false;
     private String[] types = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
@@ -142,15 +141,6 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         return this.preference;
     }
 
-    public ClusterSearchShardsRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return this.local;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -165,7 +155,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        local = in.readBoolean();
+        readLocal(in);
     }
 
     @Override
@@ -182,7 +172,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
 
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(local);
+        writeLocal(out);
     }
 
 }

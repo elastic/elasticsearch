@@ -25,7 +25,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
 import org.elasticsearch.index.store.fs.NioFsDirectoryService;
 import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
-import org.elasticsearch.index.store.memory.ByteBufferDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
@@ -123,14 +121,8 @@ public class MockDirectoryHelper {
         }
     }
 
-    public DirectoryService randomRamDirecoryService(ByteBufferCache byteBufferCache) {
-        switch (random.nextInt(2)) {
-        case 0:
-            return new RamDirectoryService(shardId, indexSettings);
-        default:
-            return new ByteBufferDirectoryService(shardId, indexSettings, byteBufferCache);
-        }
-
+    public DirectoryService randomRamDirectoryService() {
+        return new RamDirectoryService(shardId, indexSettings);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

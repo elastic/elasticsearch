@@ -58,6 +58,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
         return this;
     }
 
+    public NodesStatsRequestBuilder setBreaker(boolean breaker) {
+        request.breaker(breaker);
+        return this;
+    }
+
     /**
      * Should the node indices stats be returned.
      */

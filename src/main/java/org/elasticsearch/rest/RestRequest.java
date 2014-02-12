@@ -135,12 +135,13 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     @Override
+    public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+        return Booleans.parseBoolean(param(key), defaultValue);
+    }
+
+    @Override @Deprecated
     public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+        return paramAsBoolean(key, defaultValue);
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
@@ -158,4 +159,13 @@ public abstract class RestRequest implements ToXContent.Params {
         }
         return Strings.splitStringByCommaToArray(value);
     }
+
+    public String[] paramAsStringArrayOrEmptyIfAll(String key) {
+        String[] params = paramAsStringArray(key, Strings.EMPTY_ARRAY);
+        if (Strings.isAllOrWildcard(params)) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return params;
+    }
+
 }

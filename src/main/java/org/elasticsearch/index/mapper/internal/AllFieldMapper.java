@@ -63,6 +63,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         void includeInAll(Boolean includeInAll);
 
         void includeInAllIfNotSet(Boolean includeInAll);
+
+        void unsetIncludeInAll();
     }
 
     public static final String NAME = "_all";

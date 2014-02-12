@@ -33,6 +33,7 @@ import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -181,6 +182,11 @@ public interface FieldMapper<T> extends Mapper {
      * Similarity used for scoring queries on the field
      */
     SimilarityProvider similarity();
+
+    /**
+     * List of fields where this field should be copied to
+     */
+    public AbstractFieldMapper.CopyTo copyTo();
 
     /**
      * Returns the actual value of the field.

@@ -82,7 +82,20 @@ public class AliasAction implements Streamable {
     private AliasAction() {
 
     }
-
+    
+    public AliasAction(AliasAction other) {
+        this.actionType = other.actionType;
+        this.index = other.index;
+        this.alias = other.alias;
+        this.filter = other.filter;
+        this.indexRouting = other.indexRouting;
+        this.searchRouting = other.searchRouting;
+    }
+    
+    public AliasAction(Type actionType) {
+        this.actionType = actionType;
+    }
+    
     public AliasAction(Type actionType, String index, String alias) {
         this.actionType = actionType;
         this.index = index;
@@ -99,9 +112,19 @@ public class AliasAction implements Streamable {
     public Type actionType() {
         return actionType;
     }
+    
+    public AliasAction index(String index) {
+        this.index = index;
+        return this;
+    }
 
     public String index() {
         return index;
+    }
+    
+    public AliasAction alias(String alias) {
+        this.alias = alias;
+        return this;
     }
 
     public String alias() {
@@ -181,42 +204,21 @@ public class AliasAction implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         actionType = Type.fromValue(in.readByte());
-        index = in.readString();
-        alias = in.readString();
-        if (in.readBoolean()) {
-            filter = in.readString();
-        }
-        if (in.readBoolean()) {
-            indexRouting = in.readString();
-        }
-        if (in.readBoolean()) {
-            searchRouting = in.readString();
-        }
+        index = in.readOptionalString();
+        alias = in.readOptionalString();
+        filter = in.readOptionalString();
+        indexRouting = in.readOptionalString();
+        searchRouting = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
-        out.writeString(index);
-        out.writeString(alias);
-        if (filter == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(filter);
-        }
-        if (indexRouting == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(indexRouting);
-        }
-        if (searchRouting == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(searchRouting);
-        }
+        out.writeOptionalString(index);
+        out.writeOptionalString(alias);
+        out.writeOptionalString(filter);
+        out.writeOptionalString(indexRouting);
+        out.writeOptionalString(searchRouting);
     }
 
     public static AliasAction newAddAliasAction(String index, String alias) {

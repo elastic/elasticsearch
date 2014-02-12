@@ -56,6 +56,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+        getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.listenerThreaded(false);
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;

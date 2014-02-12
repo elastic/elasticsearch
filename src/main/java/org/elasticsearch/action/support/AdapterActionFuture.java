@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchInterruptedException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -44,7 +44,8 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         try {
             return get();
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
@@ -72,7 +73,8 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         } catch (TimeoutException e) {
             throw new ElasticsearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
-            throw new ElasticsearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }

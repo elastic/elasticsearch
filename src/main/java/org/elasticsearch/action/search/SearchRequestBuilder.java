@@ -418,6 +418,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a field data based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the field data cache
+     */
+    public SearchRequestBuilder addFieldDataField(String name) {
+        sourceBuilder().fieldDataField(name);
+        return this;
+    }
+
+    /**
      * Adds a script based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *
@@ -446,10 +457,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String, String)} instead
+     *
      * @param name    The name of the field
      * @param include An optional include (optionally wildcarded) pattern from _source
      * @param exclude An optional exclude (optionally wildcarded) pattern from _source
      */
+    @Deprecated
     public SearchRequestBuilder addPartialField(String name, @Nullable String include, @Nullable String exclude) {
         sourceBuilder().partialField(name, include, exclude);
         return this;
@@ -459,10 +474,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
      * elements.
      *
+     * @deprecated since 1.0.0
+     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String[], String[])} instead
+     *
      * @param name     The name of the field
      * @param includes An optional list of includes (optionally wildcarded) patterns from _source
      * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
      */
+    @Deprecated
     public SearchRequestBuilder addPartialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
         sourceBuilder().partialField(name, includes, excludes);
         return this;
@@ -775,13 +794,66 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * @param rescorer rescorer configuration
+     * @return this for chaining
+     */
     public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
-        rescoreBuilder().rescorer(rescorer);
+        sourceBuilder().clearRescorers();
+        return addRescorer(rescorer);
+    }
+
+    /**
+     * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * @param rescorer rescorer configuration
+     * @param window rescore window
+     * @return this for chaining
+     */
+    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+        sourceBuilder().clearRescorers();
+        return addRescorer(rescorer, window);
+    }
+
+    /**
+     * Adds a new rescorer.
+     * @param rescorer rescorer configuration
+     * @return this for chaining
+     */
+    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
+        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
         return this;
     }
 
+    /**
+     * Adds a new rescorer.
+     * @param rescorer rescorer configuration
+     * @param window rescore window
+     * @return this for chaining
+     */
+    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+        return this;
+    }
+
+    /**
+     * Clears all rescorers from the builder.
+     * @return this for chaining
+     */
+    public SearchRequestBuilder clearRescorers() {
+        sourceBuilder().clearRescorers();
+        return this;
+    }
+
+    /**
+     * Sets the rescore window for all rescorers that don't specify a window when added.
+     * @param window rescore window
+     * @return this for chaining
+     */
     public SearchRequestBuilder setRescoreWindow(int window) {
-        rescoreBuilder().windowSize(window);
+        sourceBuilder().defaultRescoreWindowSize(window);
         return this;
     }
 
@@ -961,9 +1033,4 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private SuggestBuilder suggestBuilder() {
         return sourceBuilder().suggest();
     }
-
-    private RescoreBuilder rescoreBuilder() {
-        return sourceBuilder().rescore();
-    }
-
 }

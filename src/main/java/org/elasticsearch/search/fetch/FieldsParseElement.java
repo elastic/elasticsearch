@@ -37,27 +37,16 @@ public class FieldsParseElement implements SearchParseElement {
             boolean added = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 String name = parser.text();
-                if (name.contains("_source.") || name.contains("doc[")) {
-                    // script field to load from source
-                    SearchScript searchScript = context.scriptService().search(context.lookup(), "mvel", name, null);
-                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript, true));
-                } else {
-                    added = true;
-                    context.fieldNames().add(name);
-                }
+                added = true;
+                context.fieldNames().add(name);
             }
             if (!added) {
                 context.emptyFieldNames();
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
             String name = parser.text();
-            if (name.contains("_source.") || name.contains("doc[")) {
-                // script field to load from source
-                SearchScript searchScript = context.scriptService().search(context.lookup(), "mvel", name, null);
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript, true));
-            } else {
-                context.fieldNames().add(name);
-            }
+            context.fieldNames().add(name);
+
         }
     }
 }

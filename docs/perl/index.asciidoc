@@ -85,6 +85,23 @@ my $results = $e->search(
 );
 ------------------------------------
 
+[[v0_90]]
+== Elasticsearch 0.90.* and earlier
+
+The current version of the client supports the Elasticsearch 1.0 branch by
+default, which is not backwards compatible with the 0.90 branch.
+
+If you need to talk to a version of Elasticsearch before 1.0.0,
+please use `Elasticsearch::Client::0_90::Direct` as follows:
+
+[source,perl]
+------------------------------------
+    $es = Elasticsearch->new(
+        client => '0_90::Direct'
+    );
+------------------------------------
+
+
 == Reporting issues
 
 The GitHub repository is http://github.com/elasticsearch/elasticsearch-perl

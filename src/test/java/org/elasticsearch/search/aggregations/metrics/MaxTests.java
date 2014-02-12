@@ -39,13 +39,13 @@ public class MaxTests extends AbstractNumericTests {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true).subAggregation(max("max")))
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(max("max")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, notNullValue());
 
         Max max = bucket.getAggregations().get("max");

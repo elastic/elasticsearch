@@ -122,8 +122,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity,
-                    normsLoading, fieldDataSettings, context.indexSettings());
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    postingsProvider, docValuesProvider, similarity,
+                    normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -148,13 +149,14 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     private String nullValue;
 
     protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                            String nullValue, Explicit<Boolean> ignoreMalformed,
+                            String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
-                ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
+                ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
-                similarity, normsLoading, fieldDataSettings, indexSettings);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

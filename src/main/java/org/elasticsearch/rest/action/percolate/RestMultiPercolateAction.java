@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
@@ -65,7 +66,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         multiPercolateRequest.documentType(restRequest.param("type"));
 
         try {
-            multiPercolateRequest.add(restRequest.content(), restRequest.contentUnsafe(), allowExplicitIndex);
+            multiPercolateRequest.add(RestActions.getRestContent(restRequest), restRequest.contentUnsafe(), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 restChannel.sendResponse(new XContentThrowableRestResponse(restRequest, e));

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,9 +34,13 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -76,8 +81,10 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Override
     protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
         Set<String> indices = Sets.newHashSet();
-        for (AliasAction aliasAction : request.aliasActions()) {
-            indices.add(aliasAction.index());
+        for (AliasActions aliasAction : request.aliasActions()) {
+            for (String index : aliasAction.indices()) {
+                indices.add(index);
+            }
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, indices.toArray(new String[indices.size()]));
     }
@@ -85,9 +92,36 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Override
     protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) throws ElasticsearchException {
 
+        //Expand the indices names
+        List<AliasActions> actions = request.aliasActions();
+        List<AliasAction> finalActions = new ArrayList<AliasAction>();
+        boolean hasOnlyDeletesButNoneCanBeDone = true;
+        Set<String> aliases = new HashSet<String>();
+        for (AliasActions action : actions) {
+            //expand indices
+            String[] concreteIndices = state.metaData().concreteIndices(action.indices(), request.indicesOptions());
+            //collect the aliases
+            for (String alias : action.aliases()) {
+                aliases.add(alias);
+            }
+            for (String index : concreteIndices) {
+                for (String alias : action.concreteAliases(state.metaData(), index)) { 
+                    AliasAction finalAction = new AliasAction(action.aliasAction());
+                    finalAction.index(index);
+                    finalAction.alias(alias);
+                    finalActions.add(finalAction);
+                    //if there is only delete requests, none will be added if the types do not map to any existing type
+                    hasOnlyDeletesButNoneCanBeDone = false;
+                }
+            }
+        }
+        if (hasOnlyDeletesButNoneCanBeDone && actions.size() != 0) {
+            throw new AliasesMissingException(aliases.toArray(new String[aliases.size()]));
+        }
+        request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .actions(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]));
+                .actions(finalActions.toArray(new AliasAction[finalActions.size()]));
 
         indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener() {
             @Override

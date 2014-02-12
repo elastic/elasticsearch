@@ -27,7 +27,6 @@ This will yield the following result:
 [source,js]
 --------------------------------------------------
 {
-  "ok" : true,
   "matches" : true,
   "explanation" : {
     "value" : 0.15342641,

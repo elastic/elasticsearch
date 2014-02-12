@@ -18,6 +18,8 @@ on the node. Can hold multiple locations. |`{path.home}/data`|`path.data`
 |*work* |Temporal files that are used by different nodes. |`{path.home}/work` |`path.work`
 
 |*logs* |Log files location |`{path.home}/logs` |`path.logs`
+
+|*plugins* |Plugin files location. Each plugin will be contained in a subdirectory. |`{path.home}/plugins` |`path.plugins`
 |=======================================================================
 
 The multiple data locations allows to stripe it. The striping is simple,
@@ -42,4 +44,4 @@ Or the in an array format:
 
 ----------------------------------------
 path.data: ["/mnt/first", "/mnt/second"]
----------------------------------
+----------------------------------------

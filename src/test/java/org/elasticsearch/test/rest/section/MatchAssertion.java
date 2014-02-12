@@ -21,6 +21,9 @@ package org.elasticsearch.test.rest.section;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -41,6 +44,19 @@ public class MatchAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
+
+        //if the value is wrapped into / it is a regexp (e.g. /s+d+/)
+        if (expectedValue instanceof String) {
+            String expValue = ((String) expectedValue).trim();
+            if (expValue.length() > 2 && expValue.startsWith("/") && expValue.endsWith("/")) {
+                String regex = expValue.substring(1, expValue.length() - 1);
+                logger.trace("assert that [{}] matches [{}]", actualValue, regex);
+                assertThat("field [" + getField() + "] was expected to match the provided regex but didn't",
+                        actualValue.toString(), matches(regex, Pattern.COMMENTS));
+                return;
+            }
+        }
+
         assertThat(errorMessage(), actualValue, notNullValue());
         logger.trace("assert that [{}] matches [{}]", actualValue, expectedValue);
         if (!actualValue.getClass().equals(expectedValue.getClass())) {
@@ -50,6 +66,7 @@ public class MatchAssertion extends Assertion {
                 return;
             }
         }
+
         assertThat(errorMessage(), actualValue, equalTo(expectedValue));
     }
 

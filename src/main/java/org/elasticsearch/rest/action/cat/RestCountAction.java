@@ -39,6 +39,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -98,9 +99,9 @@ public class RestCountAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("time(ms)", "desc:time, in milliseconds since epoch UTC, that the count was executed");
-        table.addCell("timestamp", "desc:time that the count was executed");
-        table.addCell("count", "desc:the document count");
+        table.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00, that the count was executed");
+        table.addCell("timestamp", "alias:ts,hms;desc:time that the count was executed");
+        table.addCell("count", "alias:dc,docs.count,docsCount;desc:the document count");
         table.endHeaders();
         return table;
     }
@@ -111,7 +112,7 @@ public class RestCountAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
         long time = System.currentTimeMillis();
         table.startRow();
-        table.addCell(time);
+        table.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
         table.addCell(dateFormat.print(time));
         table.addCell(response.getCount());
         table.endRow();

@@ -116,8 +116,7 @@ public final class FileUtils {
 
     private static void collectFiles(final File file, final String fileSuffix, final Map<String, Set<File>> files) {
         if (file.isFile()) {
-            // '.' is uses as separator internally and not expected to be within suite or test names, better replace it
-            String groupName = file.getParentFile().getName().replace('.', '_');
+            String groupName = file.getParentFile().getName();
             Set<File> filesSet = files.get(groupName);
             if (filesSet == null) {
                 filesSet = Sets.newHashSet();

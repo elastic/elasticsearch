@@ -2,6 +2,18 @@
 "Routing":
 
  - do:
+     indices.create:
+       index:    test_1
+       body:
+         settings:
+           index:
+             number_of_replicas: 0
+
+ - do:
+      cluster.health:
+          wait_for_status: green
+
+ - do:
       update:
           index:   test_1
           type:    test

@@ -596,7 +596,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
         @Override
         public String toString(BytesRef ref) {
-            assert ref.length > 0;
+            assertTrue(ref.length > 0);
             return Double.toString(Double.parseDouble(super.toString(ref)));
         }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -177,9 +176,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         out.writeStringArrayNullable(types);
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
-        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
-            out.writeStringArrayNullable(completionDataFields);
-        }
+        out.writeStringArrayNullable(completionDataFields);
     }
 
     @Override
@@ -194,9 +191,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         types = in.readStringArray();
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
-            completionDataFields = in.readStringArray();
-        }
+        completionDataFields = in.readStringArray();
     }
 
     @Override

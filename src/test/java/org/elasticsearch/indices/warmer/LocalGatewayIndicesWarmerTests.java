@@ -127,7 +127,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
 
 
         logger.info("--> delete warmer warmer_1");
-        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("warmer_1").execute().actionGet();
         assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> verify warmers (delete) are registered in cluster state");

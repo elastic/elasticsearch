@@ -49,27 +49,29 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         if (sourceNodeId == null) { // we allocate - check primary
             if (shardRouting.primary()) {
                 // we are the primary we can allocate wherever
-                return Decision.YES;
+                return allocation.decision(Decision.YES, "primary shard can be allocated anywhere");
             }
             final MutableShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
             if (primary == null) { // we have a primary - it's a start ;)
-                return Decision.YES;
+                return allocation.decision(Decision.YES, "no active primary shard yet");
             }
             sourceNodeId = primary.currentNodeId();
         }
-        return isVersionCompatible(allocation.routingNodes(), sourceNodeId, node);
+        return isVersionCompatible(allocation.routingNodes(), sourceNodeId, node, allocation);
 
     }
 
-    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target) {
+    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target, RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
         if (target.node().version().onOrAfter(source.node().version())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "target node version [%s] is same or newer than source node version [%s]",
+                    target.node().version(), source.node().version());
         } else {
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "target node version [%s] is older than source node version [%s]",
+                    target.node().version(), source.node().version());
         }
     }
 }

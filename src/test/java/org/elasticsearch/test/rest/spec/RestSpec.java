@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.spec;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -27,7 +26,6 @@ import org.elasticsearch.test.rest.support.FileUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,24 +38,7 @@ public class RestSpec {
     }
 
     void addApi(RestApi restApi) {
-        if ("info".equals(restApi.getName())) {
-            //info and ping should really be two different api in the rest spec
-            //info (GET|HEAD /) needs to be manually split into 1) info: GET /  2) ping: HEAD /
-            restApiMap.put("info", new RestApi(restApi, "info", "GET"));
-            restApiMap.put("ping", new RestApi(restApi, "ping", "HEAD"));
-        } else if ("get".equals(restApi.getName())) {
-            //get_source endpoint shouldn't be present in the rest spec for the get api
-            //as get_source is already a separate api
-            List<String> paths = Lists.newArrayList();
-            for (String path : restApi.getPaths()) {
-                if (!path.endsWith("/_source")) {
-                    paths.add(path);
-                }
-            }
-            restApiMap.put(restApi.getName(), new RestApi(restApi, paths));
-        } else {
-            restApiMap.put(restApi.getName(), restApi);
-        }
+        restApiMap.put(restApi.getName(), restApi);
     }
 
     public RestApi getApi(String api) {
@@ -71,9 +52,13 @@ public class RestSpec {
         RestSpec restSpec = new RestSpec();
         for (String path : paths) {
             for (File jsonFile : FileUtils.findJsonSpec(optionalPathPrefix, path)) {
-                XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
-                RestApi restApi = new RestApiParser().parse(parser);
-                restSpec.addApi(restApi);
+                try {
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
+                    RestApi restApi = new RestApiParser().parse(parser);
+                    restSpec.addApi(restApi);
+                } catch (IOException ex) {
+                    throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
+                }
             }
         }
         return restSpec;

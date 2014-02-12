@@ -1,10 +1,10 @@
 {
   "indices.get_mapping": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-get-mapping.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
     "methods": ["GET"],
     "url": {
       "path": "/_mapping",
-      "paths": ["/_mapping", "/{index}/_mapping", "/{index}/{type}/_mapping"],
+      "paths": ["/_mapping", "/{index}/_mapping", "/_mapping/{type}", "/{index}/_mapping/{type}"],
       "parts": {
         "index": {
           "type" : "list",
@@ -29,6 +29,10 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "local": {
+          "type": "boolean",
+          "description": "Return local information, do not retrieve the state from master node (default: false)"
         }
       }
     },

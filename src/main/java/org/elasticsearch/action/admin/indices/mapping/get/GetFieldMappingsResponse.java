@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,6 +72,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject("mappings");
             for (Map.Entry<String, ImmutableMap<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
                 builder.startObject(typeEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
@@ -81,11 +83,14 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 builder.endObject();
             }
             builder.endObject();
+            builder.endObject();
         }
         return builder;
     }
 
     public static class FieldMappingMetaData implements ToXContent {
+        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
+
         private String fullName;
         private BytesReference source;
 
@@ -101,6 +106,10 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source.array(), source.arrayOffset(), source.length(), true).v2();
+        }
+
+        public boolean isNull() {
+            return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
         }
 
         @Override

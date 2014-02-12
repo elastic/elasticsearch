@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +51,7 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
         super.readFrom(in);
         transientSettings = ImmutableSettings.readSettingsFromStream(in);
         persistentSettings = ImmutableSettings.readSettingsFromStream(in);
-        readAcknowledged(in, Version.V_0_90_6);
+        readAcknowledged(in);
     }
 
     public Settings getTransientSettings() {
@@ -68,6 +67,6 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
         super.writeTo(out);
         ImmutableSettings.writeSettingsToStream(transientSettings, out);
         ImmutableSettings.writeSettingsToStream(persistentSettings, out);
-        writeAcknowledged(out, Version.V_0_90_6);
+        writeAcknowledged(out);
     }
 }

@@ -30,12 +30,8 @@ The `range` filter accepts the following parameters:
 `lte`::     Less-than or equal to
 `lt`::      Less-than
 
-deprecated[0.90.4,The `from`, `to`, `include_lower` and `include_upper` parameters have been deprecated in favour of `gt`,`gte`,`lt`,`lte`]
-
 [float]
 ==== Execution
-
-added[0.90.8]
 
 The `execution` option controls how the range filter internally executes. The `execution` option accepts the following values:
 
@@ -54,3 +50,6 @@ already faceting or sorting by.
 
 The result of the filter is only automatically cached by default if the `execution` is set to `index`. The
 `_cache` can be set to `false` to turn it off.
+
+If the `now` date math expression is used without rounding then a range filter will never be cached even if `_cache` is
+set to `true`. Also any filter that wraps this filter will never be cached.

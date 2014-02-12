@@ -3,6 +3,8 @@
 
 include::setup.asciidoc[]
 
+include::migration/migrate_1_0.asciidoc[]
+
 include::api-conventions.asciidoc[]
 
 include::docs.asciidoc[]
@@ -28,4 +30,6 @@ include::index-modules.asciidoc[]
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
+
+
 

@@ -39,7 +39,7 @@ public class RestTestSectionParser implements RestTestFragmentParser<TestSection
         parser.nextToken();
         testSection.setSkipSection(parseContext.parseSkipSection());
 
-        boolean skip = testSection.getSkipSection().skipVersion(parseContext.getCurrentVersion());
+        boolean skip = testSection.getSkipSection().skip(parseContext.getCurrentVersion());
 
         while ( parser.currentToken() != XContentParser.Token.END_ARRAY) {
             if (skip) {

@@ -38,7 +38,7 @@ for example:
 
 [source,shell]
 -----------------------------------
-bin/plugin --url file://path/to/plugin --install plugin-name
+bin/plugin --url file:///path/to/plugin --install plugin-name
 -----------------------------------
 
 
@@ -169,6 +169,15 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
 
 [float]
+[[discovery-plugins]]
+==== Discovery Plugins
+
+.Supported by Elasticsearch
+* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin] - EC2 discovery and S3 Repository
+* https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
+* https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
+
+[float]
 [[river]]
 ==== River Plugins
 
@@ -185,6 +194,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * http://www.pilato.fr/dropbox/[Dropbox River Plugin] (by David Pilato)
 * http://www.pilato.fr/fsriver/[FileSystem River Plugin] (by David Pilato)
 * https://github.com/obazoud/elasticsearch-river-git[Git River Plugin] (by Olivier Bazoud)
+* https://github.com/uberVU/elasticsearch-river-github[GitHub River Plugin] (by uberVU)
 * https://github.com/sksamuel/elasticsearch-river-hazelcast[Hazelcast River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
 * https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)
@@ -212,6 +222,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 .Supported by the community
 * https://github.com/tlrx/transport-zeromq[ZeroMQ transport layer plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport plugin] (by Sonian Inc.)
+* https://github.com/kzwang/elasticsearch-transport-redis[Redis transport plugin] (by Kevin Wang)
 
 [float]
 [[scripting]]
@@ -237,13 +248,24 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 
 [float]
+[[repository-plugins]]
+==== Snapshot/Restore Repository Plugins
+
+.Supported by Elasticsearch
+
+* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS] Repository
+* https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS S3] Repository
+
+.Supported by the community
+
+* https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+
+[float]
 [[misc]]
 ==== Misc Plugins
 
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]
-* https://github.com/elasticsearch/elasticsearch-hadoop[Hadoop Plugin]
-* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud Plugin]
 
 .Supported by the community
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)

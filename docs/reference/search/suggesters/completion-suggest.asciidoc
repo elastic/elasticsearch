@@ -8,11 +8,6 @@ The `completion` suggester is a so-called prefix suggester. It does not
 do spell correction like the `term` or `phrase` suggesters but allows
 basic `auto-complete` functionality.
 
-IMPORTANT: This feature is marked as experimental. This means, that
-the API is not considered stable, and that you might need to reindex
-your data after an upgrade in order to get suggestions up and running
-again. Please keep this in mind.
-
 ==== Why another suggester? Why not prefix queries?
 
 The first question which comes to mind when reading about a prefix
@@ -79,13 +74,13 @@ Mapping supports the following parameters:
     `The Beatles`, no need to change a simple analyzer, if you are able to
     enrich your data.
 
-`max_input_len`::
+`max_input_length`::
     Limits the length of a single input, defaults to `50` UTF-16 code points.
     This limit is only used at index time to reduce the total number of
     characters per input string in order to prevent massive inputs from
     bloating the underlying datastructure. The most usecases won't be influenced
     by the default value since prefix completions hardly grow beyond prefixes longer
-    than a handful of characters.
+    than a handful of characters. (Old name "max_input_len" is deprecated)
 
 [[indexing]]
 ==== Indexing
@@ -128,7 +123,7 @@ The following parameters are supported:
 
 NOTE: Even though you are losing most of the features of the
 completion suggest, you can opt in for the shortest form, which even
-allows you to use inside of multi_field. But keep in mind, that you will
+allows you to use inside of multi fields. But keep in mind, that you will
 not be able to use several inputs, an output, payloads or weights.
 
 [source,js]

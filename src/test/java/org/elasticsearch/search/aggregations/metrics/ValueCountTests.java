@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class ValueCountTests extends ElasticsearchIntegrationTest {
-    
+
     @Override
     public Settings indexSettings() {
         return ImmutableSettings.builder()
@@ -124,4 +123,80 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(20l));
     }
+
+    @Test
+    public void singleValuedScript() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc['value'].value"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(10l));
+    }
+
+    @Test
+    public void multiValuedScript() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc['values'].values"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(20l));
+    }
+
+    @Test
+    public void singleValuedScriptWithParams() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc[s].value").param("s", "value"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(10l));
+    }
+
+    @Test
+    public void multiValuedScriptWithParams() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc[s].values").param("s", "values"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(20l));
+    }
+
+    @Test
+    public void deduplication() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(count("count").script("doc['values'].values + [5L]"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        ValueCount valueCount = searchResponse.getAggregations().get("count");
+        assertThat(valueCount, notNullValue());
+        assertThat(valueCount.getName(), equalTo("count"));
+        assertThat(valueCount.getValue(), equalTo(28l));
+    }
+
 }

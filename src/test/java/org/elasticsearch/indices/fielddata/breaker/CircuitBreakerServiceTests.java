@@ -20,21 +20,31 @@
 package org.elasticsearch.indices.fielddata.breaker;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 
 /**
  * Integration tests for InternalCircuitBreakerService
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
+
+    private String randomRidiculouslySmallLimit() {
+        // 3 different ways to say 100 bytes
+        return randomFrom(Arrays.asList("100b", "100", (10000. / JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) + "%"));
+    }
 
     @Test
     @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
@@ -63,7 +73,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
             // Update circuit breaker settings
             Settings settings = settingsBuilder()
-                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, "100b")
+                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, randomRidiculouslySmallLimit())
                     .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                     .build();
             client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
@@ -71,11 +81,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             try {
-                client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
+                SearchResponse resp = client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
                         .execute().actionGet();
-                fail("should not reach this point");
+                assertFailures(resp);
             } catch (SearchPhaseExecutionException e) {
-                assert true;
             }
 
         } finally {
@@ -121,7 +130,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
             // Update circuit breaker settings
             Settings settings = settingsBuilder()
-                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, "100b")
+                    .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, randomRidiculouslySmallLimit())
                     .put(InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                     .build();
             client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
@@ -129,11 +138,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             try {
-                client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
+                SearchResponse resp = client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}")
                         .execute().actionGet();
-                fail("should not reach this point");
+                assertFailures(resp);
             } catch (SearchPhaseExecutionException e) {
-                assert true;
             }
 
         } finally {

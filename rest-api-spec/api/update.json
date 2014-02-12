@@ -1,6 +1,6 @@
 {
   "update": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-update.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-update.html",
     "methods": ["POST"],
     "url": {
       "path": "/{index}/{type}/{id}/_update",
@@ -39,10 +39,6 @@
         "parent": {
           "type" : "string",
           "description" : "ID of the parent document"
-        },
-        "percolate": {
-          "type" : "string",
-          "description" : "Perform percolation during the operation; use specific registered query name, attribute, or wildcard"
         },
         "refresh": {
           "type" : "boolean",

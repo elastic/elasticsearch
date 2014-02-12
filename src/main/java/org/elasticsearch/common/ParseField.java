@@ -50,11 +50,19 @@ public class ParseField {
             this.deprecatedNames = set.toArray(new String[0]);
         }
     }
+    
+    public String getPreferredName(){
+        return underscoreName;
+    }
 
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.underscoreName, deprecatedNames);
     }
-
+    
+    public boolean match(String currentFieldName) {
+        return match(currentFieldName, EMPTY_FLAGS);
+    }
+    
     public boolean match(String currentFieldName, EnumSet<Flag> flags) {
         if (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName)) {
             return true;

@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -61,7 +62,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        return ImmutableSettings.builder().put("discovery.zen.publish_timeout", 0).build();
+        return ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
     }
 
     @Test
@@ -123,7 +124,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
 
-        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer"));
+        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
 
         for (Client client : clients()) {
             GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
@@ -292,9 +293,9 @@ public class AckTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        assert fromNodeId != null;
-        assert toNodeId != null;
-        assert shardToBeMoved != null;
+        assertNotNull(fromNodeId);
+        assertNotNull(toNodeId);
+        assertNotNull(shardToBeMoved);
 
         logger.info("==> going to move shard [{}] from [{}] to [{}]", shardToBeMoved, fromNodeId, toNodeId);
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);

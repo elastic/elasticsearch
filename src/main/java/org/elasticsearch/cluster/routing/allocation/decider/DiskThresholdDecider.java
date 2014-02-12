@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -101,10 +100,6 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    public DiskThresholdDecider() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
-    }
-
     public DiskThresholdDecider(Settings settings) {
         this(settings, new NodeSettingsService(settings));
     }
@@ -134,11 +129,11 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (!enabled) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "disk threshold decider disabled");
         }
         // Allow allocation regardless if only a single node is available
         if (allocation.nodes().size() <= 1) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "only a single node is present");
         }
 
         ClusterInfo clusterInfo = allocation.clusterInfo();
@@ -146,7 +141,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (logger.isTraceEnabled()) {
                 logger.trace("Cluster info unavailable for disk threshold decider, allowing allocation.");
             }
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "cluster info unavailable");
         }
 
         Map<String, DiskUsage> usages = clusterInfo.getNodeDiskUsages();
@@ -155,7 +150,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (logger.isTraceEnabled()) {
                 logger.trace("Unable to determine disk usages for disk-aware allocation, allowing allocation");
             }
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "disk usages unavailable");
         }
 
         DiskUsage usage = usages.get(node.nodeId());
@@ -180,14 +175,16 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
                         freeBytesThresholdLow, freeBytes, node.nodeId());
             }
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "less than required [%s] free on node, free: [%s]",
+                    freeBytesThresholdLow, new ByteSizeValue(freeBytes));
         }
         if (freeDiskPercentage < freeDiskThresholdLow) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], preventing allocation",
                         freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
             }
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "less than required [%d%%] free disk on node, free: [%d%%]",
+                    freeDiskThresholdLow, freeDiskThresholdLow);
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
@@ -198,24 +195,26 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (freeBytesAfterShard < freeBytesThresholdHigh.bytes()) {
             logger.warn("After allocating, node [{}] would have less than the required {} free bytes threshold ({} bytes free), preventing allocation",
                     node.nodeId(), freeBytesThresholdHigh, freeBytesAfterShard);
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "after allocation less than required [%s] free on node, free: [%s]",
+                    freeBytesThresholdLow, new ByteSizeValue(freeBytesAfterShard));
         }
         if (freeSpaceAfterShard < freeDiskThresholdHigh) {
             logger.warn("After allocating, node [{}] would have less than the required {}% free disk threshold ({}% free), preventing allocation",
                     node.nodeId(), freeDiskThresholdHigh, freeSpaceAfterShard);
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+                    freeDiskThresholdLow, freeSpaceAfterShard);
         }
 
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "enough disk for shard on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (!enabled) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "disk threshold decider disabled");
         }
         // Allow allocation regardless if only a single node is available
         if (allocation.nodes().size() <= 1) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "only a single node is present");
         }
 
         ClusterInfo clusterInfo = allocation.clusterInfo();
@@ -223,7 +222,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (logger.isTraceEnabled()) {
                 logger.trace("Cluster info unavailable for disk threshold decider, allowing allocation.");
             }
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "cluster info unavailable");
         }
 
         Map<String, DiskUsage> usages = clusterInfo.getNodeDiskUsages();
@@ -231,7 +230,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (logger.isTraceEnabled()) {
                 logger.trace("Unable to determine disk usages for disk-aware allocation, allowing allocation");
             }
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "disk usages unavailable");
         }
 
         DiskUsage usage = usages.get(node.nodeId());
@@ -256,17 +255,19 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, shard cannot remain",
                         freeBytesThresholdHigh, freeBytes, node.nodeId());
             }
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "after allocation less than required [%s] free on node, free: [%s]",
+                    freeBytesThresholdHigh, new ByteSizeValue(freeBytes));
         }
         if (freeDiskPercentage < freeDiskThresholdHigh) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
                         freeDiskThresholdHigh, freeDiskPercentage, node.nodeId());
             }
-            return Decision.NO;
+            return allocation.decision(Decision.NO, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+                    freeDiskThresholdHigh, freeDiskPercentage);
         }
 
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "enough disk for shard to remain on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
     /**

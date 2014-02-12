@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -150,7 +149,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
-        readTimeout(in, Version.V_0_90_6);
+        readTimeout(in);
     }
 
     @Override
@@ -158,6 +157,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        writeTimeout(out, Version.V_0_90_6);
+        writeTimeout(out);
     }
 }

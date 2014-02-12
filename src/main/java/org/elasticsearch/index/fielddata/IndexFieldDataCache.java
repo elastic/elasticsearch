@@ -26,6 +26,7 @@ import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -100,10 +101,7 @@ public interface IndexFieldDataCache {
             return (FD) cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    if (context.reader() instanceof SegmentReader) {
-                        ((SegmentReader) context.reader()).addCoreClosedListener(FieldBased.this);
-                    }
-
+                    SegmentReaderUtils.registerCoreListener(context.reader(), FieldBased.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                     key.sizeInBytes = fieldData.getMemorySizeInBytes();
 

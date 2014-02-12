@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.RestStatus;
 
@@ -38,8 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 public interface Discovery extends LifecycleComponent<Discovery> {
 
     final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-
-    public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     DiscoveryNode localNode();
 

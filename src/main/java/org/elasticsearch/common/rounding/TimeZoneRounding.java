@@ -29,9 +29,7 @@ import java.io.IOException;
 
 /**
  */
-public abstract class TimeZoneRounding implements Rounding {
-
-    public abstract long round(long utcMillis);
+public abstract class TimeZoneRounding extends Rounding {
 
     public static Builder builder(DateTimeUnit unit) {
         return new Builder(unit);
@@ -148,9 +146,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            time = unit.field().roundFloor(time);
+            return unit.field().roundFloor(time);
+        }
+
+        @Override
+        public long valueForKey(long time) {
             // now, time is still in local, move it to UTC (or the adjustLargeInterval flag is set)
             time = time - preTz.getOffset(time);
             // now apply post Tz
@@ -160,7 +162,6 @@ public abstract class TimeZoneRounding implements Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-//            return value + unit.field().getDurationField().getUnitMillis();
             return unit.field().roundCeiling(value + 1);
         }
 
@@ -198,8 +199,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long roundKey(long utcMillis) {
             return unit.field().roundFloor(utcMillis);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return key;
         }
 
         @Override
@@ -241,9 +247,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            time = unit.field().roundFloor(time);
+            return unit.field().roundFloor(time);
+        }
+
+        @Override
+        public long valueForKey(long time) {
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
             time = time + postTz.getOffset(time);
@@ -289,8 +299,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
-            return Rounding.Interval.round(utcMillis, interval);
+        public long roundKey(long utcMillis) {
+            return Rounding.Interval.roundKey(utcMillis, interval);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return Rounding.Interval.roundValue(key, interval);
         }
 
         @Override
@@ -333,9 +348,14 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            time = Rounding.Interval.round(time, interval);
+            return Rounding.Interval.roundKey(time, interval);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            long time = Rounding.Interval.roundValue(key, interval);
             // now, time is still in local, move it to UTC
             time = time - preTz.getOffset(time);
             // now apply post Tz
@@ -386,9 +406,14 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            time = Rounding.Interval.round(time, interval);
+            return Rounding.Interval.roundKey(time, interval);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            long time = Rounding.Interval.roundValue(key, interval);
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
             time = time + postTz.getOffset(time);
@@ -437,8 +462,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
-            return timeZoneRounding.round((long) (factor * utcMillis));
+        public long roundKey(long utcMillis) {
+            return timeZoneRounding.roundKey((long) (factor * utcMillis));
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return timeZoneRounding.valueForKey(key);
         }
 
         @Override
@@ -483,8 +513,13 @@ public abstract class TimeZoneRounding implements Rounding {
         }
 
         @Override
-        public long round(long utcMillis) {
-            return postOffset + timeZoneRounding.round(utcMillis + preOffset);
+        public long roundKey(long utcMillis) {
+            return timeZoneRounding.roundKey(utcMillis + preOffset);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return postOffset + timeZoneRounding.valueForKey(key);
         }
 
         @Override

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterStateRequest> {
+public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterStateRequest> {
 
     private boolean routingTable = true;
     private boolean nodes = true;
@@ -38,7 +38,6 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
     private boolean blocks = true;
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] indexTemplates = Strings.EMPTY_ARRAY;
-    private boolean local = false;
 
     public ClusterStateRequest() {
     }
@@ -122,15 +121,6 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
         return this;
     }
 
-    public ClusterStateRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return this.local;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -140,7 +130,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
         blocks = in.readBoolean();
         indices = in.readStringArray();
         indexTemplates = in.readStringArray();
-        local = in.readBoolean();
+        readLocal(in);
     }
 
     @Override
@@ -152,6 +142,6 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
         out.writeBoolean(blocks);
         out.writeStringArray(indices);
         out.writeStringArray(indexTemplates);
-        out.writeBoolean(local);
+        writeLocal(out);
     }
 }

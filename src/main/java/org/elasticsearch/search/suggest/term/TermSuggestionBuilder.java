@@ -17,10 +17,10 @@
  * under the License.
  */
 package org.elasticsearch.search.suggest.term;
-import java.io.IOException;
-
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+
+import java.io.IOException;
 
 /**
  * Defines the actual suggest command. Each command uses the global options
@@ -211,10 +211,10 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             builder.field("max_term_freq", maxTermFreq);
         }
         if (prefixLength != null) {
-            builder.field("prefix_len", prefixLength);
+            builder.field("prefix_length", prefixLength);
         }
         if (minWordLength != null) {
-            builder.field("min_word_len", minWordLength);
+            builder.field("min_word_length", minWordLength);
         }
         if (minDocFreq != null) {
             builder.field("min_doc_freq", minDocFreq);

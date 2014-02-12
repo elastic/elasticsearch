@@ -44,6 +44,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -57,8 +58,10 @@ import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.client.RandomizingClient;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -99,25 +102,25 @@ import static org.hamcrest.Matchers.equalTo;
  * or {@link Scope#SUITE} should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
  * should be used, here is an example:
  * <pre>
- * @ClusterScope(scope=Scope.TEST)
- * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
- *   @Test
- *   public void testMethod() {}
+ *
+ * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
+ * @Test
+ * public void testMethod() {}
  * }
  * </pre>
- *
+ * <p/>
  * If no {@link ClusterScope} annotation is present on an integration test the default scope it {@link Scope#GLOBAL}
  * <p/>
  * A test cluster creates a set of nodes in the background before the test starts. The number of nodes in the cluster is
  * determined at random and can change across tests. The minimum number of nodes in the shared global cluster is <code>2</code>.
  * For other scopes the {@link ClusterScope} allows configuring the initial number of nodes that are created before
  * the tests start.
- *
+ * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numNodes=3)
  * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
- *   @Test
- *   public void testMethod() {}
+ * @Test
+ * public void testMethod() {}
  * }
  * </pre>
  * <p/>
@@ -125,16 +128,16 @@ import static org.hamcrest.Matchers.equalTo;
  * each test might use different directory implementation for each test or will return a random client to one of the
  * nodes in the cluster for each call to {@link #client()}. Test failures might only be reproducible if the correct
  * system properties are passed to the test execution environment.
- *
+ * <p/>
  * <p>
- *     This class supports the following system properties (passed with -Dkey=value to the application)
- *   <ul>
- *   <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
- *   <li>-D{@value TestCluster#TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
- *   <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
- *   useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
- *   <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
- *   </ul>
+ * This class supports the following system properties (passed with -Dkey=value to the application)
+ * <ul>
+ * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
+ * <li>-D{@value TestCluster#TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
+ * <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
+ * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
+ * <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
+ * </ul>
  * </p>
  */
 @Ignore
@@ -165,30 +168,31 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<Class<?>, TestCluster>();
-    
+
     @Before
     public final void before() throws IOException {
         assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             switch (currentClusterScope) {
-            case GLOBAL:
-                clearClusters();
-                currentCluster = GLOBAL_CLUSTER;
-                break;
-            case SUITE:
-                currentCluster = buildAndPutCluster(currentClusterScope, false);
-                break;
-            case TEST:
-                currentCluster = buildAndPutCluster(currentClusterScope, true);
-                break;
-            default:
-               assert false : "Unknown Scope: [" + currentClusterScope + "]";
+                case GLOBAL:
+                    clearClusters();
+                    currentCluster = GLOBAL_CLUSTER;
+                    break;
+                case SUITE:
+                    currentCluster = buildAndPutCluster(currentClusterScope, false);
+                    break;
+                case TEST:
+                    currentCluster = buildAndPutCluster(currentClusterScope, true);
+                    break;
+                default:
+                    fail("Unknown Scope: [" + currentClusterScope + "]");
             }
             currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
             wipeIndices("_all");
             wipeTemplates();
             randomIndexTemplate();
+            wipeRepositories();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -204,15 +208,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             testCluster = buildTestCluster(currentClusterScope);
         } else {
             clusters.remove(this.getClass());
-        } 
+        }
         clearClusters();
         clusters.put(this.getClass(), testCluster);
         return testCluster;
     }
-    
+
     private void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
-            for(TestCluster cluster : clusters.values()) {
+            for (TestCluster cluster : clusters.values()) {
                 cluster.close();
             }
             clusters.clear();
@@ -232,11 +236,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .persistentSettings().getAsMap().size(), equalTo(0));
                 assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                         .transientSettings().getAsMap().size(), equalTo(0));
-            
+
             }
             wipeIndices("_all"); // wipe after to make sure we fail in the test that
-                           // didn't ack the delete
+            // didn't ack the delete
             wipeTemplates();
+            wipeRepositories();
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
@@ -254,13 +259,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static TestCluster cluster() {
         return currentCluster;
     }
-    
+
     public ClusterService clusterService() {
         return cluster().clusterService();
     }
 
     public static Client client() {
-        return cluster().client();
+        Client client = cluster().client();
+        if (frequently()) {
+            client = new RandomizingClient((InternalClient) client, getRandom());
+        }
+        return client;
     }
 
     /**
@@ -271,10 +280,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             client().admin().indices().preparePutTemplate("random_index_template")
-            .setTemplate("*")
-            .setOrder(0)
-            .setSettings(setRandomNormsLoading(setRandomMergePolicy(getRandom(), ImmutableSettings.builder())
-                    .put(INDEX_SEED_SETTING, randomLong())))
+                    .setTemplate("*")
+                    .setOrder(0)
+                    .setSettings(setRandomNormsLoading(setRandomMergePolicy(getRandom(), ImmutableSettings.builder())
+                            .put(INDEX_SEED_SETTING, randomLong())))
                     .execute().actionGet();
         }
     }
@@ -292,15 +301,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
         }
         Class<? extends MergePolicyProvider<?>> clazz = TieredMergePolicyProvider.class;
-        switch(random.nextInt(5)) {
-        case 4:
-            clazz = LogByteSizeMergePolicyProvider.class;
-            break;
-        case 3:
-            clazz = LogDocMergePolicyProvider.class;
-            break;
-        case 0:
-            return builder; // don't set the setting at all
+        switch (random.nextInt(5)) {
+            case 4:
+                clazz = LogByteSizeMergePolicyProvider.class;
+                break;
+            case 3:
+                clazz = LogDocMergePolicyProvider.class;
+                break;
+            case 0:
+                return builder; // don't set the setting at all
         }
         assert clazz != null;
         builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, clazz.getName());
@@ -319,6 +328,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public Settings indexSettings() {
         return ImmutableSettings.EMPTY;
     }
+
     /**
      * Deletes the given indices from the tests cluster. If no index name is passed to this method
      * all indices are removed.
@@ -361,6 +371,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 try {
                     client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
                 } catch (IndexTemplateMissingException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    /**
+     * Deletes repositories, supports wildcard notation.
+     */
+    public static void wipeRepositories(String... repositories) {
+        if (cluster().size() > 0) {
+            // if nothing is provided, delete all
+            if (repositories.length == 0) {
+                repositories = new String[]{"*"};
+            }
+            for (String repository : repositories) {
+                try {
+                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                } catch (RepositoryMissingException ex) {
                     // ignore
                 }
             }
@@ -456,7 +485,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus ensureGreen(String...indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
@@ -498,7 +527,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
-    public ClusterHealthStatus ensureYellow(String...indices) {
+    public ClusterHealthStatus ensureYellow(String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(indices).waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
@@ -513,7 +542,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each
      * shard is available on the cluster.
      */
-    protected ClusterHealthStatus ensureSearchable(String...indices) {
+    protected ClusterHealthStatus ensureSearchable(String... indices) {
         // this is just a temporary thing but it's easier to change if it is encapsulated.
         return ensureGreen(indices);
     }
@@ -570,6 +599,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Waits for relocations and refreshes all indices in the cluster.
+     *
      * @see #waitForRelocation()
      */
     protected final RefreshResponse refresh() {
@@ -634,7 +664,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return client().admin();
     }
 
-    /** Convenience method that forwards to {@link #indexRandom(boolean, List)}. */
+    /**
+     * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
+     */
     public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
@@ -650,7 +682,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (builders.size() == 0) {
             return;
         }
-        
+
         Random random = getRandom();
         Set<String> indicesSet = new HashSet<String>();
         for (IndexRequestBuilder builder : builders) {
@@ -744,12 +776,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 latch.countDown();
             }
         }
-        
+
         protected void addError(Throwable t) {
         }
 
     }
-    
+
     private class PayloadLatchedActionListener<Response, T> extends LatchedActionListener<Response> {
         private final CopyOnWriteArrayList<Tuple<T, Throwable>> errors;
         private final T builder;
@@ -795,7 +827,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          */
         TEST
     }
-    
+
     private ClusterScope getAnnotation(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return null;
@@ -806,16 +838,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         return getAnnotation(clazz.getSuperclass());
     }
-    
+
     private Scope getCurrentClusterScope() {
         ClusterScope annotation = getAnnotation(this.getClass());
         // if we are not annotated assume global!
         return annotation == null ? Scope.GLOBAL : annotation.scope();
     }
-    
+
     private int getNumNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? -1 : annotation.numNodes();
+    }
+
+    private int getMinNumNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_NODES : annotation.minNumNodes();
+    }
+
+    private int getMaxNumNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_NODES : annotation.maxNumNodes();
     }
 
     /**
@@ -828,7 +870,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.EMPTY;
     }
-    
+
     private TestCluster buildTestCluster(Scope scope) {
         long currentClusterSeed = randomLong();
         int numNodes = getNumNodes();
@@ -848,7 +890,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             };
         }
 
-        return new TestCluster(currentClusterSeed, numNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
+        int minNumNodes, maxNumNodes;
+        if (numNodes >= 0) {
+            minNumNodes = maxNumNodes = numNodes;
+        } else {
+            minNumNodes = getMinNumNodes();
+            maxNumNodes = getMaxNumNodes();
+        }
+
+        return new TestCluster(currentClusterSeed, minNumNodes, maxNumNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
     }
 
     /**
@@ -866,9 +916,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         /**
          * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
-         * a random number of nodes but at least <code>2</code></tt> is used./
+         * a random number of nodes is used, where the minimum and maximum number of nodes
+         * are either the specified ones or the default ones if not specified.
          */
         int numNodes() default -1;
+
+        /**
+         * Returns the minimum number of nodes in the cluster. Default is {@link TestCluster#DEFAULT_MIN_NUM_NODES}.
+         * Ignored when {@link ClusterScope#numNodes()} is set.
+         */
+        int minNumNodes() default TestCluster.DEFAULT_MIN_NUM_NODES;
+
+        /**
+         * Returns the maximum number of nodes in the cluster.  Default is {@link TestCluster#DEFAULT_MAX_NUM_NODES}.
+         * Ignored when {@link ClusterScope#numNodes()} is set.
+         */
+        int maxNumNodes() default TestCluster.DEFAULT_MAX_NUM_NODES;
 
         /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
@@ -876,9 +939,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          */
         double transportClientRatio() default -1;
     }
-    
+
     /**
-     *  Returns the client ratio configured via
+     * Returns the client ratio configured via
      */
     private static double transportClientRatio() {
         String property = System.getProperty(TESTS_CLIENT_RATIO);
@@ -893,7 +956,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * {@link System#getProperty(String)} if available. If both are not available this will
      * return a random ratio in the interval <tt>[0..1]</tt>
      */
-    private double getPerTestTransportClientRatio() {
+    protected double getPerTestTransportClientRatio() {
         final ClusterScope annotation = getAnnotation(this.getClass());
         double perTestRatio = -1;
         if (annotation != null) {

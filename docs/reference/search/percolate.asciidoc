@@ -53,7 +53,7 @@ The above request will yield the following response:
         "successful" : 5,
         "failed" : 0
     },
-    "count" : 1,
+    "total" : 1,
     "matches" : [
     	{
     	     "_index" : "my-index",
@@ -291,11 +291,11 @@ Index response:
 [source,js]
 --------------------------------------------------
 {
-	"ok" : true,
 	"_index" : "my-index",
 	"_type" : "message",
 	"_id" : "1",
-	"_version" : 1
+	"_version" : 1,
+	"created" : true
 }
 --------------------------------------------------
 

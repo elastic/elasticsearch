@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -128,8 +129,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, boost, fieldType, docValues, nullValue, timeUnit, roundCeil, ignoreMalformed(context),
-                    postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+                    precisionStep, boost, fieldType, docValues, nullValue, timeUnit, roundCeil, ignoreMalformed(context), coerce(context),
+                    postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
+                    multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -201,13 +203,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected final TimeUnit timeUnit;
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
-                              String nullValue, TimeUnit timeUnit, boolean roundCeil, Explicit<Boolean> ignoreMalformed,
+                              String nullValue, TimeUnit timeUnit, boolean roundCeil, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
-                              Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
+
+                              Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())),
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
@@ -322,6 +325,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
     }
 
+    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean includeUpper) {
+        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
+        return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(value, now) : dateMathParser.parse(value, now);
+    }
+
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         final long lValue = parseToMilliseconds(value, context);
@@ -339,18 +347,93 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
-                includeLower, includeUpper);
+        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+    }
+
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
+        boolean cache = explicitCaching;
+        Long lowerVal = null;
+        Long upperVal = null;
+        if (lowerTerm != null) {
+            String value = convertToString(lowerTerm);
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+            lowerVal = parseToMilliseconds(value, context, false);
+        }
+        if (upperTerm != null) {
+            String value = convertToString(upperTerm);
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+            upperVal = parseToMilliseconds(value, context, includeUpper);
+        }
+
+        Filter filter =  NumericRangeFilter.newLongRange(
+            names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
+        );
+        if (!cache) {
+            // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
+            // a range filter with a `now` date expressions.
+            return NoCacheFilter.wrap(filter);
+        } else {
+            return filter;
+        }
     }
 
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData<?>) fieldData.getForField(this),
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
-                includeLower, includeUpper);
+        return rangeFilter(fieldData, lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+    }
+
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
+        boolean cache = explicitCaching;
+        Long lowerVal = null;
+        Long upperVal = null;
+        if (lowerTerm != null) {
+            String value = convertToString(lowerTerm);
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+            lowerVal = parseToMilliseconds(value, context, false);
+        }
+        if (upperTerm != null) {
+            String value = convertToString(upperTerm);
+            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+            upperVal = parseToMilliseconds(value, context, includeUpper);
+        }
+
+        Filter filter =  NumericRangeFieldDataFilter.newLongRange(
+            (IndexNumericFieldData<?>) fieldData.getForField(this), lowerVal,upperVal, includeLower, includeUpper
+        );
+        if (!cache) {
+            // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
+            // a range filter with a `now` date expressions.
+            return NoCacheFilter.wrap(filter);
+        } else {
+            return filter;
+        }
+    }
+
+    private boolean hasNowExpressionWithNoRounding(String value) {
+        int index = value.indexOf("now");
+        if (index != -1) {
+            if (value.length() == 3) {
+                return true;
+            } else {
+                int indexOfPotentialRounding = index + 3;
+                if (indexOfPotentialRounding >= value.length()) {
+                    return true;
+                } else {
+                    char potentialRoundingChar;
+                    do {
+                        potentialRoundingChar = value.charAt(indexOfPotentialRounding++);
+                        if (potentialRoundingChar == '/') {
+                            return false; // We found the rounding char, so we shouldn't forcefully disable caching
+                        } else if (potentialRoundingChar == ' ') {
+                            return true; // Next token in the date math expression and no rounding found, so we should not cache.
+                        }
+                    } while (indexOfPotentialRounding < value.length());
+                    return true; // Couldn't find rounding char, so we should not cache
+                }
+            }
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -392,7 +475,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             if (token == XContentParser.Token.VALUE_NULL) {
                 dateAsString = nullValue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = parser.longValue();
+                value = parser.longValue(coerce.value());
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -403,7 +486,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                             if (token == XContentParser.Token.VALUE_NULL) {
                                 dateAsString = nullValue;
                             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                value = parser.longValue();
+                                value = parser.longValue(coerce.value());
                             } else {
                                 dateAsString = parser.text();
                             }

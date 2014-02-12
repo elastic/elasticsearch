@@ -18,19 +18,27 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
-import org.elasticsearch.search.aggregations.bucket.range.RangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.joda.time.DateTime;
+
+import java.util.Collection;
 
 /**
  *
  */
-public interface DateRange extends RangeBase<DateRange.Bucket> {
+public interface DateRange extends Range {
 
-    static interface Bucket extends RangeBase.Bucket {
+    static interface Bucket extends Range.Bucket {
 
         DateTime getFromAsDate();
 
         DateTime getToAsDate();
     }
+
+    @Override
+    Collection<? extends DateRange.Bucket> getBuckets();
+
+    @Override
+    DateRange.Bucket getBucketByKey(String key);
 
 }

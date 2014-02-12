@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.blobstore;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,11 +36,14 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository.RateLimiterListener;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -95,7 +99,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * }
  * </pre>
  */
-public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository {
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository, RateLimiterListener {
 
     private ImmutableBlobContainer snapshotsBlobContainer;
 
@@ -111,6 +115,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private final ToXContent.Params globalOnlyFormatParams;
 
+    private final RateLimiter snapshotRateLimiter;
+
+    private final RateLimiter restoreRateLimiter;
+
+    private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
+
+
     /**
      * Constructs new BlobStoreRepository
      *
@@ -125,6 +138,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         Map<String, String> globalOnlyParams = Maps.newHashMap();
         globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
         globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+        snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
+        restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
     }
 
     /**
@@ -133,7 +148,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     protected void doStart() throws ElasticsearchException {
         this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath());
-        indexShardRepository.initialize(blobStore(), basePath(), chunkSize());
+        indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
     }
 
     /**
@@ -395,6 +410,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     }
 
     /**
+     * Configures RateLimiter based on repository and global settings
+     * @param repositorySettings repository settings
+     * @param setting setting to use to configure rate limiter
+     * @param defaultRate default limiting rate
+     * @return rate limiter or null of no throttling is needed
+     */
+    private RateLimiter getRateLimiter(RepositorySettings repositorySettings, String setting, ByteSizeValue defaultRate) {
+        ByteSizeValue maxSnapshotBytesPerSec =  repositorySettings.settings().getAsBytesSize(setting,
+                componentSettings.getAsBytesSize(setting, defaultRate));
+        if (maxSnapshotBytesPerSec.bytes() <= 0) {
+            return null;
+        } else {
+            return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.mbFrac());
+        }
+    }
+
+    /**
      * Parses JSON containing snapshot description
      *
      * @param data snapshot description in JSON format
@@ -574,4 +606,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         return ImmutableList.copyOf(snapshots);
     }
 
+    @Override
+    public void onRestorePause(long nanos) {
+        restoreRateLimitingTimeInNanos.inc(nanos);
+    }
+
+    @Override
+    public void onSnapshotPause(long nanos) {
+        snapshotRateLimitingTimeInNanos.inc(nanos);
+    }
+
+    @Override
+    public long snapshotThrottleTimeInNanos() {
+        return snapshotRateLimitingTimeInNanos.count();
+    }
+
+    @Override
+    public long restoreThrottleTimeInNanos() {
+        return restoreRateLimitingTimeInNanos.count();
+    }
 }

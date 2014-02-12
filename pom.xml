@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>1.0.0.RC1-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -30,21 +30,13 @@
     </parent>
 
     <properties>
-        <lucene.version>4.6.0</lucene.version>
+        <lucene.version>4.6.1</lucene.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>elasticsearch</id>
-            <name>elasticsearch repo</name>
-            <url>http://elasticsearch.googlecode.com/svn/maven</url>
-        </repository>
-    </repositories>
 
     <dependencies>
         <dependency>
@@ -64,6 +56,12 @@
             <artifactId>lucene-test-framework</artifactId>
             <version>${lucene.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-expressions</artifactId>
+            <version>${lucene.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
@@ -172,14 +170,8 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>15.0</version>
+            <version>16.0</version>
             <scope>compile</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.code.findbugs</groupId>
-                    <artifactId>jsr305</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>
@@ -385,8 +377,9 @@
                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
-                                <enable />
-                                <disable package="${tests.assertion.disabled}"/>  <!-- pass org.elasticsearch to run without assertions -->
+                                <enable/>
+                                <disable package="${tests.assertion.disabled}"/>
+                                <!-- pass org.elasticsearch to run without assertions -->
                             </assertions>
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
@@ -417,6 +410,7 @@
                             <seed>${tests.seed}</seed>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <systemProperties>
+                                <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
@@ -445,7 +439,11 @@
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
+                                <tests.security.manager>${tests.security.manager}</tests.security.manager>
                                 <java.awt.headless>true</java.awt.headless>
+                                <!-- everything below is for security manager / test.policy -->
+                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
+                                <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>
@@ -840,7 +838,7 @@
                                 </source>
                             </sources>
                         </mapping>
-                         <mapping>
+                        <mapping>
                             <directory>/usr/lib/sysctl.d/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
@@ -984,6 +982,9 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
+                                <exclude>org/apache/lucene/search/XReferenceManager.class</exclude>
+                                <exclude>org/apache/lucene/search/XSearcherManager.class</exclude>
+                                <exclude>org/elasticsearch/index/percolator/stats/ShardPercolateService$RamEstimator.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
                                 <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
@@ -1059,8 +1060,10 @@
                         <configuration>
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
+                                <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
-                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include> <!-- inner classes -->
+                                <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <!-- inner classes -->
                                 <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
                             <excludes>
@@ -1074,27 +1077,28 @@
                 </executions>
             </plugin>
             <plugin>
-              <groupId>com.mycila</groupId>
-              <artifactId>license-maven-plugin</artifactId>
-              <version>2.5</version>
-              <configuration>
-                <header>dev-tools/elasticsearch_license_header.txt</header>
-                <headerDefinitions>
-                  <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                </headerDefinitions>
-                <includes>
-                    <include>src/main/java/org/elasticsearch/**/*.java</include>
-                    <include>src/test/java/org/elasticsearch/**/*.java</include>
-                </includes>
-                <excludes>
-                    <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>  <!-- Guice -->
-                    <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                    <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
-                    <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
-                    <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
-                    <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                </excludes>
-              </configuration>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>2.5</version>
+                <configuration>
+                    <header>dev-tools/elasticsearch_license_header.txt</header>
+                    <headerDefinitions>
+                        <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                    </headerDefinitions>
+                    <includes>
+                        <include>src/main/java/org/elasticsearch/**/*.java</include>
+                        <include>src/test/java/org/elasticsearch/**/*.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                        <!-- Guice -->
+                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
+                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
+                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                    </excludes>
+                </configuration>
                 <!--  We can't run by default since the package is broken with java 1.6
                       see https://github.com/mycila/license-maven-plugin/issues/35
                 <executions>
@@ -1106,7 +1110,7 @@
                 </executions>
                 -->
             </plugin>
-        </plugins>	
+        </plugins>
         <pluginManagement>
             <plugins>
                 <!-- make m2e stfu -->
@@ -1128,7 +1132,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- forbidden-apis plugin -->
@@ -1143,7 +1147,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- exec-maven plugin -->
@@ -1157,7 +1161,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                                 <!-- copy-dependency plugin -->
@@ -1171,7 +1175,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute />
+                                        <execute/>
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>

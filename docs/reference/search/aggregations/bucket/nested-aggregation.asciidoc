@@ -3,7 +3,8 @@
 
 A special single bucket aggregation that enables aggregating nested documents.
 
-For example, lets say we have a index of products, and each product holds the list of resellers - each having its own price for the product. The mapping could look like:
+For example, lets say we have a index of products, and each product holds the list of resellers - each having its own
+price for the product. The mapping could look like:
 
 [source,js]
 --------------------------------------------------
@@ -47,7 +48,8 @@ The following aggregations will return the minimum price products can be purchas
 }
 --------------------------------------------------
 
-As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents. Then one can define any type of aggregation over these nested documents.
+As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents.
+Then one can define any type of aggregation over these nested documents.
 
 Response:
 
@@ -56,7 +58,9 @@ Response:
 {
     "aggregations": {
         "resellers": {
-            "min_price": 350
+            "min_price": {
+                "value" : 350
+            }
         }
     }
 }

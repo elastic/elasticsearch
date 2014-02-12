@@ -108,7 +108,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to create the index with.
      */
     Settings settings() {
         return settings;
@@ -130,7 +130,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to create the index with.
      */
     public CreateIndexRequest settings(Settings settings) {
         this.settings = settings;
@@ -138,7 +138,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to created the index with.
+     * The settings to create the index with.
      */
     public CreateIndexRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
@@ -146,7 +146,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
@@ -166,7 +166,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json/yaml/properties format)
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest settings(Map source) {
@@ -265,6 +265,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return source(source, 0, source.length);
     }
 
+    /**
+     * Sets the settings and mappings as a single source.
+     */
     public CreateIndexRequest source(byte[] source, int offset, int length) {
         return source(new BytesArray(source, offset, length));
     }
@@ -327,6 +330,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this.mappings;
     }
 
+    /**
+     * Adds custom metadata to the index to be created.
+     */
     public CreateIndexRequest custom(IndexMetaData.Custom custom) {
         customs.put(custom.type(), custom);
         return this;

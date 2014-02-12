@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
  */
 public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
 
-    public static final long MAX_IP = 4294967296l;
     private static final Pattern MASK_PATTERN = Pattern.compile("[\\.|/]");
 
     public IPv4RangeBuilder(String name) {
@@ -113,8 +112,8 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
         }
 
         int to = from + (~mask);
-        long longTo = intIpToLongIp(to) + 1; // we have to +1 the here as the range is non-inclusive on the "to" side
-        if (longTo == MAX_IP) {
+        long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range is non-inclusive on the "to" side
+        if (longTo == InternalIPv4Range.MAX_IP) {
             longTo = -1;
         }
 

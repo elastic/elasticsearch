@@ -113,6 +113,17 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
+     * If set to true the request should snapshot indices with unavailable shards
+     *
+     * @param partial true if request should snapshot indices with unavailable shards
+     * @return this builder
+     */
+    public CreateSnapshotRequestBuilder setPartial(boolean partial) {
+        request.partial(partial);
+        return this;
+    }
+
+    /**
      * Sets repository-specific snapshot settings.
      * <p/>
      * See repository documentation for more information.

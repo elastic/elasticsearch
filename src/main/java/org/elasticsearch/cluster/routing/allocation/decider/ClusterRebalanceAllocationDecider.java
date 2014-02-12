@@ -19,15 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -91,27 +87,27 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, "cluster has unassigned primary shards");
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, "cluster has inactive primary shards");
             }
 
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "all primary shards are active");
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
             if ( allocation.routingNodes().hasUnassignedShards() ) {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, "cluster has unassigned shards");
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, "cluster has inactive shards");
             }
         }
         // type == Type.ALWAYS
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "all shards are active");
     }
 }

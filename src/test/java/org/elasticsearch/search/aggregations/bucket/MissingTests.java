@@ -202,14 +202,14 @@ public class MissingTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true)
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
                         .subAggregation(missing("missing")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, Matchers.notNullValue());
 
         Missing missing = bucket.getAggregations().get("missing");

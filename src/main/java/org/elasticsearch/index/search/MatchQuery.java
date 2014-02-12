@@ -20,16 +20,11 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CachingTokenFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -42,7 +37,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
@@ -145,6 +139,31 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
+    protected boolean forceAnalyzeQueryString() {
+        return false;
+    }
+
+    protected Analyzer getAnalyzer(FieldMapper mapper, MapperService.SmartNameFieldMappers smartNameFieldMappers) {
+        Analyzer analyzer = null;
+        if (this.analyzer == null) {
+            if (mapper != null) {
+                analyzer = mapper.searchAnalyzer();
+            }
+            if (analyzer == null && smartNameFieldMappers != null) {
+                analyzer = smartNameFieldMappers.searchAnalyzer();
+            }
+            if (analyzer == null) {
+                analyzer = parseContext.mapperService().searchAnalyzer();
+            }
+        } else {
+            analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
+            if (analyzer == null) {
+                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
+            }
+        }
+        return analyzer;
+    }
+
     public Query parse(Type type, String fieldName, Object value) throws IOException {
         FieldMapper mapper = null;
         final String field;
@@ -156,7 +175,7 @@ public class MatchQuery {
             field = fieldName;
         }
 
-        if (mapper != null && mapper.useTermQueryWithQueryString()) {
+        if (mapper != null && mapper.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
@@ -180,185 +199,102 @@ public class MatchQuery {
                 }
             }
         }
+        Analyzer analyzer = getAnalyzer(mapper, smartNameFieldMappers);
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, mapper);
+        builder.setEnablePositionIncrements(this.enablePositionIncrements);
 
-        Analyzer analyzer = null;
-        if (this.analyzer == null) {
-            if (mapper != null) {
-                analyzer = mapper.searchAnalyzer();
-            }
-            if (analyzer == null && smartNameFieldMappers != null) {
-                analyzer = smartNameFieldMappers.searchAnalyzer();
-            }
-            if (analyzer == null) {
-                analyzer = parseContext.mapperService().searchAnalyzer();
-            }
-        } else {
-            analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
-            if (analyzer == null) {
-                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
-            }
-        }
-
-        // Logic similar to QueryParser#getFieldQuery
-        final TokenStream source = analyzer.tokenStream(field, value.toString());
-        source.reset();
-        int numTokens = 0;
-        int positionCount = 0;
-        boolean severalTokensAtSamePosition = false;
-        
-        final CachingTokenFilter buffer = new CachingTokenFilter(source);
-        buffer.reset();
-        final CharTermAttribute termAtt = buffer.addAttribute(CharTermAttribute.class);
-        final PositionIncrementAttribute posIncrAtt = buffer.addAttribute(PositionIncrementAttribute.class);
-        boolean hasMoreTokens =  buffer.incrementToken();
-        while (hasMoreTokens) {
-            numTokens++;
-            int positionIncrement = posIncrAtt.getPositionIncrement();
-            if (positionIncrement != 0) {
-                positionCount += positionIncrement;
-            } else {
-                severalTokensAtSamePosition = true;
-            }
-            hasMoreTokens = buffer.incrementToken();
-        }
-        // rewind the buffer stream
-        buffer.reset();
-        source.close();
-
-        if (numTokens == 0) {
-            return zeroTermsQuery();
-        } else if (type == Type.BOOLEAN) {
-            if (numTokens == 1) {
-                boolean hasNext = buffer.incrementToken();
-                assert hasNext == true;
-                final Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
-                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
-            }
-            if (commonTermsCutoff != null) {
-                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1);
-                for (int i = 0; i < numTokens; i++) {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    q.add(new Term(field, termToByteRef(termAtt)));
-                }
-                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
-            } if (severalTokensAtSamePosition && occur == Occur.MUST) {
-                BooleanQuery q = new BooleanQuery(positionCount == 1);
-                Query currentQuery = null;
-                for (int i = 0; i < numTokens; i++) {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                  if (posIncrAtt != null && posIncrAtt.getPositionIncrement() == 0) {
-                    if (!(currentQuery instanceof BooleanQuery)) {
-                      Query t = currentQuery;
-                      currentQuery = new BooleanQuery(true);
-                      ((BooleanQuery)currentQuery).add(t, BooleanClause.Occur.SHOULD);
-                    }
-                    ((BooleanQuery)currentQuery).add(newTermQuery(mapper, new Term(field, termToByteRef(termAtt))), BooleanClause.Occur.SHOULD);
-                  } else {
-                    if (currentQuery != null) {
-                      q.add(currentQuery, occur);
-                    }
-                    currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
-                  }
-                }
-                q.add(currentQuery, occur);
-                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
-            } else {
-                BooleanQuery q = new BooleanQuery(positionCount == 1);
-                for (int i = 0; i < numTokens; i++) {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    final Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
-                    q.add(currentQuery, occur);
-                }
-                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
-            }
-        } else if (type == Type.PHRASE) {
-            if (severalTokensAtSamePosition) {
-                final MultiPhraseQuery mpq = new MultiPhraseQuery();
-                mpq.setSlop(phraseSlop);
-                final List<Term> multiTerms = new ArrayList<Term>();
-                int position = -1;
-                for (int i = 0; i < numTokens; i++) {
-                    int positionIncrement = 1;
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    positionIncrement = posIncrAtt.getPositionIncrement();
-
-                    if (positionIncrement > 0 && multiTerms.size() > 0) {
-                        if (enablePositionIncrements) {
-                            mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
-                        } else {
-                            mpq.add(multiTerms.toArray(new Term[multiTerms.size()]));
-                        }
-                        multiTerms.clear();
-                    }
-                    position += positionIncrement;
-                    //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8 
-                    multiTerms.add(new Term(field, termToByteRef(termAtt)));
-                }
-                if (enablePositionIncrements) {
-                    mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
+        Query query = null;
+        switch (type) {
+            case BOOLEAN:
+                if (commonTermsCutoff == null) {
+                    query = builder.createBooleanQuery(field, value.toString(), occur);
                 } else {
-                    mpq.add(multiTerms.toArray(new Term[multiTerms.size()]));
+                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff);
                 }
-                return wrapSmartNameQuery(mpq, smartNameFieldMappers, parseContext);
-            } else {
-                PhraseQuery pq = new PhraseQuery();
-                pq.setSlop(phraseSlop);
-                int position = -1;
-                for (int i = 0; i < numTokens; i++) {
-                    int positionIncrement = 1;
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    positionIncrement = posIncrAtt.getPositionIncrement();
-
-                    if (enablePositionIncrements) {
-                        position += positionIncrement;
-                        //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                        pq.add(new Term(field, termToByteRef(termAtt)), position);
-                    } else {
-                        pq.add(new Term(field, termToByteRef(termAtt)));
-                    }
-                }
-                return wrapSmartNameQuery(pq, smartNameFieldMappers, parseContext);
-            }
-        } else if (type == Type.PHRASE_PREFIX) {
-            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery();
-            mpq.setSlop(phraseSlop);
-            mpq.setMaxExpansions(maxExpansions);
-            List<Term> multiTerms = new ArrayList<Term>();
-            int position = -1;
-            for (int i = 0; i < numTokens; i++) {
-                int positionIncrement = 1;
-                boolean hasNext = buffer.incrementToken();
-                assert hasNext == true;
-                positionIncrement = posIncrAtt.getPositionIncrement();
-
-                if (positionIncrement > 0 && multiTerms.size() > 0) {
-                    if (enablePositionIncrements) {
-                        mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
-                    } else {
-                        mpq.add(multiTerms.toArray(new Term[multiTerms.size()]));
-                    }
-                    multiTerms.clear();
-                }
-                position += positionIncrement;
-                multiTerms.add(new Term(field, termToByteRef(termAtt)));
-            }
-            if (enablePositionIncrements) {
-                mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
-            } else {
-                mpq.add(multiTerms.toArray(new Term[multiTerms.size()]));
-            }
-            return wrapSmartNameQuery(mpq, smartNameFieldMappers, parseContext);
+                break;
+            case PHRASE:
+                query = builder.createPhraseQuery(field, value.toString(), phraseSlop);
+                break;
+            case PHRASE_PREFIX:
+                query = builder.createPhrasePrefixQuery(field, value.toString(), phraseSlop, maxExpansions);
+                break;
+            default:
+                throw new ElasticsearchIllegalStateException("No type found for [" + type + "]");
         }
 
-        throw new ElasticsearchIllegalStateException("No type found for [" + type + "]");
+        if (query == null) {
+            return zeroTermsQuery();
+        } else {
+            return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        }
     }
 
-    private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
+    protected Query zeroTermsQuery() {
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
+    }
+
+    private class MatchQueryBuilder extends QueryBuilder {
+
+        private final FieldMapper mapper;
+        /**
+         * Creates a new QueryBuilder using the given analyzer.
+         */
+        public MatchQueryBuilder(Analyzer analyzer, @Nullable FieldMapper mapper) {
+            super(analyzer);
+            this.mapper = mapper;
+         }
+
+        @Override
+        protected Query newTermQuery(Term term) {
+            return blendTermQuery(term, mapper);
+        }
+
+
+        public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
+            Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            if (query instanceof PhraseQuery) {
+                PhraseQuery pq = (PhraseQuery)query;
+                MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
+                prefixQuery.setMaxExpansions(maxExpansions);
+                Term[] terms = pq.getTerms();
+                int[] positions = pq.getPositions();
+                for (int i = 0; i < terms.length; i++) {
+                    prefixQuery.add(new Term[] {terms[i]}, positions[i]);
+                }
+                return prefixQuery;
+            } else if (query instanceof MultiPhraseQuery) {
+                MultiPhraseQuery pq = (MultiPhraseQuery)query;
+                MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
+                prefixQuery.setMaxExpansions(maxExpansions);
+                List<Term[]> terms = pq.getTermArrays();
+                int[] positions = pq.getPositions();
+                for (int i = 0; i < terms.size(); i++) {
+                    prefixQuery.add(terms.get(i), positions[i]);
+                }
+                return prefixQuery;
+            }
+            return query;
+        }
+
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
+            Query booleanQuery = createBooleanQuery(field, queryText, Occur.SHOULD);
+            if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
+                BooleanQuery bq = (BooleanQuery) booleanQuery;
+                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled());
+                for (BooleanClause clause : bq.clauses()) {
+                    if (!(clause.getQuery() instanceof TermQuery)) {
+                        return booleanQuery;
+                    }
+                    query.add(((TermQuery) clause.getQuery()).getTerm());
+                }
+                return query;
+            }
+            return booleanQuery;
+
+        }
+    }
+
+    protected Query blendTermQuery(Term term, FieldMapper mapper) {
         if (fuzziness != null) {
             if (mapper != null) {
                 Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
@@ -379,14 +315,5 @@ public class MatchQuery {
         }
         return new TermQuery(term);
     }
-    
-    private static BytesRef termToByteRef(CharTermAttribute attr) {
-        final BytesRef ref = new BytesRef();
-        UnicodeUtil.UTF16toUTF8(attr.buffer(), 0, attr.length(), ref);
-        return ref;
-    }
 
-    protected Query zeroTermsQuery() {
-        return zeroTermsQuery == ZeroTermsQuery.NONE ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
-    }
 }

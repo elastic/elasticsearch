@@ -99,18 +99,19 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             SnapshotMetaData snapshotMetaData = allocation.metaData().custom(SnapshotMetaData.TYPE);
             if (snapshotMetaData == null) {
                 // Snapshots are not running
-                return Decision.YES;
+                return allocation.decision(Decision.YES, "no snapshots are currently running");
             }
 
             for (SnapshotMetaData.Entry snapshot : snapshotMetaData.entries()) {
                 SnapshotMetaData.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
                 if (shardSnapshotStatus != null && !shardSnapshotStatus.state().completed() && shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     logger.trace("Preventing snapshotted shard [{}] to be moved from node [{}]", shardRouting.shardId(), shardSnapshotStatus.nodeId());
-                    return Decision.NO;
+                    return allocation.decision(Decision.NO, "snapshot for shard [%s] is currently running on node [%s]",
+                            shardRouting.shardId(), shardSnapshotStatus.nodeId());
                 }
             }
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "shard not primary or relocation disabled");
     }
 
 }

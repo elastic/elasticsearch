@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -41,6 +42,7 @@ import java.io.IOException;
 public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
     private final BytesValuesSource valuesSource;
+    private BytesValues values;
 
     // a count per bucket
     LongArray counts;
@@ -61,11 +63,12 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
+    public void setNextReader(AtomicReaderContext reader) {
+        values = valuesSource.bytesValues();
+    }
+
+    @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        BytesValues values = valuesSource.bytesValues();
-        if (values == null) {
-            return;
-        }
         counts = BigArrays.grow(counts, owningBucketOrdinal + 1);
         counts.increment(owningBucketOrdinal, values.setDocument(doc));
     }

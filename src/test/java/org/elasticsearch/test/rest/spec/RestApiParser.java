@@ -70,11 +70,43 @@ public class RestApiParser {
                                 }
                             }
 
+                            if (parser.currentToken() == XContentParser.Token.START_OBJECT && "params".equals(currentFieldName)) {
+                                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                    restApi.addParam(parser.currentName());
+                                    parser.nextToken();
+                                    assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                                    parser.skipChildren();
+                                }
+                            }
+
                             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                                 innerLevel++;
                             }
                             if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
                                 innerLevel--;
+                            }
+                        }
+                    }
+
+                    if ("body".equals(parser.currentName())) {
+                        parser.nextToken();
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            boolean requiredFound = false;
+                            while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                    if ("required".equals(parser.currentName())) {
+                                        requiredFound = true;
+                                        parser.nextToken();
+                                        if (parser.booleanValue()) {
+                                            restApi.setBodyRequired();
+                                        } else {
+                                            restApi.setBodyOptional();
+                                        }
+                                    }
+                                }
+                            }
+                            if (!requiredFound) {
+                                restApi.setBodyOptional();
                             }
                         }
                     }

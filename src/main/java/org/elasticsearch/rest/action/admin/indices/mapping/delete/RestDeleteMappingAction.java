@@ -41,13 +41,18 @@ public class RestDeleteMappingAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(DELETE, "/{index}/{type}/_mapping", this);
         controller.registerHandler(DELETE, "/{index}/{type}", this);
+        controller.registerHandler(DELETE, "/{index}/_mapping/{type}", this);
+        
+        //support _mappings also
+        controller.registerHandler(DELETE, "/{index}/{type}/_mappings", this);
+        controller.registerHandler(DELETE, "/{index}/_mappings/{type}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteMappingRequest.listenerThreaded(false);
-        deleteMappingRequest.type(request.param("type"));
+        deleteMappingRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         deleteMappingRequest.timeout(request.paramAsTime("timeout", deleteMappingRequest.timeout()));
         deleteMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteMappingRequest.masterNodeTimeout()));
         deleteMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteMappingRequest.indicesOptions()));

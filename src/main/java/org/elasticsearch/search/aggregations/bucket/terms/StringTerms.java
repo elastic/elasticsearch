@@ -57,7 +57,7 @@ public class StringTerms extends InternalTerms {
 
     public static class Bucket extends InternalTerms.Bucket {
 
-        final BytesRef termBytes;
+        BytesRef termBytes;
 
         public Bucket(BytesRef term, long docCount, InternalAggregations aggregations) {
             super(docCount, aggregations);
@@ -65,7 +65,12 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        public Text getKey() {
+        public String getKey() {
+            return termBytes.utf8ToString();
+        }
+
+        @Override
+        public Text getKeyAsText() {
             return new BytesText(new BytesArray(termBytes));
         }
 
@@ -83,8 +88,8 @@ public class StringTerms extends InternalTerms {
 
     StringTerms() {} // for serialization
 
-    public StringTerms(String name, InternalOrder order, int requiredSize, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, buckets);
+    public StringTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+        super(name, order, requiredSize, minDocCount, buckets);
     }
 
     @Override
@@ -96,7 +101,8 @@ public class StringTerms extends InternalTerms {
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.requiredSize = in.readVInt();
+        this.requiredSize = readSize(in);
+        this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
         for (int i = 0; i < size; i++) {
@@ -110,7 +116,8 @@ public class StringTerms extends InternalTerms {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
-        out.writeVInt(requiredSize);
+        writeSize(requiredSize, out);
+        out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeBytesRef(((Bucket) bucket).termBytes);

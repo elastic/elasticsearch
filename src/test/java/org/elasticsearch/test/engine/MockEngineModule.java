@@ -26,6 +26,6 @@ public class MockEngineModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(Engine.class).to(MockRobinEngine.class).asEagerSingleton();
+        bind(Engine.class).to(MockInternalEngine.class).asEagerSingleton();
     }
 }

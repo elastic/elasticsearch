@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -146,7 +145,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
-        readTimeout(in, Version.V_0_90_6);
+        readTimeout(in);
     }
 
     @Override
@@ -155,6 +154,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         writeSettingsToStream(settings, out);
-        writeTimeout(out, Version.V_0_90_6);
+        writeTimeout(out);
     }
 }

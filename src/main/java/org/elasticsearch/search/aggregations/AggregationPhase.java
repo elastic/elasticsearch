@@ -39,6 +39,7 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -145,10 +146,10 @@ public class AggregationPhase implements SearchPhase {
     public static class AggregationsCollector extends XCollector {
 
         private final AggregationContext aggregationContext;
-        private final List<Aggregator> collectors;
+        private final Aggregator[] collectors;
 
-        public AggregationsCollector(List<Aggregator> collectors, AggregationContext aggregationContext) {
-            this.collectors = collectors;
+        public AggregationsCollector(Collection<Aggregator> collectors, AggregationContext aggregationContext) {
+            this.collectors = collectors.toArray(new Aggregator[collectors.size()]);
             this.aggregationContext = aggregationContext;
         }
 
@@ -159,8 +160,8 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public void collect(int doc) throws IOException {
-            for (int i = 0; i < collectors.size(); i++) {
-                collectors.get(i).collect(doc, 0);
+            for (Aggregator collector : collectors) {
+                collector.collect(doc, 0);
             }
         }
 
@@ -176,8 +177,8 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public void postCollection() {
-            for (int i = 0; i < collectors.size(); i++) {
-                collectors.get(i).postCollection();
+            for (Aggregator collector : collectors) {
+                collector.postCollection();
             }
         }
     }

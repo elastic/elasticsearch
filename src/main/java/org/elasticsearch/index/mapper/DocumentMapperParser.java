@@ -21,13 +21,14 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.geo.ShapesAvailability;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -65,15 +65,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
     private final Object typeParsersMutex = new Object();
+    private final Version indexVersionCreated;
 
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
-
-    public DocumentMapperParser(Index index, AnalysisService analysisService, PostingsFormatService postingsFormatService,
-                                DocValuesFormatService docValuesFormatService, SimilarityLookupService similarityLookupService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService, postingsFormatService, docValuesFormatService,
-                similarityLookupService);
-    }
 
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
                                 PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
@@ -98,7 +93,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser())
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
-                .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())
+                .put(TypeParsers.MULTI_FIELD_CONTENT_TYPE, TypeParsers.multiFieldConverterTypeParser)
                 .put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
 
@@ -124,6 +119,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser())
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
                 .immutableMap();
+        assert indexSettings.get(IndexMetaData.SETTING_UUID) == null // if the UUDI is there the index has actually been created otherwise this might be a test
+                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null : IndexMetaData.SETTING_VERSION_CREATED + " not set in IndexSettings";
+        indexVersionCreated = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
@@ -143,7 +141,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers);
+        return new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers, indexVersionCreated);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -200,8 +198,8 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             }
         }
 
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers);
 
+        Mapper.TypeParser.ParserContext parserContext = parserContext();
         DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 
         for (Map.Entry<String, Object> entry : mapping.entrySet()) {
@@ -276,27 +274,19 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
-        int size = root.size();
-        switch (size) {
-            case 0:
-                // if we don't have any keys throw an exception
-                throw new MapperParsingException("malformed mapping no root object found");
-            case 1:
-                break;
-            default:
-                // we always assume the first and single key is the mapping type root
-                throw new MapperParsingException("mapping must have the `type` as the root object");
+        if (root.size() == 0) {
+            // if we don't have any keys throw an exception
+            throw new MapperParsingException("malformed mapping no root object found");
         }
 
         String rootName = root.keySet().iterator().next();
-        if (type == null) {
-            type = rootName;
-        } else if (!type.equals(rootName)) {
-            // we always assume the first and single key is the mapping type root
-            throw new MapperParsingException("mapping must have the `type` as the root object. Got [" + rootName + "], expected [" + type + "]");
+        Tuple<String, Map<String, Object>> mapping;
+        if (type == null || type.equals(rootName)) {
+            mapping = new Tuple<String, Map<String, Object>>(rootName, (Map<String, Object>) root.get(rootName));
+        } else {
+            mapping = new Tuple<String, Map<String, Object>>(type, root);
         }
 
-
-        return new Tuple<String, Map<String, Object>>(type, (Map<String, Object>) root.get(rootName));
+        return mapping;
     }
 }

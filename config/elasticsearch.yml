@@ -72,8 +72,10 @@
 # node.data: false
 
 # Use the Cluster Health API [http://localhost:9200/_cluster/health], the
-# Node Info API [http://localhost:9200/_cluster/nodes] or GUI tools
-# such as <http://github.com/lukas-vlcek/bigdesk> and
+# Node Info API [http://localhost:9200/_nodes] or GUI tools
+# such as <http://www.elasticsearch.org/overview/marvel/>,
+# <http://github.com/karmi/elasticsearch-paramedic>,
+# <http://github.com/lukas-vlcek/bigdesk> and
 # <http://mobz.github.com/elasticsearch-head> to inspect the cluster state.
 
 # A node can have generic attributes associated with it, which can later be used
@@ -333,6 +335,17 @@
 # See <http://elasticsearch.org/tutorials/elasticsearch-on-ec2/>
 # for a step-by-step tutorial.
 
+# GCE discovery allows to use Google Compute Engine API in order to perform discovery.
+#
+# You have to install the cloud-gce plugin for enabling the GCE discovery.
+#
+# For more information, see <https://github.com/elasticsearch/elasticsearch-cloud-gce>.
+
+# Azure discovery allows to use Azure API in order to perform discovery.
+#
+# You have to install the cloud-azure plugin for enabling the Azure discovery.
+#
+# For more information, see <https://github.com/elasticsearch/elasticsearch-cloud-azure>.
 
 ################################## Slow Log ##################################
 

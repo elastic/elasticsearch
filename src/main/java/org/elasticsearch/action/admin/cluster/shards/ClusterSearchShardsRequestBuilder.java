@@ -21,13 +21,13 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  */
-public class ClusterSearchShardsRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
+public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
     public ClusterSearchShardsRequestBuilder(ClusterAdminClient clusterClient) {
         super((InternalClusterAdminClient) clusterClient, new ClusterSearchShardsRequest());
@@ -84,15 +84,6 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeOperationReques
         request().indicesOptions(indicesOptions);
         return this;
     }
-
-    /**
-     * Specifies if request should be executed on local node rather than on master.
-     */
-    public ClusterSearchShardsRequestBuilder setLocal(boolean local) {
-        request().local(local);
-        return this;
-    }
-
 
     @Override
     protected void doExecute(ActionListener<ClusterSearchShardsResponse> listener) {

@@ -94,18 +94,37 @@ public class RestTable {
         List<DisplayHeader> display = new ArrayList<DisplayHeader>();
         if (pHeaders != null) {
             for (String possibility : Strings.splitStringByCommaToArray(pHeaders)) {
+                DisplayHeader dispHeader = null;
+
                 if (table.getAsMap().containsKey(possibility)) {
-                    display.add(new DisplayHeader(possibility, possibility));
+                    dispHeader = new DisplayHeader(possibility, possibility);
                 } else {
                     for (Table.Cell headerCell : table.getHeaders()) {
                         String aliases = headerCell.attr.get("alias");
                         if (aliases != null) {
                             for (String alias : Strings.splitStringByCommaToArray(aliases)) {
                                 if (possibility.equals(alias)) {
-                                    display.add(new DisplayHeader(headerCell.value.toString(), alias));
+                                    dispHeader = new DisplayHeader(headerCell.value.toString(), alias);
                                     break;
                                 }
                             }
+                        }
+                    }
+                }
+
+                if (dispHeader != null) {
+                    // We know we need the header asked for:
+                    display.add(dispHeader);
+
+                    // Look for accompanying sibling column
+                    Table.Cell hcell = table.getHeaderMap().get(dispHeader.name);
+                    String siblingFlag = hcell.attr.get("sibling");
+                    if (siblingFlag != null) {
+                        // ...link the sibling and check that its flag is set
+                        String sibling = siblingFlag + "." + dispHeader.name;
+                        Table.Cell c = table.getHeaderMap().get(sibling);
+                        if (c != null && request.paramAsBoolean(siblingFlag, false)) {
+                            display.add(new DisplayHeader(c.value.toString(), siblingFlag + "." + dispHeader.display));
                         }
                     }
                 }
@@ -214,6 +233,10 @@ public class RestTable {
                 return Long.toString(v.mb());
             } else if ("g".equals(resolution)) {
                 return Long.toString(v.gb());
+            } else if ("t".equals(resolution)) {
+                return Long.toString(v.tb());
+            } else if ("p".equals(resolution)) {
+                return Long.toString(v.pb());
             } else {
                 return v.toString();
             }
@@ -229,6 +252,10 @@ public class RestTable {
                 return Long.toString(v.mega());
             } else if ("g".equals(resolution)) {
                 return Long.toString(v.giga());
+            } else if ("t".equals(resolution)) {
+                return Long.toString(v.tera());
+            } else if ("p".equals(resolution)) {
+                return Long.toString(v.peta());
             } else {
                 return v.toString();
             }

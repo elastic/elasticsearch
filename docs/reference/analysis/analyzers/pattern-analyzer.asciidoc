@@ -13,6 +13,10 @@ type:
 |`lowercase` |Should terms be lowercased or not. Defaults to `true`.
 |`pattern` |The regular expression pattern, defaults to `\W+`.
 |`flags` |The regular expression flags.
+|`stopwords` |A list of stopwords to initialize the stop filter with.
+Defaults to an 'empty' stopword list added[1.0.0.RC1, Previously 
+defaulted to the English stopwords list]. Check
+<<analysis-stop-analyzer,Stop Analyzer>> for more details.
 |===================================================================
 
 *IMPORTANT*: The regular expression should match the *token separators*,

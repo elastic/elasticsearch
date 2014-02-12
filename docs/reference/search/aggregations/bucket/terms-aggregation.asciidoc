@@ -47,7 +47,7 @@ change this default behaviour by setting the `size` parameter.
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
 default, the node coordinating the search process will request each shard to provide its own top `size` term buckets
-and once all shards respond, it will reduces the results to the final list that will then be returned to the client.
+and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
@@ -65,6 +65,8 @@ the client.
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
 
+added[1.1.0] It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
+on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
 ==== Order
 
@@ -142,6 +144,34 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 }
 --------------------------------------------------
 
+==== Minimum document count
+
+It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+            "terms" : { 
+                "field" : "tag",
+                "min_doc_count": 10
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above aggregation would only return tags which have been found in 10 hits or more. Default value is `1`.
+
+NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that didn't match any hit. However, some of
+         the returned terms which have a document count of zero might only belong to deleted documents, so there is
+         no warranty that a `match_all` query would find a positive document count for those terms.
+
+WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_count` may return a number of buckets
+         which is less than `size` because not enough data was gathered from the shards. Missing buckets can be
+         back by increasing `shard_size`.
+
 ==== Script
 
 Generating the terms using a script:
@@ -168,7 +198,7 @@ Generating the terms using a script:
         "genders" : {
             "terms" : { 
                 "field" : "gender",
-                "script" : "doc['gender'].value"
+                "script" : "'Gender: ' +_value"
             }
         }
     }
@@ -244,8 +274,8 @@ There are two mechanisms by which terms aggregations can be executed: either by 
 data per-bucket (`map`), or by using ordinals of the field values instead of the values themselves (`ordinals`). Although the
 latter execution mode can be expected to be slightly faster, it is only available for use when the underlying data source exposes
 those terms ordinals. Moreover, it may actually be slower if most field values are unique. Elasticsearch tries to have sensible
-defaults when it comes to the execution mode that should be used, but in case you know that an execution mode may perform better
-than the other one, you have the ability to provide Elasticsearch with a hint:
+defaults when it comes to the execution mode that should be used, but in case you know that one execution mode may perform better
+than the other one, you have the ability to "hint" it to Elasticsearch:
 
 [source,js]
 --------------------------------------------------

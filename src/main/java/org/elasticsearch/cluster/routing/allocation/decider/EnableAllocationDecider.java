@@ -60,7 +60,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "allocation disabling is ignored");
         }
 
         Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
@@ -73,17 +73,21 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
         }
         switch (enable) {
             case ALL:
-                return Decision.YES;
+                return allocation.decision(Decision.YES, "all allocations are allowed");
             case NONE:
-                return Decision.NO;
+                return allocation.decision(Decision.NO, "no allocations are allowed");
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && !allocation.routingNodes().routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi()) {
-                    return Decision.YES;
+                    return allocation.decision(Decision.YES, "new primary allocations are allowed");
                 } else {
-                    return Decision.NO;
+                    return allocation.decision(Decision.NO, "non-new primary allocations are disallowed");
                 }
             case PRIMARIES:
-                return shardRouting.primary() ? Decision.YES : Decision.NO;
+                if (shardRouting.primary()) {
+                    return allocation.decision(Decision.YES, "primary allocations are allowed");
+                } else {
+                    return allocation.decision(Decision.NO, "replica allocations are disallowed");
+                }
             default:
                 throw new ElasticsearchIllegalStateException("Unknown allocation option");
         }

@@ -14,8 +14,6 @@ include::types/root-object-type.asciidoc[]
 
 include::types/nested-type.asciidoc[]
 
-include::types/multi-field-type.asciidoc[]
-
 include::types/ip-type.asciidoc[]
 
 include::types/geo-point-type.asciidoc[]

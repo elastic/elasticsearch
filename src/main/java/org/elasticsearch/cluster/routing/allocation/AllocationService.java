@@ -114,12 +114,17 @@ public class AllocationService extends AbstractComponent {
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
 
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) throws ElasticsearchException {
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
+        return reroute(clusterState, commands, false);
+    }
+
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean debug) throws ElasticsearchException {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        allocation.debugDecision(debug);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
         commands.execute(allocation);
@@ -137,10 +142,20 @@ public class AllocationService extends AbstractComponent {
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result reroute(ClusterState clusterState) {
+        return reroute(clusterState, false);
+    }
+
+    /**
+     * Reroutes the routing table based on the live nodes.
+     * <p/>
+     * <p>If the same instance of the routing table is returned, then no change has been made.
+     */
+    public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        allocation.debugDecision(debug);
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
         }
@@ -153,10 +168,20 @@ public class AllocationService extends AbstractComponent {
      * them.
      */
     public RoutingAllocation.Result rerouteWithNoReassign(ClusterState clusterState) {
+        return rerouteWithNoReassign(clusterState, false);
+    }
+
+    /**
+     * Only handles reroute but *without* any reassignment of unassigned shards or rebalancing. Does
+     * make sure to handle removed nodes, but only moved the shards to UNASSIGNED, does not reassign
+     * them.
+     */
+    public RoutingAllocation.Result rerouteWithNoReassign(ClusterState clusterState, boolean debug) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        allocation.debugDecision(debug);
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
         changed |= deassociateDeadNodes(allocation);

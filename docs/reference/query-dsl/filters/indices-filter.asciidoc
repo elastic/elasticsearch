@@ -28,7 +28,6 @@ documents), and `all` (to match all). Defaults to `all`.
 
 `filter` is mandatory, as well as `indices` (or `index`).
 
-coming[0.90.8]
 [TIP]
 ===================================================================
 The fields order is important: if the `indices` are provided before `filter`

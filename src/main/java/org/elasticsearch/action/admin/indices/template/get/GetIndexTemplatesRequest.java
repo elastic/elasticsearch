@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,9 +30,9 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- *
+ * Request that allows to retrieve index templates
  */
-public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetIndexTemplatesRequest> {
+public class GetIndexTemplatesRequest extends MasterNodeReadOperationRequest<GetIndexTemplatesRequest> {
 
     private String[] names;
 
@@ -76,21 +76,14 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
-            names = in.readStringArray();
-        } else {
-            names = new String[1];
-            names[0] = in.readString();
-        }
+        names = in.readStringArray();
+        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
-            out.writeStringArray(names);
-        } else {
-            out.writeString(names.length == 0 ? "*" : names[0]);
-        }
+        out.writeStringArray(names);
+        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

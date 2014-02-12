@@ -39,4 +39,6 @@ include::docs/delete-by-query.asciidoc[]
 
 include::docs/bulk-udp.asciidoc[]
 
+include::docs/termvectors.asciidoc[]
 
+include::docs/multi-termvectors.asciidoc[]

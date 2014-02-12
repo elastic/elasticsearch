@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
@@ -68,7 +69,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
 
         try {
-            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
+            multiSearchRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

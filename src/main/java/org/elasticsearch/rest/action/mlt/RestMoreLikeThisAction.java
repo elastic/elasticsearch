@@ -59,6 +59,9 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
 
         mltRequest.listenerThreaded(false);
         try {
+            //TODO the ParseField class that encapsulates the supported names used for an attribute
+            //needs some work if it is to be used in a REST context like this too
+            // See the MoreLikeThisQueryParser constants that hold the valid syntax
             mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
             mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
             mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
@@ -66,8 +69,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             mltRequest.stopWords(request.paramAsStringArray("stop_words", null));
             mltRequest.minDocFreq(request.paramAsInt("min_doc_freq", -1));
             mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
-            mltRequest.minWordLen(request.paramAsInt("min_word_len", -1));
-            mltRequest.maxWordLen(request.paramAsInt("max_word_len", -1));
+            mltRequest.minWordLength(request.paramAsInt("min_word_len", request.paramAsInt("min_word_length",-1)));
+            mltRequest.maxWordLength(request.paramAsInt("max_word_len", request.paramAsInt("max_word_length",-1)));
             mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
 
             mltRequest.searchType(SearchType.fromString(request.param("search_type")));

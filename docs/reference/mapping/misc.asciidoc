@@ -1,8 +1,0 @@
-[[mapping-misc]]
-== Miscellaneous
-
-include::mapping/date-format.asciidoc[]
-
-include::mapping/conf-mappings.asciidoc[]
-
-include::mapping/meta.asciidoc[]

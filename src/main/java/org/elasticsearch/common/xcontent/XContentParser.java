@@ -157,6 +157,16 @@ public interface XContentParser extends Closeable {
      */
     boolean estimatedNumberType();
 
+    short shortValue(boolean coerce) throws IOException;
+
+    int intValue(boolean coerce) throws IOException;
+
+    long longValue(boolean coerce) throws IOException;
+
+    float floatValue(boolean coerce) throws IOException;
+
+    double doubleValue(boolean coerce) throws IOException;
+    
     short shortValue() throws IOException;
 
     int intValue() throws IOException;

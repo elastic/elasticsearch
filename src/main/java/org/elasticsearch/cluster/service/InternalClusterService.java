@@ -116,6 +116,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
+    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+        if (lifecycle.started()) {
+            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+        }
+        initialBlocks.removeGlobalBlock(block);
+    }
+
+    @Override
     protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder().blocks(initialBlocks).build();

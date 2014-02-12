@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.List;
 /**
  *
  */
-public class InternalGeoDistance extends AbstractRangeBase<GeoDistance.Bucket> implements GeoDistance {
+public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket> implements GeoDistance {
 
     public static final Type TYPE = new Type("geo_distance", "gdist");
 
@@ -50,7 +50,7 @@ public class InternalGeoDistance extends AbstractRangeBase<GeoDistance.Bucket> i
 
     public static final Factory FACTORY = new Factory();
 
-    static class Bucket extends AbstractRangeBase.Bucket implements GeoDistance.Bucket {
+    static class Bucket extends InternalRange.Bucket implements GeoDistance.Bucket {
 
         Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, ValueFormatter formatter) {
             this(key, from, to, docCount, new InternalAggregations(aggregations), formatter);
@@ -62,7 +62,7 @@ public class InternalGeoDistance extends AbstractRangeBase<GeoDistance.Bucket> i
 
     }
 
-    private static class Factory implements AbstractRangeBase.Factory<GeoDistance.Bucket> {
+    private static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
 
         @Override
         public String type() {
@@ -70,8 +70,8 @@ public class InternalGeoDistance extends AbstractRangeBase<GeoDistance.Bucket> i
         }
 
         @Override
-        public AbstractRangeBase<GeoDistance.Bucket> create(String name, List<GeoDistance.Bucket> buckets, ValueFormatter formatter, boolean keyed) {
-            return new InternalGeoDistance(name, buckets, formatter, keyed);
+        public InternalGeoDistance create(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed, unmapped);
         }
 
         @Override
@@ -82,17 +82,17 @@ public class InternalGeoDistance extends AbstractRangeBase<GeoDistance.Bucket> i
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<GeoDistance.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
-        super(name, ranges, formatter, keyed);
-    }
-
-    @Override
-    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, from, to, docCount, aggregations, formatter);
+    public InternalGeoDistance(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+        super(name, ranges, formatter, keyed, unmapped);
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+        return new Bucket(key, from, to, docCount, aggregations, formatter);
     }
 }

@@ -39,13 +39,13 @@ public class AvgTests extends AbstractNumericTests {
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(histogram("histo").field("value").interval(1l).emptyBuckets(true).subAggregation(avg("avg")))
+                .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(avg("avg")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getByKey(1l);
+        Histogram.Bucket bucket = histo.getBucketByKey(1l);
         assertThat(bucket, notNullValue());
 
         Avg avg = bucket.getAggregations().get("avg");

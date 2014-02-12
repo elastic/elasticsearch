@@ -120,7 +120,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
     public MoreLikeThisRequestBuilder setMinWordLen(int minWordLen) {
-        request.minWordLen(minWordLen);
+        request.minWordLength(minWordLen);
         return this;
     }
 
@@ -128,7 +128,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
     public MoreLikeThisRequestBuilder setMaxWordLen(int maxWordLen) {
-        request().maxWordLen(maxWordLen);
+        request().maxWordLength(maxWordLen);
         return this;
     }
 

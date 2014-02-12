@@ -21,9 +21,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,7 +43,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to create an index template.
@@ -348,10 +345,6 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        //timeout was ignored till 0.90.7, removed afterwards
-        if (in.getVersion().onOrBefore(Version.V_0_90_7)) {
-            readTimeValue(in);
-        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             mappings.put(in.readString(), in.readString());
@@ -373,10 +366,6 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);
-        //timeout was ignored till 0.90.7, removed afterwards
-        if (out.getVersion().onOrBefore(Version.V_0_90_7)) {
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.writeTo(out);
-        }
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

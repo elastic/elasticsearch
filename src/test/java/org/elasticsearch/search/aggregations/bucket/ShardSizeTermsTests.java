@@ -76,7 +76,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms  terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<String, Long> expected = ImmutableMap.<String, Long>builder()
                 .put("1", 8l)
@@ -84,7 +84,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .put("2", 4l)
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKey().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
         }
     }
 
@@ -103,7 +103,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<String, Long> expected = ImmutableMap.<String, Long>builder()
                 .put("1", 8l)
@@ -111,7 +111,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .put("2", 5l) // <-- count is now fixed
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKey().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
         }
     }
 
@@ -130,7 +130,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<String, Long> expected = ImmutableMap.<String, Long>builder()
                 .put("1", 5l)
@@ -138,7 +138,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .put("3", 3l) // <-- count is now fixed
                 .build();
         for (Terms.Bucket bucket: buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKey().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKey())));
         }
     }
 
@@ -157,7 +157,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 8l)
@@ -184,7 +184,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 8l)
@@ -211,7 +211,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 5l)
@@ -238,7 +238,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 8l)
@@ -265,7 +265,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 8l)
@@ -292,7 +292,7 @@ public class ShardSizeTermsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.buckets();
+        Collection<Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = ImmutableMap.<Integer, Long>builder()
                 .put(1, 5l)

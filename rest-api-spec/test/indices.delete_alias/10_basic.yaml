@@ -25,7 +25,8 @@
         name: testali
 
   - do:
-      catch: missing
       indices.get_alias:
         index: testind
         name:  testali
+  
+  - match: { '': {}}

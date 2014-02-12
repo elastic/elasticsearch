@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class InternalMissing extends SingleBucketAggregation<InternalMissing> implements Missing {
+public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
 
     public final static Type TYPE = new Type("missing");
 

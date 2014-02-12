@@ -126,13 +126,10 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             context.parsedQuery(indexService.queryParserService().parseQuery(request.source()));
             context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
-            Explanation explanation;
-            if (context.rescore() != null) {
-                RescoreSearchContext ctx = context.rescore();
+            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            for (RescoreSearchContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
-                explanation = rescorer.explain(topLevelDocId, context, ctx);
-            } else {
-                explanation = context.searcher().explain(context.query(), topLevelDocId);
+                explanation = rescorer.explain(topLevelDocId, context, ctx, explanation);
             }
             if (request.fields() != null || (request.fetchSourceContext() != null && request.fetchSourceContext().fetchSource())) {
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -117,6 +118,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .put(newNode("node3"))
+                .put(newNode("node4", ImmutableMap.of("data", Boolean.FALSE.toString())))
         ).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
@@ -125,7 +127,14 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> allocating with primary flag set to false, should fail");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node1", false)));
-            assert false;
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
+
+        logger.info("--> allocating to non-data node, should fail");
+        try {
+            rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node4", true)));
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
@@ -147,7 +156,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> allocate the replica shard on the primary shard node, should fail");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node1", false)));
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
@@ -172,7 +181,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> verify that we fail when there are no unassigned shards");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateAllocationCommand(new ShardId("test", 0), "node3", false)));
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
     }
@@ -214,7 +223,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
@@ -228,7 +237,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
@@ -262,7 +271,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
         logger.info("--> cancel the primary being replicated, make sure it fails");
         try {
             allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand(new ShardId("test", 0), "node1", false)));
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 

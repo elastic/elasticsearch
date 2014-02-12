@@ -1,6 +1,6 @@
 {
   "msearch": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-multi-search.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-multi-search.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_msearch",
@@ -25,7 +25,8 @@
     },
     "body": {
       "description": "The request definitions (metadata-search request definition pairs), separated by newlines",
-      "required" : true
+      "required" : true,
+      "serialize" : "bulk"
     }
   }
 }

@@ -21,20 +21,22 @@ package org.elasticsearch.search.warmer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Arrays;
+
 /**
  *
  */
 public class IndexWarmerMissingException extends ElasticsearchException {
 
-    private final String name;
+    private final String[] names;
 
-    public IndexWarmerMissingException(String name) {
-        super("index_warmer [" + name + "] missing");
-        this.name = name;
+    public IndexWarmerMissingException(String... names) {
+        super("index_warmer [" +  Arrays.toString(names) + "] missing");
+        this.names = names;
     }
 
-    public String name() {
-        return this.name;
+    public String[] names() {
+        return this.names;
     }
 
 

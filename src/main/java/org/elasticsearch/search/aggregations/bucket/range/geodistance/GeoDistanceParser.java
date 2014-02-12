@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBase;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.*;
@@ -200,12 +200,12 @@ public class GeoDistanceParser implements Aggregator.Parser {
         private final GeoPoint origin;
         private final DistanceUnit unit;
         private final GeoDistance distanceType;
-        private final AbstractRangeBase.Factory rangeFactory;
+        private final InternalRange.Factory rangeFactory;
         private final List<RangeAggregator.Range> ranges;
         private final boolean keyed;
 
         public GeoDistanceFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
-                                  AbstractRangeBase.Factory rangeFactory, GeoPoint origin, DistanceUnit unit, GeoDistance distanceType,
+                                  InternalRange.Factory rangeFactory, GeoPoint origin, DistanceUnit unit, GeoDistance distanceType,
                                   List<RangeAggregator.Range> ranges, boolean keyed) {
             super(name, rangeFactory.type(), valueSourceConfig);
             this.origin = origin;

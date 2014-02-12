@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -96,12 +95,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         }
 
         explain = in.readBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-            nowInMillis = in.readVLong();
-        } else {
-            nowInMillis = System.currentTimeMillis();
-        }
+        nowInMillis = in.readVLong();
     }
 
     @Override
@@ -123,9 +117,6 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         }
 
         out.writeBoolean(explain);
-
-        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-            out.writeVLong(nowInMillis);
-        }
+        out.writeVLong(nowInMillis);
     }
 }

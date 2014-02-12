@@ -20,7 +20,6 @@
 package org.elasticsearch.test.store;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -35,10 +34,10 @@ public class MockRamDirectoryService extends AbstractIndexShardComponent impleme
     private final DirectoryService delegateService;
 
     @Inject
-    public MockRamDirectoryService(ShardId shardId, Settings indexSettings, ByteBufferCache byteBufferCache) {
+    public MockRamDirectoryService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger);
-        delegateService = helper.randomRamDirecoryService(byteBufferCache);
+        delegateService = helper.randomRamDirectoryService();
     }
 
     @Override

@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -64,7 +63,7 @@ public class CompletionFieldMapperTests extends ElasticsearchTestCase {
                 .field("payloads", true)
                 .field("preserve_separators", false)
                 .field("preserve_position_increments", true)
-                .field("max_input_len", 14)
+                .field("max_input_length", 14)
 
                 .endObject().endObject()
                 .endObject().endObject().string();
@@ -85,7 +84,7 @@ public class CompletionFieldMapperTests extends ElasticsearchTestCase {
         assertThat(Boolean.valueOf(configMap.get("payloads").toString()), is(true));
         assertThat(Boolean.valueOf(configMap.get("preserve_separators").toString()), is(false));
         assertThat(Boolean.valueOf(configMap.get("preserve_position_increments").toString()), is(true));
-        assertThat(Integer.valueOf(configMap.get("max_input_len").toString()), is(14));
+        assertThat(Integer.valueOf(configMap.get("max_input_length").toString()), is(14));
     }
 
     @Test

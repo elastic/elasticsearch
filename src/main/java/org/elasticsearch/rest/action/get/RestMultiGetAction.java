@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.listenerThreaded(false);
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
-        multiGetRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+        multiGetRequest.realtime(request.paramAsBoolean("realtime", null));
 
         String[] sFields = null;
         String sField = request.param("fields");
@@ -72,7 +73,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
 
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), request.content(), allowExplicitIndex);
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

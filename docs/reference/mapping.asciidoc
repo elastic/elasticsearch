@@ -51,8 +51,16 @@ index>>.
 
 The `index.mapping.ignore_malformed` global setting can be set on the
 index level to allow to ignore malformed content globally across all
-mapping types (malformed content example is trying to index a string
+mapping types (malformed content example is trying to index a text string
 value as a numeric type).
+
+The `index.mapping.coerce` global setting can be set on the
+index level to coerce numeric content globally across all
+mapping types (The default setting is true and coercions attempted are 
+to convert strings with numbers into numeric types and also numeric values
+with fractions to any integer/short/long values minus the fraction part).
+When the permitted conversions fail in their attempts, the value is considered 
+malformed and the ignore_malformed setting dictates what will happen next.
 --
 
 include::mapping/fields.asciidoc[]

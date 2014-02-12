@@ -58,6 +58,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -69,6 +70,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -122,6 +124,7 @@ public class DefaultSearchContext extends SearchContext {
     private boolean version = false; // by default, we don't return versions
 
     private List<String> fieldNames;
+    private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private PartialFieldsContext partialFields;
     private FetchSourceContext fetchSourceContext;
@@ -158,7 +161,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private SuggestionSearchContext suggest;
 
-    private RescoreSearchContext rescore;
+    private List<RescoreSearchContext> rescore;
 
     private SearchLookup searchLookup;
 
@@ -340,12 +343,29 @@ public class DefaultSearchContext extends SearchContext {
         this.suggest = suggest;
     }
 
-    public RescoreSearchContext rescore() {
-        return this.rescore;
+    public List<RescoreSearchContext> rescore() {
+        if (rescore == null) {
+            return Collections.emptyList();
+        }
+        return rescore;
     }
 
-    public void rescore(RescoreSearchContext rescore) {
-        this.rescore = rescore;
+    public void addRescore(RescoreSearchContext rescore) {
+        if (this.rescore == null) {
+            this.rescore = new ArrayList<RescoreSearchContext>();
+        }
+        this.rescore.add(rescore);
+    }
+
+    public boolean hasFieldDataFields() {
+        return fieldDataFields != null;
+    }
+
+    public FieldDataFieldsContext fieldDataFields() {
+        if (fieldDataFields == null) {
+            fieldDataFields = new FieldDataFieldsContext();
+        }
+        return this.fieldDataFields;
     }
 
     public boolean hasScriptFields() {

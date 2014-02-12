@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for get repositories operation
  */
-public class TransportGetRepositoriesAction extends TransportMasterNodeOperationAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class TransportGetRepositoriesAction extends TransportMasterNodeReadOperationAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,

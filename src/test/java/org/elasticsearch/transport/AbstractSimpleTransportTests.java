@@ -78,7 +78,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void onNodeDisconnected(DiscoveryNode node) {
-                assert false : "disconnect should not be called " + node;
+                fail("disconnect should not be called " + node);
             }
         };
         serviceA.addConnectionListener(waitForConnection);
@@ -367,7 +367,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         TransportConnectionListener disconnectListener = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
-                assert false : "node connected should not be called, all connection have been done previously, node: " + node;
+                fail("node connected should not be called, all connection have been done previously, node: " + node);
             }
 
             @Override
@@ -703,7 +703,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             @Override
             public void handleException(TransportException exp) {
                 exp.printStackTrace();
-                assert false;
+                fail();
             }
 
             @Override
@@ -755,7 +755,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             @Override
             public void handleException(TransportException exp) {
                 exp.printStackTrace();
-                assert false;
+                fail();
             }
 
             @Override
@@ -810,7 +810,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             @Override
             public void handleException(TransportException exp) {
                 exp.printStackTrace();
-                assert false;
+                fail();
             }
 
             @Override
@@ -861,7 +861,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             @Override
             public void handleException(TransportException exp) {
                 exp.printStackTrace();
-                assert false;
+                fail();
             }
 
             @Override

@@ -20,14 +20,14 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
  */
-public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
+public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
     public ClusterStateRequestBuilder(ClusterAdminClient clusterClient) {
         super((InternalClusterAdminClient) clusterClient, new ClusterStateRequest());
@@ -92,14 +92,6 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
 
     public ClusterStateRequestBuilder setIndexTemplates(String... templates) {
         request.indexTemplates(templates);
-        return this;
-    }
-
-    /**
-     * Sets if the cluster state request should be executed locally on the node, and not go to the master.
-     */
-    public ClusterStateRequestBuilder setLocal(boolean local) {
-        request.local(local);
         return this;
     }
 

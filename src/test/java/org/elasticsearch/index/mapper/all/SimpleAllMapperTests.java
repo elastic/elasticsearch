@@ -231,11 +231,11 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         // reparse it
         DocumentMapper builtDocMapper = MapperTestUtils.newParser().parse(builtMapping);
 
-        byte[] json = jsonBuilder().startObject().startObject("test")
+        byte[] json = jsonBuilder().startObject()
                 .field("foo", "bar")
                 .field("_id", 1)
                 .field("foobar", "foobar")
-                .endObject().endObject().bytes().array();
+                .endObject().bytes().array();
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
         if (enabled) {

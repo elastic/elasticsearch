@@ -42,6 +42,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -89,7 +90,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticsearchException {
-        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask() {
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -118,7 +119,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.debug("failed to delete warmer [{}] on indices [{}]", t, request.name(), request.indices());
+                logger.debug("failed to delete warmer [{}] on indices [{}]", t, Arrays.toString(request.names()), request.indices());
                 listener.onFailure(t);
             }
 
@@ -136,10 +137,16 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                     if (warmers != null) {
                         List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                            if (request.name() == null || Regex.simpleMatch(request.name(), entry.name())) {
-                                globalFoundAtLeastOne = true;
-                                // don't add it...
-                            } else {
+                            boolean keepWarmer = true;
+                            for (String warmer : request.names()) {
+                                if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                    globalFoundAtLeastOne = true;
+                                    keepWarmer =  false;
+                                    // don't add it...
+                                    break;
+                                } 
+                            }
+                            if (keepWarmer) {
                                 entries.add(entry);
                             }
                         }
@@ -153,11 +160,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                 }
 
                 if (!globalFoundAtLeastOne) {
-                    if (request.name() == null) {
-                        // full match, just return with no failure
-                        return currentState;
-                    }
-                    throw new IndexWarmerMissingException(request.name());
+                    throw new IndexWarmerMissingException(request.names());
                 }
 
                 if (logger.isInfoEnabled()) {
@@ -169,8 +172,10 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                         IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                         if (warmers != null) {
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                if (Regex.simpleMatch(request.name(), entry.name())) {
-                                    logger.info("[{}] delete warmer [{}]", index, entry.name());
+                                for (String warmer : request.names()) {
+                                    if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                        logger.info("[{}] delete warmer [{}]", index, entry.name());
+                                    }
                                 }
                             }
                         }

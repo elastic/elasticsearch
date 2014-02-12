@@ -1,6 +1,6 @@
 {
   "indices.open": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-open-close.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-open-close.html",
     "methods": ["POST"],
     "url": {
       "path": "/{index}/_open",

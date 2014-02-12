@@ -254,7 +254,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
         if (!ranOnce) {
-            assert false;
+            fail();
         }
     }
 
@@ -413,7 +413,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
         if (!ranOnce) {
-            assert false;
+            fail();
         }
     }
 }

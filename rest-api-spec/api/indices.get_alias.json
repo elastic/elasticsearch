@@ -1,10 +1,10 @@
 {
   "indices.get_alias": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-aliases.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-aliases.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_alias/{name}",
-      "paths": ["/_alias/{name}", "/{index}/_alias/{name}", "/{index}/_alias"],
+      "path": "/_alias/",
+      "paths": [ "/_alias", "/_alias/{name}", "/{index}/_alias/{name}", "/{index}/_alias"],
       "parts": {
         "index": {
           "type" : "list",
@@ -29,6 +29,10 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "local": {
+            "type": "boolean",
+            "description": "Return local information, do not retrieve the state from master node (default: false)"
         }
       }
     },

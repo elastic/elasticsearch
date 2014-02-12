@@ -53,12 +53,12 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         try {
             // should fail since index1 is the only index.
             client().admin().indices().prepareDelete("i*").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
 
         try {
             client().admin().indices().prepareDelete("_all").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
 
         settings = ImmutableSettings.builder()
@@ -78,26 +78,26 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
 
         assertAcked(client().admin().indices().prepareCreate("index1").get());
         assertAcked(client().admin().indices().prepareCreate("1index").get());
-
+        ensureYellow();// wait for primaries to be allocated
         // Should succeed, since no wildcards
         assertAcked(client().admin().indices().prepareClose("1index").get());
 
         try {
             client().admin().indices().prepareClose("_all").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
         try {
             assertAcked(client().admin().indices().prepareOpen("_all").get());
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
         try {
             client().admin().indices().prepareClose("*").get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
         try {
             assertAcked(client().admin().indices().prepareOpen("*").get());
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {
         }
 
@@ -124,12 +124,12 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
 
         try {
             client().prepareDeleteByQuery("_all").setQuery(QueryBuilders.matchAllQuery()).get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
 
         try {
             client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-            assert false;
+            fail();
         } catch (ElasticsearchIllegalArgumentException e) {}
 
         settings = ImmutableSettings.builder()
@@ -149,7 +149,8 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
                 .put(DestructiveOperations.REQUIRES_NAME, true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
+        
+        
         assertAcked(client().admin().indices().prepareCreate("index1").addMapping("1", "field1", "type=string").get());
         assertAcked(client().admin().indices().prepareCreate("1index").addMapping("1", "field1", "type=string").get());
 
@@ -157,23 +158,22 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         client().admin().indices().prepareDeleteMapping("1index").setType("1").get();
         try {
             client().admin().indices().prepareDeleteMapping("_all").setType("1").get();
-            assert false;
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
         try {
-            client().admin().indices().prepareDeleteMapping().setType("1").get();
-            assert false;
-        } catch (ElasticsearchIllegalArgumentException e) {}
+            client().admin().indices().prepareDeleteMapping().setIndices("*").setType("1").get();
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
 
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
-                .build();
+        settings = ImmutableSettings.builder().put(DestructiveOperations.REQUIRES_NAME, false).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
-        client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string").get();
-        client().admin().indices().prepareDeleteMapping().setType("1").get();
-        client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string").get();
-        client().admin().indices().prepareDeleteMapping("_all").setType("1").get();
+        assertAcked(client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string"));
+        assertAcked(client().admin().indices().prepareDeleteMapping().setIndices("*").setType("1"));
+        assertAcked(client().admin().indices().preparePutMapping("1index").setType("1").setSource("field1", "type=string"));
+        assertAcked(client().admin().indices().prepareDeleteMapping("_all").setType("1"));
     }
 
 }

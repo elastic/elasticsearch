@@ -21,13 +21,17 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
@@ -87,7 +91,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
 
     }
-
+    @Test // see #3952
+    public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
+        assertHitCount(client().prepareSearch().setQuery(queryString("quick")).get(), 3l);
+        assertHitCount(client().prepareSearch().setQuery(queryString("")).get(), 0l); // return no docs
+    }
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
@@ -325,21 +337,32 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
-        // backwards compat test!
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        Version version = Version.CURRENT;
+        int iters = atLeast(10);
+        for (int i = 0; i < iters; i++) {
+            try {
+                // backwards compat test!
+                assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
+                        .setSettings(SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_VERSION_CREATED, version.id));
+                assertThat(version.onOrAfter(Version.V_1_0_0_RC2), equalTo(false));
+                indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+                        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
-        assertHitCount(searchResponse, 1l);
-        try {
-            client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
-            fail("SearchPhaseExecutionException should have been thrown");
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
+                assertHitCount(searchResponse, 1l);
+                try {
+                    client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
+                    fail("SearchPhaseExecutionException should have been thrown");
+                } catch (SearchPhaseExecutionException e) {
+                    assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                }
+                wipeIndices("test");
+            } catch (MapperParsingException ex) {
+                assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
+                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
+            }
+            version = randomVersion();
         }
     }
 
@@ -2010,4 +2033,92 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
     }
+
+    @Test
+    public void testRangeFilterNoCacheWithNow() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("type1", "date", "type=date,format=YYYY-mm-dd"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("date", "2014-01-01", "field", "value")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-01-01").to("now")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c `now` is used in `to`.
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now"))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // filter cache should not contain any thing, b/c `now` is used in `to`.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now/d").cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        // Now with rounding is used, so we must have something in filter cache
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        long filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+        assertThat(filtercacheSize, greaterThan(0l));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.termFilter("field", "value").cache(true))
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now"))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // and because we use term filter, it is also added to filter cache, so it should contain more than before
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
+        filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(
+                        matchAllQuery(),
+                        FilterBuilders.boolFilter().cache(true)
+                                .must(FilterBuilders.matchAllFilter())
+                                .must(FilterBuilders.rangeFilter("date").from("2013-01-01").to("now").cache(true))
+                ))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        // The range filter is now explicitly cached, so it now it is in the filter cache.
+        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
+    }
+
+    @Test
+    public void testSearchEmptyDoc() {
+        prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}").get();
+        client().prepareIndex("test", "type1", "1").setSource("{}").get();
+        refresh();
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
+    }
+
 }

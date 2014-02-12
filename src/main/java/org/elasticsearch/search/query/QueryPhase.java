@@ -33,6 +33,7 @@ import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -115,9 +116,9 @@ public class QueryPhase implements SearchPhase {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
                         searchContext.trackScores(), searchContext.trackScores());
             } else {
-                if (searchContext.rescore() != null) {
-                    rescore = true;
-                    numDocs = Math.max(searchContext.rescore().window(), numDocs);
+                rescore = !searchContext.rescore().isEmpty();
+                for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(rescoreContext.window(), numDocs);
                 }
                 topDocs = searchContext.searcher().search(query, numDocs);
             }

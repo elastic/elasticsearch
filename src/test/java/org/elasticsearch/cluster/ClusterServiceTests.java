@@ -66,14 +66,14 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 try {
                     block.await();
                 } catch (InterruptedException e) {
-                    assert false;
+                    fail();
                 }
                 return currentState;
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
-                assert false;
+                fail();
             }
         });
 
@@ -405,7 +405,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 try {
                     block1.await();
                 } catch (InterruptedException e) {
-                    assert false;
+                    fail();
                 }
                 return currentState;
             }
@@ -413,7 +413,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             @Override
             public void onFailure(String source, Throwable t) {
                 invoked1.countDown();
-                assert false;
+                fail();
             }
         });
         invoked1.await();
@@ -428,7 +428,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    assert false;
+                    fail();
                 }
             });
         }
@@ -466,7 +466,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 try {
                     block2.await();
                 } catch (InterruptedException e) {
-                    assert false;
+                    fail();
                 }
                 return currentState;
             }
@@ -474,7 +474,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             @Override
             public void onFailure(String source, Throwable t) {
                 invoked3.countDown();
-                assert false;
+                fail();
             }
         });
         invoked3.await();
@@ -488,7 +488,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    assert false;
+                    fail();
                 }
             });
         }

@@ -20,17 +20,36 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.joda.time.DateTime;
 
+import java.util.Collection;
+
 /**
- *
+ * A {@code date_histogram} aggregation.
  */
-public interface DateHistogram extends HistogramBase<DateHistogram.Bucket> {
+public interface DateHistogram extends Histogram {
 
-    static interface Bucket extends HistogramBase.Bucket {
+    static interface Bucket extends Histogram.Bucket {
 
+        /**
+         * @return the key as a date construct.
+         */
         DateTime getKeyAsDate();
 
     }
 
+    @Override
+    Collection<? extends DateHistogram.Bucket> getBuckets();
+
+    @Override
+    Bucket getBucketByKey(String key);
+
+    @Override
+    Bucket getBucketByKey(Number key);
+
+    Bucket getBucketByKey(DateTime key);
+
+    /**
+     * The interval the date histogram is based on.
+     */
     static class Interval {
 
         public static final Interval SECOND = new Interval("1s");
@@ -58,7 +77,7 @@ public interface DateHistogram extends HistogramBase<DateHistogram.Bucket> {
             return new Interval(days + "d");
         }
 
-        public static Interval week(int weeks) {
+        public static Interval weeks(int weeks) {
             return new Interval(weeks + "w");
         }
 

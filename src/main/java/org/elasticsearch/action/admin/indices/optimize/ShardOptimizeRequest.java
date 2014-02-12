@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,9 +69,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrBefore(Version.V_0_90_3)) {
-            in.readBoolean(); // old refresh flag
-        }
     }
 
     @Override
@@ -82,8 +78,5 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrBefore(Version.V_0_90_3)) {
-            out.writeBoolean(false); // old refresh flag
-        }
     }
 }

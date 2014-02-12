@@ -76,6 +76,7 @@ import org.elasticsearch.percolator.QueryCollector.Count;
 import org.elasticsearch.percolator.QueryCollector.Match;
 import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
 import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -116,11 +117,12 @@ public class PercolatorService extends AbstractComponent {
     private final HighlightPhase highlightPhase;
     private final AggregationPhase aggregationPhase;
     private final SortParseElement sortParseElement;
+    private final ScriptService scriptService;
 
     @Inject
     public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
                              HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase,
-                             AggregationPhase aggregationPhase) {
+                             AggregationPhase aggregationPhase, ScriptService scriptService) {
         super(settings);
         this.indicesService = indicesService;
         this.cacheRecycler = cacheRecycler;
@@ -129,6 +131,7 @@ public class PercolatorService extends AbstractComponent {
         this.highlightPhase = highlightPhase;
         this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
+        this.scriptService = scriptService;
         this.sortParseElement = new SortParseElement();
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
@@ -164,7 +167,7 @@ public class PercolatorService extends AbstractComponent {
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
         final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler
+                request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler, scriptService
         );
         try {
 

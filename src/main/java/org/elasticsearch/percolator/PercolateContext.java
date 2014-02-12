@@ -96,6 +96,7 @@ public class PercolateContext extends SearchContext {
     private final IndexShard indexShard;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
+    private final ScriptService scriptService;
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
     private String[] types;
 
@@ -115,7 +116,9 @@ public class PercolateContext extends SearchContext {
     private QuerySearchResult querySearchResult;
     private Sort sort;
 
-    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
+    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
+                            IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
+                            ScriptService scriptService) {
         this.request = request;
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -128,6 +131,7 @@ public class PercolateContext extends SearchContext {
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.scriptService = scriptService;
     }
 
     public void initialize(final MemoryIndex memoryIndex, ParsedDocument parsedDocument) {
@@ -465,22 +469,22 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public AnalysisService analysisService() {
-        throw new UnsupportedOperationException();
+        return indexService.analysisService();
     }
 
     @Override
     public IndexQueryParserService queryParserService() {
-        throw new UnsupportedOperationException();
+        return indexService.queryParserService();
     }
 
     @Override
     public SimilarityService similarityService() {
-        throw new UnsupportedOperationException();
+        return indexService.similarityService();
     }
 
     @Override
     public ScriptService scriptService() {
-        throw new UnsupportedOperationException();
+        return scriptService;
     }
 
     @Override
@@ -495,17 +499,17 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public FilterCache filterCache() {
-        throw new UnsupportedOperationException();
+        return indexService.cache().filter();
     }
 
     @Override
     public DocSetCache docSetCache() {
-        throw new UnsupportedOperationException();
+        return indexService.cache().docSet();
     }
 
     @Override
     public IdCache idCache() {
-        throw new UnsupportedOperationException();
+        return indexService.cache().idCache();
     }
 
     @Override

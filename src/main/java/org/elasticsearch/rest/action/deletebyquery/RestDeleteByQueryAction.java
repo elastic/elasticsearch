@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -101,14 +103,30 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     RestStatus restStatus = result.status();
                     builder.startObject();
-                    builder.startObject("_indices");
+                    builder.startObject(Fields._INDICES);
                     for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
                         builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                        builder.startObject("_shards");
-                        builder.field("total", indexDeleteByQueryResponse.getTotalShards());
-                        builder.field("successful", indexDeleteByQueryResponse.getSuccessfulShards());
-                        builder.field("failed", indexDeleteByQueryResponse.getFailedShards());
+                        builder.startObject(Fields._SHARDS);
+                        builder.field(Fields.TOTAL, indexDeleteByQueryResponse.getTotalShards());
+                        builder.field(Fields.SUCCESSFUL, indexDeleteByQueryResponse.getSuccessfulShards());
+                        builder.field(Fields.FAILED, indexDeleteByQueryResponse.getFailedShards());
+                        ShardOperationFailedException[] failures = indexDeleteByQueryResponse.getFailures();
+                        if (failures != null && failures.length > 0) {
+                            builder.startArray(Fields.FAILURES);
+                            for (ShardOperationFailedException shardFailure : failures) {
+                                builder.startObject();
+                                if (shardFailure.index() != null) {
+                                    builder.field(Fields.INDEX, shardFailure.index());
+                                }
+                                if (shardFailure.shardId() != -1) {
+                                    builder.field(Fields.SHARD, shardFailure.shardId());
+                                }
+                                builder.field(Fields.REASON, shardFailure.reason());
+                                builder.endObject();
+                            }
+                            builder.endArray();
+                        }
                         builder.endObject();
 
                         builder.endObject();
@@ -130,5 +148,17 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static final class Fields {
+        static final XContentBuilderString _INDICES = new XContentBuilderString("_indices");
+        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString INDEX = new XContentBuilderString("index");
+        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
     }
 }

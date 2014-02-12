@@ -23,13 +23,9 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -41,10 +37,7 @@ import java.io.IOException;
 
 class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
-    final Settings settings;
-
-    public MultiDocumentPercolatorIndex(Settings settings) {
-        this.settings = settings;
+    public MultiDocumentPercolatorIndex() {
     }
 
     @Override
@@ -65,13 +58,8 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
     }
 
-    MemoryIndex getMemoryIndex() {
-        final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
-        return new ExtendedMemoryIndex(true, maxReuseBytes);
-    }
-
     MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer) {
-        MemoryIndex memoryIndex = getMemoryIndex();
+        MemoryIndex memoryIndex = new MemoryIndex(true);
         for (IndexableField field : d.getFields()) {
             if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
                 continue;

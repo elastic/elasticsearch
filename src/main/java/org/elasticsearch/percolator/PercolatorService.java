@@ -129,7 +129,7 @@ public class PercolatorService extends AbstractComponent {
         this.sortParseElement = new SortParseElement();
 
         single = new SingleDocumentPercolatorIndex(settings);
-        multi = new MultiDocumentPercolatorIndex(settings);
+        multi = new MultiDocumentPercolatorIndex();
 
         percolatorTypes = new ByteObjectOpenHashMap<PercolatorType>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);

@@ -1487,6 +1487,38 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
         assertThat(matches[4].getScore(), equalTo(5.5f));
         assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+
+        logger.info("--> Top percolate for doc with field1=The quick brown fox jumps over the lazy dog");
+        response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setSize(5)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1").highlightQuery(QueryBuilders.matchQuery("field1", "jumps")))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setSortByScore(true)
+                .execute().actionGet();
+        assertMatchCount(response, 5l);
+        assertThat(response.getMatches(), arrayWithSize(5));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
+
+        matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.getId().compareTo(b.getId());
+            }
+        });
+
+        assertThat(matches[0].getScore(), equalTo(5.5f));
+        assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[1].getScore(), equalTo(5.5f));
+        assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[2].getScore(), equalTo(5.5f));
+        assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[3].getScore(), equalTo(5.5f));
+        assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[4].getScore(), equalTo(5.5f));
+        assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
     }
 
     @Test

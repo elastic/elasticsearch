@@ -676,10 +676,10 @@ free text search and sorting.
 }
 --------------------------------------------------
 
-In the above example the field name gets processed twice. The first time is gets
+In the above example the field `name` gets processed twice. The first time it gets
 processed as an analyzed string and this version is accessible under the field name
 `name`, this is the main field and is in fact just like any other field. The second time
-its get processed as a not analyzed string and is accessible under the name `name.raw`.
+it gets processed as a not analyzed string and is accessible under the name `name.raw`.
 
 [float]
 ==== Include in All

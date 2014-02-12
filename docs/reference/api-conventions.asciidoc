@@ -164,6 +164,7 @@ The full list of units is listed below:
 
 [horizontal]
 Mile::          `mi` or `miles`
+Nautical mile:: 'NM' or 'nmi' or 'nauticalmiles'
 Yard::          `yd` or `yards`
 Feet::          `ft` or `feet`
 Inch::          `in` or `inch`

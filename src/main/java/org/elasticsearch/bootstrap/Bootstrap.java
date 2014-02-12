@@ -274,6 +274,9 @@ public class Bootstrap {
         } else {
             errorMessage.append("- ").append(ExceptionsHelper.detailedMessage(e, true, 0));
         }
+        if (Loggers.getLogger(Bootstrap.class).isDebugEnabled()) {
+            errorMessage.append("\n").append(ExceptionsHelper.stackTrace(e));
+        }
         return errorMessage.toString();
     }
 }

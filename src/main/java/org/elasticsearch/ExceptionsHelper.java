@@ -23,6 +23,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 /**
  *
  */
@@ -109,5 +112,12 @@ public final class ExceptionsHelper {
         } else {
             return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
         }
+    }
+
+    public static String stackTrace(Throwable e) {
+        StringWriter stackTraceStringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
+        e.printStackTrace(printWriter);
+        return stackTraceStringWriter.toString();
     }
 }

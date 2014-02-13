@@ -1980,6 +1980,46 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testNestedFieldSimpleQueryString() throws IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type1", jsonBuilder()
+                        .startObject()
+                        .startObject("type1")
+                        .startObject("properties")
+                        .startObject("body").field("type", "string")
+                        .startObject("fields")
+                        .startObject("sub").field("type", "string")
+                        .endObject() // sub
+                        .endObject() // fields
+                        .endObject() // body
+                        .endObject() // properties
+                        .endObject() // type1
+                        .endObject()));
+        client().prepareIndex("test", "type1", "1").setSource("body", "foo bar baz").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar baz").field("body")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar baz").field("type1.body")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar baz").field("body.sub")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("foo bar baz").field("type1.body.sub")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+    }
+
+    @Test
     public void testSimpleQueryStringFlags() {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
         client().prepareIndex("test", "type1", "1").setSource("body", "foo").get();

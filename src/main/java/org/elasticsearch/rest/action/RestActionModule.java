@@ -219,6 +219,7 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestMasterAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestNodesAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestIndicesAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestSegmentsAction.class).asEagerSingleton();
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         catActionMultibinder.addBinding().to(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestRecoveryAction.class).asEagerSingleton();

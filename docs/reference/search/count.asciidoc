@@ -14,7 +14,9 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_count?q=user:kimchy'
 
 $ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
 {
-    "term" : { "user" : "kimchy" }
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
 }'
 --------------------------------------------------
 

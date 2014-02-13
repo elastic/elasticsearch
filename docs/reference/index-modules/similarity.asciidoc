@@ -87,7 +87,7 @@ Type name: `BM25`
 
 [float]
 [[drf]]
-==== DRF similarity
+==== DFR similarity
 
 Similarity that implements the
 http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence

@@ -18,6 +18,9 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
 }'
 --------------------------------------------------
 
+NOTE: The query being sent in the body must be nested in a `query` key, same as
+the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+
 Both examples above do the same thing, which is count the number of
 tweets from the twitter index for a certain user. The result is:
 
@@ -35,10 +38,6 @@ tweets from the twitter index for a certain user. The result is:
 
 The query is optional, and when not provided, it will use `match_all` to
 count all the docs.
-
-
-NOTE: in contrast to <<search-search>> the query being sent in the body must 
-*not* be nested in a `query` key.
 
 [float]
 === Multi index, Multi type

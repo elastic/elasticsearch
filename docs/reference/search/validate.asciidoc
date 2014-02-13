@@ -26,14 +26,16 @@ Or, with a request body:
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
-  "filtered" : {
-    "query" : {
-      "query_string" : {
-        "query" : "*:*"
+  "query" : {
+    "filtered" : {
+      "query" : {
+        "query_string" : {
+          "query" : "*:*"
+        }
+      },
+      "filter" : {
+        "term" : { "user" : "kimchy" }
       }
-    },
-    "post_filter" : {
-      "term" : { "user" : "kimchy" }
     }
   }
 }'

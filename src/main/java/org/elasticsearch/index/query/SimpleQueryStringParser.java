@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -123,7 +124,12 @@ public class SimpleQueryStringParser implements QueryParser {
                                 fieldsAndWeights.put(fieldName, fBoost);
                             }
                         } else {
-                            fieldsAndWeights.put(fField, fBoost);
+                            MapperService.SmartNameFieldMappers mappers = parseContext.smartFieldMappers(fField);
+                            if (mappers != null && mappers.hasMapper()) {
+                                fieldsAndWeights.put(mappers.mapper().names().indexName(), fBoost);
+                            } else {
+                                fieldsAndWeights.put(fField, fBoost);
+                            }
                         }
                     }
                 } else {

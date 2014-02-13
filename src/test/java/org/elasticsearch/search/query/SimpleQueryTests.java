@@ -1970,10 +1970,10 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("properties")
-                        .startObject("body").field("type", "string")
+                        .startObject("body").field("type", "multi_field")
                         .startObject("fields")
-                        .startObject("sub").field("type", "string")
-                        .endObject() // sub
+                        .startObject("body").field("type", "string").endObject()
+                        .startObject("sub").field("type", "string").endObject()
                         .endObject() // fields
                         .endObject() // body
                         .endObject() // properties

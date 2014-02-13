@@ -41,7 +41,7 @@ The following aggregations will return the minimum price products can be purchas
                 "path" : "resellers"
             },
             "aggs" : {
-                "min_price" : { "min" : { "field" : "nested.value" } }
+                "min_price" : { "min" : { "field" : "resellers.price" } }
             }
         }
     }

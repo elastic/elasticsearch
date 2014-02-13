@@ -19,7 +19,10 @@ $ curl -XDELETE 'http://localhost:9200/twitter/tweet/_query' -d '{
 '
 --------------------------------------------------
 
-Both above examples end up doing the same thing, which is delete all
+NOTE: The query being sent in the body must be nested in a `query` key, same as
+the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+
+Both above examples end up do the same thing, which is delete all
 tweets from the twitter index for a certain user. The result of the
 commands is:
 

@@ -177,7 +177,7 @@ public class PercolatorService extends AbstractComponent {
             }
 
             if (request.docSource() != null && request.docSource().length() != 0) {
-                parsedDocument = parseFetchedDoc(request.docSource(), percolateIndexService, request.documentType());
+                parsedDocument = parseFetchedDoc(context, request.docSource(), percolateIndexService, request.documentType());
             } else if (parsedDocument == null) {
                 throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
@@ -381,7 +381,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseFetchedDoc(BytesReference fetchedDoc, IndexService documentIndexService, String type) {
+    private ParsedDocument parseFetchedDoc(PercolateContext context, BytesReference fetchedDoc, IndexService documentIndexService, String type) {
         ParsedDocument doc = null;
         XContentParser parser = null;
         try {
@@ -389,6 +389,14 @@ public class PercolatorService extends AbstractComponent {
             MapperService mapperService = documentIndexService.mapperService();
             DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
             doc = docMapper.parse(source(parser).type(type).flyweight(true));
+
+            if (context.highlight() != null) {
+                // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
+                for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                    field.forceSource(true);
+                }
+                doc.setSource(fetchedDoc);
+            }
         } catch (Throwable e) {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {

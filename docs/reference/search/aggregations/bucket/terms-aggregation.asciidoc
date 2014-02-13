@@ -134,7 +134,7 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
         "genders" : {
             "terms" : { 
                 "field" : "gender",
-                "order" : { "stats.avg" : "desc" }
+                "order" : { "height_stats.avg" : "desc" }
             },
             "aggs" : {
                 "height_stats" : { "stats" : { "field" : "height" } }

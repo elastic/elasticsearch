@@ -27,12 +27,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -91,6 +93,7 @@ public class SimpleQueryStringParser implements QueryParser {
         BooleanClause.Occur defaultOperator = null;
         Analyzer analyzer = null;
         boolean lowercaseExpandedTerms = true;
+        Locale locale = Locale.ROOT;
         int flags = -1;
 
         XContentParser.Token token;
@@ -168,6 +171,9 @@ public class SimpleQueryStringParser implements QueryParser {
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
+                } else if ("locale".equals(currentFieldName)) {
+                    String localeStr = parser.text();
+                    locale = LocaleUtils.parse(localeStr);
                 } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                     lowercaseExpandedTerms = parser.booleanValue();
                 } else {
@@ -199,7 +205,7 @@ public class SimpleQueryStringParser implements QueryParser {
         if (fieldsAndWeights == null) {
             fieldsAndWeights = Collections.singletonMap(field, 1.0F);
         }
-        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, lowercaseExpandedTerms);
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, locale, lowercaseExpandedTerms);
 
         if (defaultOperator != null) {
             sqp.setDefaultOperator(defaultOperator);

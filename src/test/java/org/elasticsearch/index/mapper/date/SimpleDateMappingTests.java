@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -81,18 +82,18 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
     
     @Test
     public void testParseLocal() {
-        assertThat(Locale.GERMAN, equalTo(DateFieldMapper.parseLocale("de")));
-        assertThat(Locale.GERMANY, equalTo(DateFieldMapper.parseLocale("de_DE")));
-        assertThat(new Locale("de","DE","DE"), equalTo(DateFieldMapper.parseLocale("de_DE_DE")));
+        assertThat(Locale.GERMAN, equalTo(LocaleUtils.parse("de")));
+        assertThat(Locale.GERMANY, equalTo(LocaleUtils.parse("de_DE")));
+        assertThat(new Locale("de","DE","DE"), equalTo(LocaleUtils.parse("de_DE_DE")));
         
         try {
-            DateFieldMapper.parseLocale("de_DE_DE_DE");
+            LocaleUtils.parse("de_DE_DE_DE");
             fail();
         } catch(ElasticsearchIllegalArgumentException ex) {
             // expected
         }
-        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocale("")));
-        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocale("ROOT")));
+        assertThat(Locale.ROOT,  equalTo(LocaleUtils.parse("")));
+        assertThat(Locale.ROOT,  equalTo(LocaleUtils.parse("ROOT")));
     }
     
     @Test

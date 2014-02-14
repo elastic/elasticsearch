@@ -1,4 +1,5 @@
-skip:
+setup:
+ - skip:
       version:  "0 - 0.90.2"
       reason:   "Pending tasks not supported in pre 0.90.3 versions."
 

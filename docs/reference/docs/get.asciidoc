@@ -18,6 +18,7 @@ The result of the above get operation is:
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1", 
+    "found": true,
     "_source" : {
         "user" : "kimchy",
         "postDate" : "2009-11-15T14:12:12",
@@ -28,14 +29,15 @@ The result of the above get operation is:
 
 The above result includes the `_index`, `_type`, and `_id` of the
 document we wish to retrieve, including the actual source of the
-document that was indexed.
+document that was indexed if it could be found (as indicated by the
+`found` field in the response).
 
 The API also allows to check for the existence of a document using
 `HEAD`, for example:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD 'http://localhost:9200/twitter/tweet/1'
+curl -I 'http://localhost:9200/twitter/tweet/1'
 --------------------------------------------------
 
 [float]
@@ -91,7 +93,7 @@ of fields or wildcard expressions. Example:
 curl -XGET 'http://localhost:9200/twitter/tweet/1?_source_include=*.id&_source_exclude=entities'
 --------------------------------------------------
 
-If only want to specify includes, you can use a shorter notation:
+If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
 --------------------------------------------------
@@ -146,7 +148,7 @@ Curl example:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD 'http://localhost:9200/twitter/tweet/1/_source'
+curl -I 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
 [float]

@@ -46,6 +46,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -2001,6 +2002,27 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch().setQuery(
                 simpleQueryString("Professionan~1").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 0l);
+    }
+
+    @Test
+    public void testQueryStringLocale() {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("BILL*")).get();
+        assertHitCount(searchResponse, 0l);
+        searchResponse = client().prepareSearch().setQuery(queryString("body:BILL*")).get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("BILL*").locale(new Locale("tr", "TR"))).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+        searchResponse = client().prepareSearch().setQuery(
+                queryString("body:BILL*").locale(new Locale("tr", "TR"))).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
     }
 
     @Test

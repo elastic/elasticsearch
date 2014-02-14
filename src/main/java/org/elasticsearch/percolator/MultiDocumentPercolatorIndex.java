@@ -20,8 +20,12 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -32,66 +36,65 @@ import java.io.IOException;
 
 
 class MultiDocumentPercolatorIndex implements PercolatorIndex {
-    private final IndexSearcher docSearcher;
-    private final Engine.Searcher docEngineSearcher;
-    private final IndexReader topLevelReader;
-    private final AtomicReaderContext readerContext;
 
-    public MultiDocumentPercolatorIndex(ParsedDocument parsedDocument) {
+    public MultiDocumentPercolatorIndex() {
+    }
+
+    @Override
+    public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
         ByteBufferDirectory directory = new ByteBufferDirectory();
         IndexWriterConfig writerConfig = new IndexWriterConfig(Version.CURRENT.luceneVersion, parsedDocument.analyzer());
         try {
             IndexWriter indexWriter = new IndexWriter(directory, writerConfig);
             indexWriter.addDocuments(parsedDocument.docs());
-            docSearcher = new IndexSearcher(DirectoryReader.open(indexWriter, false));
+            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(DirectoryReader.open(indexWriter, false)), directory);
+            context.initialize(docSearcher, parsedDocument);
             indexWriter.close();
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
         }
-
-        topLevelReader = docSearcher.getIndexReader();
-        readerContext = topLevelReader.leaves().get(0);
-        docEngineSearcher = new Engine.Searcher() {
-            @Override
-            public String source() {
-                return "percolate";
-            }
-
-            @Override
-            public IndexReader reader() {
-                return topLevelReader;
-            }
-
-            @Override
-            public IndexSearcher searcher() {
-                return docSearcher;
-            }
-
-            @Override
-            public boolean release() throws ElasticsearchException {
-                try {
-                    docSearcher.getIndexReader().close();
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);
-                }
-                return true;
-            }
-        };
-
     }
 
     @Override
-    public Engine.Searcher getSearcher() {
-        return docEngineSearcher;
+    public void clean() {
+        // noop
     }
 
-    @Override
-    public IndexReader getIndexReader() {
-        return topLevelReader;
-    }
+    private class DocSearcher implements Engine.Searcher {
 
-    @Override
-    public AtomicReaderContext getAtomicReaderContext() {
-        return readerContext;
+        private final IndexSearcher searcher;
+        private final Directory directory;
+
+        private DocSearcher(IndexSearcher searcher, Directory directory) {
+            this.searcher = searcher;
+            this.directory = directory;
+        }
+
+        @Override
+        public String source() {
+            return "percolate";
+        }
+
+        @Override
+        public IndexReader reader() {
+            return searcher.getIndexReader();
+        }
+
+        @Override
+        public IndexSearcher searcher() {
+            return searcher;
+        }
+
+        @Override
+        public boolean release() throws ElasticsearchException {
+            try {
+                searcher.getIndexReader().close();
+                directory.close();
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);
+            }
+            return true;
+        }
+
     }
 }

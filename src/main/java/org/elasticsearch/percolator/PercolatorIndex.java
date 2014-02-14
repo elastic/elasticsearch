@@ -1,16 +1,12 @@
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.ParsedDocument;
 
 
 interface PercolatorIndex {
 
-    Engine.Searcher getSearcher();
+    void prepare(PercolateContext context, ParsedDocument document);
 
-    IndexReader getIndexReader();
-
-    AtomicReaderContext getAtomicReaderContext();
+    void clean();
 
 }

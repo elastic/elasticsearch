@@ -21,12 +21,16 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -35,15 +39,21 @@ import java.io.IOException;
 
 class SingleDocumentPercolatorIndex implements PercolatorIndex {
 
-    private final IndexSearcher docSearcher;
-    private final Engine.Searcher docEngineSearcher;
-    private final IndexReader topLevelReader;
-    private final AtomicReaderContext readerContext;
-    private final MemoryIndex memoryIndex;
+    private final CloseableThreadLocal<MemoryIndex> cache;
 
-    public SingleDocumentPercolatorIndex(ParsedDocument parsedDocument, MemoryIndex mIndex) {
+    public SingleDocumentPercolatorIndex(Settings settings) {
+        final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
+        cache = new CloseableThreadLocal<MemoryIndex>() {
+            @Override
+            protected MemoryIndex initialValue() {
+                return new ExtendedMemoryIndex(true, maxReuseBytes);
+            }
+        };
+    }
 
-        this.memoryIndex = mIndex;
+    @Override
+    public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
+        MemoryIndex memoryIndex = cache.get();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
             if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
@@ -57,50 +67,48 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 throw new ElasticsearchException("Failed to create token stream", e);
             }
         }
-        docSearcher = memoryIndex.createSearcher();
-        topLevelReader = docSearcher.getIndexReader();
-        readerContext = topLevelReader.leaves().get(0);
-        docEngineSearcher = new Engine.Searcher() {
-            @Override
-            public String source() {
-                return "percolate";
-            }
-
-            @Override
-            public IndexReader reader() {
-                return topLevelReader;
-            }
-
-            @Override
-            public IndexSearcher searcher() {
-                return docSearcher;
-            }
-
-            @Override
-            public boolean release() throws ElasticsearchException {
-                try {
-                    docSearcher.getIndexReader().close();
-                    memoryIndex.reset();
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to close percolator in-memory index", e);
-                }
-                return true;
-            }
-        };
+        context.initialize(new DocEngineSearcher(memoryIndex.createSearcher(), memoryIndex), parsedDocument);
     }
 
     @Override
-    public Engine.Searcher getSearcher() {
-        return docEngineSearcher;
+    public void clean() {
+        cache.close();
     }
 
-    @Override
-    public IndexReader getIndexReader() {
-        return topLevelReader;
-    }
+    private class DocEngineSearcher implements Engine.Searcher {
 
-    @Override
-    public AtomicReaderContext getAtomicReaderContext() {
-        return readerContext;
+        private final IndexSearcher searcher;
+        private final MemoryIndex memoryIndex;
+
+        public DocEngineSearcher(IndexSearcher searcher, MemoryIndex memoryIndex) {
+            this.searcher = searcher;
+            this.memoryIndex = memoryIndex;
+        }
+
+        @Override
+        public String source() {
+            return "percolate";
+        }
+
+        @Override
+        public IndexReader reader() {
+            return searcher.getIndexReader();
+        }
+
+        @Override
+        public IndexSearcher searcher() {
+            return searcher;
+        }
+
+        @Override
+        public boolean release() throws ElasticsearchException {
+            try {
+                searcher.getIndexReader().close();
+                memoryIndex.reset();
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to close percolator in-memory index", e);
+            }
+            return true;
+        }
     }
 }

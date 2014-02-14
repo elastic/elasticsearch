@@ -21,18 +21,13 @@ package org.elasticsearch.percolator;
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.*;
-import org.apache.lucene.index.memory.ExtendedMemoryIndex;
-import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.*;
-import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
@@ -52,8 +47,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -66,7 +59,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
@@ -106,12 +98,14 @@ public class PercolatorService extends AbstractComponent {
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
     public final static String TYPE_NAME = ".percolator";
 
-    private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
     private final ByteObjectOpenHashMap<PercolatorType> percolatorTypes;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
     private final ClusterService clusterService;
+
+    private final PercolatorIndex single;
+    private final PercolatorIndex multi;
 
     private final FacetPhase facetPhase;
     private final HighlightPhase highlightPhase;
@@ -134,13 +128,8 @@ public class PercolatorService extends AbstractComponent {
         this.scriptService = scriptService;
         this.sortParseElement = new SortParseElement();
 
-        final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
-        cache = new CloseableThreadLocal<MemoryIndex>() {
-            @Override
-            protected MemoryIndex initialValue() {
-                return new ExtendedMemoryIndex(true, maxReuseBytes);
-            }
-        };
+        single = new SingleDocumentPercolatorIndex(settings);
+        multi = new MultiDocumentPercolatorIndex();
 
         percolatorTypes = new ByteObjectOpenHashMap<PercolatorType>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
@@ -170,7 +159,6 @@ public class PercolatorService extends AbstractComponent {
                 request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler, scriptService
         );
         try {
-
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
             if (context.percolateQueries().isEmpty()) {
                 return new PercolateShardResponse(context, request.index(), request.shardId());
@@ -199,13 +187,13 @@ public class PercolatorService extends AbstractComponent {
             }
 
             // parse the source either into a MemoryIndex, if it is a single document or create ByteBufferDirectory in case this is a nested docuemnt
-            PercolatorIndex percolatorIndex = null;
+            PercolatorIndex percolatorIndex;
             if (indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects()) {
-                percolatorIndex = new MultiDocumentPercolatorIndex(parsedDocument);
+                percolatorIndex = multi;
             } else {
-                percolatorIndex = new SingleDocumentPercolatorIndex(parsedDocument, cache.get());
+                percolatorIndex = single;
             }
-            context.initialize(percolatorIndex, parsedDocument);
+            percolatorIndex.prepare(context, parsedDocument);
 
             PercolatorType action;
             if (request.onlyCount()) {
@@ -403,7 +391,8 @@ public class PercolatorService extends AbstractComponent {
     }
 
     public void close() {
-        cache.close();
+        single.clean();
+        multi.clean();
     }
 
     interface PercolatorType {

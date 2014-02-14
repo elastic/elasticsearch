@@ -32,11 +32,13 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
@@ -73,6 +75,7 @@ public class QueryStringQueryParser implements QueryParser {
         qpSettings.lenient(parseContext.queryStringLenient());
         qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
         qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
+        qpSettings.locale(Locale.ROOT);
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -186,6 +189,9 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.quoteFieldSuffix(parser.textOrNull());
                 } else if ("lenient".equalsIgnoreCase(currentFieldName)) {
                     qpSettings.lenient(parser.booleanValue());
+                } else if ("locale".equals(currentFieldName)) {
+                    String localeStr = parser.text();
+                    qpSettings.locale(LocaleUtils.parse(localeStr));
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {

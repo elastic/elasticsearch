@@ -38,6 +38,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -157,31 +158,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
                 } else if (propName.equals("locale")) {
-                    builder.locale(parseLocale(propNode.toString()));
+                    builder.locale(LocaleUtils.parse(propNode.toString()));
                 }
             }
             return builder;
-        }
-    }
-
-    // public for test
-    public static Locale parseLocale(String locale) {
-        final String[] parts = locale.split("_", -1);
-        switch (parts.length) {
-            case 3:
-                // lang_country_variant
-                return new Locale(parts[0], parts[1], parts[2]);
-            case 2:
-                // lang_country
-                return new Locale(parts[0], parts[1]);
-            case 1:
-                if ("ROOT".equalsIgnoreCase(parts[0])) {
-                    return Locale.ROOT;
-                }
-                // lang
-                return new Locale(parts[0]);
-            default:
-                throw new ElasticsearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
         }
     }
 

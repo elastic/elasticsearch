@@ -126,6 +126,7 @@ public class MapperQueryParser extends QueryParser {
         setDefaultOperator(settings.defaultOperator());
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
+        setLocale(settings.locale());
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 

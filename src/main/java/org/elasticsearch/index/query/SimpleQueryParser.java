@@ -39,11 +39,13 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
 public class SimpleQueryParser extends XSimpleQueryParser {
 
     private final boolean lowercaseExpandedTerms;
+    private final Locale locale;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, boolean lowercaseExpandedTerms) {
+    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Locale locale, boolean lowercaseExpandedTerms) {
         super(analyzer, weights, flags);
         this.lowercaseExpandedTerms = lowercaseExpandedTerms;
+        this.locale = locale;
     }
 
     /**
@@ -53,7 +55,7 @@ public class SimpleQueryParser extends XSimpleQueryParser {
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
         if (lowercaseExpandedTerms) {
-            text = text.toLowerCase(Locale.ROOT);
+            text = text.toLowerCase(locale);
         }
         return super.newFuzzyQuery(text, fuzziness);
     }
@@ -65,7 +67,7 @@ public class SimpleQueryParser extends XSimpleQueryParser {
     @Override
     public Query newPrefixQuery(String text) {
         if (lowercaseExpandedTerms) {
-            text = text.toLowerCase(Locale.ROOT);
+            text = text.toLowerCase(locale);
         }
         return super.newPrefixQuery(text);
     }

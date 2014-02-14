@@ -3,11 +3,15 @@ Azure Cloud Plugin for Elasticsearch
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0.alpha1`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.0.0`.
+
+For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/master).
+For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/1.x).
 
 |     Azure Cloud Plugin      |    elasticsearch    | Release date |
 |-----------------------------|---------------------|:------------:|
-| 2.0.0.RC1-SNAPSHOT (master) | 1.0.0.RC1 -> master |              |
+| 2.0.0.RC1-SNAPSHOT (master) | 1.0 -> master       |              |
+| 2.0.0                       | 1.0 -> master       |  2014-02-14  |
 | 1.0.0-SNAPSHOT (1.x)        | 0.90.6 -> 0.90      |              |
 | 1.0.0.alpha1                | 0.90.6 -> 0.90      |  2013-11-06  |
 
@@ -207,10 +211,10 @@ sudo apt-get update
 sudo apt-get install openjdk-7-jre-headless
 
 # Download Elasticsearch
-curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.6.deb -o elasticsearch-0.90.6.deb
+curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.0.0.deb -o elasticsearch-1.0.0.deb
 
 # Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-0.90.6.deb
+sudo dpkg -i elasticsearch-1.0.0.deb
 ```
 
 Check that elasticsearch is running:
@@ -223,15 +227,14 @@ This command should give you a JSON result:
 
 ```javascript
 {
-  "ok" : true,
   "status" : 200,
-  "name" : "Grey, Dr. John",
+  "name" : "Living Colossus",
   "version" : {
-    "number" : "0.90.6",
-    "build_hash" : "e2a24efdde0cb7cc1b2071ffbbd1fd874a6d8d6b",
-    "build_timestamp" : "2013-11-04T13:44:16Z",
+    "number" : "1.0.0",
+    "build_hash" : "a46900e9c72c0a623d71b54016357d5f94c8ea32",
+    "build_timestamp" : "2014-02-12T16:18:34Z",
     "build_snapshot" : false,
-    "lucene_version" : "4.5.1"
+    "lucene_version" : "4.6"
   },
   "tagline" : "You Know, for Search"
 }
@@ -244,7 +247,7 @@ This command should give you a JSON result:
 sudo service elasticsearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0.alpha1
+sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.0.0
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml

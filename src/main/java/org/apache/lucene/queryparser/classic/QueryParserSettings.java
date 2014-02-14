@@ -26,6 +26,7 @@ import org.apache.lucene.search.MultiTermQuery;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 /**
  *
@@ -59,6 +60,7 @@ public class QueryParserSettings {
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
     private String minimumShouldMatch;
     private boolean lenient;
+    private Locale locale;
 
 
     List<String> fields = null;
@@ -296,6 +298,14 @@ public class QueryParserSettings {
         this.useDisMax = useDisMax;
     }
 
+    public void locale(Locale locale) {
+        this.locale = locale;
+    }
+
+    public Locale locale() {
+        return this.locale;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -336,6 +346,9 @@ public class QueryParserSettings {
         if (lenient != that.lenient) {
             return false;
         }
+        if (locale != null ? !locale.equals(that.locale) : that.locale != null) {
+            return false;
+        }
 
         if (Float.compare(that.tieBreaker, tieBreaker) != 0) return false;
         if (useDisMax != that.useDisMax) return false;
@@ -371,6 +384,7 @@ public class QueryParserSettings {
         result = 31 * result + (boosts != null ? boosts.hashCode() : 0);
         result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
         result = 31 * result + (useDisMax ? 1 : 0);
+        result = 31 * result + (locale != null ? locale.hashCode() : 0);
         return result;
     }
 }

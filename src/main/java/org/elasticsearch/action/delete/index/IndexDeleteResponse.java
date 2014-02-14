@@ -35,9 +35,9 @@ public class IndexDeleteResponse extends ActionResponse {
     private int failedShards;
     private ShardDeleteResponse[] deleteResponses;
 
-    IndexDeleteResponse(String index, int successfulShards, int failedShards, ShardDeleteResponse[] deleteResponses) {
+    IndexDeleteResponse(String index, int failedShards, ShardDeleteResponse[] deleteResponses) {
         this.index = index;
-        this.successfulShards = successfulShards;
+        this.successfulShards = deleteResponses.length;
         this.failedShards = failedShards;
         this.deleteResponses = deleteResponses;
     }

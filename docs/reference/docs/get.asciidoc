@@ -17,7 +17,8 @@ The result of the above get operation is:
 {
     "_index" : "twitter",
     "_type" : "tweet",
-    "_id" : "1", 
+    "_id" : "1",
+    "_version" : 1,
     "found": true,
     "_source" : {
         "user" : "kimchy",
@@ -27,17 +28,17 @@ The result of the above get operation is:
 }
 --------------------------------------------------
 
-The above result includes the `_index`, `_type`, and `_id` of the
-document we wish to retrieve, including the actual source of the
-document that was indexed if it could be found (as indicated by the
-`found` field in the response).
+The above result includes the `_index`, `_type`, `_id` and `_version`
+of the document we wish to retrieve, including the actual `_source`
+of the document if it could be found (as indicated by the `found`
+field in the response).
 
 The API also allows to check for the existence of a document using
 `HEAD`, for example:
 
 [source,js]
 --------------------------------------------------
-curl -I 'http://localhost:9200/twitter/tweet/1'
+curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
 --------------------------------------------------
 
 [float]
@@ -148,7 +149,7 @@ Curl example:
 
 [source,js]
 --------------------------------------------------
-curl -I 'http://localhost:9200/twitter/tweet/1/_source'
+curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
 [float]

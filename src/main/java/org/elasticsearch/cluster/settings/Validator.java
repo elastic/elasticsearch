@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,13 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.elasticsearch.common.unit.MemorySizeValue.parseBytesSizeValueOrHeapRatio;
+
 
 /**
  * Validates a setting, returning a failure message if applicable.
@@ -45,7 +48,25 @@ public interface Validator {
                 if (TimeValue.parseTimeValue(value, null) == null) {
                     return "cannot parse value [" + value + "] as time";
                 }
-            } catch (ElasticSearchParseException ex) {
+            } catch (ElasticsearchParseException ex) {
+                return "cannot parse value [" + value + "] as time";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator TIME_NON_NEGATIVE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                TimeValue timeValue = TimeValue.parseTimeValue(value, null);
+                if (timeValue == null) {
+                    return "cannot parse value [" + value + "] as time";
+                }
+                if (timeValue.millis() < 0) {
+                    return "cannot parse value [" + value + "] as non negative time";
+                }
+            } catch (ElasticsearchParseException ex) {
                 return "cannot parse value [" + value + "] as time";
             }
             return null;
@@ -177,11 +198,33 @@ public interface Validator {
         public String validate(String setting, String value) {
             try {
                 parseBytesSizeValue(value);
-            } catch (ElasticSearchParseException ex) {
+            } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }
             return null;
         }
     };
 
+    public static final Validator MEMORY_SIZE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                parseBytesSizeValueOrHeapRatio(value);
+            } catch (ElasticsearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
+    public static final Validator BOOLEAN = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+
+            if (value != null && (Booleans.isExplicitFalse(value) || Booleans.isExplicitTrue(value))) {
+                return null;
+            }
+            return "cannot parse value [" + value + "] as a boolean";
+        }
+    };
 }

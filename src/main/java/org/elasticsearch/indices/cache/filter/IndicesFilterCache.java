@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,22 +19,24 @@
 
 package org.elasticsearch.indices.cache.filter;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Objects;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -45,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
     private final ThreadPool threadPool;
+    private final CacheRecycler cacheRecycler;
 
     private Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache;
 
@@ -88,9 +91,10 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     @Inject
-    public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
+    public IndicesFilterCache(Settings settings, ThreadPool threadPool, CacheRecycler cacheRecycler, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
+        this.cacheRecycler = cacheRecycler;
         this.size = componentSettings.get("size", "20%");
         this.expire = componentSettings.getAsTime("expire", null);
         this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
@@ -100,7 +104,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 size, new ByteSizeValue(sizeInBytes), expire, cleanInterval);
 
         nodeSettingsService.addListener(new ApplySettings());
-
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, new ReaderCleaner());
     }
 
@@ -120,12 +123,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     private void computeSizeInBytes() {
-        if (size.endsWith("%")) {
-            double percent = Double.parseDouble(size.substring(0, size.length() - 1));
-            sizeInBytes = (long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
-        } else {
-            sizeInBytes = ByteSizeValue.parseBytesSizeValue(size).bytes();
-        }
+        this.sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
     }
 
     public void addReaderKeyToClean(Object readerKey) {
@@ -166,34 +164,46 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 return;
             }
             if (readersKeysToClean.isEmpty()) {
-                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
+                schedule();
                 return;
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    THashSet<Object> keys = CacheRecycler.popHashSet();
-                    try {
-                        for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
-                            keys.add(it.next());
-                            it.remove();
-                        }
-                        cache.cleanUp();
-                        if (!keys.isEmpty()) {
-                            for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
-                                WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
-                                if (keys.contains(filterCacheKey.readerKey())) {
-                                    // same as invalidate
-                                    it.remove();
+            try {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        Recycler.V<ObjectOpenHashSet<Object>> keys = cacheRecycler.hashSet(-1);
+                        try {
+                            for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
+                                keys.v().add(it.next());
+                                it.remove();
+                            }
+                            cache.cleanUp();
+                            if (!keys.v().isEmpty()) {
+                                for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
+                                    WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
+                                    if (keys.v().contains(filterCacheKey.readerKey())) {
+                                        // same as invalidate
+                                        it.remove();
+                                    }
                                 }
                             }
+                            schedule();
+                        } finally {
+                            keys.release();
                         }
-                        threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, ReaderCleaner.this);
-                    } finally {
-                        CacheRecycler.pushHashSet(keys);
                     }
-                }
-            });
+                });
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Can not run ReaderCleaner - execution rejected", ex);
+            } 
+        }
+        
+        private void schedule() {
+            try {
+                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Can not schedule ReaderCleaner - execution rejected", ex);
+            }
         }
     }
 }

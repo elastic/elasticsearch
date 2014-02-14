@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -32,9 +32,11 @@ import java.util.List;
  */
 public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
+    public static final String POINTS = GeoPolygonFilterParser.POINTS;
+    
     private final String name;
 
-    private final List<GeoPoint> points = Lists.newArrayList();
+    private final List<GeoPoint> shell = Lists.newArrayList();
 
     private Boolean cache;
     private String cacheKey;
@@ -53,15 +55,18 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
      * @return
      */
     public GeoPolygonFilterBuilder addPoint(double lat, double lon) {
-        points.add(new GeoPoint(lat, lon));
-        return this;
+        return addPoint(new GeoPoint(lat, lon));
     }
 
     public GeoPolygonFilterBuilder addPoint(String geohash) {
-        points.add(GeoHashUtils.decode(geohash));
-        return this;
+        return addPoint(GeoHashUtils.decode(geohash));
     }
 
+    public GeoPolygonFilterBuilder addPoint(GeoPoint point) {
+        shell.add(point);
+        return this;
+    }
+    
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -88,8 +93,8 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         builder.startObject(GeoPolygonFilterParser.NAME);
 
         builder.startObject(name);
-        builder.startArray("points");
-        for (GeoPoint point : points) {
+        builder.startArray(POINTS);
+        for (GeoPoint point : shell) {
             builder.startArray().value(point.lon()).value(point.lat()).endArray();
         }
         builder.endArray();

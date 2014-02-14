@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
@@ -44,15 +43,15 @@ public class HashedAggregator {
     }
 
     public void onDoc(int docId, BytesValues values) {
-        if (values.hasValue(docId)) {
-            final Iter iter = values.getIter(docId);
-            while (iter.hasNext()) {
-                onValue(docId, iter.next(), iter.hash(), values);
-                total++;
-            }
-        } else {
-            missing++;
+        final int length = values.setDocument(docId);
+        int pendingMissing = 1;
+        total += length;
+        for (int i = 0; i < length; i++) {
+            final BytesRef value = values.nextValue();
+            onValue(docId, value, values.currentValueHash(), values);
+            pendingMissing = 0;
         }
+        missing += pendingMissing;
     }
 
     public void addValue(BytesRef value, int hashCode, BytesValues values) {
@@ -100,14 +99,13 @@ public class HashedAggregator {
         public boolean shared();
     }
 
-    public static InternalFacet buildFacet(String facetName, int size, long missing, long total, TermsFacet.ComparatorType comparatorType,
+    public static InternalFacet buildFacet(String facetName, int size, int shardSize, long missing, long total, TermsFacet.ComparatorType comparatorType,
                                            HashedAggregator aggregator) {
         if (aggregator.isEmpty()) {
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(),
-                    missing, total);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
-            if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+            if (shardSize < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
                 BytesRefCountIterator iter = aggregator.getIter();
                 while (iter.next() != null) {
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(iter.makeSafe(), iter.count()));
@@ -120,8 +118,7 @@ public class HashedAggregator {
                 }
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(
-                        comparatorType.comparator(), size);
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
                 BytesRefCountIterator iter = aggregator.getIter();
                 while (iter.next() != null) {
                     ordered.add(new InternalStringTermsFacet.TermEntry(iter.makeSafe(), iter.count()));
@@ -234,19 +231,17 @@ public class HashedAggregator {
     }
 
     private static final class AssertingHashCount implements HashCount { // simple
-        // implemenation
-        // for
-        // assertions
-        private final TObjectIntHashMap<HashedBytesRef> valuesAndCount = new TObjectIntHashMap<HashedBytesRef>();
+        // implementation for assertions
+        private final ObjectIntOpenHashMap<HashedBytesRef> valuesAndCount = new ObjectIntOpenHashMap<HashedBytesRef>();
         private HashedBytesRef spare = new HashedBytesRef();
 
         @Override
         public boolean add(BytesRef value, int hashCode, BytesValues values) {
-            int adjustedValue = valuesAndCount.adjustOrPutValue(spare.reset(value, hashCode), 1, 1);
+            int adjustedValue = valuesAndCount.addTo(spare.reset(value, hashCode), 1);
             assert adjustedValue >= 1;
             if (adjustedValue == 1) { // only if we added the spare we create a
                 // new instance
-                spare.bytes = values.makeSafe(spare.bytes);
+                spare.bytes = BytesRef.deepCopyOf(value);
                 spare = new HashedBytesRef();
                 return true;
             }
@@ -270,9 +265,8 @@ public class HashedAggregator {
         @Override
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
             if (!valuesAndCount.containsKey(spare.reset(value, hashCode))) {
-                valuesAndCount.adjustOrPutValue(spare.reset(value, hashCode), 0, 0);
-                spare.bytes = values.makeSafe(spare.bytes);
-                spare = new HashedBytesRef();
+                valuesAndCount.addTo(spare.reset(BytesRef.deepCopyOf(value), hashCode), 0);
+                spare = new HashedBytesRef(); // reset the reference since we just added to the hash
                 return true;
             }
             return false;

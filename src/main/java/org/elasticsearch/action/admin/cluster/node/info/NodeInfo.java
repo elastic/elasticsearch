@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,10 +48,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     private ImmutableMap<String, String> serviceAttributes;
 
-    @Nullable
-    private String hostname;
-
     private Version version;
+    private Build build;
 
     @Nullable
     private Settings settings;
@@ -82,12 +81,12 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(@Nullable String hostname, Version version, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
-        this.hostname = hostname;
         this.version = version;
+        this.build = build;
         this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
@@ -105,7 +104,7 @@ public class NodeInfo extends NodeOperationResponse {
      */
     @Nullable
     public String getHostname() {
-        return this.hostname;
+        return getNode().getHostName();
     }
 
     /**
@@ -113,6 +112,13 @@ public class NodeInfo extends NodeOperationResponse {
      */
     public Version getVersion() {
         return version;
+    }
+
+    /**
+     * The build version of the node.
+     */
+    public Build getBuild() {
+        return this.build;
     }
 
     /**
@@ -192,10 +198,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            hostname = in.readString();
-        }
         version = Version.readVersion(in);
+        build = Build.readBuild(in);
         if (in.readBoolean()) {
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             int size = in.readVInt();
@@ -236,13 +240,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (hostname == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(hostname);
-        }
         out.writeVInt(version.id);
+        Build.writeBuild(build, out);
         if (getServiceAttributes() == null) {
             out.writeBoolean(false);
         } else {

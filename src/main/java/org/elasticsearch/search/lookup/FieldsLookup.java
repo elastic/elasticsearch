@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -148,7 +147,7 @@ public class FieldsLookup implements Map {
         if (data == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(name, types);
             if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new ElasticsearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);
@@ -161,7 +160,7 @@ public class FieldsLookup implements Map {
                 fieldVisitor.postProcess(data.mapper());
                 data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().names().indexName())));
             } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
+                throw new ElasticsearchParseException("failed to load field [" + name + "]", e);
             }
         }
         return data;

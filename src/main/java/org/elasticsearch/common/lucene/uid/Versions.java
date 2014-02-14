@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-import org.apache.lucene.util.Bits;
-
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,12 +42,12 @@ public class Versions {
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
-        public final AtomicReaderContext reader;
+        public final AtomicReaderContext context;
 
-        public DocIdAndVersion(int docId, long version, AtomicReaderContext reader) {
+        public DocIdAndVersion(int docId, long version, AtomicReaderContext context) {
             this.docId = docId;
             this.version = version;
-            this.reader = reader;
+            this.context = context;
         }
     }
 
@@ -91,13 +91,12 @@ public class Versions {
         final Terms terms = reader.terms(UidFieldMapper.NAME);
         assert terms != null : "All segments must have a _uid field, but " + reader + " doesn't";
         final TermsEnum termsEnum = terms.iterator(null);
-        final boolean useCache = false; // avoid high cache churn
-        if (!termsEnum.seekExact(term.bytes(), useCache)) {
+        if (!termsEnum.seekExact(term.bytes())) {
             return null;
         }
 
         // Versions are stored as doc values...
-        final NumericDocValues versions = reader.getNumericDocValues(UidFieldMapper.VERSION);
+        final NumericDocValues versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
         if (versions != null || !terms.hasPayloads()) {
             // only the last doc that matches the _uid is interesting here: if it is deleted, then there is
             // no match otherwise previous docs are necessarily either deleted or nested docs

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -27,8 +27,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-
-import java.util.List;
 
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
@@ -74,30 +72,23 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
-            boolean primaryUnassigned = false;
-            List<MutableShardRouting> unassigned = allocation.routingNodes().unassigned();
-            for (int i1 = 0; i1 < unassigned.size(); i1++) {
-                MutableShardRouting shard = unassigned.get(i1);
-                if (shard.shardId().equals(shardRouting.shardId())) {
-                    primaryUnassigned = true;
-                    break;
-                }
-            }
-            if (primaryUnassigned) {
+            assert shardRouting.unassigned() || shardRouting.active();
+            if (shardRouting.unassigned()) {
                 // primary is unassigned, means we are going to do recovery from gateway
                 // count *just the primary* currently doing recovery on the node and check against concurrent_recoveries
                 int primariesInRecovery = 0;
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
-                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary()) {
+                for (MutableShardRouting shard : node) {
+                    // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
+                    // we only count initial recoveries here, so we need to make sure that relocating node is null
+                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
                         primariesInRecovery++;
                     }
                 }
                 if (primariesInRecovery >= primariesInitialRecoveries) {
-                    return Decision.THROTTLE;
+                    return allocation.decision(Decision.THROTTLE, "too many primaries currently recovering [%d], limit: [%d]",
+                            primariesInRecovery, primariesInitialRecoveries);
                 } else {
-                    return Decision.YES;
+                    return allocation.decision(Decision.YES, "below primary recovery limit of [%d]", primariesInitialRecoveries);
                 }
             }
         }
@@ -105,19 +96,21 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         // either primary or replica doing recovery (from peer shard)
 
         // count the number of recoveries on the node, its for both target (INITIALIZING) and source (RELOCATING)
+        return canAllocate(node, allocation);
+    }
+
+    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
-        List<MutableShardRouting> shards = node.shards();
-        for (int i = 0; i < shards.size(); i++) {
-            MutableShardRouting shard = shards.get(i);
+        for (MutableShardRouting shard : node) {
             if (shard.state() == ShardRoutingState.INITIALIZING || shard.state() == ShardRoutingState.RELOCATING) {
                 currentRecoveries++;
             }
         }
-
         if (currentRecoveries >= concurrentRecoveries) {
-            return Decision.THROTTLE;
+            return allocation.decision(Decision.THROTTLE, "too many shards currently recovering [%d], limit: [%d]",
+                    currentRecoveries, concurrentRecoveries);
         } else {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "below shard recovery limit of [%d]", concurrentRecoveries);
         }
     }
 

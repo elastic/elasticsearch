@@ -1,0 +1,4 @@
+---
+"stats test":
+  - do:
+      indices.stats: {}

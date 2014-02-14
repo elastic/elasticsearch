@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -65,7 +65,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     }
 
 
-    protected abstract Map<String, Set<String>> resolveRouting(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract Map<String, Set<String>> resolveRouting(ClusterState clusterState, Request request) throws ElasticsearchException;
 
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {
@@ -75,7 +75,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
             throw blockException;
         }
         // get actual indices
-        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.ignoreIndices(), false);
+        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
         blockException = checkRequestBlock(clusterState, request, concreteIndices);
         if (blockException != null) {
             throw blockException;

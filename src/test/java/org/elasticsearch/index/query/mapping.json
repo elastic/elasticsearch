@@ -1,0 +1,15 @@
+{
+    "person":{
+        "properties":{
+            "location":{
+                "type":"geo_point"
+            },
+            "country" : {
+                "type" : "geo_shape"
+            },
+            "born":{
+                "type":"date"
+            }
+        }
+    }
+}

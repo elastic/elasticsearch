@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -245,14 +245,14 @@ public class BulkProcessor {
     }
 
     public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, payload);
+        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, null, payload, true);
         executeIfNeeded();
         return this;
     }
 
     private void executeIfNeeded() {
         if (closed) {
-            throw new ElasticSearchIllegalStateException("bulk process already closed");
+            throw new ElasticsearchIllegalStateException("bulk process already closed");
         }
         if (!isOverTheLimit()) {
             return;
@@ -276,32 +276,39 @@ public class BulkProcessor {
                 listener.afterBulk(executionId, bulkRequest, e);
             }
         } else {
+            boolean success = false;
             try {
                 semaphore.acquire();
-            } catch (InterruptedException e) {
-                listener.afterBulk(executionId, bulkRequest, e);
-                return;
-            }
-            listener.beforeBulk(executionId, bulkRequest);
-            client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse response) {
-                    try {
-                        listener.afterBulk(executionId, bulkRequest, response);
-                    } finally {
-                        semaphore.release();
+                listener.beforeBulk(executionId, bulkRequest);
+                client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        try {
+                            listener.afterBulk(executionId, bulkRequest, response);
+                        } finally {
+                            semaphore.release();
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        listener.afterBulk(executionId, bulkRequest, e);
-                    } finally {
-                        semaphore.release();
+                    @Override
+                    public void onFailure(Throwable e) {
+                        try {
+                            listener.afterBulk(executionId, bulkRequest, e);
+                        } finally {
+                            semaphore.release();
+                        }
                     }
-                }
-            });
+                });
+                success = true;
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+                listener.afterBulk(executionId, bulkRequest, e);
+            } finally {
+                 if (!success) {  // if we fail on client.bulk() release the semaphore
+                     semaphore.release();
+                 }
+            }
+
         }
     }
 

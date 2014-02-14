@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,6 +23,8 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.suggest.Suggest;
@@ -44,6 +46,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private int size;
     private TopDocs topDocs;
     private InternalFacets facets;
+    private InternalAggregations aggregations;
     private Suggest suggest;
     private boolean searchTimedOut;
 
@@ -103,6 +106,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.facets = facets;
     }
 
+    public Aggregations aggregations() {
+        return aggregations;
+    }
+
+    public void aggregations(InternalAggregations aggregations) {
+        this.aggregations = aggregations;
+    }
+
     public Suggest suggest() {
         return suggest;
     }
@@ -147,6 +158,9 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+        if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
@@ -165,6 +179,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
+        }
+        if (aggregations == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            aggregations.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);

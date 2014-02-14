@@ -1,13 +1,13 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.AtomicReaderContext;
@@ -25,9 +24,10 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.NestedWrappableComparator;
 import org.elasticsearch.index.fielddata.fieldcomparator.NumberComparatorBase;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 
@@ -60,11 +60,11 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
             case MIN:
                 return new NestedFieldComparator.Lowest(wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             case SUM:
-                return new NestedFieldComparator.Sum((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
+                return new NestedFieldComparator.Sum((NumberComparatorBase<?>) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             case AVG:
-                return new NestedFieldComparator.Avg((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
+                return new NestedFieldComparator.Avg((NumberComparatorBase<?>) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             default:
-                throw new ElasticSearchIllegalArgumentException(
+                throw new ElasticsearchIllegalArgumentException(
                     String.format(Locale.ROOT, "Unsupported sort_mode[%s] for nested type", sortMode)
                 );
         }
@@ -194,7 +194,6 @@ abstract class NestedFieldComparator extends FieldComparator {
                 copyMissing(wrappedComparator, slot);
                 return;
             }
-            wrappedComparator.copy(spareSlot, nestedDoc);
             wrappedComparator.copy(slot, nestedDoc);
 
             while (true) {
@@ -242,10 +241,8 @@ abstract class NestedFieldComparator extends FieldComparator {
                 int cmp1 = wrappedComparator.compareBottom(nestedDoc);
                 if (cmp1 < 0) {
                     return cmp1;
-                } else {
-                    if (cmp1 == 0) {
-                        cmp = 0;
-                    }
+                } else if (cmp1 == 0) {
+                   cmp = 0;
                 }
             }
         }
@@ -263,7 +260,6 @@ abstract class NestedFieldComparator extends FieldComparator {
                 copyMissing(wrappedComparator, slot);
                 return;
             }
-            wrappedComparator.copy(spareSlot, nestedDoc);
             wrappedComparator.copy(slot, nestedDoc);
 
             while (true) {
@@ -279,142 +275,119 @@ abstract class NestedFieldComparator extends FieldComparator {
         }
 
     }
+    
+    static abstract class NumericNestedFieldComparatorBase extends NestedFieldComparator {
+        protected NumberComparatorBase numberComparator;
 
-    final static class Sum extends NestedFieldComparator {
+        NumericNestedFieldComparatorBase(NumberComparatorBase wrappedComparator, Filter rootDocumentsFilter, Filter innerDocumentsFilter, int spareSlot) {
+            super(wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, spareSlot);
+            this.numberComparator = wrappedComparator;
+        }
 
-        NumberComparatorBase wrappedComparator;
+        @Override
+        public final int compareBottom(int rootDoc) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                return compareBottomMissing(wrappedComparator);
+            }
+
+            final int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                return compareBottomMissing(wrappedComparator);
+            }
+
+            int counter = 1;
+            wrappedComparator.copy(spareSlot, nestedDoc);
+            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
+                onNested(spareSlot, nestedDoc);
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+                counter++;
+            }
+            afterNested(spareSlot, counter);
+            return compare(bottomSlot, spareSlot);
+        }
+
+        @Override
+        public final void copy(int slot, int rootDoc) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                copyMissing(wrappedComparator, slot);
+                return;
+            }
+
+            final int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                copyMissing(wrappedComparator, slot);
+                return;
+            }
+            int counter = 1;
+            wrappedComparator.copy(slot, nestedDoc);
+            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
+                onNested(slot, nestedDoc);
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+                counter++;
+            }
+            afterNested(slot, counter);
+        }
+        
+        protected abstract void onNested(int slot, int nestedDoc);
+        
+        protected abstract void afterNested(int slot, int count);
+
+        @Override
+        public final FieldComparator setNextReader(AtomicReaderContext context) throws IOException {
+            super.setNextReader(context);
+            numberComparator = (NumberComparatorBase) super.wrappedComparator;
+            return this;
+        }
+    }
+
+    final static class Sum extends NumericNestedFieldComparatorBase {
 
         Sum(NumberComparatorBase wrappedComparator, Filter rootDocumentsFilter, Filter innerDocumentsFilter, int spareSlot) {
             super(wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, spareSlot);
-            this.wrappedComparator = wrappedComparator;
         }
 
         @Override
-        public int compareBottom(int rootDoc) throws IOException {
-            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
-                return compareBottomMissing(wrappedComparator);
-            }
-
-            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
-            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
-            if (nestedDoc >= rootDoc || nestedDoc == -1) {
-                return compareBottomMissing(wrappedComparator);
-            }
-
-            wrappedComparator.copy(spareSlot, nestedDoc);
-            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
-                wrappedComparator.add(spareSlot, nestedDoc);
-                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            }
-            return compare(bottomSlot, spareSlot);
+        protected void onNested(int slot, int nestedDoc) {
+            numberComparator.add(slot, nestedDoc);
         }
 
         @Override
-        public void copy(int slot, int rootDoc) throws IOException {
-            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
-                copyMissing(wrappedComparator, slot);
-                return;
-            }
-
-            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
-            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
-            if (nestedDoc >= rootDoc || nestedDoc == -1) {
-                copyMissing(wrappedComparator, slot);
-                return;
-            }
-
-            wrappedComparator.copy(slot, nestedDoc);
-            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
-                wrappedComparator.add(slot, nestedDoc);
-                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            }
-        }
-
-        @Override
-        public FieldComparator setNextReader(AtomicReaderContext context) throws IOException {
-            super.setNextReader(context);
-            wrappedComparator = (NumberComparatorBase) super.wrappedComparator;
-            return this;
+        protected void afterNested(int slot, int count) {
         }
 
     }
 
-    final static class Avg extends NestedFieldComparator {
-
-        NumberComparatorBase wrappedComparator;
-
+    final static class Avg extends NumericNestedFieldComparatorBase {
         Avg(NumberComparatorBase wrappedComparator, Filter rootDocumentsFilter, Filter innerDocumentsFilter, int spareSlot) {
             super(wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, spareSlot);
-            this.wrappedComparator = wrappedComparator;
         }
 
         @Override
-        public int compareBottom(int rootDoc) throws IOException {
-            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
-                return 0;
-            }
-
-            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
-            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
-            if (nestedDoc >= rootDoc || nestedDoc == -1) {
-                return compareBottomMissing(wrappedComparator);
-            }
-
-            int counter = 1;
-            wrappedComparator.copy(spareSlot, nestedDoc);
-            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
-                wrappedComparator.add(spareSlot, nestedDoc);
-                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-                counter++;
-            }
-            wrappedComparator.divide(spareSlot, counter);
-            return compare(bottomSlot, spareSlot);
+        protected void onNested(int slot, int nestedDoc) {
+            numberComparator.add(slot, nestedDoc);
         }
 
         @Override
-        public void copy(int slot, int rootDoc) throws IOException {
-            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
-                return;
-            }
-
-            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
-            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
-            if (nestedDoc >= rootDoc || nestedDoc == -1) {
-                copyMissing(wrappedComparator, slot);
-                return;
-            }
-
-            int counter = 1;
-            wrappedComparator.copy(slot, nestedDoc);
-            nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-            while (nestedDoc > prevRootDoc && nestedDoc < rootDoc) {
-                wrappedComparator.add(slot, nestedDoc);
-                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
-                counter++;
-            }
-            wrappedComparator.divide(slot, counter);
+        protected void afterNested(int slot, int count) {
+            numberComparator.divide(slot, count);
         }
 
-        @Override
-        public FieldComparator setNextReader(AtomicReaderContext context) throws IOException {
-            super.setNextReader(context);
-            wrappedComparator = (NumberComparatorBase) super.wrappedComparator;
-            return this;
+      
+    }
+
+    static final void copyMissing(FieldComparator<?> comparator, int slot) {
+        if (comparator instanceof NestedWrappableComparator<?>) {
+            ((NestedWrappableComparator<?>) comparator).missing(slot);
         }
     }
 
-    static final void copyMissing(FieldComparator comparator, int slot) {
-        if (comparator instanceof NumberComparatorBase) {
-            ((NumberComparatorBase) comparator).missing(slot);
-        }
-    }
-
-    static final int compareBottomMissing(FieldComparator comparator) {
-        if (comparator instanceof NumberComparatorBase) {
-            return ((NumberComparatorBase) comparator).compareBottomMissing();
+    static final int compareBottomMissing(FieldComparator<?> comparator) {
+        if (comparator instanceof NestedWrappableComparator<?>) {
+            return ((NestedWrappableComparator<?>) comparator).compareBottomMissing();
         } else {
             return 0;
         }

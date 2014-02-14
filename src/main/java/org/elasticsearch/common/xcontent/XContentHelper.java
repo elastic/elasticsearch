@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,13 +21,14 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class XContentHelper {
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered) throws ElasticsearchParseException {
         if (bytes.hasArray()) {
             return convertToMap(bytes.array(), bytes.arrayOffset(), bytes.length(), ordered);
         }
@@ -92,15 +93,15 @@ public class XContentHelper {
                 return Tuple.tuple(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
-            throw new ElasticSearchParseException("Failed to parse content to map", e);
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, boolean ordered) throws ElasticsearchParseException {
         return convertToMap(data, 0, data.length, ordered);
     }
 
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticSearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(byte[] data, int offset, int length, boolean ordered) throws ElasticsearchParseException {
         try {
             XContentParser parser;
             XContentType contentType;
@@ -120,7 +121,7 @@ public class XContentHelper {
                 return Tuple.tuple(contentType, parser.mapAndClose());
             }
         } catch (IOException e) {
-            throw new ElasticSearchParseException("Failed to parse content to map", e);
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
     }
 
@@ -233,6 +234,9 @@ public class XContentHelper {
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
                                 mergeDefaults(processed.get(entry.getKey()), map);
+                            } else {
+                                // put the default entries after the content ones.
+                                processed.put(entry.getKey(), map);
                             }
                         }
                         for (Map<String, Object> map : processed.values()) {
@@ -347,4 +351,78 @@ public class XContentHelper {
         }
     }
 
+    /**
+     * Directly writes the source to the output builder
+     */
+    public static void writeDirect(BytesReference source, XContentBuilder rawBuilder, ToXContent.Params params) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+            compressedStreamInput.resetToBufferStart();
+            if (contentType == rawBuilder.contentType()) {
+                Streams.copy(compressedStreamInput, rawBuilder.stream());
+            } else {
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
+                try {
+                    parser.nextToken();
+                    rawBuilder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+        } else {
+            XContentType contentType = XContentFactory.xContentType(source);
+            if (contentType == rawBuilder.contentType()) {
+                source.writeTo(rawBuilder.stream());
+            } else {
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
+                try {
+                    parser.nextToken();
+                    rawBuilder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
+     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference)}.
+     */
+    public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
+            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
+            compressedStreamInput.resetToBufferStart();
+            if (contentType == builder.contentType()) {
+                builder.rawField(field, compressedStreamInput);
+            } else {
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
+                try {
+                    parser.nextToken();
+                    builder.field(field);
+                    builder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+        } else {
+            XContentType contentType = XContentFactory.xContentType(source);
+            if (contentType == builder.contentType()) {
+                builder.rawField(field, source);
+            } else {
+                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
+                try {
+                    parser.nextToken();
+                    builder.field(field);
+                    builder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
+            }
+        }
+    }
 }

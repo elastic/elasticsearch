@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,21 +46,13 @@ import static org.elasticsearch.index.get.GetField.readGetField;
 public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     private String index;
-
     private String type;
-
     private String id;
-
     private long version;
-
     private boolean exists;
-
     private Map<String, GetField> fields;
-
     private Map<String, Object> sourceAsMap;
-
     private BytesReference source;
-
     private byte[] sourceAsBytes;
 
     GetResult() {
@@ -136,7 +128,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 
@@ -165,7 +157,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         try {
             return XContentHelper.convertToJson(source, false);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to convert source to a json string");
+            throw new ElasticsearchParseException("failed to convert source to a json string");
         }
     }
 
@@ -173,7 +165,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * The source of the document (As a map).
      */
     @SuppressWarnings({"unchecked"})
-    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;
         }
@@ -210,12 +202,12 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString EXISTS = new XContentBuilderString("exists");
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.EXISTS, exists);
+        builder.field(Fields.FOUND, exists);
 
         if (source != null) {
             RestXContentBuilder.restDocumentSource(source, builder, params);
@@ -227,11 +219,11 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 if (field.getValues().isEmpty()) {
                     continue;
                 }
-                if (field.getValues().size() == 1) {
-                    builder.field(field.getName(), field.getValues().get(0));
+                String fieldName = field.getName();
+                if (field.isMetadataField()) {
+                    builder.field(fieldName, field.getValue());
                 } else {
-                    builder.field(field.getName());
-                    builder.startArray();
+                    builder.startArray(field.getName());
                     for (Object value : field.getValues()) {
                         builder.value(value);
                     }
@@ -250,7 +242,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
-            builder.field(Fields.EXISTS, false);
+            builder.field(Fields.FOUND, false);
             builder.endObject();
         } else {
             builder.startObject();
@@ -275,8 +267,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readOptionalString();
+        index = in.readSharedString();
+        type = in.readOptionalSharedString();
         id = in.readString();
         version = in.readLong();
         exists = in.readBoolean();
@@ -300,8 +292,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeOptionalString(type);
+        out.writeSharedString(index);
+        out.writeOptionalSharedString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(exists);

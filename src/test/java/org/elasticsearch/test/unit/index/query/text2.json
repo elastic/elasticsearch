@@ -1,8 +1,0 @@
-{
-    "text":{
-        "name.first":{
-            "query":"aaa bbb",
-            "boost":1.5
-        }
-    }
-}

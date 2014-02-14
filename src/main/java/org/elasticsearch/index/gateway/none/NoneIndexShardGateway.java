@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -61,16 +61,16 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     @Override
     public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
-        recoveryStatus().index().startTime(System.currentTimeMillis());
+        recoveryStatus.index().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
-            logger.info("deleting shard content");
+            logger.debug("cleaning shard content before creation");
             indexShard.store().deleteContent();
         } catch (IOException e) {
             logger.warn("failed to clean store before starting shard", e);
         }
-        indexShard.start("post recovery from gateway");
+        indexShard.postRecovery("post recovery from gateway");
         recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());

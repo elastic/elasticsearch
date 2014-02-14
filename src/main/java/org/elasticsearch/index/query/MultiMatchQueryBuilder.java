@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectFloatHashMap;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,9 +41,9 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private final Object text;
 
     private final List<String> fields;
-    private TObjectFloatHashMap<String> fieldsBoosts;
+    private ObjectFloatOpenHashMap<String> fieldsBoosts;
 
-    private MatchQueryBuilder.Type type;
+    private MultiMatchQueryBuilder.Type type;
 
     private MatchQueryBuilder.Operator operator;
 
@@ -49,7 +53,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Integer slop;
 
-    private String fuzziness;
+    private Fuzziness fuzziness;
 
     private Integer prefixLength;
 
@@ -70,6 +74,84 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private Float cutoffFrequency = null;
 
     private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
+
+    private String queryName;
+
+
+    public enum Type {
+
+        /**
+         * Uses the best matching boolean field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        BEST_FIELDS(MatchQuery.Type.BOOLEAN, 0.0f, new ParseField("best_fields", "boolean")),
+
+        /**
+         * Uses the sum of the matching boolean fields to score the query
+         */
+        MOST_FIELDS(MatchQuery.Type.BOOLEAN, 1.0f, new ParseField("most_fields")),
+
+        /**
+         * Uses a blended DocumentFrequency to dynamically combine the queried
+         * fields into a single field given the configured analysis is identical.
+         * This type uses a tie-breaker to adjust the score based on remaining
+         * matches per analyzed terms
+         */
+        CROSS_FIELDS(MatchQuery.Type.BOOLEAN, 0.0f, new ParseField("cross_fields")),
+
+        /**
+         * Uses the best matching phrase field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        PHRASE(MatchQuery.Type.PHRASE, 0.0f, new ParseField("phrase")),
+
+        /**
+         * Uses the best matching phrase-prefix field as main score and uses
+         * a tie-breaker to adjust the score based on remaining field matches
+         */
+        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix"));
+
+        private MatchQuery.Type matchQueryType;
+        private final float tieBreaker;
+        private final ParseField parseField;
+
+        Type (MatchQuery.Type matchQueryType, float tieBreaker, ParseField parseField) {
+            this.matchQueryType = matchQueryType;
+            this.tieBreaker = tieBreaker;
+            this.parseField = parseField;
+        }
+
+        public float tieBreaker() {
+            return this.tieBreaker;
+        }
+
+        public MatchQuery.Type matchQueryType() {
+            return matchQueryType;
+        }
+
+        public ParseField parseField() {
+            return parseField;
+        }
+
+        public static Type parse(String value) {
+            return parse(value, ParseField.EMPTY_FLAGS);
+        }
+
+        public static Type parse(String value, EnumSet<ParseField.Flag> flags) {
+            MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
+            Type type = null;
+            for (MultiMatchQueryBuilder.Type t : values) {
+                if (t.parseField().match(value, flags)) {
+                    type = t;
+                    break;
+                }
+            }
+            if (type == null) {
+                throw new ElasticsearchParseException("No type found for value: " + value);
+            }
+            return type;
+        }
+    }
 
     /**
      * Constructs a new text query.
@@ -94,7 +176,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     public MultiMatchQueryBuilder field(String field, float boost) {
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+            fieldsBoosts = new ObjectFloatOpenHashMap<String>();
         }
         fieldsBoosts.put(field, boost);
         return this;
@@ -103,8 +185,16 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     /**
      * Sets the type of the text query.
      */
-    public MultiMatchQueryBuilder type(MatchQueryBuilder.Type type) {
+    public MultiMatchQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
+        return this;
+    }
+
+    /**
+     * Sets the type of the text query.
+     */
+    public MultiMatchQueryBuilder type(Object type) {
+        this.type = type == null ? null : Type.parse(type.toString().toLowerCase(Locale.ROOT));
         return this;
     }
 
@@ -142,10 +232,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     }
 
     /**
-     * Sets the minimum similarity used when evaluated to a fuzzy query type. Defaults to "0.5".
+     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
     public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = fuzziness.toString();
+        this.fuzziness = Fuzziness.build(fuzziness);
         return this;
     }
 
@@ -178,12 +268,29 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
-    public MultiMatchQueryBuilder useDisMax(Boolean useDisMax) {
+    /**
+     * @deprecated use a tieBreaker of 1.0f to disable "dis-max"
+     * query or select the appropriate {@link Type}
+     */
+    @Deprecated
+    public MultiMatchQueryBuilder useDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
         return this;
     }
 
-    public MultiMatchQueryBuilder tieBreaker(Float tieBreaker) {
+    /**
+     * <p>Tie-Breaker for "best-match" disjunction queries (OR-Queries).
+     * The tie breaker capability allows documents that match more than on query clause
+     * (in this case on more than one field) to be scored better than documents that
+     * match only the best of the fields, without confusing this with the better case of
+     * two distinct matches in the multiple fields.</p>
+     *
+     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * "most-match" queries where all matching query clauses are considered for scoring.</p>
+     *
+     * @see Type
+     */
+    public MultiMatchQueryBuilder tieBreaker(float tieBreaker) {
         this.tieBreaker = tieBreaker;
         return this;
     }
@@ -213,6 +320,14 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public MultiMatchQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MultiMatchQueryParser.NAME);
@@ -220,12 +335,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.field("query", text);
         builder.startArray("fields");
         for (String field : fields) {
-            float boost = -1;
-            if (fieldsBoosts != null) {
-                boost = fieldsBoosts.get(field);
-            }
-            if (boost != -1) {
-                field += "^" + boost;
+            if (fieldsBoosts != null && fieldsBoosts.containsKey(field)) {
+                field += "^" + fieldsBoosts.lget();
             }
             builder.value(field);
         }
@@ -247,7 +358,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
             builder.field("slop", slop);
         }
         if (fuzziness != null) {
-            builder.field("fuzziness", fuzziness);
+            fuzziness.toXContent(builder, params);
         }
         if (prefixLength != null) {
             builder.field("prefix_length", prefixLength);
@@ -285,6 +396,11 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
             builder.field("zero_terms_query", zeroTermsQuery.toString());
         }
 
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+
         builder.endObject();
     }
+
 }

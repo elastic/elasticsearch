@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,32 +19,30 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.document.Document;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
 import java.util.*;
 
-import static com.google.common.collect.ImmutableMap.copyOf;
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
@@ -60,7 +58,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from father
+        public static final Dynamic DYNAMIC = null; // not set, inherited from root
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
 
@@ -243,8 +241,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     // lets see if we can derive this...
                     if (propNode.get("properties") != null) {
                         type = ObjectMapper.CONTENT_TYPE;
-                    } else if (propNode.get("fields") != null) {
-                        type = MultiFieldMapper.CONTENT_TYPE;
                     } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
                         // if there is a single property with the enabled flag on it, make it an object
                         // (usually, setting enabled to false to not index any type, including core values, which
@@ -285,13 +281,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private final Filter nestedTypeFilter;
 
-    private final Dynamic dynamic;
+    private volatile Dynamic dynamic;
 
     private final ContentPath.Type pathType;
 
     private Boolean includeInAll;
 
-    private volatile ImmutableMap<String, Mapper> mappers = ImmutableMap.of();
+    private volatile ImmutableOpenMap<String, Mapper> mappers = ImmutableOpenMap.of();
 
     private final Object mutex = new Object();
 
@@ -303,7 +299,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         this.dynamic = dynamic;
         this.pathType = pathType;
         if (mappers != null) {
-            this.mappers = copyOf(mappers);
+            this.mappers = ImmutableOpenMap.builder(this.mappers).putAll(mappers).build();
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -322,9 +318,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         this.includeInAll = includeInAll;
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAll(includeInAll);
             }
         }
     }
@@ -335,9 +331,20 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             this.includeInAll = includeInAll;
         }
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAllIfNotSet(includeInAll);
+            }
+        }
+    }
+
+    @Override
+    public void unsetIncludeInAll() {
+        includeInAll = null;
+        // when called from outside, apply this on all the inner mappers
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).unsetIncludeInAll();
             }
         }
     }
@@ -355,23 +362,23 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            mappers = newMapBuilder(mappers).put(mapper.name(), mapper).immutableMap();
+            this.mappers = ImmutableOpenMap.builder(this.mappers).fPut(mapper.name(), mapper).build();
         }
         return this;
     }
 
     @Override
     public void traverse(FieldMapperListener fieldMapperListener) {
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(fieldMapperListener);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.traverse(fieldMapperListener);
         }
     }
 
     @Override
     public void traverse(ObjectMapperListener objectMapperListener) {
         objectMapperListener.objectMapper(this);
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(objectMapperListener);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.traverse(objectMapperListener);
         }
     }
 
@@ -388,7 +395,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     public final Dynamic dynamic() {
-        return this.dynamic;
+        return this.dynamic == null ? Dynamic.TRUE : this.dynamic;
     }
 
     protected boolean allowValue() {
@@ -518,11 +525,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (dynamic == Dynamic.TRUE) {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
-                boolean newMapper = false;
                 synchronized (mutex) {
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper == null) {
-                        newMapper = true;
                         // remove the current field name from path, since template search and the object builder add it as well...
                         context.path().remove();
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
@@ -535,21 +540,38 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
-                        putMapper(objectMapper);
                         // ...now re add it
                         context.path().add(currentFieldName);
                         context.setMappingsModified();
+
+                        if (context.isWithinNewMapper()) {
+                            // within a new mapper, no need to traverse, just parse
+                            objectMapper.parse(context);
+                        } else {
+                            // create a context of new mapper, so we batch aggregate all the changes within
+                            // this object mapper once, and traverse all of them to add them in a single go
+                            context.setWithinNewMapper();
+                            try {
+                                objectMapper.parse(context);
+                                FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
+                                ObjectMapperListener.Aggregator newObjects = new ObjectMapperListener.Aggregator();
+                                objectMapper.traverse(newFields);
+                                objectMapper.traverse(newObjects);
+                                // callback on adding those fields!
+                                context.docMapper().addFieldMappers(newFields.mappers);
+                                context.docMapper().addObjectMappers(newObjects.mappers);
+                            } finally {
+                                context.clearWithinNewMapper();
+                            }
+                        }
+
+                        // only put after we traversed and did the callbacks, so other parsing won't see it only after we
+                        // properly traversed it and adding the mappers
+                        putMapper(objectMapper);
+                    } else {
+                        objectMapper.parse(context);
                     }
                 }
-                // traverse and parse outside of the mutex
-                if (newMapper) {
-                    // we need to traverse in case we have a dynamic template and need to add field mappers
-                    // introduced by it
-                    objectMapper.traverse(context.newFieldMappers());
-                    objectMapper.traverse(context.newObjectMappers());
-                }
-                // now, parse it
-                objectMapper.parse(context);
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
@@ -592,8 +614,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         Mapper mapper = mappers.get(currentFieldName);
         if (mapper != null) {
             mapper.parse(context);
-            return;
+        } else {
+            parseDynamicValue(context, currentFieldName, token);
         }
+    }
+
+    public void parseDynamicValue(final ParseContext context, String currentFieldName, XContentParser.Token token) throws IOException {
         Dynamic dynamic = this.dynamic;
         if (dynamic == null) {
             dynamic = context.root().dynamic();
@@ -607,11 +633,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we sync here since we don't want to add this field twice to the document mapper
         // its not the end of the world, since we add it to the mappers once we create it
         // so next time we won't even get here for this field
-        boolean newMapper = false;
         synchronized (mutex) {
-            mapper = mappers.get(currentFieldName);
+            Mapper mapper = mappers.get(currentFieldName);
             if (mapper == null) {
-                newMapper = true;
                 BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {
                     boolean resolved = false;
@@ -762,17 +786,32 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         mapper = builder.build(builderContext);
                     } else {
                         // TODO how do we identify dynamically that its a binary value?
-                        throw new ElasticSearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
+                        throw new ElasticsearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
                     }
                 }
+
+                if (context.isWithinNewMapper()) {
+                    mapper.parse(context);
+                } else {
+                    context.setWithinNewMapper();
+                    try {
+                        mapper.parse(context);
+                        FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
+                        mapper.traverse(newFields);
+                        context.docMapper().addFieldMappers(newFields.mappers);
+                    } finally {
+                        context.clearWithinNewMapper();
+                    }
+                }
+
+                // only put after we traversed and did the callbacks, so other parsing won't see it only after we
+                // properly traversed it and adding the mappers
                 putMapper(mapper);
                 context.setMappingsModified();
+            } else {
+                mapper.parse(context);
             }
         }
-        if (newMapper) {
-            mapper.traverse(context.newFieldMappers());
-        }
-        mapper.parse(context);
     }
 
     @Override
@@ -795,40 +834,44 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
 
+        if (!mergeContext.mergeFlags().simulate()) {
+            if (mergeWithObject.dynamic != null) {
+                this.dynamic = mergeWithObject.dynamic;
+            }
+        }
+
         doMerge(mergeWithObject, mergeContext);
 
-        List<Mapper> mappersToTraverse = new ArrayList<Mapper>();
+        List<Mapper> mappersToPut = new ArrayList<Mapper>();
+        FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
+        ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
         synchronized (mutex) {
-            for (Mapper mergeWithMapper : mergeWithObject.mappers.values()) {
+            for (ObjectObjectCursor<String, Mapper> cursor : mergeWithObject.mappers) {
+                Mapper mergeWithMapper = cursor.value;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
-                        putMapper(mergeWithMapper);
-                        mappersToTraverse.add(mergeWithMapper);
+                        mappersToPut.add(mergeWithMapper);
+                        mergeWithMapper.traverse(newFieldMappers);
+                        mergeWithMapper.traverse(newObjectMappers);
                     }
                 } else {
-                    if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
-                        MultiFieldMapper mergeWithMultiField = (MultiFieldMapper) mergeWithMapper;
-                        mergeWithMultiField.merge(mergeIntoMapper, mergeContext);
-                        if (!mergeContext.mergeFlags().simulate()) {
-                            putMapper(mergeWithMultiField);
-                            // now, record mappers to traverse events for all mappers
-                            for (Mapper mapper : mergeWithMultiField.mappers().values()) {
-                                mappersToTraverse.add(mapper);
-                            }
-                        }
-                    } else {
-                        mergeIntoMapper.merge(mergeWithMapper, mergeContext);
-                    }
+                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
                 }
             }
+            if (!newFieldMappers.mappers.isEmpty()) {
+                mergeContext.docMapper().addFieldMappers(newFieldMappers.mappers);
+            }
+            if (!newObjectMappers.mappers.isEmpty()) {
+                mergeContext.docMapper().addObjectMappers(newObjectMappers.mappers);
+            }
+            // and the mappers only after the administration have been done, so it will not be visible to parser (which first try to read with no lock)
+            for (Mapper mapper : mappersToPut) {
+                putMapper(mapper);
+            }
         }
-        // call this outside of the mutex
-        for (Mapper mapper : mappersToTraverse) {
-            mapper.traverse(mergeContext.newFieldMappers());
-            mapper.traverse(mergeContext.newObjectMappers());
-        }
+
     }
 
     protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
@@ -837,8 +880,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     @Override
     public void close() {
-        for (Mapper mapper : mappers.values()) {
-            mapper.close();
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.close();
         }
     }
 
@@ -861,16 +904,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         } else if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
-        // grr, ugly! on root, dynamic defaults to TRUE, on children, it defaults to null to
-        // inherit the root behavior
-        if (this instanceof RootObjectMapper) {
-            if (dynamic != Dynamic.TRUE) {
-                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-            }
-        } else {
-            if (dynamic != Defaults.DYNAMIC) {
-                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-            }
+        if (dynamic != null) {
+            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
@@ -889,7 +924,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>(mappers);
+        TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>();
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            sortedMappers.put(cursor.key, cursor.value);
+        }
 
         // check internal mappers first (this is only relevant for root object)
         for (Mapper mapper : sortedMappers.values()) {

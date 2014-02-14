@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,11 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.search.lookup.IndexLookup;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -60,10 +63,38 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     }
 
     /**
+     * Returns field data strings access for the provided field.
+     */
+    protected ScriptDocValues.Strings docFieldStrings(String field) {
+        return (ScriptDocValues.Strings) doc().get(field);
+    }
+
+    /**
+     * Returns field data double (floating point) access for the provided field.
+     */
+    protected ScriptDocValues.Doubles docFieldDoubles(String field) {
+        return (ScriptDocValues.Doubles) doc().get(field);
+    }
+
+    /**
+     * Returns field data long (integers) access for the provided field.
+     */
+    protected ScriptDocValues.Longs docFieldLongs(String field) {
+        return (ScriptDocValues.Longs) doc().get(field);
+    }
+
+    /**
      * Allows to access the actual source (loaded and parsed).
      */
     protected final SourceLookup source() {
         return lookup.source();
+    }
+    
+    /**
+     * Allows to access statistics on terms and fields.
+     */
+    protected final IndexLookup indexLookup() {
+        return lookup.indexLookup();
     }
 
     /**

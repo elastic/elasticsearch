@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -37,6 +37,7 @@ public class TermsFacetBuilder extends FacetBuilder {
     private String fieldName;
     private String[] fieldsNames;
     private int size = 10;
+    private int shardSize = -1;
     private Boolean allTerms;
     private Object[] exclude;
     private String regex;
@@ -121,6 +122,16 @@ public class TermsFacetBuilder extends FacetBuilder {
      */
     public TermsFacetBuilder size(int size) {
         this.size = size;
+        return this;
+    }
+
+    /**
+     * Sets the number of terms that will be returned from each shard. The higher the number the more accurate the results will be. The
+     * shard size cannot be smaller than {@link #size(int) size}, therefore in this case it will fall back and be treated as being equal to
+     * size.
+     */
+    public TermsFacetBuilder shardSize(int shardSize) {
+        this.shardSize = shardSize;
         return this;
     }
 
@@ -213,6 +224,12 @@ public class TermsFacetBuilder extends FacetBuilder {
             builder.field("field", fieldName);
         }
         builder.field("size", size);
+
+        // no point in sending shard size if it's not greater than size
+        if (shardSize > size) {
+            builder.field("shard_size", shardSize);
+        }
+
         if (exclude != null) {
             builder.startArray("exclude");
             for (Object ex : exclude) {

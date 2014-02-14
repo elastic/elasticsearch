@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,93 +20,95 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to close an index.
  */
-public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequest> {
+public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
 
-    private String index;
-
-    private TimeValue timeout = timeValueSeconds(10);
+    private String[] indices;
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     CloseIndexRequest() {
     }
 
     /**
-     * Constructs a new delete index request for the specified index.
+     * Constructs a new close index request for the specified index.
      */
-    public CloseIndexRequest(String index) {
-        this.index = index;
+    public CloseIndexRequest(String... indices) {
+        this.indices = indices;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (index == null) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
     }
 
     /**
-     * The index to delete.
+     * The indices to be closed
+     * @return the indices to be closed
      */
-    String index() {
-        return index;
+    String[] indices() {
+        return indices;
     }
 
-    public CloseIndexRequest index(String index) {
-        this.index = index;
+    /**
+     * Sets the indices to be closed
+     * @param indices the indices to be closed
+     * @return the request itself
+     */
+    public CloseIndexRequest indices(String... indices) {
+        this.indices = indices;
         return this;
     }
 
     /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @return the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
-    TimeValue timeout() {
-        return timeout;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * Specifies what type of requested indices to ignore and how to deal wild wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
+     * @return the request itself
      */
-    public CloseIndexRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public CloseIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public CloseIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        timeout = readTimeValue(in);
+        indices = in.readStringArray();
+        readTimeout(in);
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        timeout.writeTo(out);
+        out.writeStringArray(indices);
+        writeTimeout(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

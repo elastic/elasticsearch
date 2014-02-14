@@ -1,0 +1,90 @@
+= elasticsearch-py
+
+== Overview
+
+Official low-level client for Elasticsearch. Its goal is to provide common
+ground for all Elasticsearch-related code in Python; because of this it tries
+to be opinion-free and very extendable. The full documentation is available at
+http://elasticsearch-py.rtfd.org/
+
+It can be installed with:
+
+[source,sh]
+------------------------------------
+pip install elasticsearch
+------------------------------------
+
+=== Versioning
+
+There are two branches for development - `master` and `0.4`. Master branch is
+used to track all the changes for Elasticsearch 1.0 and beyond whereas 0.4
+tracks Elasticsearch 0.90.
+
+Releases with major version 1 (1.X.Y) are to be used with Elasticsearch 1.* and
+later, 0.4 releases are meant to work with Elasticsearch 0.90.*.
+
+=== Example use
+
+Simple use-case:
+
+[source,python]
+------------------------------------
+>>> from datetime import datetime
+>>> from elasticsearch import Elasticsearch
+
+# by default we connect to localhost:9200
+>>> es = Elasticsearch()
+
+# datetimes will be serialized
+>>> es.index(index="my-index", doc_type="test-type", id=42, body={"any": "data", "timestamp": datetime.now()})
+{u'_id': u'42', u'_index': u'my-index', u'_type': u'test-type', u'_version': 1, u'ok': True}
+
+# but not deserialized
+>>> es.get(index="my-index", doc_type="test-type", id=42)['_source']
+{u'any': u'data', u'timestamp': u'2013-05-12T19:45:31.804229'}
+------------------------------------
+
+[NOTE] 
+All the API calls map the raw REST api as closely as possible, including
+the distinction between required and optional arguments to the calls. This
+means that the code makes distinction between positional and keyword arguments;
+we, however, recommend that people use keyword arguments for all calls for
+consistency and safety.
+
+=== Features
+
+The client's features include:
+
+* translating basic Python data types to and from json (datetimes are not
+  decoded for performance reasons)
+
+* configurable automatic discovery of cluster nodes
+
+* persistent connections
+
+* load balancing (with pluggable selection strategy) across all available nodes
+
+* failed connection penalization (time based - failed connections won't be
+  retried until a timeout is reached)
+
+* thread safety
+
+* pluggable architecture
+
+
+=== License
+
+Copyright 2013 Elasticsearch
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+

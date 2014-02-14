@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,16 +19,18 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,7 +43,7 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
     final long interval;
     private final HistogramFacet.ComparatorType comparatorType;
 
-    final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
+    final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
     public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
@@ -49,17 +51,28 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
         this.interval = interval > 0 ? interval : 0;
         this.comparatorType = comparatorType;
 
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = context.cacheRecycler().longObjectMap(-1);
     }
 
     @Override
     public Collector collector() {
-        return new Collector(entries);
+        return new Collector(entries.v());
     }
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
+        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().size());
+        final boolean[] states = entries.v().allocated;
+        final Object[] values = entries.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                InternalFullHistogramFacet.FullEntry value = (InternalFullHistogramFacet.FullEntry) values[i];
+                entries1.add(value);
+            }
+        }
+
+        entries.release();
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 
     public static long bucket(double value, long interval) {
@@ -68,9 +81,9 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
+        final LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-        Collector(ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        Collector(LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.entries = entries;
         }
 

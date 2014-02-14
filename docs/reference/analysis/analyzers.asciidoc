@@ -1,0 +1,71 @@
+[[analysis-analyzers]]
+== Analyzers
+
+Analyzers are composed of a single <<analysis-tokenizers,Tokenizer>> 
+and zero or more <<analysis-tokenfilters,TokenFilters>>. The tokenizer may 
+be preceded by one or more <<analysis-charfilters,CharFilters>>.
+The analysis module allows you to register `Analyzers` under logical
+names which can then be referenced either in mapping definitions or in
+certain APIs. 
+
+Elasticsearch comes with a number of prebuilt analyzers which are
+ready to use.  Alternatively, you can combine the built in
+character filters, tokenizers and token filters to create 
+<<analysis-custom-analyzer,custom analyzers>>.
+
+[float]
+[[default-analyzers]]
+=== Default Analyzers
+
+An analyzer is registered under a logical name. It can then be
+referenced from mapping definitions or certain APIs. When none are
+defined, defaults are used. There is an option to define which analyzers
+will be used by default when none can be derived.
+
+The `default` logical name allows one to configure an analyzer that will
+be used both for indexing and for searching APIs. The `default_index`
+logical name can be used to configure a default analyzer that will be
+used just when indexing, and the `default_search` can be used to
+configure a default analyzer that will be used just when searching.
+
+[float]
+[[aliasing-analyzers]]
+=== Aliasing Analyzers
+
+Analyzers can be aliased to have several registered lookup names
+associated with them. For example, the following will allow 
+the `standard` analyzer to also be referenced with `alias1`
+and `alias2` values.
+
+
+[source,js]
+--------------------------------------------------
+index :
+  analysis :
+    analyzer :
+      standard :
+        alias: [alias1, alias2]
+        type : standard
+        stopwords : [test1, test2, test3]
+--------------------------------------------------
+
+Below is a list of the built in analyzers.
+
+include::analyzers/standard-analyzer.asciidoc[]
+
+include::analyzers/simple-analyzer.asciidoc[]
+
+include::analyzers/whitespace-analyzer.asciidoc[]
+
+include::analyzers/stop-analyzer.asciidoc[]
+
+include::analyzers/keyword-analyzer.asciidoc[]
+
+include::analyzers/pattern-analyzer.asciidoc[]
+
+include::analyzers/lang-analyzer.asciidoc[]
+
+include::analyzers/snowball-analyzer.asciidoc[]
+
+include::analyzers/custom-analyzer.asciidoc[]
+

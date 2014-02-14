@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.restart;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
@@ -65,7 +65,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     @Override
     protected void doExecute(NodesRestartRequest nodesRestartRequest, ActionListener<NodesRestartResponse> listener) {
-        listener.onFailure(new ElasticSearchIllegalStateException("restart is disabled (for now) ...."));
+        listener.onFailure(new ElasticsearchIllegalStateException("restart is disabled (for now) ...."));
     }
 
     @Override
@@ -111,12 +111,12 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     }
 
     @Override
-    protected NodesRestartResponse.NodeRestartResponse nodeOperation(NodeRestartRequest request) throws ElasticSearchException {
+    protected NodesRestartResponse.NodeRestartResponse nodeOperation(NodeRestartRequest request) throws ElasticsearchException {
         if (disabled) {
-            throw new ElasticSearchIllegalStateException("Restart is disabled");
+            throw new ElasticsearchIllegalStateException("Restart is disabled");
         }
         if (!restartRequested.compareAndSet(false, true)) {
-            return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+            return new NodesRestartResponse.NodeRestartResponse(clusterService.localNode());
         }
         logger.info("Restarting in [{}]", request.delay);
         threadPool.schedule(request.delay, ThreadPool.Names.GENERIC, new Runnable() {
@@ -130,7 +130,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                         wrapperManager.getMethod("restartAndReturn").invoke(null);
                         restartWithWrapper = true;
                     } catch (Throwable e) {
-                        e.printStackTrace();
+                        logger.error("failed to initial restart on service wrapper", e);
                     }
                 }
                 if (!restartWithWrapper) {
@@ -146,7 +146,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                 }
             }
         });
-        return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+        return new NodesRestartResponse.NodeRestartResponse(clusterService.localNode());
     }
 
     @Override

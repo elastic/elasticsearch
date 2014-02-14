@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,10 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -35,14 +38,13 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 
 /**
  *
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_43;
+    public static final Version VERSION = Version.LUCENE_46;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -53,9 +55,19 @@ public class Lucene {
 
     public static ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
+    @SuppressWarnings("deprecation")
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.6".equals(version)) {
+            return VERSION.LUCENE_46;
+        }
+        if ("4.5".equals(version)) {
+            return VERSION.LUCENE_45;
+        }
+        if ("4.4".equals(version)) {
+            return VERSION.LUCENE_44;
         }
         if ("4.3".equals(version)) {
             return Version.LUCENE_43;
@@ -123,7 +135,7 @@ public class Lucene {
         try {
             writer.close();
             return true;
-        } catch (IOException e) {
+        } catch (Throwable e) {
             return false;
         }
     }
@@ -357,7 +369,7 @@ public class Lucene {
     private Lucene() {
 
     }
-    
+
     public static final boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
     }

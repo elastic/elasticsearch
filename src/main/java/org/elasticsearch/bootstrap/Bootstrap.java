@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,10 +34,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.File;
-import java.io.RandomAccessFile;
+import java.io.FileOutputStream;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -101,7 +101,7 @@ public class Bootstrap {
     }
 
     private static Tuple<Settings, Environment> initialSettings() {
-        return InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
+        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
     }
 
     /**
@@ -151,9 +151,9 @@ public class Bootstrap {
                 if (fPidFile.getParentFile() != null) {
                     FileSystemUtils.mkdirs(fPidFile.getParentFile());
                 }
-                RandomAccessFile rafPidFile = new RandomAccessFile(fPidFile, "rw");
-                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()));
-                rafPidFile.close();
+                FileOutputStream outputStream = new FileOutputStream(fPidFile);
+                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes());
+                outputStream.close();
 
                 fPidFile.deleteOnExit();
             } catch (Exception e) {
@@ -235,10 +235,10 @@ public class Bootstrap {
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {
-                logger.error(errorMessage);
-            } else {
                 System.err.println(errorMessage);
                 System.err.flush();
+            } else {
+                logger.error(errorMessage);
             }
             Loggers.disableConsoleLogging();
             if (logger.isDebugEnabled()) {

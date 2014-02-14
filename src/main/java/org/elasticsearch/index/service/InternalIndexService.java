@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,9 +22,9 @@ package org.elasticsearch.index.service;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +50,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.percolator.PercolatorService;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -61,9 +62,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
+import org.elasticsearch.index.termvectors.ShardTermVectorModule;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.index.translog.TranslogService;
@@ -90,15 +93,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final Settings indexSettings;
 
-    private final NodeEnvironment nodeEnv;
-
     private final ThreadPool threadPool;
 
     private final PluginsService pluginsService;
 
     private final InternalIndicesLifecycle indicesLifecycle;
-
-    private final PercolatorService percolatorService;
 
     private final AnalysisService analysisService;
 
@@ -130,16 +129,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
-                                IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
-                                IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
-                                IndexFieldDataService indexFieldData) {
+                                AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
+                                SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
+                                IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData) {
         super(index, indexSettings);
         this.injector = injector;
-        this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
-        this.percolatorService = percolatorService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -226,11 +222,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public PercolatorService percolateService() {
-        return this.percolatorService;
-    }
-
-    @Override
     public AnalysisService analysisService() {
         return this.analysisService;
     }
@@ -273,7 +264,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 public void run() {
                     try {
                         removeShard(shardId, reason);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to close shard", e);
                     } finally {
                         latch.countDown();
@@ -284,12 +275,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
+            logger.debug("Interrupted closing index [{}]", e, index().name());
+            Thread.currentThread().interrupt();
         }
     }
 
     @Override
-    public Injector shardInjector(int shardId) throws ElasticSearchException {
+    public Injector shardInjector(int shardId) throws ElasticsearchException {
         return shardsInjectors.get(shardId);
     }
 
@@ -303,9 +295,19 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
+    public String indexUUID() {
+        return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+    }
+
+    @Override
+    public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
+        /*
+         * TODO: we execute this in parallel but it's a synced method. Yet, we might
+         * be able to serialize the execution via the cluster state in the future. for now we just
+         * keep it synced.
+         */
         if (closed) {
-            throw new ElasticSearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new ElasticsearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
         ShardId shardId = new ShardId(index, sShardId);
         if (shardsInjectors.containsKey(shardId.id())) {
@@ -332,6 +334,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
+        modules.add(new PercolatorShardModule());
+        modules.add(new ShardTermVectorModule());
+        modules.add(new IndexShardSnapshotModule());
 
         Injector shardInjector;
         try {
@@ -346,6 +351,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         IndexShard indexShard = shardInjector.getInstance(IndexShard.class);
 
+        indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
         indicesLifecycle.afterIndexShardCreated(indexShard);
 
         shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -354,99 +360,93 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
-        Injector shardInjector;
-        IndexShard indexShard;
-        synchronized (this) {
-            Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
-            shardInjector = tmpShardInjectors.remove(shardId);
-            if (shardInjector == null) {
-                return;
-            }
-            shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
-
-            Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
-            indexShard = tmpShardsMap.remove(shardId);
-            shards = ImmutableMap.copyOf(tmpShardsMap);
+    public synchronized void removeShard(int shardId, String reason) throws ElasticsearchException {
+        final Injector shardInjector;
+        final IndexShard indexShard;
+        final ShardId sId = new ShardId(index, shardId);
+        Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
+        shardInjector = tmpShardInjectors.remove(shardId);
+        if (shardInjector == null) {
+            return;
         }
-
-        ShardId sId = new ShardId(index, shardId);
-
+        shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
+        Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
+        indexShard = tmpShardsMap.remove(shardId);
+        shards = ImmutableMap.copyOf(tmpShardsMap);
         indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
-
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
             try {
                 shardInjector.getInstance(closeable).close();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.debug("failed to clean plugin shard service [{}]", e, closeable);
             }
         }
-
         try {
             // now we can close the translog service, we need to close it before the we close the shard
             shardInjector.getInstance(TranslogService.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close translog service", e);
             // ignore
         }
-
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it
         if (indexShard != null) {
             try {
                 ((InternalIndexShard) indexShard).close(reason);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.debug("failed to close index shard", e);
                 // ignore
             }
         }
         try {
             shardInjector.getInstance(Engine.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close engine", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(MergePolicyProvider.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close merge policy provider", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to snapshot index shard gateway on close", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close index shard gateway", e);
             // ignore
         }
         try {
             // now we can close the translog
             shardInjector.getInstance(Translog.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close translog", e);
+            // ignore
+        }
+        try {
+            // now we can close the translog
+            shardInjector.getInstance(PercolatorQueriesRegistry.class).close();
+        } catch (Throwable e) {
+            logger.debug("failed to close PercolatorQueriesRegistry", e);
             // ignore
         }
 
         // call this before we close the store, so we can release resources for it
         indicesLifecycle.afterIndexShardClosed(sId);
-
         // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
         // and close it
         try {
             store.close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.warn("failed to close store on shard deletion", e);
         }
-
         Injectors.close(injector);
     }
 }

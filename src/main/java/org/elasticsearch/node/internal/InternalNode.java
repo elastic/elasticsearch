@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,13 +19,16 @@
 
 package org.elasticsearch.node.internal;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
-import org.elasticsearch.cache.NodeCache;
-import org.elasticsearch.cache.NodeCacheModule;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -33,7 +36,6 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -49,7 +51,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -73,8 +74,11 @@ import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.percolator.PercolatorModule;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.river.RiversManager;
@@ -87,6 +91,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.tribe.TribeModule;
+import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherModule;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -108,15 +116,20 @@ public final class InternalNode implements Node {
 
     private final Client client;
 
-    public InternalNode() throws ElasticSearchException {
+    public InternalNode() throws ElasticsearchException {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
-    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
+    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
+        tuple = new Tuple<Settings, Environment>(TribeService.processSettings(tuple.v1()), tuple.v2());
+
+        Version version = Version.CURRENT;
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
-        logger.info("{{}}[{}]: initializing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
+
+        logger.info("initializing ...");
 
         if (logger.isDebugEnabled()) {
             Environment env = tuple.v2();
@@ -127,18 +140,21 @@ public final class InternalNode implements Node {
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();
-        this.environment = tuple.v2();
+        // create the environment based on the finalized (processed) view of the settings
+        this.environment = new Environment(this.settings());
 
         CompressorFactory.configure(settings);
 
         NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
 
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new Version.Module(version));
+        modules.add(new CacheRecyclerModule(settings));
+        modules.add(new PageCacheRecyclerModule(settings));
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
         modules.add(new NetworkModule());
-        modules.add(new NodeCacheModule(settings));
         modules.add(new ScriptModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new NodeEnvironmentModule(nodeEnvironment));
@@ -160,12 +176,16 @@ public final class InternalNode implements Node {
         modules.add(new NodeClientModule());
         modules.add(new BulkUdpModule());
         modules.add(new ShapeModule());
+        modules.add(new PercolatorModule());
+        modules.add(new ResourceWatcherModule());
+        modules.add(new RepositoriesModule());
+        modules.add(new TribeModule());
 
         injector = modules.createInjector();
 
         client = injector.getInstance(Client.class);
 
-        logger.info("{{}}[{}]: initialized", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("initialized");
     }
 
     @Override
@@ -184,7 +204,7 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: starting ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("starting ...");
 
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
@@ -213,8 +233,10 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).start();
         }
         injector.getInstance(BulkUdpService.class).start();
+        injector.getInstance(ResourceWatcherService.class).start();
+        injector.getInstance(TribeService.class).start();
 
-        logger.info("{{}}[{}]: started", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("started");
 
         return this;
     }
@@ -225,9 +247,11 @@ public final class InternalNode implements Node {
             return this;
         }
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: stopping ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("stopping ...");
 
+        injector.getInstance(TribeService.class).stop();
         injector.getInstance(BulkUdpService.class).stop();
+        injector.getInstance(ResourceWatcherService.class).stop();
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }
@@ -259,7 +283,7 @@ public final class InternalNode implements Node {
             injector.getInstance(plugin).stop();
         }
 
-        logger.info("{{}}[{}]: stopped", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("stopped");
 
         return this;
     }
@@ -273,10 +297,12 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: closing ...", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("closing ...");
 
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("bulk.udp");
+        stopWatch.start("tribe");
+        injector.getInstance(TribeService.class).close();
+        stopWatch.stop().start("bulk.udp");
         injector.getInstance(BulkUdpService.class).close();
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -312,14 +338,13 @@ public final class InternalNode implements Node {
         injector.getInstance(RestController.class).close();
         stopWatch.stop().start("transport");
         injector.getInstance(TransportService.class).close();
+        stopWatch.stop().start("percolator_service");
+        injector.getInstance(PercolatorService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");
             injector.getInstance(plugin).close();
         }
-
-        stopWatch.stop().start("node_cache");
-        injector.getInstance(NodeCache.class).close();
 
         stopWatch.stop().start("script");
         injector.getInstance(ScriptService.class).close();
@@ -344,13 +369,13 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(NodeEnvironment.class).close();
+        injector.getInstance(CacheRecycler.class).close();
+        injector.getInstance(PageCacheRecycler.class).close();
         Injectors.close(injector);
 
-        CacheRecycler.clear();
         CachedStreams.clear();
-        ThreadLocals.clearReferencesThreadLocals();
 
-        logger.info("{{}}[{}]: closed", Version.CURRENT, JvmInfo.jvmInfo().pid());
+        logger.info("closed");
     }
 
     @Override

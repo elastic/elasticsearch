@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -73,7 +73,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SEARCH;
+        return ThreadPool.Names.SUGGEST;
     }
 
     @Override
@@ -128,7 +128,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // simply ignore non active shards
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -146,17 +146,17 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     }
 
     @Override
-    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticSearchException {
+    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
-        final Engine.Searcher searcher = indexShard.searcher();
+        final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");
         XContentParser parser = null;
         try {
             BytesReference suggest = request.suggest();
             if (suggest != null && suggest.length() > 0) {
                 parser = XContentFactory.xContent(suggest).createParser(suggest);
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticSearchIllegalArgumentException("suggest content missing");
+                    throw new ElasticsearchIllegalArgumentException("suggest content missing");
                 }
                 final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.index(), request.shardId());
                 final Suggest result = suggestPhase.execute(context, searcher.reader());
@@ -164,7 +164,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             }
             return new ShardSuggestResponse(request.index(), request.shardId(), new Suggest());
         } catch (Throwable ex) {
-            throw new ElasticSearchException("failed to execute suggest", ex);
+            throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {
             searcher.release();
             if (parser != null) {

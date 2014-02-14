@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,8 +43,8 @@ import java.util.Map;
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #query(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
+ * or {@link #source(byte[])}.
  *
  * @see CountResponse
  * @see org.elasticsearch.client.Client#count(CountRequest)
@@ -65,10 +64,12 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     @Nullable
     private String preference;
 
-    private BytesReference querySource;
-    private boolean querySourceUnsafe;
+    private BytesReference source;
+    private boolean sourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
+
+    long nowInMillis;
 
     CountRequest() {
     }
@@ -89,9 +90,9 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     @Override
     protected void beforeStart() {
-        if (querySourceUnsafe) {
-            querySource = querySource.copyBytesArray();
-            querySourceUnsafe = false;
+        if (sourceUnsafe) {
+            source = source.copyBytesArray();
+            sourceUnsafe = false;
         }
     }
 
@@ -112,83 +113,74 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    BytesReference querySource() {
-        return querySource;
+    BytesReference source() {
+        return source;
     }
 
     /**
-     * The query source to execute.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * The source to execute.
      */
-    @Required
-    public CountRequest query(QueryBuilder queryBuilder) {
-        this.querySource = queryBuilder.buildAsBytes();
-        this.querySourceUnsafe = false;
+    public CountRequest source(QuerySourceBuilder sourceBuilder) {
+        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to execute in the form of a map.
+     * The source to execute in the form of a map.
      */
-    @Required
-    public CountRequest query(Map querySource) {
+    public CountRequest source(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
-            return query(builder);
+            return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + querySource + "]", e);
         }
     }
 
-    @Required
-    public CountRequest query(XContentBuilder builder) {
-        this.querySource = builder.bytes();
-        this.querySourceUnsafe = false;
+    public CountRequest source(XContentBuilder builder) {
+        this.source = builder.bytes();
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to execute. It is preferable to use either {@link #query(byte[])}
-     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
+     * The source to execute. It is preferable to use either {@link #source(byte[])}
+     * or {@link #source(QuerySourceBuilder)}.
      */
-    @Required
-    public CountRequest query(String querySource) {
-        this.querySource = new BytesArray(querySource);
-        this.querySourceUnsafe = false;
+    public CountRequest source(String querySource) {
+        this.source = new BytesArray(querySource);
+        this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    @Required
-    public CountRequest query(byte[] querySource) {
-        return query(querySource, 0, querySource.length, false);
+    public CountRequest source(byte[] querySource) {
+        return source(querySource, 0, querySource.length, false);
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    @Required
-    public CountRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
-        return query(new BytesArray(querySource, offset, length), unsafe);
+    public CountRequest source(byte[] querySource, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(querySource, offset, length), unsafe);
     }
 
-    @Required
-    public CountRequest query(BytesReference querySource, boolean unsafe) {
-        this.querySource = querySource;
-        this.querySourceUnsafe = unsafe;
+    public CountRequest source(BytesReference querySource, boolean unsafe) {
+        this.source = querySource;
+        this.sourceUnsafe = unsafe;
         return this;
     }
 
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] types() {
+    public String[] types() {
         return this.types;
     }
 
@@ -238,8 +230,8 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         minScore = in.readFloat();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        querySourceUnsafe = false;
-        querySource = in.readBytesReference();
+        sourceUnsafe = false;
+        source = in.readBytesReference();
         types = in.readStringArray();
     }
 
@@ -249,7 +241,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         out.writeFloat(minScore);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeBytesReference(querySource);
+        out.writeBytesReference(source);
         out.writeStringArray(types);
     }
 
@@ -257,10 +249,10 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(querySource, false);
+            sSource = XContentHelper.convertToJson(source, false);
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + sSource + "]";
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "]";
     }
 }

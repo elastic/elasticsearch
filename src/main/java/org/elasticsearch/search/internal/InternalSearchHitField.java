@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHitField;
 
 import java.io.IOException;
@@ -34,11 +35,9 @@ import java.util.List;
 public class InternalSearchHitField implements SearchHitField {
 
     private String name;
-
     private List<Object> values;
 
     private InternalSearchHitField() {
-
     }
 
     public InternalSearchHitField(String name, List<Object> values) {
@@ -77,6 +76,10 @@ public class InternalSearchHitField implements SearchHitField {
         return values();
     }
 
+    @Override
+    public boolean isMetadataField() {
+        return MapperService.isMetadataField(name);
+    }
 
     @Override
     public Iterator<Object> iterator() {
@@ -91,7 +94,7 @@ public class InternalSearchHitField implements SearchHitField {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        name = in.readSharedString();
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
@@ -101,7 +104,7 @@ public class InternalSearchHitField implements SearchHitField {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        out.writeSharedString(name);
         out.writeVInt(values.size());
         for (Object value : values) {
             out.writeGenericValue(value);

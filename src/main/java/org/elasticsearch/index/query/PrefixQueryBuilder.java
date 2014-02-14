@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -38,6 +38,8 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
 
     private String rewrite;
 
+    private String queryName;
+
     /**
      * A Query that matches documents containing terms with a specified prefix.
      *
@@ -63,10 +65,18 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public PrefixQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixQueryParser.NAME);
-        if (boost == -1 && rewrite == null) {
+        if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, prefix);
         } else {
             builder.startObject(name);
@@ -76,6 +86,9 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
             }
             if (rewrite != null) {
                 builder.field("rewrite", rewrite);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

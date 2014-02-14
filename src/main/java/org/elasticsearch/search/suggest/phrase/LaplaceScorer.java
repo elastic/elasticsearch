@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,27 +18,28 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
+
+import java.io.IOException;
 //TODO public for tests
 public final class LaplaceScorer extends WordScorer {
     
     public static final WordScorerFactory FACTORY = new WordScorer.WordScorerFactory() {
         @Override
-        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
-            return new LaplaceScorer(reader, field, realWordLikelyhood, separator, 0.5);
+        public WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
+            return new LaplaceScorer(reader, terms, field, realWordLikelyhood, separator, 0.5);
         }
     };
     
     private double alpha;
 
-    public LaplaceScorer(IndexReader reader, String field,
+    public LaplaceScorer(IndexReader reader, Terms terms, String field,
             double realWordLikelyhood, BytesRef separator, double alpha) throws IOException {
-        super(reader, field, realWordLikelyhood, separator);
+        super(reader, terms, field, realWordLikelyhood, separator);
         this.alpha = alpha;
     }
     

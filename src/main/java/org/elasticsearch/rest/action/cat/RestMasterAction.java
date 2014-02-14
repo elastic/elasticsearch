@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,18 +23,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestMasterAction extends BaseRestHandler {
+public class RestMasterAction extends AbstractCatAction {
 
     @Inject
     public RestMasterAction(Settings settings, Client client, RestController controller) {
@@ -43,9 +47,14 @@ public class RestMasterAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    void documentation(StringBuilder sb) {
+        sb.append("/_cat/master\n");
+    }
+
+    @Override
+    public void doRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
+        clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
@@ -53,7 +62,7 @@ public class RestMasterAction extends BaseRestHandler {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 try {
-                    channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse), request, channel));
+                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse), request, channel));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -70,24 +79,35 @@ public class RestMasterAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(ClusterStateResponse state) {
+    @Override
+    Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("id")
-                .addCell("ip")
-                .addCell("node")
+                .addCell("id", "desc:node id")
+                .addCell("host", "alias:h;desc:host name")
+                .addCell("ip", "desc:ip address ")
+                .addCell("node", "alias:n;desc:node name")
                 .endHeaders();
+        return table;
+    }
 
-        String masterId = state.getState().nodes().masterNodeId();
-        String masterIp = ((InetSocketTransportAddress) state.getState().nodes().get(masterId).address()).address().getAddress().getHostAddress();
-        String masterName = state.getState().nodes().masterNode().name();
+    private Table buildTable(RestRequest request, ClusterStateResponse state) {
+        Table table = getTableWithHeader(request);
+        DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-
-        table.addCell(masterId);
-        table.addCell(masterIp);
-        table.addCell(masterName);
-
+        DiscoveryNode master = nodes.get(nodes.masterNodeId());
+        if (master == null) {
+            table.addCell("-");
+            table.addCell("-");
+            table.addCell("-");
+            table.addCell("-");
+        } else {
+            table.addCell(master.getId());
+            table.addCell(master.getHostName());
+            table.addCell(master.getHostAddress());
+            table.addCell(master.getName());
+        }
         table.endRow();
 
         return table;

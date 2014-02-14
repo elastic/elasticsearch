@@ -1,13 +1,13 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -32,7 +30,9 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.search.child.HasParentFilter;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.child.ParentQuery;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -62,6 +62,7 @@ public class HasParentQueryParser implements QueryParser {
         float boost = 1.0f;
         String parentType = null;
         boolean score = false;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -102,6 +103,8 @@ public class HasParentQueryParser implements QueryParser {
                     }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -126,17 +129,13 @@ public class HasParentQueryParser implements QueryParser {
         innerQuery.setBoost(boost);
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set.");
-        }
 
         Set<String> parentTypes = new HashSet<String>(5);
         parentTypes.add(parentType);
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper != null) {
-                DocumentMapper parentTypeDocumentMapper = searchContext.mapperService().documentMapper(parentFieldMapper.type());
+            if (parentFieldMapper.active()) {
+                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());
@@ -159,17 +158,20 @@ public class HasParentQueryParser implements QueryParser {
         }
         Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
 
+        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;
-        if (score) {
-            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childrenFilter);
-            searchContext.addRewrite(parentQuery);
-            query = parentQuery;
+        if (!deleteByQuery && score) {
+            query = new ParentQuery(innerQuery, parentType, childrenFilter);
         } else {
-            HasParentFilter hasParentFilter = new HasParentFilter(innerQuery, parentType, searchContext, childrenFilter);
-            searchContext.addRewrite(hasParentFilter);
-            query = new XConstantScoreQuery(hasParentFilter);
+            query = new ParentConstantScoreQuery(innerQuery, parentType, childrenFilter);
+            if (deleteByQuery) {
+                query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
+            }
         }
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
+        }
         return query;
     }
 

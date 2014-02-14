@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,8 +22,8 @@ package org.elasticsearch.action.mlt;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -35,10 +35,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -96,20 +93,20 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to the concrete index
         final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
 
-        RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
+        Iterable<MutableShardRouting> routingNode = clusterState.getRoutingNodes().routingNodeIter(clusterService.localNode().getId());
         if (routingNode == null) {
-            redirect(request, listener, clusterState);
+            redirect(request, concreteIndex, listener, clusterState);
             return;
         }
         boolean hasIndexLocally = false;
-        for (MutableShardRouting shardRouting : routingNode.shards()) {
+        for (MutableShardRouting shardRouting : routingNode) {
             if (concreteIndex.equals(shardRouting.index())) {
                 hasIndexLocally = true;
                 break;
             }
         }
         if (!hasIndexLocally) {
-            redirect(request, listener, clusterState);
+            redirect(request, concreteIndex, listener, clusterState);
             return;
         }
         Set<String> getFields = newHashSet();
@@ -139,7 +136,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 try {
                     final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
                     if (docMapper == null) {
-                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
+                        throw new ElasticsearchException("No DocumentMapper found for type [" + request.type() + "]");
                     }
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
@@ -160,7 +157,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                             GetField getField = getResponse.getField(field);
                             if (getField != null) {
                                 for (Object value : getField.getValues()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString());
+                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString(), true);
                                 }
                                 it.remove();
                             }
@@ -176,13 +173,14 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
                     if (!boolBuilder.hasClauses()) {
                         // no field added, fail
-                        listener.onFailure(new ElasticSearchException("No fields found to fetch the 'likeText' from"));
+                        listener.onFailure(new ElasticsearchException("No fields found to fetch the 'likeText' from"));
                         return;
                     }
 
                     // exclude myself
                     Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
+                    boolBuilder.adjustPureNegative(false);
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
@@ -234,11 +232,11 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     }
 
     // Redirects the request to a data node, that has the index meta data locally available.
-    private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), null);
+    private void redirect(MoreLikeThisRequest request, String concreteIndex, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, concreteIndex, request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
-            throw new ElasticSearchException("No shards for index " + request.index());
+            throw new ElasticsearchException("No shards for index " + request.index());
         }
         String nodeId = shardRouting.currentNodeId();
         DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
@@ -273,6 +271,9 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
+                if (!field.fieldType().indexed()) {
+                    return false;
+                }
                 if (fieldMapper instanceof InternalMapper) {
                     return true;
                 }
@@ -282,7 +283,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
 
                 if (fields.isEmpty() || fields.contains(field.name())) {
-                    addMoreLikeThis(request, boolBuilder, fieldMapper, field);
+                    addMoreLikeThis(request, boolBuilder, fieldMapper, field, !fields.isEmpty());
                 }
 
                 return false;
@@ -298,26 +299,27 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         } else if (field.numericValue() != null) {
             return field.numericValue();
         } else {
-            throw new ElasticSearchIllegalStateException("Field should have either a string, numeric or binary value");
+            throw new ElasticsearchIllegalStateException("Field should have either a string, numeric or binary value");
         }
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString());
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field, boolean failOnUnsupportedField) {
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString(), failOnUnsupportedField);
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText, boolean failOnUnsupportedField) {
         MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
                 .percentTermsToMatch(request.percentTermsToMatch())
                 .boostTerms(request.boostTerms())
                 .minDocFreq(request.minDocFreq())
                 .maxDocFreq(request.maxDocFreq())
-                .minWordLen(request.minWordLen())
-                .maxWordLen(request.maxWordLen())
+                .minWordLength(request.minWordLength())
+                .maxWordLen(request.maxWordLength())
                 .minTermFreq(request.minTermFreq())
                 .maxQueryTerms(request.maxQueryTerms())
-                .stopWords(request.stopWords());
+                .stopWords(request.stopWords())
+                .failOnUnsupportedField(failOnUnsupportedField);
         boolBuilder.should(mlt);
     }
 

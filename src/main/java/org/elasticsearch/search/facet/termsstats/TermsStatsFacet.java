@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.facet.Facet;
 
@@ -348,7 +348,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             } else if (id == REVERSE_MEAN.id()) {
                 return REVERSE_MEAN;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
         }
 
         public static ComparatorType fromString(String type) {
@@ -377,7 +377,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             } else if ("reverse_mean".equals(type) || "reverseMean".equals(type)) {
                 return REVERSE_MEAN;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for terms stats facet comparator [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("No type argument match for terms stats facet comparator [" + type + "]");
         }
     }
 

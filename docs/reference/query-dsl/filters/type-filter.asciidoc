@@ -1,0 +1,15 @@
+[[query-dsl-type-filter]]
+=== Type Filter
+
+Filters documents matching the provided document / mapping type. Note,
+this filter can work even when the `_type` field is not indexed (using
+the <<mapping-uid-field,_uid>> field).
+
+[source,js]
+--------------------------------------------------
+{
+    "type" : {
+        "value" : "my_type"
+    }
+}    
+--------------------------------------------------

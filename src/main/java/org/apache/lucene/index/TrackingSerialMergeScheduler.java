@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,8 +24,12 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.merge.OnGoingMerge;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 // LUCENE MONITOR - Copied from SerialMergeScheduler
 public class TrackingSerialMergeScheduler extends MergeScheduler {
@@ -38,6 +42,9 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
     private final CounterMetric currentMerges = new CounterMetric();
     private final CounterMetric currentMergesNumDocs = new CounterMetric();
     private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
+
+    private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
+    private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
 
     public TrackingSerialMergeScheduler(ESLogger logger) {
         this.logger = logger;
@@ -71,6 +78,10 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
         return currentMergesSizeInBytes.count();
     }
 
+    public Set<OnGoingMerge> onGoingMerges() {
+        return readOnlyOnGoingMerges;
+    }
+
     /**
      * Just do the merges in sequence. We do this
      * "synchronized" so that even if the application is using
@@ -95,14 +106,21 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             currentMergesNumDocs.inc(totalNumDocs);
             currentMergesSizeInBytes.inc(totalSizeInBytes);
 
+            OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
+            onGoingMerges.add(onGoingMerge);
+
             // sadly, segment name is not available since mergeInit is called from merge itself...
             if (logger.isTraceEnabled()) {
                 logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", merge.info == null ? "_na_" : merge.info.info.name, merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
             }
             try {
+                beforeMerge(onGoingMerge);
                 writer.merge(merge);
             } finally {
                 long took = System.currentTimeMillis() - time;
+
+                onGoingMerges.remove(onGoingMerge);
+                afterMerge(onGoingMerge);
 
                 currentMerges.dec();
                 currentMergesNumDocs.dec(totalNumDocs);
@@ -118,6 +136,20 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
                 }
             }
         }
+    }
+
+    /**
+     * A callback allowing for custom logic before an actual merge starts.
+     */
+    protected void beforeMerge(OnGoingMerge merge) {
+
+    }
+
+    /**
+     * A callback allowing for custom logic before an actual merge starts.
+     */
+    protected void afterMerge(OnGoingMerge merge) {
+
     }
 
     @Override

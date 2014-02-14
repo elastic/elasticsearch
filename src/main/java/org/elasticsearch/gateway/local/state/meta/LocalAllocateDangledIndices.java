@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -41,8 +41,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  */
 public class LocalAllocateDangledIndices extends AbstractComponent {
@@ -69,7 +67,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
         }
-        AllocateDangledRequest request = new AllocateDangledRequest(clusterState.nodes().localNode(), indices);
+        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices);
         transportService.sendRequest(masterNode, AllocateDangledRequestHandler.ACTION, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
             public AllocateDangledResponse newInstance() {
@@ -99,7 +97,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         void onFailure(Throwable e);
     }
 
-    class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
+    class AllocateDangledRequestHandler extends BaseTransportRequestHandler<AllocateDangledRequest> {
 
         public static final String ACTION = "/gateway/local/allocate_dangled";
 
@@ -120,10 +118,9 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }
-                    MetaData.Builder metaData = MetaData.builder()
-                            .metaData(currentState.metaData());
+                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
 
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
@@ -142,16 +139,26 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     }
                     logger.info("auto importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
 
-                    ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
 
-                    return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                    try {
+                        channel.sendResponse(t);
+                    } catch (Exception e) {
+                        logger.error("failed send response for allocating dangled", e);
+                    }
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     try {
                         channel.sendResponse(new AllocateDangledResponse(true));
                     } catch (IOException e) {

@@ -1,0 +1,51 @@
+[[modules-http]]
+== HTTP
+
+The http module allows to expose *elasticsearch* APIs
+over HTTP.
+
+The http mechanism is completely asynchronous in nature, meaning that
+there is no blocking thread waiting for a response. The benefit of using
+asynchronous communication for HTTP is solving the
+http://en.wikipedia.org/wiki/C10k_problem[C10k problem].
+
+When possible, consider using
+http://en.wikipedia.org/wiki/Keepalive#HTTP_Keepalive[HTTP keep alive]
+when connecting for better performance and try to get your favorite
+client not to do
+http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
+
+[float]
+=== Settings
+
+The following are the settings the can be configured for HTTP:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`http.port` |A bind port range. Defaults to `9200-9300`.
+
+|`http.max_content_length` |The max content of an HTTP request. Defaults
+to `100mb`
+
+|`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
+to `4kb`
+
+|`http.compression` |Support for compression when possible (with
+Accept-Encoding). Defaults to `false`.
+
+|`http.compression_level` |Defines the compression level to use.
+Defaults to `6`.
+|=======================================================================
+
+It also shares the uses the common
+<<modules-network,network settings>>.
+
+[float]
+=== Disable HTTP
+
+The http module can be completely disabled and not started by setting
+`http.enabled` to `false`. This make sense when creating non
+<<modules-node,data nodes>> which accept HTTP
+requests, and communicate with data nodes using the internal
+<<modules-transport,transport>>.

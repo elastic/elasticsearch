@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -59,7 +58,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayMetaState> list(Set<String> nodesIds, @Nullable TimeValue timeout) {
+    public ActionFuture<NodesLocalGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
@@ -115,11 +114,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
             return new NodeLocalGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
         } catch (Exception e) {
-            throw new ElasticSearchException("failed to load metadata", e);
+            throw new ElasticsearchException("failed to load metadata", e);
         }
     }
 
@@ -133,8 +132,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
         public Request() {
         }
 
-        public Request(Set<String> nodesIds) {
-            super(nodesIds.toArray(new String[nodesIds.size()]));
+        public Request(String... nodesIds) {
+            super(nodesIds);
         }
 
         @Override

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,27 +28,37 @@ import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.termvectors.ShardTermVectorService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 /**
  *
@@ -82,6 +93,8 @@ public interface IndexShard extends IndexShardComponent {
 
     MergeStats mergeStats();
 
+    SegmentsStats segmentStats();
+
     RefreshStats refreshStats();
 
     FlushStats flushStats();
@@ -94,40 +107,69 @@ public interface IndexShard extends IndexShardComponent {
 
     FieldDataStats fieldDataStats(String... fields);
 
+    CompletionStats completionStats(String... fields);
+
+    TranslogStats translogStats();
+
+    PercolatorQueriesRegistry percolateRegistry();
+
+    ShardPercolateService shardPercolateService();
+
+    ShardTermVectorService termVectorService();
+
+    MapperService mapperService();
+
+    IndexFieldDataService indexFieldDataService();
+
+    IndexService indexService();
+
     IndexShardState state();
 
-    Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException;
+    Engine.Create prepareCreate(SourceToParse source) throws ElasticsearchException;
 
-    ParsedDocument create(Engine.Create create) throws ElasticSearchException;
+    ParsedDocument create(Engine.Create create) throws ElasticsearchException;
 
-    Engine.Index prepareIndex(SourceToParse source) throws ElasticSearchException;
+    Engine.Index prepareIndex(SourceToParse source) throws ElasticsearchException;
 
-    ParsedDocument index(Engine.Index index) throws ElasticSearchException;
+    ParsedDocument index(Engine.Index index) throws ElasticsearchException;
 
-    Engine.Delete prepareDelete(String type, String id, long version) throws ElasticSearchException;
+    Engine.Delete prepareDelete(String type, String id, long version) throws ElasticsearchException;
 
-    void delete(Engine.Delete delete) throws ElasticSearchException;
+    void delete(Engine.Delete delete) throws ElasticsearchException;
 
-    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference querySource, @Nullable String[] filteringAliases, String... types) throws ElasticSearchException;
+    Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticsearchException;
 
-    void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException;
+    void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticsearchException;
 
-    Engine.GetResult get(Engine.Get get) throws ElasticSearchException;
+    Engine.GetResult get(Engine.Get get) throws ElasticsearchException;
 
-    void refresh(Engine.Refresh refresh) throws ElasticSearchException;
+    void refresh(Engine.Refresh refresh) throws ElasticsearchException;
 
-    void flush(Engine.Flush flush) throws ElasticSearchException;
+    void flush(Engine.Flush flush) throws ElasticsearchException;
 
-    void optimize(Engine.Optimize optimize) throws ElasticSearchException;
+    void optimize(Engine.Optimize optimize) throws ElasticsearchException;
 
     <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException;
 
+    SnapshotIndexCommit snapshotIndex() throws EngineException;
+
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
-    Engine.Searcher searcher();
+    Engine.Searcher acquireSearcher(String source);
+
+    Engine.Searcher acquireSearcher(String source, Mode mode);
 
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt();
+
+    void readAllowed() throws IllegalIndexShardStateException;
+
+    void readAllowed(Mode mode) throws IllegalIndexShardStateException;
+
+    public enum Mode {
+        READ,
+        WRITE
+    }
 }

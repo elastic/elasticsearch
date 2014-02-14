@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,20 +19,19 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectFloatHashMap;
-
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -48,6 +47,7 @@ import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 public class QueryStringQueryParser implements QueryParser {
 
     public static final String NAME = "query_string";
+    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 
     private final boolean defaultAnalyzeWildcard;
     private final boolean defaultAllowLeadingWildcard;
@@ -67,6 +67,7 @@ public class QueryStringQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        String queryName = null;
         QueryParserSettings qpSettings = new QueryParserSettings();
         qpSettings.defaultField(parseContext.defaultField());
         qpSettings.lenient(parseContext.queryStringLenient());
@@ -105,7 +106,7 @@ public class QueryStringQueryParser implements QueryParser {
                                 qpSettings.fields().add(field);
                                 if (fBoost != -1) {
                                     if (qpSettings.boosts() == null) {
-                                        qpSettings.boosts(new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 1.0f));
+                                        qpSettings.boosts(new ObjectFloatOpenHashMap<String>());
                                     }
                                     qpSettings.boosts().put(field, fBoost);
                                 }
@@ -114,7 +115,7 @@ public class QueryStringQueryParser implements QueryParser {
                             qpSettings.fields().add(fField);
                             if (fBoost != -1) {
                                 if (qpSettings.boosts() == null) {
-                                    qpSettings.boosts(new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, 1.0f));
+                                    qpSettings.boosts(new ObjectFloatOpenHashMap<String>());
                                 }
                                 qpSettings.boosts().put(fField, fBoost);
                             }
@@ -127,7 +128,7 @@ public class QueryStringQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     qpSettings.queryString(parser.text());
                 } else if ("default_field".equals(currentFieldName) || "defaultField".equals(currentFieldName)) {
-                    qpSettings.defaultField(parseContext.indexName(parser.text()));
+                    qpSettings.defaultField(parser.text());
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
@@ -169,8 +170,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.fuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull()));
                 } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     qpSettings.phraseSlop(parser.intValue());
-                } else if ("fuzzy_min_sim".equals(currentFieldName) || "fuzzyMinSim".equals(currentFieldName)) {
-                    qpSettings.fuzzyMinSim(parser.floatValue());
+                } else if (FUZZINESS.match(currentFieldName, parseContext.parseFlags())) {
+                    qpSettings.fuzzyMinSim(Fuzziness.parse(parser).asSimilarity());
                 } else if ("boost".equals(currentFieldName)) {
                     qpSettings.boost(parser.floatValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
@@ -185,6 +186,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.quoteFieldSuffix(parser.textOrNull());
                 } else if ("lenient".equalsIgnoreCase(currentFieldName)) {
                     qpSettings.lenient(parser.booleanValue());
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
                 }
@@ -201,9 +204,11 @@ public class QueryStringQueryParser implements QueryParser {
         }
 
         qpSettings.queryTypes(parseContext.queryTypes());
-
         Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
         if (query != null) {
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
             return query;
         }
 
@@ -222,6 +227,9 @@ public class QueryStringQueryParser implements QueryParser {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
             parseContext.indexCache().queryParserCache().put(qpSettings, query);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
             return query;
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
             throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", e);

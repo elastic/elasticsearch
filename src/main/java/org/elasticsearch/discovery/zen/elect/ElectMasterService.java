@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,14 @@
 
 package org.elasticsearch.discovery.zen.elect;
 
+import com.carrotsearch.hppc.ObjectContainer;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -70,8 +72,8 @@ public class ElectMasterService extends AbstractComponent {
     /**
      * Returns a list of the next possible masters.
      */
-    public DiscoveryNode[] nextPossibleMasters(Iterable<DiscoveryNode> nodes, int numberOfPossibleMasters) {
-        List<DiscoveryNode> sortedNodes = sortedMasterNodes(nodes);
+    public DiscoveryNode[] nextPossibleMasters(ObjectContainer<DiscoveryNode> nodes, int numberOfPossibleMasters) {
+        List<DiscoveryNode> sortedNodes = sortedMasterNodes(Arrays.asList(nodes.toArray(DiscoveryNode.class)));
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }
@@ -110,7 +112,7 @@ public class ElectMasterService extends AbstractComponent {
                 it.remove();
             }
         }
-        CollectionUtil.quickSort(possibleNodes, nodeComparator);
+        CollectionUtil.introSort(possibleNodes, nodeComparator);
         return possibleNodes;
     }
 

@@ -1,5 +1,25 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -11,34 +31,46 @@ import java.io.IOException;
 import java.io.Serializable;
 
 public class PluginInfo implements Streamable, Serializable, ToXContent {
+    public static final String DESCRIPTION_NOT_AVAILABLE = "No description found.";
+    public static final String VERSION_NOT_AVAILABLE = "NA";
+
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString URL = new XContentBuilderString("url");
         static final XContentBuilderString JVM = new XContentBuilderString("jvm");
         static final XContentBuilderString SITE = new XContentBuilderString("site");
+        static final XContentBuilderString VERSION = new XContentBuilderString("version");
     }
 
     private String name;
     private String description;
     private boolean site;
     private boolean jvm;
+    private String version;
 
     public PluginInfo() {
     }
 
     /**
      * Information about plugins
-     * @param name Its name
+     *
+     * @param name        Its name
      * @param description Its description
-     * @param site true if it's a site plugin
-     * @param jvm true if it's a jvm plugin
+     * @param site        true if it's a site plugin
+     * @param jvm         true if it's a jvm plugin
+     * @param version     Version number is applicable (NA otherwise)
      */
-    public PluginInfo(String name, String description, boolean site, boolean jvm) {
+    public PluginInfo(String name, String description, boolean site, boolean jvm, String version) {
         this.name = name;
         this.description = description;
         this.site = site;
         this.jvm = jvm;
+        if (Strings.hasText(version)) {
+            this.version = version;
+        } else {
+            this.version = VERSION_NOT_AVAILABLE;
+        }
     }
 
     /**
@@ -56,7 +88,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
     }
 
     /**
-     * @return true is it's a site plugin
+     * @return true if it's a site plugin
      */
     public boolean isSite() {
         return site;
@@ -71,7 +103,8 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
 
     /**
      * We compute the URL for sites: "/_plugin/" + name + "/"
-     * @return
+     *
+     * @return relative URL for site plugin
      */
     public String getUrl() {
         if (site) {
@@ -79,6 +112,13 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         } else {
             return null;
         }
+    }
+
+    /**
+     * @return Version number for the plugin
+     */
+    public String getVersion() {
+        return version;
     }
 
     public static PluginInfo readPluginInfo(StreamInput in) throws IOException {
@@ -93,6 +133,11 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         this.description = in.readString();
         this.site = in.readBoolean();
         this.jvm = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
+            this.version = in.readString();
+        } else {
+            this.version = VERSION_NOT_AVAILABLE;
+        }
     }
 
     @Override
@@ -101,12 +146,16 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         out.writeString(description);
         out.writeBoolean(site);
         out.writeBoolean(jvm);
+        if (out.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
+            out.writeString(version);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Fields.NAME, name);
+        builder.field(Fields.VERSION, version);
         builder.field(Fields.DESCRIPTION, description);
         if (site) {
             builder.field(Fields.URL, getUrl());
@@ -116,5 +165,35 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PluginInfo that = (PluginInfo) o;
+
+        if (!name.equals(that.name)) return false;
+        if (version != null ? !version.equals(that.version) : that.version != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return name.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("PluginInfo{");
+        sb.append("name='").append(name).append('\'');
+        sb.append(", description='").append(description).append('\'');
+        sb.append(", site=").append(site);
+        sb.append(", jvm=").append(jvm);
+        sb.append(", version='").append(version).append('\'');
+        sb.append('}');
+        return sb.toString();
     }
 }

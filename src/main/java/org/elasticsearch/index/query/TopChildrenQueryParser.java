@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,16 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
 import org.elasticsearch.search.internal.SearchContext;
@@ -52,13 +51,14 @@ public class TopChildrenQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
+        Query innerQuery = null;
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
         ScoreType scoreType = ScoreType.MAX;
         int factor = 5;
         int incrementalFactor = 2;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -72,7 +72,7 @@ public class TopChildrenQueryParser implements QueryParser {
                     // since we switch types, make sure we change the context
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                     try {
-                        query = parseContext.parseInnerQuery();
+                        innerQuery = parseContext.parseInnerQuery();
                     } finally {
                         QueryParseContext.setTypes(origTypes);
                     }
@@ -94,6 +94,8 @@ public class TopChildrenQueryParser implements QueryParser {
                     factor = parser.intValue();
                 } else if ("incremental_factor".equals(currentFieldName) || "incrementalFactor".equals(currentFieldName)) {
                     incrementalFactor = parser.intValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }
@@ -106,29 +108,30 @@ public class TopChildrenQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
         }
 
-        if (query == null) {
+        if (innerQuery == null) {
             return null;
+        }
+
+        if ("delete_by_query".equals(SearchContext.current().source())) {
+            throw new QueryParsingException(parseContext.index(), "[top_children] unsupported in delete_by_query api");
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
         }
-        if (childDocMapper.parentFieldMapper() == null) {
+        if (!childDocMapper.parentFieldMapper().active()) {
             throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 
-        query.setBoost(boost);
+        innerQuery.setBoost(boost);
         // wrap the query with type query
-        query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
-
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[top_children] Can't execute, search context not set.");
+        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        TopChildrenQuery query = new TopChildrenQuery(innerQuery, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler());
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }
-        TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor);
-        searchContext.addRewrite(childQuery);
-        return childQuery;
+        return query;
     }
 }

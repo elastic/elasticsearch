@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,13 +21,12 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
-import org.apache.lucene.codecs.lucene42.Lucene42Codec;
+import org.apache.lucene.codecs.lucene46.Lucene46Codec;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -38,17 +37,17 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
  * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
-public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene46Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;
-    private final DocValuesFormat diskDocValuesFormat;
+    private final DocValuesFormat defaultDocValuesFormat;
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, DocValuesFormat defaultDocValuesFormat, ESLogger logger) {
         this.mapperService = mapperService;
         this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;
-        this.diskDocValuesFormat = new DiskDocValuesFormat();
+        this.defaultDocValuesFormat = defaultDocValuesFormat;
     }
 
     @Override
@@ -64,11 +63,12 @@ public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        if (UidFieldMapper.VERSION.equals(field)) {
-            // Use DiskDVF for version by default
-            // TODO: Make it configurable
-            return diskDocValuesFormat;
+        final FieldMappers indexName = mapperService.indexName(field);
+        if (indexName == null) {
+            logger.warn("no index mapper found for field: [{}] returning default doc values format", field);
+            return defaultDocValuesFormat;
         }
-        return super.getDocValuesFormatForField(field);
+        DocValuesFormatProvider docValuesFormat = indexName.mapper().docValuesFormatProvider();
+        return docValuesFormat != null ? docValuesFormat.get() : defaultDocValuesFormat;
     }
 }

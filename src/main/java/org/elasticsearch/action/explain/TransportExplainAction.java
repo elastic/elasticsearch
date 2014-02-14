@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,8 +21,12 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,18 +34,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -61,13 +62,25 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final ScriptService scriptService;
 
+    private final CacheRecycler cacheRecycler;
+
+    private final PageCacheRecycler pageCacheRecycler;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService) {
+                                  ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
+        this.cacheRecycler = cacheRecycler;
+        this.pageCacheRecycler = pageCacheRecycler;
+    }
+
+    @Override
+    protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+        request.nowInMillis = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
     protected String transportAction() {
@@ -83,9 +96,14 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         String concreteIndex = state.metaData().concreteIndex(request.index());
         request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
         request.index(state.metaData().concreteIndex(request.index()));
+
+        // Fail fast on the node that received the request.
+        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
+            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        }
     }
 
-    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
+    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexService(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
@@ -94,67 +112,40 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             return new ExplainResponse(false);
         }
 
-        SearchContext context = new SearchContext(
+        SearchContext context = new DefaultSearchContext(
                 0,
                 new ShardSearchRequest().types(new String[]{request.type()})
-                        .filteringAliases(request.filteringAlias()),
+                        .filteringAliases(request.filteringAlias())
+                        .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
-                scriptService
+                scriptService, cacheRecycler, pageCacheRecycler
         );
         SearchContext.setCurrent(context);
 
         try {
-            context.parsedQuery(parseQuery(request, indexService));
+            context.parsedQuery(indexService.queryParserService().parseQuery(request.source()));
             context.preProcess();
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().reader.docBase;
-            Explanation explanation;
-            if (context.rescore() != null) {
-                RescoreSearchContext ctx = context.rescore();
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
+            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            for (RescoreSearchContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
-                explanation = rescorer.explain(topLevelDocId, context, ctx);
-            } else {
-                explanation = context.searcher().explain(context.query(), topLevelDocId);
+                explanation = rescorer.explain(topLevelDocId, context, ctx, explanation);
             }
-            if (request.fields() != null) {
-                if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
-                    request.fields(null); // Load the _source field
-                }
+            if (request.fields() != null || (request.fetchSourceContext() != null && request.fetchSourceContext().fetchSource())) {
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields());
+                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields(), request.fetchSourceContext());
                 return new ExplainResponse(true, explanation, getResult);
             } else {
                 return new ExplainResponse(true, explanation);
             }
         } catch (IOException e) {
-            throw new ElasticSearchException("Could not explain", e);
+            throw new ElasticsearchException("Could not explain", e);
         } finally {
             context.release();
             SearchContext.removeCurrent();
         }
-    }
-
-    private ParsedQuery parseQuery(ExplainRequest request, IndexService indexService) {
-        try {
-            XContentParser parser = XContentHelper.createParser(request.source());
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
-                        return indexService.queryParserService().parse(parser);
-                    } else if ("query_binary".equals(fieldName)) {
-                        byte[] querySource = parser.binaryValue();
-                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        return indexService.queryParserService().parse(qSourceParser);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            throw new ElasticSearchException("Couldn't parse query from source.", e);
-        }
-
-        throw new ElasticSearchException("No query specified");
     }
 
     protected ExplainRequest newRequest() {
@@ -173,7 +164,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
-    protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
+    protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticsearchException {
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
         );

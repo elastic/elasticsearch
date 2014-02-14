@@ -1,0 +1,56 @@
+---
+"Source filtering":
+  - do:
+      index:
+        index:  test_1
+        type:   test
+        id:     1
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source: false }
+
+  - match:   { _index:   test_1  }
+  - match:   { _type:    test    }
+  - match:   { _id:      "1"       }
+  - is_false:  _source
+
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source: true }
+  - match:  { _source.include.field1: v1 }
+
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source: include.field1 }
+  - match:  { _source.include.field1: v1 }
+  - is_false: _source.include.field2
+
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source_include: include.field1 }
+  - match:  { _source.include.field1: v1 }
+  - is_false: _source.include.field2
+
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source_include: "include.field1,include.field2" }
+  - match:  { _source.include.field1: v1 }
+  - match:  { _source.include.field2: v2 }
+  - is_false: _source.count
+
+  - do:
+      get: { index:  test_1, type: test, id: 1, _source_include: include, _source_exclude: "*.field2" }
+  - match:  { _source.include.field1: v1 }
+  - is_false: _source.include.field2
+  - is_false: _source.count
+
+
+  - do:
+      get:
+        index:  test_1
+        type:   test
+        id:     1
+        fields: count
+        _source: true
+
+  - match:   { _index:   test_1  }
+  - match:   { _type:    test    }
+  - match:   { _id:      "1"       }
+  - match:   { fields.count:  [1] }
+  - match:   { _source.include.field1: v1 }

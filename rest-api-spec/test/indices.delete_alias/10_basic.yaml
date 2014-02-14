@@ -1,0 +1,32 @@
+---
+"Basic test for delete alias":
+
+  - do:
+      indices.create:
+        index: testind
+
+  - do:
+      indices.put_alias:
+        index: testind
+        name:  testali
+        body:
+          routing: "routing value"
+
+  - do:
+      indices.get_alias:
+        name: testali
+
+  - match: {testind.aliases.testali.search_routing: "routing value"}
+  - match: {testind.aliases.testali.index_routing: "routing value"}
+
+  - do:
+      indices.delete_alias:
+        index: testind
+        name: testali
+
+  - do:
+      indices.get_alias:
+        index: testind
+        name:  testali
+  
+  - match: { '': {}}

@@ -28,4 +28,22 @@ else
     JAVA=`which java`
 fi
 
-exec $JAVA $JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $*
+# real getopt cannot be used because we need to hand options over to the PluginManager
+while [ $# -gt 0 ]; do
+  case $1 in
+    -D*=*)
+      properties="$properties $1"
+      ;;
+    -D*)
+      var=$1
+      shift
+      properties="$properties $var=$1"
+      ;;
+    *)
+      args="$args $1"
+  esac
+  shift
+done
+
+exec $JAVA $JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" $properties -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManager $args
+

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,8 +22,9 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +43,8 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  */
 public class RestMultiSearchAction extends BaseRestHandler {
 
+    private final boolean allowExplicitIndex;
+
     @Inject
     public RestMultiSearchAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -52,6 +55,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_msearch", this);
         controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
         controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
+
+        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
     @Override
@@ -59,15 +64,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.listenerThreaded(false);
 
-        String[] indices = RestActions.splitIndices(request.param("index"));
-        String[] types = RestActions.splitTypes(request.param("type"));
-        IgnoreIndices ignoreIndices = null;
-        if (request.hasParam("ignore_indices")) {
-            ignoreIndices = IgnoreIndices.fromString(request.param("ignore_indices"));
-        }
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
 
         try {
-            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), ignoreIndices);
+            multiSearchRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

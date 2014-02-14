@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,6 +18,10 @@
  */
 
 package org.elasticsearch.index.analysis;
+
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
+import org.apache.lucene.util.Version;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
@@ -35,18 +39,25 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int min;
     private final int max;
     private final boolean enablePositionIncrements;
+    private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
     @Inject
     public LengthTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
-        enablePositionIncrements = settings.getAsBoolean("enabled_position_increments", true);
+        if (version.onOrAfter(Version.LUCENE_44) && settings.get(ENABLE_POS_INC_KEY) != null) {
+            throw new ElasticsearchIllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
+                    + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
+        }
+        enablePositionIncrements = version.onOrAfter(Version.LUCENE_44) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new LengthFilter(enablePositionIncrements, tokenStream, min, max);
+        if (version.onOrAfter(Version.LUCENE_44)) {
+            return new LengthFilter(version, tokenStream, min, max);
+        }
+        return new LengthFilter(version, enablePositionIncrements, tokenStream, min, max);
     }
 }
-

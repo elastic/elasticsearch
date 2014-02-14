@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,8 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -83,7 +85,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         adapter.rxMetric.clear();
         adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
@@ -94,12 +96,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         transport.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         transport.close();
     }
 
@@ -172,7 +174,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+        if (node == null) {
+            throw new ElasticsearchIllegalStateException("can't send request to a null node");
+        }
         final long requestId = newRequestId();
         TimeoutHandler timeoutHandler = null;
         try {
@@ -182,27 +187,32 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, request, options);
-        } catch (final Exception e) {
+        } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
-            clientHandlers.remove(requestId);
+            final RequestHolder holderToNotify = clientHandlers.remove(requestId);
             if (timeoutHandler != null) {
                 timeoutHandler.future.cancel(false);
             }
+
+            // If holderToNotify == null then handler has already been taken care of.
+            if (holderToNotify != null) {
+                // callback that an exception happened, but on a different thread since we don't
+                // want handlers to worry about stack overflows
+                final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        holderToNotify.handler().handleException(sendRequestException);
+                    }
+                });
+            }
+
             if (throwConnectException) {
                 if (e instanceof ConnectTransportException) {
                     throw (ConnectTransportException) e;
                 }
             }
-            // callback that an exception happened, but on a different thread since we don't
-            // want handlers to worry about stack overflows
-            final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    handler.handleException(sendRequestException);
-                }
-            });
         }
     }
 
@@ -288,25 +298,29 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
-                    for (TransportConnectionListener connectionListener : connectionListeners) {
-                        connectionListener.onNodeDisconnected(node);
-                    }
-                    // node got disconnected, raise disconnection on possible ongoing handlers
-                    for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
-                        RequestHolder holder = entry.getValue();
-                        if (holder.node().equals(node)) {
-                            final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
-                            if (holderToNotify != null) {
-                                // callback that an exception happened, but on a different thread since we don't
-                                // want handlers to worry about stack overflows
-                                threadPool.generic().execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
-                                    }
-                                });
+                    try {
+                        for (TransportConnectionListener connectionListener : connectionListeners) {
+                            connectionListener.onNodeDisconnected(node);
+                        }
+                        // node got disconnected, raise disconnection on possible ongoing handlers
+                        for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+                            RequestHolder holder = entry.getValue();
+                            if (holder.node().equals(node)) {
+                                final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
+                                if (holderToNotify != null) {
+                                    // callback that an exception happened, but on a different thread since we don't
+                                    // want handlers to worry about stack overflows
+                                    threadPool.generic().execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
+                                        }
+                                    });
+                                }
                             }
                         }
+                    } catch (EsRejectedExecutionException ex) {
+                        logger.debug("Rejected execution on NodeDisconnected", ex);
                     }
                 }
             });

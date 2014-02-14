@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -58,6 +59,7 @@ import static org.elasticsearch.search.internal.InternalSearchHitField.readSearc
 public class InternalSearchHit implements SearchHit {
 
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
+    private static final Text MAX_TERM_AS_TEXT = new StringAndBytesText(BytesRefFieldComparatorSource.MAX_TERM.utf8ToString());
 
     private transient int docId;
 
@@ -76,7 +78,7 @@ public class InternalSearchHit implements SearchHit {
 
     private Object[] sortValues = EMPTY_SORT_VALUES;
 
-    private String[] matchedFilters = Strings.EMPTY_ARRAY;
+    private String[] matchedQueries = Strings.EMPTY_ARRAY;
 
     private Explanation explanation;
 
@@ -90,11 +92,10 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, Text type, BytesReference source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = new StringAndBytesText(id);
         this.type = type;
-        this.source = source;
         this.fields = fields;
     }
 
@@ -173,8 +174,18 @@ public class InternalSearchHit implements SearchHit {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
+    }
+
+    /**
+     * Sets representation, might be compressed....
+     */
+    public InternalSearchHit sourceRef(BytesReference source) {
+        this.source = source;
+        this.sourceAsBytes = null;
+        this.sourceAsMap = null;
+        return this;
     }
 
     @Override
@@ -188,6 +199,7 @@ public class InternalSearchHit implements SearchHit {
     public BytesReference internalSourceRef() {
         return source;
     }
+
 
     @Override
     public byte[] source() {
@@ -219,7 +231,7 @@ public class InternalSearchHit implements SearchHit {
         try {
             return XContentHelper.convertToJson(sourceRef(), false);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to convert source to a json string");
+            throw new ElasticsearchParseException("failed to convert source to a json string");
         }
     }
 
@@ -230,7 +242,7 @@ public class InternalSearchHit implements SearchHit {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;
         }
@@ -346,17 +358,18 @@ public class InternalSearchHit implements SearchHit {
         this.shard = target;
     }
 
-    public void matchedFilters(String[] matchedFilters) {
-        this.matchedFilters = matchedFilters;
-    }
-
-    public String[] matchedFilters() {
-        return this.matchedFilters;
+    public void matchedQueries(String[] matchedQueries) {
+        this.matchedQueries = matchedQueries;
     }
 
     @Override
-    public String[] getMatchedFilters() {
-        return this.matchedFilters;
+    public String[] matchedQueries() {
+        return this.matchedQueries;
+    }
+
+    @Override
+    public String[] getMatchedQueries() {
+        return this.matchedQueries;
     }
 
     public static class Fields {
@@ -368,7 +381,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
         static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCH_FILTERS = new XContentBuilderString("matched_filters");
+        static final XContentBuilderString MATCHED_QUERIES = new XContentBuilderString("matched_queries");
         static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
@@ -402,12 +415,12 @@ public class InternalSearchHit implements SearchHit {
                 if (field.values().isEmpty()) {
                     continue;
                 }
-                if (field.values().size() == 1) {
-                    builder.field(field.name(), field.values().get(0));
+                String fieldName = field.getName();
+                if (field.isMetadataField()) {
+                    builder.field(fieldName, field.value());
                 } else {
-                    builder.field(field.name());
-                    builder.startArray();
-                    for (Object value : field.values()) {
+                    builder.startArray(fieldName);
+                    for (Object value : field.getValues()) {
                         builder.value(value);
                     }
                     builder.endArray();
@@ -434,13 +447,19 @@ public class InternalSearchHit implements SearchHit {
         if (sortValues != null && sortValues.length > 0) {
             builder.startArray(Fields.SORT);
             for (Object sortValue : sortValues) {
-                builder.value(sortValue);
+                if (sortValue != null && sortValue.equals(MAX_TERM_AS_TEXT)) {
+                    // We don't display MAX_TERM in JSON responses in case some clients have UTF-8 parsers that wouldn't accept a
+                    // non-character in the response, even though this is valid UTF-8
+                    builder.nullValue();
+                } else {
+                    builder.value(sortValue);
+                }
             }
             builder.endArray();
         }
-        if (matchedFilters.length > 0) {
-            builder.startArray(Fields.MATCH_FILTERS);
-            for (String matchedFilter : matchedFilters) {
+        if (matchedQueries.length > 0) {
+            builder.startArray(Fields.MATCHED_QUERIES);
+            for (String matchedFilter : matchedQueries) {
                 builder.value(matchedFilter);
             }
             builder.endArray();
@@ -591,9 +610,9 @@ public class InternalSearchHit implements SearchHit {
 
         size = in.readVInt();
         if (size > 0) {
-            matchedFilters = new String[size];
+            matchedQueries = new String[size];
             for (int i = 0; i < size; i++) {
-                matchedFilters[i] = in.readString();
+                matchedQueries[i] = in.readString();
             }
         }
 
@@ -686,11 +705,11 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (matchedFilters.length == 0) {
+        if (matchedQueries.length == 0) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(matchedFilters.length);
-            for (String matchedFilter : matchedFilters) {
+            out.writeVInt(matchedQueries.length);
+            for (String matchedFilter : matchedQueries) {
                 out.writeString(matchedFilter);
             }
         }

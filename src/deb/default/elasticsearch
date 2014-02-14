@@ -1,4 +1,4 @@
-# Run ElasticSearch as this user ID and group ID
+# Run Elasticsearch as this user ID and group ID
 #ES_USER=elasticsearch
 #ES_GROUP=elasticsearch
 
@@ -19,20 +19,26 @@
 # ES_HEAP_SIZE.
 #MAX_LOCKED_MEMORY=unlimited
 
-# ElasticSearch log directory
+# Maximum number of VMA (Virtual Memory Areas) a process can own
+#MAX_MAP_COUNT=262144
+
+# Elasticsearch log directory
 #LOG_DIR=/var/log/elasticsearch
 
-# ElasticSearch data directory
+# Elasticsearch data directory
 #DATA_DIR=/var/lib/elasticsearch
 
-# ElasticSearch work directory
+# Elasticsearch work directory
 #WORK_DIR=/tmp/elasticsearch
 
-# ElasticSearch configuration directory
+# Elasticsearch configuration directory
 #CONF_DIR=/etc/elasticsearch
 
-# ElasticSearch configuration file (elasticsearch.yml)
+# Elasticsearch configuration file (elasticsearch.yml)
 #CONF_FILE=/etc/elasticsearch/elasticsearch.yml
 
 # Additional Java OPTS
 #ES_JAVA_OPTS=
+
+# Configure restart on package upgrade (true, every other setting will lead to not restarting)
+#RESTART_ON_UPGRADE=true

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -25,7 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 
@@ -51,13 +54,14 @@ public class RangeFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true;
+        Boolean cache = null;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         Object from = null;
         Object to = null;
         boolean includeLower = true;
         boolean includeUpper = true;
+        String execution = "index";
 
         String filterName = null;
         String currentFieldName = null;
@@ -103,6 +107,8 @@ public class RangeFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("execution".equals(currentFieldName)) {
+                    execution = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
                 }
@@ -110,18 +116,47 @@ public class RangeFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "No field specified for range filter");
+            throw new QueryParsingException(parseContext.index(), "[range] filter no field specified for range filter");
         }
 
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper, parseContext);
+                boolean explicitlyCached = cache != null && cache;
+                if (execution.equals("index")) {
+                    if (cache == null) {
+                        cache = true;
+                    }
+                    FieldMapper mapper = smartNameFieldMappers.mapper();
+                    if (mapper instanceof DateFieldMapper) {
+                        filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, parseContext, explicitlyCached);
+                    } else  {
+                        filter = mapper.rangeFilter(from, to, includeLower, includeUpper, parseContext);
+                    }
+                } else if ("fielddata".equals(execution)) {
+                    if (cache == null) {
+                        cache = false;
+                    }
+                    FieldMapper mapper = smartNameFieldMappers.mapper();
+                    if (!(mapper instanceof NumberFieldMapper)) {
+                        throw new QueryParsingException(parseContext.index(), "[range] filter field [" + fieldName + "] is not a numeric type");
+                    }
+                    if (mapper instanceof DateFieldMapper) {
+                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext, explicitlyCached);
+                    } else {
+                        filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext);
+                    }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[range] filter doesn't support [" + execution + "] execution");
+                }
             }
         }
 
         if (filter == null) {
+            if (cache == null) {
+                cache = true;
+            }
             filter = new TermRangeFilter(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
 

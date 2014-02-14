@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,22 +22,24 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -57,7 +59,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         static {
             FIELD_TYPE.setIndexed(false);
-            FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -84,13 +85,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         }
 
         @Override
-        public Builder indexName(String indexName) {
-            return super.indexName(indexName);
-        }
-
-        @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, provider);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, postingsProvider,
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -122,8 +119,10 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold, PostingsFormatProvider provider) {
-        super(names, 1.0f, fieldType, null, null, provider, null, null);
+    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold,
+                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
@@ -160,43 +159,40 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             try {
                 bytes = new BytesArray(Base64.decode(value.toString()));
             } catch (IOException e) {
-                throw new ElasticSearchParseException("failed to convert bytes", e);
+                throw new ElasticsearchParseException("failed to convert bytes", e);
             }
         }
         try {
             return CompressorFactory.uncompressIfNeeded(bytes);
         } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to decompress source", e);
+            throw new ElasticsearchParseException("failed to decompress source", e);
         }
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType().stored()) {
-            return null;
+            return;
         }
         byte[] value;
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-            return null;
+            return;
         } else {
             value = context.parser().binaryValue();
             if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
                 if (compressThreshold == -1 || value.length > compressThreshold) {
-                    CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                    StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-                    streamOutput.writeBytes(value, 0, value.length);
-                    streamOutput.close();
-                    // we copy over the byte array, since we need to push back the cached entry
-                    // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
-                    value = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
-                    CachedStreamOutput.pushEntry(cachedEntry);
+                    BytesStreamOutput bStream = new BytesStreamOutput();
+                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                    stream.writeBytes(value, 0, value.length);
+                    stream.close();
+                    value = bStream.bytes().toBytes();
                 }
             }
         }
         if (value == null) {
-            return null;
+            return;
         }
-        return new Field(names.indexName(), value, fieldType);
+        fields.add(new Field(names.indexName(), value, fieldType));
     }
 
     @Override
@@ -205,23 +201,24 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(names.name());
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
-        if (!names.name().equals(names.indexNameClean())) {
+        if (includeDefaults || !names.name().equals(names.indexNameClean())) {
             builder.field("index_name", names.indexNameClean());
         }
         if (compress != null) {
             builder.field("compress", compress);
+        } else if (includeDefaults) {
+            builder.field("compress", false);
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        } else if (includeDefaults) {
+            builder.field("compress_threshold", -1);
         }
-        if (fieldType.stored() != defaultFieldType().stored()) {
+        if (includeDefaults || fieldType.stored() != defaultFieldType().stored()) {
             builder.field("store", fieldType.stored());
         }
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -237,4 +234,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         }
     }
 
+    @Override
+    public boolean hasDocValues() {
+        return false;
+    }
 }

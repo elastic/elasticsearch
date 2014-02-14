@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.common.network;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.os.OsUtils;
@@ -78,6 +78,28 @@ public abstract class NetworkUtils {
         return localAddress;
     }
 
+    public static String getLocalHostName(String defaultHostName) {
+        if (localAddress == null) {
+            return defaultHostName;
+        }
+        String hostName = localAddress.getHostName();
+        if (hostName == null) {
+            return defaultHostName;
+        }
+        return hostName;
+    }
+
+    public static String getLocalHostAddress(String defaultHostAddress) {
+        if (localAddress == null) {
+            return defaultHostAddress;
+        }
+        String hostAddress = localAddress.getHostAddress();
+        if (hostAddress == null) {
+            return defaultHostAddress;
+        }
+        return hostAddress;
+    }
+
     public static InetAddress getLocalhost(StackType ip_version) throws UnknownHostException {
         if (ip_version == StackType.IPv4)
             return InetAddress.getByName("127.0.0.1");
@@ -116,7 +138,7 @@ public abstract class NetworkUtils {
                     try {
                         return ((Integer) getIndexMethod.invoke(o1)).intValue() - ((Integer) getIndexMethod.invoke(o2)).intValue();
                     } catch (Exception e) {
-                        throw new ElasticSearchIllegalStateException("failed to fetch index of network interface");
+                        throw new ElasticsearchIllegalStateException("failed to fetch index of network interface");
                     }
                 }
             });
@@ -216,7 +238,7 @@ public abstract class NetworkUtils {
      * system properties (java.net.preferIPv4Stack and java.net.preferIPv6Addresses)
      *
      * @return StackType.IPv4 for an IPv4 only stack, StackYTypeIPv6 for an IPv6 only stack, and StackType.Unknown
-     *         if the type cannot be detected
+     * if the type cannot be detected
      */
     public static StackType getIpStackType() {
         boolean isIPv4StackAvailable = isStackAvailable(true);

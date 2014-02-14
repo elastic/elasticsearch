@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,8 +20,8 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -69,6 +69,13 @@ public class XContentFactory {
     }
 
     /**
+     * Returns a content builder using YAML format ({@link org.elasticsearch.common.xcontent.XContentType#YAML}.
+     */
+    public static XContentBuilder yamlBuilder() throws IOException {
+        return contentBuilder(XContentType.SMILE);
+    }
+
+    /**
      * Constructs a new yaml builder that will output the result into the provided output stream.
      */
     public static XContentBuilder yamlBuilder(OutputStream os) throws IOException {
@@ -86,7 +93,7 @@ public class XContentFactory {
         } else if (type == XContentType.YAML) {
             return yamlBuilder(outputStream);
         }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
+        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
 
     /**
@@ -100,7 +107,7 @@ public class XContentFactory {
         } else if (type == XContentType.YAML) {
             return YamlXContent.contentBuilder();
         }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
+        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
 
     /**
@@ -145,7 +152,7 @@ public class XContentFactory {
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from " + content);
+            throw new ElasticsearchParseException("Failed to derive xcontent from " + content);
         }
         return xContent(type);
     }
@@ -163,7 +170,7 @@ public class XContentFactory {
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
+            throw new ElasticsearchParseException("Failed to derive xcontent from (offset=" + offset + ", length=" + length + "): " + Arrays.toString(data));
         }
         return xContent(type);
     }
@@ -224,7 +231,7 @@ public class XContentFactory {
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
         if (type == null) {
-            throw new ElasticSearchParseException("Failed to derive xcontent from " + bytes);
+            throw new ElasticsearchParseException("Failed to derive xcontent from " + bytes);
         }
         return xContent(type);
     }

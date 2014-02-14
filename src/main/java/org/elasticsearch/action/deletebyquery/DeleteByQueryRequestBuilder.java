@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
@@ -35,6 +36,8 @@ import java.util.Map;
  *
  */
 public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
+
+    private QuerySourceBuilder sourceBuilder;
 
     public DeleteByQueryRequestBuilder(Client client) {
         super((InternalClient) client, new DeleteByQueryRequest());
@@ -66,69 +69,69 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
 
 
     /**
-     * The query source to execute.
+     * The query to delete documents for.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public DeleteByQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request.query(queryBuilder);
+        sourceBuilder().setQuery(queryBuilder);
         return this;
     }
 
     /**
-     * The query source to execute. It is preferable to use either {@link #setQuery(byte[])}
-     * or {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)}.
+     * The source to execute. It is preferable to use either {@link #setSource(byte[])}
+     * or {@link #setQuery(QueryBuilder)}.
      */
-    public DeleteByQueryRequestBuilder setQuery(String querySource) {
-        request.query(querySource);
+    public DeleteByQueryRequestBuilder setSource(String source) {
+        request().source(source);
         return this;
     }
 
     /**
-     * The query source to execute in the form of a map.
+     * The source to execute in the form of a map.
      */
-    public DeleteByQueryRequestBuilder setQuery(Map<String, Object> querySource) {
-        request.query(querySource);
+    public DeleteByQueryRequestBuilder setSource(Map<String, Object> source) {
+        request().source(source);
         return this;
     }
 
     /**
-     * The query source to execute in the form of a builder.
+     * The source to execute in the form of a builder.
      */
-    public DeleteByQueryRequestBuilder setQuery(XContentBuilder builder) {
-        request.query(builder);
+    public DeleteByQueryRequestBuilder setSource(XContentBuilder builder) {
+        request().source(builder);
         return this;
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setQuery(byte[] querySource) {
-        request.query(querySource);
+    public DeleteByQueryRequestBuilder setSource(byte[] source) {
+        request().source(source);
         return this;
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setQuery(BytesReference querySource) {
-        request.query(querySource, false);
+    public DeleteByQueryRequestBuilder setSource(BytesReference source) {
+        request().source(source, false);
         return this;
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request.query(querySource, unsafe);
+    public DeleteByQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request().source(source, unsafe);
         return this;
     }
 
     /**
-     * The query source to execute.
+     * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setQuery(byte[] querySource, int offset, int length, boolean unsafe) {
-        request.query(querySource, offset, length, unsafe);
+    public DeleteByQueryRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
+        request().source(source, offset, length, unsafe);
         return this;
     }
 
@@ -155,6 +158,17 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
 
     @Override
     protected void doExecute(ActionListener<DeleteByQueryResponse> listener) {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
+
         ((Client) client).deleteByQuery(request, listener);
+    }
+
+    private QuerySourceBuilder sourceBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new QuerySourceBuilder();
+        }
+        return sourceBuilder;
     }
 }

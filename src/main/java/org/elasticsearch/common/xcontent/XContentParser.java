@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -157,6 +157,16 @@ public interface XContentParser extends Closeable {
      */
     boolean estimatedNumberType();
 
+    short shortValue(boolean coerce) throws IOException;
+
+    int intValue(boolean coerce) throws IOException;
+
+    long longValue(boolean coerce) throws IOException;
+
+    float floatValue(boolean coerce) throws IOException;
+
+    double doubleValue(boolean coerce) throws IOException;
+    
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -166,6 +176,15 @@ public interface XContentParser extends Closeable {
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;
+
+    /**
+     * returns true if the current value is boolean in nature.
+     * values that are considered booleans:
+     * - boolean value (true/false)
+     * - numeric integers (=0 is considered as false, !=0 is true)
+     * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     */
+    boolean isBooleanValue() throws IOException;
 
     boolean booleanValue() throws IOException;
 

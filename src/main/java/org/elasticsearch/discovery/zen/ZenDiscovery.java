@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,8 +21,9 @@ package org.elasticsearch.discovery.zen;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -44,6 +44,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -66,8 +68,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -76,26 +76,17 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
     private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private AllocationService allocationService;
-
     private final ClusterName clusterName;
-
     private final DiscoveryNodeService discoveryNodeService;
-
     private final ZenPingService pingService;
-
     private final MasterFaultDetection masterFD;
-
     private final NodesFaultDetection nodesFD;
-
     private final PublishClusterStateAction publishClusterState;
-
     private final MembershipAction membership;
+    private final Version version;
 
 
     private final TimeValue pingTimeout;
@@ -121,13 +112,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
+
     @Nullable
     private NodeService nodeService;
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService) {
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, Version version, DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.threadPool = threadPool;
@@ -135,6 +127,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
         this.pingService = pingService;
+        this.version = version;
 
         // also support direct discovery.zen settings, for cases when it gets extended
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
@@ -154,7 +147,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService);
         this.nodesFD.addListener(new NodeFailureListener());
 
-        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener());
+        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
 
@@ -172,11 +165,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        String nodeId = UUID.randomBase64UUID();
-        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);
+        final String nodeId = DiscoveryService.generateNodeId(settings);
+        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);
         pingService.start();
@@ -186,7 +179,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
@@ -223,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         masterFD.close();
         nodesFD.close();
         publishClusterState.close();
@@ -258,7 +251,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return latestNodes;
         }
         // have not decided yet, just send the local node
-        return newNodesBuilder().put(localNode).localNodeId(localNode.id()).build();
+        return DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id()).build();
     }
 
     @Override
@@ -267,13 +260,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    public void publish(ClusterState clusterState) {
+    public void publish(ClusterState clusterState, AckListener ackListener) {
         if (!master) {
-            throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
+            throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         latestDiscoNodes = clusterState.nodes();
         nodesFD.updateNodes(clusterState.nodes());
-        publishClusterState.publish(clusterState);
+        publishClusterState.publish(clusterState, ackListener);
     }
 
     private void asyncJoinCluster() {
@@ -311,7 +304,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             if (localNode.equals(masterNode)) {
                 this.master = true;
                 nodesFD.start(); // start the nodes FD
-                clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
@@ -322,11 +315,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
-                        return newClusterStateBuilder().state(currentState).nodes(builder).blocks(clusterBlocks).build();
+                        return ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -341,12 +339,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 // send join request
-                ClusterState joinClusterStateX;
                 try {
-                    joinClusterStateX = membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
+                    membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
                 } catch (Exception e) {
-                    if (e instanceof ElasticSearchException) {
-                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
+                    if (e instanceof ElasticsearchException) {
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
                     } else {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
                     }
@@ -370,21 +367,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (master) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.HIGH, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                            .putAll(currentState.nodes())
-                            .remove(node.id());
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.id());
                     latestDiscoNodes = builder.build();
-                    currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                    currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
-                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
         } else {
@@ -401,25 +401,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                        .putAll(currentState.nodes())
+                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                         .remove(node.id());
                 latestDiscoNodes = builder.build();
-                currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
-                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                logger.error("unexpected failure during [{}]", t, source);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 sendInitialStateEventIfNeeded();
             }
         });
@@ -434,7 +438,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final int prevMinimumMasterNode = ZenDiscovery.this.electMaster.minimumMasterNodes();
@@ -447,7 +451,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                logger.error("unexpected failure during [{}]", t, source);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 sendInitialStateEventIfNeeded();
             }
         });
@@ -465,7 +474,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.info("master_left [{}], reason [{}]", masterNode, reason);
 
-        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (!masterNode.id().equals(currentState.nodes().masterNodeId())) {
@@ -473,50 +482,54 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return currentState;
                 }
 
-                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder()
-                        .putAll(currentState.nodes())
-                                // make sure the old master node, which has failed, is not part of the nodes we publish
+                DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
+                        // make sure the old master node, which has failed, is not part of the nodes we publish
                         .remove(masterNode.id())
-                        .masterNodeId(null);
+                        .masterNodeId(null).build();
 
-                if (!electMaster.hasEnoughMasterNodes(nodesBuilder.build())) {
-                    return rejoin(ClusterState.builder().state(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
+                if (!electMaster.hasEnoughMasterNodes(discoveryNodes)) {
+                    return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "not enough master nodes after master left (reason = " + reason + ")");
                 }
 
-                final DiscoveryNode electedMaster = electMaster.electMaster(nodesBuilder.build()); // elect master
+                final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
                 if (localNode.equals(electedMaster)) {
                     master = true;
                     masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
                     nodesFD.start();
-                    nodesBuilder.masterNodeId(localNode.id());
-                    latestDiscoNodes = nodesBuilder.build();
-                    return newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                    discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
+                    latestDiscoNodes = discoveryNodes;
+                    return ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                 } else {
                     nodesFD.stop();
                     if (electedMaster != null) {
-                        nodesBuilder.masterNodeId(electedMaster.id());
+                        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(electedMaster.id()).build();
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
-                        latestDiscoNodes = nodesBuilder.build();
-                        return newClusterStateBuilder().state(currentState)
+                        latestDiscoNodes = discoveryNodes;
+                        return ClusterState.builder(currentState)
                                 .nodes(latestDiscoNodes)
                                 .build();
                     } else {
-                        return rejoin(newClusterStateBuilder().state(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
+                        return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master_left and no other node elected to become master");
                     }
                 }
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                logger.error("unexpected failure during [{}]", t, source);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 sendInitialStateEventIfNeeded();
             }
 
         });
     }
 
-    void handleNewClusterStateFromMaster(final ClusterState newState) {
+    void handleNewClusterStateFromMaster(final ClusterState newState, final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
         if (master) {
-            clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (newState.version() > currentState.version()) {
@@ -533,16 +546,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return currentState;
                     }
                 }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    newStateProcessed.onNewClusterStateProcessed();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                    newStateProcessed.onNewClusterStateFailed(t);
+                }
+
             });
         } else {
             if (newState.nodes().localNode() == null) {
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newState.nodes().masterNode());
+                newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
                 if (currentJoinThread != null) {
                     logger.debug("got a new state from master node, though we are already trying to rejoin the cluster");
                 }
 
-                clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newState.nodes().masterNode() + "])", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
 
@@ -559,7 +585,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             masterFD.restart(latestDiscoNodes.masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                         }
 
-                        ClusterState.Builder builder = ClusterState.builder().state(newState);
+                        ClusterState.Builder builder = ClusterState.builder(newState);
                         // if the routing table did not change, use the original one
                         if (newState.routingTable().version() == currentState.routingTable().version()) {
                             builder.routingTable(currentState.routingTable());
@@ -569,7 +595,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             builder.metaData(currentState.metaData());
                         } else {
                             // if its not the same version, only copy over new indices or ones that changed the version
-                            MetaData.Builder metaDataBuilder = MetaData.builder().metaData(newState.metaData()).removeAllIndices();
+                            MetaData.Builder metaDataBuilder = MetaData.builder(newState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : newState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
                                 if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
@@ -585,8 +611,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                        newStateProcessed.onNewClusterStateFailed(t);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
+                        newStateProcessed.onNewClusterStateProcessed();
                     }
                 });
             }
@@ -595,7 +628,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private ClusterState handleJoinRequest(final DiscoveryNode node) {
         if (!master) {
-            throw new ElasticSearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
+            throw new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
         }
 
         ClusterState state = clusterService.state();
@@ -611,16 +644,30 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // node calling the join request
             membership.sendValidateJoinRequestBlocking(node, state, pingTimeout);
 
-            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {
                         // the node already exists in the cluster
                         logger.warn("received a join request for an existing node [{}]", node);
                         // still send a new cluster state, so it will be re published and possibly update the other node
-                        return ClusterState.builder().state(currentState).build();
+                        return ClusterState.builder(currentState).build();
                     }
-                    return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(node)).build();
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes());
+                    for (DiscoveryNode existingNode : currentState.nodes()) {
+                        if (node.address().equals(existingNode.address())) {
+                            builder.remove(existingNode.id());
+                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+                        }
+                    }
+                    latestDiscoNodes = builder.build();
+                    // add the new node now (will update latestDiscoNodes on publish)
+                    return ClusterState.builder(currentState).nodes(latestDiscoNodes.newNode(node)).build();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
         }
@@ -723,7 +770,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         asyncJoinCluster();
 
-        return newClusterStateBuilder().state(clusterState)
+        return ClusterState.builder(clusterState)
                 .blocks(clusterBlocks)
                 .nodes(latestDiscoNodes)
                 .routingTable(routingTable)
@@ -740,9 +787,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private class NewClusterStateListener implements PublishClusterStateAction.NewClusterStateListener {
+
         @Override
-        public void onNewClusterState(ClusterState clusterState) {
-            handleNewClusterStateFromMaster(clusterState);
+        public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
+            handleNewClusterStateFromMaster(clusterState, newStateProcessed);
         }
     }
 
@@ -820,7 +868,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
-            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     try {
@@ -829,6 +877,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         logger.warn("failed to send response on rejoin cluster request handling", e);
                     }
                     return rejoin(currentState, "received a request to rejoin the cluster from [" + request.fromNodeId + "]");
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
         }
@@ -849,5 +902,4 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
     }
-
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,18 +23,20 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -162,7 +164,10 @@ public class DocumentMapper implements ToXContent {
                     idFieldMapper = new IdFieldMapper(fieldType);
                 }
             }
+            // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
             this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
+            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper());
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
@@ -171,11 +176,10 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
             this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
-            // don't add parent field, by default its "null"
+            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
+            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper());
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {
@@ -235,6 +239,8 @@ public class DocumentMapper implements ToXContent {
         }
     };
 
+    public static final String ALLOW_TYPE_WRAPPER = "index.mapping.allow_type_wrapper";
+
     private final String index;
 
     private final Settings indexSettings;
@@ -259,7 +265,7 @@ public class DocumentMapper implements ToXContent {
     private final NamedAnalyzer searchAnalyzer;
     private final NamedAnalyzer searchQuoteAnalyzer;
 
-    private volatile DocumentFieldMappers fieldMappers;
+    private final DocumentFieldMappers fieldMappers;
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
 
@@ -271,7 +277,7 @@ public class DocumentMapper implements ToXContent {
 
     private final Filter typeFilter;
 
-    private final Object mutex = new Object();
+    private final Object mappersMutex = new Object();
 
     private boolean initMappersAdded = true;
 
@@ -304,7 +310,7 @@ public class DocumentMapper implements ToXContent {
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
-        if (rootMapper(ParentFieldMapper.class) != null) {
+        if (rootMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
             rootMapper(RoutingFieldMapper.class).markAsRequired();
         }
@@ -323,7 +329,8 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.mappers);
+        this.fieldMappers = new DocumentFieldMappers(this);
+        this.fieldMappers.addNewMappers(fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -411,6 +418,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SizeFieldMapper.class);
     }
 
+    public BoostFieldMapper boostFieldMapper() {
+        return rootMapper(BoostFieldMapper.class);
+    }
+
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
@@ -464,7 +475,7 @@ public class DocumentMapper implements ToXContent {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            context.reset(parser, new Document(), source, listener);
+            context.reset(parser, new ParseContext.Document(), source, listener);
             // on a newly created instance of document mapper, we always consider it as new mappers that have been added
             if (initMappersAdded) {
                 context.setMappingsModified();
@@ -485,18 +496,15 @@ public class DocumentMapper implements ToXContent {
             } else if (token != XContentParser.Token.FIELD_NAME) {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
-            if (type.equals(parser.currentName())) {
-                // first field is the same as the type, this might be because the type is provided, and the object exists within it
-                // or because there is a valid field that by chance is named as the type
-
-                // Note, in this case, we only handle plain value types, an object type will be analyzed as if it was the type itself
-                // and other same level fields will be ignored
-                token = parser.nextToken();
+            // first field is the same as the type, this might be because the
+            // type is provided, and the object exists within it or because
+            // there is a valid field that by chance is named as the type.
+            // Because of this, by default wrapping a document in a type is
+            // disabled, but can be enabled by setting
+            // index.mapping.allow_type_wrapper to true
+            if (type.equals(parser.currentName()) && indexSettings.getAsBoolean(ALLOW_TYPE_WRAPPER, false)) {
+                parser.nextToken();
                 countDownTokens++;
-                // commented out, allow for same type with START_OBJECT, we do our best to handle it except for the above corner case
-//                if (token != XContentParser.Token.START_OBJECT) {
-//                    throw new MapperException("Malformed content, a field with the same name as the type must be an object with the properties/fields within it");
-//                }
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
@@ -511,16 +519,6 @@ public class DocumentMapper implements ToXContent {
                 parser.nextToken();
             }
 
-            // fire up any new mappers if exists
-            if (!context.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(context.newFieldMappers().mappers);
-                context.newFieldMappers().mappers.clear();
-            }
-            if (!context.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(context.newObjectMappers().mappers);
-                context.newObjectMappers().mappers.clear();
-            }
-
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
             }
@@ -529,18 +527,6 @@ public class DocumentMapper implements ToXContent {
                 rootMapper.validate(context);
             }
         } catch (Throwable e) {
-            // we have to fire up any new mappers even on a failure, because they
-            // have been added internally to each compound mapper...
-            // ... we have no option to "rollback" a change, which is very tricky in our copy on change system...
-            if (!context.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(context.newFieldMappers().mappers);
-                context.newFieldMappers().mappers.clear();
-            }
-            if (!context.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(context.newObjectMappers().mappers);
-                context.newObjectMappers().mappers.clear();
-            }
-
             // if its already a mapper parsing exception, no need to wrap it...
             if (e instanceof MapperParsingException) {
                 throw (MapperParsingException) e;
@@ -565,7 +551,7 @@ public class DocumentMapper implements ToXContent {
         // apply doc boost
         if (context.docBoost() != 1.0f) {
             Set<String> encounteredFields = Sets.newHashSet();
-            for (Document doc : context.docs()) {
+            for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
                     if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
@@ -585,13 +571,9 @@ public class DocumentMapper implements ToXContent {
         return doc;
     }
 
-    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-        addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
-    }
-
-    private void addFieldMappers(FieldMapper... fieldMappers) {
-        synchronized (mutex) {
-            this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
+    public void addFieldMappers(Iterable<FieldMapper> fieldMappers) {
+        synchronized (mappersMutex) {
+            this.fieldMappers.addNewMappers(fieldMappers);
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
             listener.fieldMappers(fieldMappers);
@@ -614,12 +596,12 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
-    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+    public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         addObjectMappers(objectMappers.toArray(new ObjectMapper[objectMappers.size()]));
     }
 
     private void addObjectMappers(ObjectMapper... objectMappers) {
-        synchronized (mutex) {
+        synchronized (mappersMutex) {
             MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
                 builder.put(objectMapper.fullPath(), objectMapper);
@@ -647,8 +629,9 @@ public class DocumentMapper implements ToXContent {
 
     public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
         MergeContext mergeContext = new MergeContext(this, mergeFlags);
-        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
+        assert rootMappers.size() == mergeWith.rootMappers.size();
 
+        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
         for (Map.Entry<Class<? extends RootMapper>, RootMapper> entry : rootMappers.entrySet()) {
             // root mappers included in root object will get merge in the rootObjectMapper
             if (entry.getValue().includeInObject()) {
@@ -661,12 +644,6 @@ public class DocumentMapper implements ToXContent {
         }
 
         if (!mergeFlags.simulate()) {
-            if (!mergeContext.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(mergeContext.newFieldMappers().mappers);
-            }
-            if (!mergeContext.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(mergeContext.newObjectMappers().mappers);
-            }
             // let the merge with attributes to override the attributes
             meta = mergeWith.meta();
             // update the source of the merged one
@@ -675,15 +652,17 @@ public class DocumentMapper implements ToXContent {
         return new MergeResult(mergeContext.buildConflicts());
     }
 
-    public void refreshSource() throws FailedToGenerateSourceMapperException {
+    public CompressedString refreshSource() throws ElasticsearchGenerationException {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, CompressorFactory.defaultCompressor().streamOutput(bStream));
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            this.mappingSource = new CompressedString(builder.bytes());
+            builder.close();
+            return mappingSource = new CompressedString(bStream.bytes());
         } catch (Exception e) {
-            throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
     }
 

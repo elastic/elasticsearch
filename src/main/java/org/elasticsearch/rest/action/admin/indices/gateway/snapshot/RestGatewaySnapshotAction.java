@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,13 +22,13 @@ package org.elasticsearch.rest.action.admin.indices.gateway.snapshot;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -40,6 +40,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
+@Deprecated
 public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Inject
@@ -51,18 +52,15 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
+        GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(Strings.splitStringByCommaToArray(request.param("index")));
         gatewaySnapshotRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            gatewaySnapshotRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        gatewaySnapshotRequest.indicesOptions(IndicesOptions.fromRequest(request, gatewaySnapshotRequest.indicesOptions()));
         client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override
             public void onResponse(GatewaySnapshotResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("ok", true);
 
                     buildBroadcastShardsHeader(builder, response);
 

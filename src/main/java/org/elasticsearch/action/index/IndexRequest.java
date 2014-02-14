@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,10 +20,10 @@
 package org.elasticsearch.action.index;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
@@ -31,8 +31,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,7 +65,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
-
+    
     /**
      * Operation type controls if the type of the index operation.
      */
@@ -110,7 +109,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             } else if (id == 1) {
                 return CREATE;
             } else {
-                throw new ElasticSearchIllegalArgumentException("No type match for [" + id + "]");
+                throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
             }
         }
     }
@@ -133,7 +132,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     private boolean refresh = false;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
-    private String percolate;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -209,7 +207,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * Sets the type of the indexed document.
      */
-    @Required
     public IndexRequest type(String type) {
         this.type = type;
         return this;
@@ -283,13 +280,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise. Setting it
      * to <tt>null</tt> will reset to have no ttl.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticSearchGenerationException {
+    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
         if (ttl == null) {
             this.ttl = -1;
             return this;
         }
         if (ttl <= 0) {
-            throw new ElasticSearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
+            throw new ElasticsearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
         }
         this.ttl = ttl;
         return this;
@@ -323,8 +320,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    @Required
-    public IndexRequest source(Map source) throws ElasticSearchGenerationException {
+    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
         return source(source, contentType);
     }
 
@@ -333,14 +329,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    @Required
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
+    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -350,7 +345,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
-    @Required
     public IndexRequest source(String source) {
         this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
         this.sourceUnsafe = false;
@@ -360,59 +354,56 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * Sets the content source to index.
      */
-    @Required
     public IndexRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
         sourceUnsafe = false;
         return this;
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
-    @Required
     public IndexRequest source(Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject();
@@ -422,7 +413,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             builder.endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate", e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 
@@ -450,7 +441,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    @Required
     public IndexRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
@@ -463,7 +453,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * @param length The length of the data
      * @param unsafe Is the byte array safe to be used form a different thread
      */
-    @Required
     public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = new BytesArray(source, offset, length);
         this.sourceUnsafe = unsafe;
@@ -482,13 +471,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
      * be either "index" or "create".
      */
-    public IndexRequest opType(String opType) throws ElasticSearchIllegalArgumentException {
+    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
         if ("create".equals(opType)) {
             return opType(OpType.CREATE);
         } else if ("index".equals(opType)) {
             return opType(OpType.INDEX);
         } else {
-            throw new ElasticSearchIllegalArgumentException("No index opType matching [" + opType + "]");
+            throw new ElasticsearchIllegalArgumentException("No index opType matching [" + opType + "]");
         }
     }
 
@@ -549,21 +538,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         return this.versionType;
     }
 
-    /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequest percolate(String percolate) {
-        this.percolate = percolate;
-        return this;
-    }
-
-    public String percolate() {
-        return this.percolate;
-    }
-
-    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticSearchException {
+    public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticsearchException {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
         // resolve timestamp if provided externally
@@ -591,7 +566,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                         timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
                     }
                 } catch (Exception e) {
-                    throw new ElasticSearchParseException("failed to parse doc to extract routing/timestamp", e);
+                    throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp/id", e);
                 } finally {
                     if (parser != null) {
                         parser.close();
@@ -603,12 +578,20 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             if (mappingMd.routing().required() && routing == null) {
                 throw new RoutingMissingException(index, type, id);
             }
+
+            if (parent != null && !mappingMd.hasParentField()) {
+                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+            }
+        } else {
+            if (parent != null) {
+                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+            }
         }
 
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(UUID.randomBase64UUID());
+                id(Strings.randomBase64UUID());
                 // since we generate the id, change it to CREATE
                 opType(IndexRequest.OpType.CREATE);
             }
@@ -623,7 +606,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -635,14 +618,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
         version = in.readLong();
-        percolate = in.readOptionalString();
         versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
@@ -652,7 +634,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
-        out.writeOptionalString(percolate);
         out.writeByte(versionType.getValue());
     }
 

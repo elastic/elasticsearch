@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -51,12 +51,13 @@ public class FilteredQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = Queries.MATCH_ALL_QUERY;
+        Query query = Queries.newMatchAllQuery();
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -96,6 +97,8 @@ public class FilteredQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
                     }
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {
@@ -118,9 +121,9 @@ public class FilteredQueryParser implements QueryParser {
                 // we allow for null filter, so it makes compositions on the client side to be simpler
                 return query;
             } else {
-                // the filter was provided, but returned null, meaning we should discard it, this means no
-                // matches for this query...
-                return Queries.NO_MATCH_QUERY;
+                // even if the filter is not found, and its null, we should simply ignore it, and go
+                // by the query
+                return query;
             }
         }
         if (filter == Queries.MATCH_ALL_FILTER) {
@@ -142,6 +145,9 @@ public class FilteredQueryParser implements QueryParser {
 
         XFilteredQuery filteredQuery = new XFilteredQuery(query, filter, filterStrategy);
         filteredQuery.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, filteredQuery);
+        }
         return filteredQuery;
     }
 }

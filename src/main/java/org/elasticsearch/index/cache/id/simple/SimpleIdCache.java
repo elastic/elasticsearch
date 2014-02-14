@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,26 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.cache.id.simple;
 
-import gnu.trove.impl.Constants;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -44,53 +43,63 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
  *
  */
-public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener, DocumentTypeListener {
 
-    private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
     private final boolean reuse;
+    private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
+    private final NavigableSet<HashedBytesArray> parentTypes;
 
     IndexService indexService;
 
     @Inject
     public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+        reuse = componentSettings.getAsBoolean("reuse", false);
         idReaders = ConcurrentCollections.newConcurrentMap();
-        this.reuse = componentSettings.getAsBoolean("reuse", false);
+        parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
     }
 
     @Override
     public void setIndexService(IndexService indexService) {
         this.indexService = indexService;
+        indexService.mapperService().addTypeListener(this);
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
+        indexService.mapperService().removeTypeListener(this);
         clear();
     }
 
     @Override
     public void clear() {
-        for (Iterator<SimpleIdReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
-            SimpleIdReaderCache idReaderCache = it.next();
-            it.remove();
-            onRemoval(idReaderCache);
+        // Make a copy of the live id readers...
+        Map<Object, SimpleIdReaderCache> copy = new HashMap<Object, SimpleIdReaderCache>(idReaders);
+        for (Map.Entry<Object, SimpleIdReaderCache> entry : copy.entrySet()) {
+            SimpleIdReaderCache removed = idReaders.remove(entry.getKey());
+            // ... and only if the id reader still exists in live readers we decrement stats,
+            // this will prevent double onRemoval calls
+            if (removed != null) {
+                onRemoval(removed);
+            }
         }
     }
 
     @Override
-    public void onClose(SegmentReader owner) {
-        clear(owner);
+    public void onClose(Object coreCacheKey) {
+        clear(coreCacheKey);
     }
 
     @Override
-    public void clear(IndexReader reader) {
-        SimpleIdReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
+    public void clear(Object coreCacheKey) {
+        SimpleIdReaderCache removed = idReaders.remove(coreCacheKey);
         if (removed != null) onRemoval(removed);
     }
 
@@ -99,15 +108,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         return idReaders.get(reader.getCoreCacheKey());
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Override
-    public Iterator<IdReaderCache> iterator() {
-        return (Iterator<IdReaderCache>) idReaders.values();
-    }
-
     @SuppressWarnings({"StringEquality"})
     @Override
-    public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws Exception {
+    public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws IOException {
         // do a quick check for the common case, that all are there
         if (refreshNeeded(atomicReaderContexts)) {
             synchronized (idReaders) {
@@ -117,22 +120,12 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // do the refresh
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
-                Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
-
-                // We don't want to load uid of child documents, this allows us to not load uids of child types.
-                NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
-                BytesRef spare = new BytesRef();
-                for (String type : indexService.mapperService().types()) {
-                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
-                    if (parentFieldMapper != null) {
-                        parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
-                    }
-                }
+                Map<Object, AtomicReader> cacheToReader = new HashMap<Object, AtomicReader>();
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
                     AtomicReader reader = context.reader();
-                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
+                    if (!refreshNeeded(context)) {
                         // no need, continue
                         continue;
                     }
@@ -151,6 +144,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                         DocsEnum docsEnum = null;
                         uid: for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                             HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
+                            // We don't want to load uid of child documents, this allows us to not load uids of child types.
                             if (!parentTypes.contains(typeAndId[0])) {
                                 do {
                                     HashedBytesArray nextParent = parentTypes.ceiling(typeAndId[0]);
@@ -158,7 +152,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                         break uid;
                                     }
 
-                                    TermsEnum.SeekStatus status = termsEnum.seekCeil(nextParent.toBytesRef(), false);
+                                    TermsEnum.SeekStatus status = termsEnum.seekCeil(nextParent.toBytesRef());
                                     if (status == TermsEnum.SeekStatus.END) {
                                         break uid;
                                     } else if (status == TermsEnum.SeekStatus.NOT_FOUND) {
@@ -190,10 +184,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 }
 
                 // now, go and load the docId->parentId map
-
                 for (AtomicReaderContext context : atomicReaderContexts) {
                     AtomicReader reader = context.reader();
-                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
+                    if (!refreshNeeded(context)) {
                         // no need, continue
                         continue;
                     }
@@ -244,7 +237,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
-                    IndexReader indexReader = cacheToReader.get(readerKey);
+                    AtomicReader indexReader = cacheToReader.get(readerKey);
                     SimpleIdReaderCache readerCache = new SimpleIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
                     idReaders.put(readerKey, readerCache);
                     onCached(readerCache);
@@ -266,7 +259,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         if (readerCache.shardId != null) {
             IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
-                shard.idCache().onCached(readerCache.sizeInBytes());
+                shard.idCache().onRemoval(readerCache.sizeInBytes());
             }
         }
     }
@@ -296,15 +289,43 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     private boolean refreshNeeded(List<AtomicReaderContext> atomicReaderContexts) {
         for (AtomicReaderContext atomicReaderContext : atomicReaderContexts) {
-            if (!idReaders.containsKey(atomicReaderContext.reader().getCoreCacheKey())) {
+            if (refreshNeeded(atomicReaderContext)) {
                 return true;
             }
         }
         return false;
     }
 
+    private boolean refreshNeeded(AtomicReaderContext atomicReaderContext) {
+        return !idReaders.containsKey(atomicReaderContext.reader().getCoreCacheKey());
+    }
+
+    @Override
+    public void beforeCreate(DocumentMapper mapper) {
+        synchronized (idReaders) {
+            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+            if (parentFieldMapper.active()) {
+                // A _parent field can never be added to an existing mapping, so a _parent field either exists on
+                // a new created or doesn't exists. This is why we can update the known parent types via DocumentTypeListener
+                if (parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), new BytesRef())))) {
+                    clear();
+                }
+            }
+        }
+    }
+
+    @Override
+    public void afterRemove(DocumentMapper mapper) {
+        synchronized (idReaders) {
+            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+            if (parentFieldMapper.active()) {
+                parentTypes.remove(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), new BytesRef())));
+            }
+        }
+    }
+
     static class TypeBuilder {
-        final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        final ObjectIntOpenHashMap<HashedBytesArray> idToDoc = new ObjectIntOpenHashMap<HashedBytesArray>();
         final HashedBytesArray[] docToId;
         final ArrayList<HashedBytesArray> parentIdsValues = new ArrayList<HashedBytesArray>();
         final int[] parentIdsOrdinals;
@@ -321,7 +342,12 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
          * Returns an already stored instance if exists, if not, returns null;
          */
         public HashedBytesArray canReuse(HashedBytesArray id) {
-            return idToDoc.key(id);
+            if (idToDoc.containsKey(id)) {
+                // we can use #lkey() since this is called from a synchronized block
+                return idToDoc.lkey();
+            } else {
+                return id;
+            }
         }
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -28,13 +28,14 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
  */
-public class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public final class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
     @Inject
     public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -53,7 +54,9 @@ public class RamDirectoryService extends AbstractIndexShardComponent implements 
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        ((CustomRAMDirectory) dir).renameTo(from, to);
+        CustomRAMDirectory leaf = DirectoryUtils.getLeaf(dir, CustomRAMDirectory.class);
+        assert leaf != null;
+        leaf.renameTo(from, to);
     }
 
     @Override
@@ -72,6 +75,11 @@ public class RamDirectoryService extends AbstractIndexShardComponent implements 
                 fileMap.remove(from);
             }
             fileMap.put(to, fromFile);
+        }
+
+        @Override
+        public String toString() {
+            return "ram";
         }
     }
 }

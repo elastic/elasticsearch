@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -41,14 +41,16 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
     void setNodesProvider(DiscoveryNodesProvider nodesProvider);
 
-    void ping(PingListener listener, TimeValue timeout) throws ElasticSearchException;
+    void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException;
 
     public interface PingListener {
 
         void onPing(PingResponse[] pings);
     }
 
-    public class PingResponse implements Streamable {
+    public static class PingResponse implements Streamable {
+        
+        public static PingResponse[] EMPTY = new PingResponse[0];
 
         private ClusterName clusterName;
 

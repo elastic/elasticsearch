@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -55,28 +57,44 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = Sets.newHashSet();
-                for (String templateName : currentState.metaData().templates().keySet()) {
+                for (ObjectCursor<String> cursor : currentState.metaData().templates().keys()) {
+                    String templateName = cursor.value;
                     if (Regex.simpleMatch(request.name, templateName)) {
                         templateNames.add(templateName);
                     }
                 }
                 if (templateNames.isEmpty()) {
-                    listener.onFailure(new IndexTemplateMissingException(request.name));
-                    return currentState;
+                    // if its a match all pattern, and no templates are found (we have none), don't
+                    // fail with index missing...
+                    if (Regex.isMatchAllPattern(request.name)) {
+                        return currentState;
+                    }
+                    throw new IndexTemplateMissingException(request.name);
                 }
-                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());
+                MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                 for (String templateName : templateNames) {
                     metaData.removeTemplate(templateName);
                 }
-                return ClusterState.builder().state(currentState).metaData(metaData).build();
+                return ClusterState.builder(currentState).metaData(metaData).build();
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new RemoveResponse(true));
             }
         });
@@ -94,11 +112,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         if (request.name == null) {
-            listener.onFailure(new ElasticSearchIllegalArgumentException("index_template must provide a name"));
+            listener.onFailure(new ElasticsearchIllegalArgumentException("index_template must provide a name"));
             return;
         }
         if (request.template == null) {
-            listener.onFailure(new ElasticSearchIllegalArgumentException("index_template must provide a template"));
+            listener.onFailure(new ElasticsearchIllegalArgumentException("index_template must provide a template"));
             return;
         }
 
@@ -127,27 +145,36 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                if (request.create && currentState.metaData().templates().containsKey(request.name)) {
-                    listener.onFailure(new IndexTemplateAlreadyExistsException(request.name));
-                    return currentState;
-                }
-                MetaData.Builder builder = MetaData.builder().metaData(currentState.metaData())
-                        .put(template);
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
-                return ClusterState.builder().state(currentState).metaData(builder).build();
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                if (request.create && currentState.metaData().templates().containsKey(request.name)) {
+                    throw new IndexTemplateAlreadyExistsException(request.name);
+                }
+                MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
+
+                return ClusterState.builder(currentState).metaData(builder).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new PutResponse(true, template));
             }
         });
     }
 
-    private void validate(PutRequest request) throws ElasticSearchException {
+    private void validate(PutRequest request) throws ElasticsearchException {
         if (request.name.contains(" ")) {
             throw new InvalidIndexTemplateException(request.name, "name must not contain a space");
         }
@@ -197,6 +224,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Map<String, String> mappings = Maps.newHashMap();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+
         public PutRequest(String cause, String name) {
             this.cause = cause;
             this.name = name;
@@ -236,6 +265,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             mappings.put(mappingType, mappingSource);
             return this;
         }
+
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
+        }
     }
 
     public static class PutResponse {
@@ -258,9 +292,15 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
     public static class RemoveRequest {
         final String name;
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;
+        }
+
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
         }
     }
 

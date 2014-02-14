@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -66,15 +66,17 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private Float cutoffFrequency = null;
 
+    private String queryName;
+
     /**
      * Constructs a new common terms query.
      */
     public CommonTermsQueryBuilder(String name, Object text) {
         if (name == null) {
-            throw new ElasticSearchIllegalArgumentException("Field name must not be null");
+            throw new ElasticsearchIllegalArgumentException("Field name must not be null");
         }
         if (text == null) {
-            throw new ElasticSearchIllegalArgumentException("Query must not be null");
+            throw new ElasticsearchIllegalArgumentException("Query must not be null");
         }
         this.text = text;
         this.name = name;
@@ -146,6 +148,14 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public CommonTermsQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CommonTermsQueryParser.NAME);
@@ -179,6 +189,9 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
                 builder.field("high_freq", highFreqMinimumShouldMatch);
             }
             builder.endObject();
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

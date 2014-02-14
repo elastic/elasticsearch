@@ -1,0 +1,49 @@
+[[analysis-keep-words-tokenfilter]]
+=== Keep Words Token Filter
+
+A token filter of type `keep` that only keeps tokens with text contained in a
+predefined set of words. The set of words can be defined in the settings or
+loaded from a text file containing one word per line.
+
+
+[float]
+=== Options
+[horizontal]
+keep_words:: a list of words to keep
+keep_words_path:: a path to a words file
+keep_words_case:: a boolean indicating whether to lower case the words (defaults to `false`)
+
+
+
+[float]
+=== Settings example
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "words_till_three"]
+                },
+                "my_analyzer1" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "words_on_file"]
+                }
+            },
+            "filter" : {
+                "words_till_three" : {
+                    "type" : "keep",
+                    "keep_words" : [ "one", "two", "three"]
+                },
+                "words_on_file" : {
+                    "type" : "keep",
+                    "keep_words_path" : "/path/to/word/file"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

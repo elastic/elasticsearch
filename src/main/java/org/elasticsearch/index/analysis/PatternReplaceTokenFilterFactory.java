@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
@@ -44,18 +44,10 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
 
         String sPattern = settings.get("pattern", null);
         if (sPattern == null) {
-            throw new ElasticSearchIllegalArgumentException("pattern is missing for [" + name + "] token filter of type 'pattern_replace'");
+            throw new ElasticsearchIllegalArgumentException("pattern is missing for [" + name + "] token filter of type 'pattern_replace'");
         }
-
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
-
-        String sReplacement = settings.get("replacement", null);
-        if (sReplacement == null) {
-            throw new ElasticSearchIllegalArgumentException("replacement is missing for [" + name + "] token filter of type 'pattern_replace'");
-        }
-
-        this.replacement = sReplacement;
-
+        this.replacement = settings.get("replacement", "");
         this.all = settings.getAsBoolean("all", true);
     }
 

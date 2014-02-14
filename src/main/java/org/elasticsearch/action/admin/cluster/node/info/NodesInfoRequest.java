@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -30,15 +30,15 @@ import java.io.IOException;
  */
 public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
 
-    private boolean settings = false;
-    private boolean os = false;
-    private boolean process = false;
-    private boolean jvm = false;
-    private boolean threadPool = false;
-    private boolean network = false;
-    private boolean transport = false;
-    private boolean http = false;
-    private boolean plugin = false;
+    private boolean settings = true;
+    private boolean os = true;
+    private boolean process = true;
+    private boolean jvm = true;
+    private boolean threadPool = true;
+    private boolean network = true;
+    private boolean transport = true;
+    private boolean http = true;
+    private boolean plugins = true;
 
     public NodesInfoRequest() {
     }
@@ -63,7 +63,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = false;
         transport = false;
         http = false;
-        plugin = false;
+        plugins = false;
         return this;
     }
 
@@ -79,7 +79,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = true;
         transport = true;
         http = true;
-        plugin = true;
+        plugins = true;
         return this;
     }
 
@@ -205,19 +205,19 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
 
     /**
      * Should information about plugins be returned
-     * @param plugin true if you want info
+     * @param plugins true if you want info
      * @return The request
      */
-    public NodesInfoRequest plugin(boolean plugin) {
-        this.plugin = plugin;
+    public NodesInfoRequest plugins(boolean plugins) {
+        this.plugins = plugins;
         return this;
     }
 
     /**
      * @return true if information about plugins is requested
      */
-    public boolean plugin() {
-        return plugin;
+    public boolean plugins() {
+        return plugins;
     }
 
     @Override
@@ -231,7 +231,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
-        plugin = in.readBoolean();
+        plugins = in.readBoolean();
     }
 
     @Override
@@ -245,6 +245,6 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);
-        out.writeBoolean(plugin);
+        out.writeBoolean(plugins);
     }
 }

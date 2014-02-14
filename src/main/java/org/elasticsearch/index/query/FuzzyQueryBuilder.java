@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
 
     private float boost = -1;
 
-    private String minSimilarity;
+    private Fuzziness fuzziness;
 
     private Integer prefixLength;
 
@@ -44,6 +45,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private Boolean transpositions;
+
+    private String queryName;
 
     /**
      * Constructs a new term query.
@@ -65,13 +68,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         return this;
     }
 
-    public FuzzyQueryBuilder minSimilarity(float defaultMinSimilarity) {
-        this.minSimilarity = Float.toString(defaultMinSimilarity);
-        return this;
-    }
-
-    public FuzzyQueryBuilder minSimilarity(String defaultMinSimilarity) {
-        this.minSimilarity = defaultMinSimilarity;
+    public FuzzyQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -90,10 +88,18 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
       return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FuzzyQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyQueryParser.NAME);
-        if (boost == -1 && minSimilarity == null && prefixLength == null) {
+        if (boost == -1 && fuzziness == null && prefixLength == null && queryName != null) {
             builder.field(name, value);
         } else {
             builder.startObject(name);
@@ -104,14 +110,17 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             if (transpositions != null) {
                 builder.field("transpositions", transpositions);
             }
-            if (minSimilarity != null) {
-                builder.field("min_similarity", minSimilarity);
+            if (fuzziness != null) {
+                fuzziness.toXContent(builder, params);
             }
             if (prefixLength != null) {
                 builder.field("prefix_length", prefixLength);
             }
             if (maxExpansions != null) {
                 builder.field("max_expansions", maxExpansions);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

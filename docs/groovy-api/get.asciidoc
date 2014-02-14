@@ -1,0 +1,18 @@
+[[get]]
+== Get API
+
+The get API is very similar to the
+{java}/get.html[Java get API]. The main benefit
+of using groovy is handling the source content. It can be automatically
+converted to a `Map` which means using Groovy to navigate it is simple:
+
+[source,js]
+--------------------------------------------------
+def getF = node.client.get {
+    index "test"
+    type "type1"
+    id "1"
+}
+
+println "Result of field2: $getF.response.source.complex.field2"
+--------------------------------------------------

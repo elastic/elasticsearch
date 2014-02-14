@@ -1,0 +1,19 @@
+---
+"Return empty response when type doesn't exist":
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     string
+                      analyzer: whitespace
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+        type: not_test_type
+ 
+  - match: { '': {}}

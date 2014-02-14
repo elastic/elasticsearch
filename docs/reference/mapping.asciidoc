@@ -1,0 +1,77 @@
+[[mapping]]
+= Mapping
+
+[partintro]
+--
+Mapping is the process of defining how a document should be mapped to
+the Search Engine, including its searchable characteristics such as
+which fields are searchable and if/how they are tokenized. In
+Elasticsearch, an index may store documents of different "mapping
+types". Elasticsearch allows one to associate multiple mapping
+definitions for each mapping type.
+
+Explicit mapping is defined on an index/type level. By default, there
+isn't a need to define an explicit mapping, since one is automatically
+created and registered when a new type or new field is introduced (with
+no performance overhead) and have sensible defaults. Only when the
+defaults need to be overridden must a mapping definition be provided.
+
+[float]
+[[all-mapping-types]]
+=== Mapping Types
+
+Mapping types are a way to divide the documents in an index into logical
+groups. Think of it as tables in a database. Though there is separation
+between types, it's not a full separation (all end up as a document
+within the same Lucene index).
+
+Field names with the same name across types are highly recommended to
+have the same type and same mapping characteristics (analysis settings
+for example). There is an effort to allow to explicitly "choose" which
+field to use by using type prefix (`my_type.my_field`), but it's not
+complete, and there are places where it will never work (like faceting
+on the field).
+
+In practice though, this restriction is almost never an issue. The field
+name usually ends up being a good indication to its "typeness" (e.g.
+"first_name" will always be a string). Note also, that this does not
+apply to the cross index case.
+
+[float]
+[[mapping-api]]
+=== Mapping API
+
+To create a mapping, you will need the <<indices-put-mapping,Put Mapping
+API>>, or you can add multiple mappings when you <<indices-create-index,create an
+index>>.
+
+[float]
+[[mapping-settings]]
+=== Global Settings
+
+The `index.mapping.ignore_malformed` global setting can be set on the
+index level to allow to ignore malformed content globally across all
+mapping types (malformed content example is trying to index a text string
+value as a numeric type).
+
+The `index.mapping.coerce` global setting can be set on the
+index level to coerce numeric content globally across all
+mapping types (The default setting is true and coercions attempted are 
+to convert strings with numbers into numeric types and also numeric values
+with fractions to any integer/short/long values minus the fraction part).
+When the permitted conversions fail in their attempts, the value is considered 
+malformed and the ignore_malformed setting dictates what will happen next.
+--
+
+include::mapping/fields.asciidoc[]
+
+include::mapping/types.asciidoc[]
+
+include::mapping/date-format.asciidoc[]
+
+include::mapping/dynamic-mapping.asciidoc[]
+
+include::mapping/conf-mappings.asciidoc[]
+
+include::mapping/meta.asciidoc[]
+

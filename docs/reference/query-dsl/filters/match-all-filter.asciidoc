@@ -1,0 +1,15 @@
+[[query-dsl-match-all-filter]]
+=== Match All Filter
+
+A filter that matches on all documents:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score" : {
+        "filter" : {
+            "match_all" : { }
+        }
+    }
+}
+--------------------------------------------------

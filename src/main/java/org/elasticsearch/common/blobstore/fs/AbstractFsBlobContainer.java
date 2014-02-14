@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -84,20 +84,20 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                 FileInputStream is = null;
                 try {
                     is = new FileInputStream(new File(path, blobName));
-                } catch (FileNotFoundException e) {
-                    Closeables.closeQuietly(is);
-                    listener.onFailure(e);
-                    return;
-                }
-                try {
                     int bytesRead;
                     while ((bytesRead = is.read(buffer)) != -1) {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
+                } catch (Throwable t) {
+                    IOUtils.closeWhileHandlingException(is);
+                    listener.onFailure(t);
+                    return;
+                }
+                try {
+                    IOUtils.closeWhileHandlingException(is);
                     listener.onCompleted();
-                } catch (Exception e) {
-                    Closeables.closeQuietly(is);
-                    listener.onFailure(e);
+                } catch (Throwable t) {
+                    listener.onFailure(t);
                 }
             }
         });

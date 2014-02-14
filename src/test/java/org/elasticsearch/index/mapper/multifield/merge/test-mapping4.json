@@ -1,0 +1,18 @@
+{
+    person:{
+        properties:{
+            "name":{
+                type:"string",
+                index:"analyzed",
+                store:"yes",
+                "fields":{
+                    "not_indexed3":{
+                        type:"string",
+                        index:"no",
+                        store:"yes"
+                    }
+                }
+            }
+        }
+    }
+}

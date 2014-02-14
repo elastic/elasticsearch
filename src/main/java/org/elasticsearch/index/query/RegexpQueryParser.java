@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -64,6 +64,7 @@ public class RegexpQueryParser implements QueryParser {
         Object value = null;
         float boost = 1.0f;
         int flagsValue = -1;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -85,6 +86,8 @@ public class RegexpQueryParser implements QueryParser {
                         if (flagsValue < 0) {
                             flagsValue = RegExp.ALL;
                         }
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[regexp] query does not support [" + currentFieldName + "]");
@@ -124,7 +127,11 @@ public class RegexpQueryParser implements QueryParser {
             query = regexpQuery;
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 
 

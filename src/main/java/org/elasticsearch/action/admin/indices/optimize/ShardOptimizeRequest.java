@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,7 +34,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean refresh = OptimizeRequest.Defaults.REFRESH;
 
     ShardOptimizeRequest() {
     }
@@ -45,7 +44,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
-        refresh = request.refresh();
     }
 
     boolean waitForMerge() {
@@ -64,10 +62,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return flush;
     }
 
-    public boolean refresh() {
-        return refresh;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -75,7 +69,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        refresh = in.readBoolean();
     }
 
     @Override
@@ -85,6 +78,5 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        out.writeBoolean(refresh);
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,13 +32,15 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
 
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<SpanQueryBuilder>();
 
-    private int slop = -1;
+    private Integer slop = null;
 
     private Boolean inOrder;
 
     private Boolean collectPayloads;
 
     private float boost = -1;
+
+    private String queryName;
 
     public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
         clauses.add(clause);
@@ -64,13 +67,21 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanNearQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
-            throw new QueryBuilderException("Must have at least one clause when building a spanNear query");
+            throw new ElasticsearchIllegalArgumentException("Must have at least one clause when building a spanNear query");
         }
-        if (slop == -1) {
-            throw new QueryBuilderException("Must set the slop when building a spanNear query");
+        if (slop == null) {
+            throw new ElasticsearchIllegalArgumentException("Must set the slop when building a spanNear query");
         }
         builder.startObject(SpanNearQueryParser.NAME);
         builder.startArray("clauses");
@@ -78,7 +89,7 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("slop", slop);
+        builder.field("slop", slop.intValue());
         if (inOrder != null) {
             builder.field("in_order", inOrder);
         }
@@ -87,6 +98,9 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         }
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

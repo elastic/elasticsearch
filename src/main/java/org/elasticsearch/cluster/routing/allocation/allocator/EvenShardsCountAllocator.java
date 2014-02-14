@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -102,13 +102,13 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
 
                 Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
                 if (decision.type() == Decision.Type.YES) {
-                    int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
+                    int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
                     }
 
                     changed = true;
-                    node.add(shard);
+                    allocation.routingNodes().assign(shard, node.nodeId());
                     unassignedIterator.remove();
                     break;
                 }
@@ -123,7 +123,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                 Decision decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                 if (decision.type() == Decision.Type.YES) {
                     changed = true;
-                    routingNode.add(shard);
+                    allocation.routingNodes().assign(shard, routingNode.nodeId());
                     it.remove();
                     break;
                 }
@@ -156,7 +156,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                     continue;
                 }
 
-                if (lowRoutingNode.shards().size() >= averageNumOfShards) {
+                if (lowRoutingNode.size() >= averageNumOfShards) {
                     lowIndex++;
                     continue;
                 }
@@ -173,11 +173,11 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                     Decision allocateDecision = allocation.deciders().canAllocate(startedShard, lowRoutingNode, allocation);
                     if (allocateDecision.type() == Decision.Type.YES) {
                         changed = true;
-                        lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
-                                lowRoutingNode.nodeId(), startedShard.currentNodeId(),
-                                startedShard.primary(), INITIALIZING, startedShard.version() + 1));
+                        allocation.routingNodes().assign(new MutableShardRouting(startedShard.index(), startedShard.id(),
+                                lowRoutingNode.nodeId(), startedShard.currentNodeId(), startedShard.restoreSource(),
+                                startedShard.primary(), INITIALIZING, startedShard.version() + 1), lowRoutingNode.nodeId());
 
-                        startedShard.relocate(lowRoutingNode.nodeId());
+                        allocation.routingNodes().relocate(startedShard, lowRoutingNode.nodeId());
                         relocated = true;
                         relocationPerformed = true;
                         break;
@@ -210,11 +210,11 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
             }
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation);
             if (decision.type() == Decision.Type.YES) {
-                nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
-                        nodeToCheck.nodeId(), shardRouting.currentNodeId(),
-                        shardRouting.primary(), INITIALIZING, shardRouting.version() + 1));
+                allocation.routingNodes().assign(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
+                        nodeToCheck.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
+                        shardRouting.primary(), INITIALIZING, shardRouting.version() + 1), nodeToCheck.nodeId());
 
-                shardRouting.relocate(nodeToCheck.nodeId());
+                allocation.routingNodes().relocate(shardRouting, nodeToCheck.nodeId());
                 changed = true;
                 break;
             }
@@ -225,15 +225,15 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
 
     private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation) {
         // create count per node id, taking into account relocations
-        final TObjectIntHashMap<String> nodeCounts = new TObjectIntHashMap<String>();
+        final ObjectIntOpenHashMap<String> nodeCounts = new ObjectIntOpenHashMap<String>();
         for (RoutingNode node : allocation.routingNodes()) {
-            for (int i = 0; i < node.shards().size(); i++) {
-                ShardRouting shardRouting = node.shards().get(i);
+            for (int i = 0; i < node.size(); i++) {
+                ShardRouting shardRouting = node.get(i);
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-                nodeCounts.adjustOrPutValue(nodeId, 1, 1);
+                nodeCounts.addTo(nodeId, 1);
             }
         }
-        RoutingNode[] nodes = allocation.routingNodes().nodesToShards().values().toArray(new RoutingNode[allocation.routingNodes().nodesToShards().values().size()]);
+        RoutingNode[] nodes = allocation.routingNodes().toArray();
         Arrays.sort(nodes, new Comparator<RoutingNode>() {
             @Override
             public int compare(RoutingNode o1, RoutingNode o2) {

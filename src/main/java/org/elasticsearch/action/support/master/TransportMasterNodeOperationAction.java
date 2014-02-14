@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
@@ -67,7 +67,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response newResponse();
 
-    protected abstract Response masterOperation(Request request, ClusterState state) throws ElasticSearchException;
+    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws ElasticsearchException;
 
     protected boolean localExecute(Request request) {
         return false;
@@ -79,6 +79,14 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
 
+    }
+
+    @Override
+    public void execute(Request request, ActionListener<Response> listener) {
+        // since the callback is async, we typically can get called from within an event in the cluster service
+        // or something similar, so make sure we are threaded so we won't block it.
+        request.listenerThreaded(true);
+        super.execute(request, listener);
     }
 
     @Override
@@ -129,17 +137,20 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     }
                 });
             } else {
-                threadPool.executor(executor).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Response response = masterOperation(request, clusterState);
-                            listener.onResponse(response);
-                        } catch (Throwable e) {
-                            listener.onFailure(e);
+                try {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                masterOperation(request, clusterService.state(), listener);
+                            } catch (Throwable e) {
+                                listener.onFailure(e);
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (Throwable t) {
+                    listener.onFailure(t);
+                }
             }
         } else {
             if (nodes.masterNode() == null) {
@@ -160,7 +171,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         @Override
                         public void onClose() {
                             clusterService.remove(this);
-                            listener.onFailure(new NodeClosedException(nodes.localNode()));
+                            listener.onFailure(new NodeClosedException(clusterService.localNode()));
                         }
 
                         @Override
@@ -215,7 +226,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                             @Override
                             public void onClose() {
                                 clusterService.remove(this);
-                                listener.onFailure(new NodeClosedException(nodes.localNode()));
+                                listener.onFailure(new NodeClosedException(clusterService.localNode()));
                             }
 
                             @Override

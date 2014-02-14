@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -40,13 +40,6 @@ public class XContentRestResponse extends AbstractRestResponse {
         System.arraycopy(U_END_JSONP.bytes, U_END_JSONP.offset, END_JSONP, 0, U_END_JSONP.length);
     }
 
-    private static ThreadLocal<BytesRef> prefixCache = new ThreadLocal<BytesRef>() {
-        @Override
-        protected BytesRef initialValue() {
-            return new BytesRef();
-        }
-    };
-
     private final BytesRef prefixUtf8Result;
 
     private final RestStatus status;
@@ -55,7 +48,7 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     public XContentRestResponse(RestRequest request, RestStatus status, XContentBuilder builder) throws IOException {
         if (request == null) {
-            throw new ElasticSearchIllegalArgumentException("request must be set");
+            throw new ElasticsearchIllegalArgumentException("request must be set");
         }
         this.builder = builder;
         this.status = status;
@@ -73,7 +66,7 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     @Override
     public boolean contentThreadSafe() {
-        return false;
+        return true;
     }
 
     @Override
@@ -146,7 +139,7 @@ public class XContentRestResponse extends AbstractRestResponse {
         if (callback == null) {
             return null;
         }
-        BytesRef result = prefixCache.get();
+        final BytesRef result = new BytesRef();
         UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), result);
         result.bytes[result.length] = '(';
         result.length++;

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.query.QueryBuilder;
  *
  */
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
+
+    private QuerySourceBuilder sourceBuilder;
 
     public ValidateQueryRequestBuilder(IndicesAdminClient client) {
         super((InternalIndicesAdminClient) client, new ValidateQueryRequest());
@@ -49,37 +52,37 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request.query(queryBuilder);
+        sourceBuilder().setQuery(queryBuilder);
         return this;
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public ValidateQueryRequestBuilder setQuery(BytesReference querySource) {
-        request.query(querySource, false);
+    public ValidateQueryRequestBuilder setSource(BytesReference source) {
+        request().source(source, false);
         return this;
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public ValidateQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request.query(querySource, unsafe);
+    public ValidateQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
+        request().source(source, unsafe);
         return this;
     }
 
     /**
-     * The query source to validate.
+     * The source to validate.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public ValidateQueryRequestBuilder setQuery(byte[] querySource) {
-        request.query(querySource);
+    public ValidateQueryRequestBuilder setSource(byte[] source) {
+        request.source(source);
         return this;
     }
 
@@ -95,6 +98,17 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
 
     @Override
     protected void doExecute(ActionListener<ValidateQueryResponse> listener) {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
+
         ((IndicesAdminClient) client).validateQuery(request, listener);
+    }
+
+    private QuerySourceBuilder sourceBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new QuerySourceBuilder();
+        }
+        return sourceBuilder;
     }
 }

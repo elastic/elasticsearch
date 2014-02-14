@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.ngram.XEdgeNGramTokenizer;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -39,37 +39,48 @@ import static org.elasticsearch.index.analysis.NGramTokenizerFactory.parseTokenC
 /**
  *
  */
+@SuppressWarnings("deprecation")
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;
 
     private final int maxGram;
 
-    private final EdgeNGramTokenizer.Side side;
+    private final Lucene43EdgeNGramTokenizer.Side side;
 
     private final CharMatcher matcher;
+    
+    protected org.elasticsearch.Version esVersion;
+
 
     @Inject
     public EdgeNGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-        this.side = EdgeNGramTokenizer.Side.getSide(settings.get("side", EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
+        this.side = Lucene43EdgeNGramTokenizer.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
+        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
     }
 
     @Override
     public Tokenizer create(Reader reader) {
-        if (version.onOrAfter(Version.LUCENE_43)) {
-            if (side == EdgeNGramTokenizer.Side.BACK) {
-                throw new ElasticSearchIllegalArgumentException("side=BACK is not supported anymore. Please fix your analysis chain or use"
-                        + " an older compatibility version (<=4.2) but beware that it might cause highlighting bugs.");
+        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+            /*
+             * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
+             * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
+             */
+            if (side == Lucene43EdgeNGramTokenizer.Side.BACK) {
+                throw new ElasticsearchIllegalArgumentException("side=back is not supported anymore. Please fix your analysis chain or use"
+                        + " an older compatibility version (<=4.2) but beware that it might cause highlighting bugs." 
+                        + " To obtain the same behavior as the previous version please use \"edgeNGram\" filter which still supports side=back" 
+                        + " in combination with a \"keyword\" tokenizer");
             }
-            // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4
+            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
             if (matcher == null) {
-                return new XEdgeNGramTokenizer(version, reader, minGram, maxGram);
+                return new EdgeNGramTokenizer(version, reader, minGram, maxGram);
             } else {
-                return new XEdgeNGramTokenizer(version, reader, minGram, maxGram) {
+                return new EdgeNGramTokenizer(version, reader, minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
@@ -77,7 +88,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
                 };
             }
         } else {
-            return new EdgeNGramTokenizer(reader, side, minGram, maxGram);
+            return new Lucene43EdgeNGramTokenizer(version, reader, side, minGram, maxGram);
         }
     }
 }

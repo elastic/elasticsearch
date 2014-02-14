@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -76,7 +76,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
                 script.setNextDocId(docId);
                 // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence
                 // does the job here?
-                // we only creat that string if we really need
+                // we only create that string if we really need
                 script.setNextVar("term", spare.toString());
                 Object scriptValue = script.run();
                 if (scriptValue == null) {
@@ -87,8 +87,6 @@ public final class HashedScriptAggregator extends HashedAggregator {
                         return;
                     }
                 } else {
-                    // LUCENE 4 UPGRADE: should be possible to convert directly
-                    // to BR
                     scriptSpare.copyChars(scriptValue.toString());
                     hashCode = scriptSpare.hashCode();
                     super.onValue(docId, scriptSpare, hashCode, values);

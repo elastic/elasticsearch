@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.RateLimitedFSDirectory;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
@@ -53,11 +53,11 @@ public abstract class AbstractDistributor implements Distributor {
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected long getUsableSpace(Directory directory) {
-        if (directory instanceof RateLimitedFSDirectory) {
-            return ((RateLimitedFSDirectory) directory).wrappedDirectory().getDirectory().getUsableSpace();
-        } else if (directory instanceof FSDirectory) {
-            return ((FSDirectory) directory).getDirectory().getUsableSpace();
+        final FSDirectory leaf = DirectoryUtils.getLeaf(directory, FSDirectory.class);
+        if (leaf != null) {
+            return leaf.getDirectory().getUsableSpace();
         } else {
             return 0;
         }

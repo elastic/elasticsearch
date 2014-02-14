@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -138,23 +138,37 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         MemoryUsage memUsage = memoryMXBean.getHeapMemoryUsage();
         stats.mem.heapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
         stats.mem.heapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
+        stats.mem.heapMax = memUsage.getMax() < 0 ? 0 : memUsage.getMax();
         memUsage = memoryMXBean.getNonHeapMemoryUsage();
         stats.mem.nonHeapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
         stats.mem.nonHeapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
 
         List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
-        stats.mem.pools = new MemoryPool[memoryPoolMXBeans.size()];
+        List<MemoryPool> pools = new ArrayList<MemoryPool>();
         for (int i = 0; i < memoryPoolMXBeans.size(); i++) {
-            MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
-            MemoryUsage usage = memoryPoolMXBean.getUsage();
-            MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
-            stats.mem.pools[i] = new MemoryPool(memoryPoolMXBean.getName(),
-                    usage.getUsed() < 0 ? 0 : usage.getUsed(),
-                    usage.getMax() < 0 ? 0 : usage.getMax(),
-                    peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
-                    peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
-            );
+            try {
+                MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
+                MemoryUsage usage = memoryPoolMXBean.getUsage();
+                MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
+                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
+                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
+                    continue;
+                }
+                pools.add(new MemoryPool(name,
+                        usage.getUsed() < 0 ? 0 : usage.getUsed(),
+                        usage.getMax() < 0 ? 0 : usage.getMax(),
+                        peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
+                        peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
+                ));
+            } catch (OutOfMemoryError err) {
+                throw err; // rethrow
+            } catch (Throwable ex) {
+                /* ignore some JVMs might barf here with:
+                 * java.lang.InternalError: Memory Pool not found
+                 * we just omit the pool in that case!*/
+            }
         }
+        stats.mem.pools = pools.toArray(new MemoryPool[pools.size()]);
 
         stats.threads = new Threads();
         stats.threads.count = threadMXBean.getThreadCount();
@@ -166,7 +180,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         for (int i = 0; i < stats.gc.collectors.length; i++) {
             GarbageCollectorMXBean gcMxBean = gcMxBeans.get(i);
             stats.gc.collectors[i] = new GarbageCollector();
-            stats.gc.collectors[i].name = gcMxBean.getName();
+            stats.gc.collectors[i].name = GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName());
             stats.gc.collectors[i].collectionCount = gcMxBean.getCollectionCount();
             stats.gc.collectors[i].collectionTime = gcMxBean.getCollectionTime();
             if (enableLastGc) {
@@ -283,32 +297,27 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
         builder.field(Fields.TIMESTAMP, timestamp);
-        builder.field(Fields.UPTIME, uptime().format());
-        builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
+        builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.field(Fields.HEAP_USED, mem.heapUsed().toString());
-            builder.field(Fields.HEAP_USED_IN_BYTES, mem.heapUsed().bytes());
-            builder.field(Fields.HEAP_COMMITTED, mem.heapCommitted().toString());
-            builder.field(Fields.HEAP_COMMITTED_IN_BYTES, mem.heapCommitted().bytes());
 
-            builder.field(Fields.NON_HEAP_USED, mem.nonHeapUsed().toString());
-            builder.field(Fields.NON_HEAP_USED_IN_BYTES, mem.nonHeapUsed);
-            builder.field(Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted().toString());
-            builder.field(Fields.NON_HEAP_COMMITTED_IN_BYTES, mem.nonHeapCommitted);
+            builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, mem.heapUsed);
+            if (mem.heapUsedPercent() >= 0) {
+                builder.field(Fields.HEAP_USED_PERCENT, mem.heapUsedPercent());
+            }
+            builder.byteSizeField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, mem.heapCommitted);
+            builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
+            builder.byteSizeField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, mem.nonHeapUsed);
+            builder.byteSizeField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted);
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
                 builder.startObject(pool.name(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field(Fields.USED, pool.used().toString());
-                builder.field(Fields.USED_IN_BYTES, pool.used);
-                builder.field(Fields.MAX, pool.max().toString());
-                builder.field(Fields.MAX_IN_BYTES, pool.max);
+                builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
+                builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
 
-                builder.field(Fields.PEAK_USED, pool.peakUsed().toString());
-                builder.field(Fields.PEAK_USED_IN_BYTES, pool.peakUsed);
-                builder.field(Fields.PEAK_MAX, pool.peakMax().toString());
-                builder.field(Fields.PEAK_MAX_IN_BYTES, pool.peakMax);
+                builder.byteSizeField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, pool.peakUsed);
+                builder.byteSizeField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, pool.peakMax);
 
                 builder.endObject();
             }
@@ -324,16 +333,12 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
         if (gc != null) {
             builder.startObject(Fields.GC);
-            builder.field(Fields.COLLECTION_COUNT, gc.collectionCount());
-            builder.field(Fields.COLLECTION_TIME, gc.collectionTime().format());
-            builder.field(Fields.COLLECTION_TIME_IN_MILLIS, gc.collectionTime().millis());
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
                 builder.startObject(collector.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.COLLECTION_COUNT, collector.collectionCount());
-                builder.field(Fields.COLLECTION_TIME, collector.collectionTime().format());
-                builder.field(Fields.COLLECTION_TIME_IN_MILLIS, collector.collectionTime().millis());
+                builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
                 builder.endObject();
             }
             builder.endObject();
@@ -346,10 +351,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             for (BufferPool bufferPool : bufferPools) {
                 builder.startObject(bufferPool.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.COUNT, bufferPool.count());
-                builder.field(Fields.USED, bufferPool.used().toString());
-                builder.field(Fields.USED_IN_BYTES, bufferPool.used);
-                builder.field(Fields.TOTAL_CAPACITY, bufferPool.totalCapacity().toString());
-                builder.field(Fields.TOTAL_CAPACITY_IN_BYTES, bufferPool.totalCapacity);
+                builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
+                builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);
                 builder.endObject();
             }
             builder.endObject();
@@ -368,6 +371,9 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
         static final XContentBuilderString HEAP_USED = new XContentBuilderString("heap_used");
         static final XContentBuilderString HEAP_USED_IN_BYTES = new XContentBuilderString("heap_used_in_bytes");
+        static final XContentBuilderString HEAP_USED_PERCENT = new XContentBuilderString("heap_used_percent");
+        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
+        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
         static final XContentBuilderString HEAP_COMMITTED = new XContentBuilderString("heap_committed");
         static final XContentBuilderString HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("heap_committed_in_bytes");
 
@@ -485,22 +491,6 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         @Override
         public Iterator<GarbageCollector> iterator() {
             return Iterators.forArray(collectors);
-        }
-
-        public long collectionCount() {
-            long collectionCount = 0;
-            for (GarbageCollector gc : collectors) {
-                collectionCount += gc.collectionCount();
-            }
-            return collectionCount;
-        }
-
-        public TimeValue collectionTime() {
-            long collectionTime = 0;
-            for (GarbageCollector gc : collectors) {
-                collectionTime += gc.collectionTime;
-            }
-            return new TimeValue(collectionTime, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -813,6 +803,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         long heapCommitted;
         long heapUsed;
+        long heapMax;
         long nonHeapCommitted;
         long nonHeapUsed;
 
@@ -838,7 +829,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             heapUsed = in.readVLong();
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
-
+            heapMax = in.readVLong();
             pools = new MemoryPool[in.readVInt()];
             for (int i = 0; i < pools.length; i++) {
                 pools[i] = MemoryPool.readMemoryPool(in);
@@ -851,7 +842,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             out.writeVLong(heapUsed);
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
-
+            out.writeVLong(heapMax);
             out.writeVInt(pools.length);
             for (MemoryPool pool : pools) {
                 pool.writeTo(out);
@@ -872,6 +863,37 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         public ByteSizeValue getHeapUsed() {
             return heapUsed();
+        }
+
+        /**
+         * returns the maximum heap size. 0 bytes signals unknown.
+         */
+        public ByteSizeValue heapMax() {
+            return new ByteSizeValue(heapMax);
+        }
+
+        /**
+         * returns the maximum heap size. 0 bytes signals unknown.
+         */
+        public ByteSizeValue getHeapMax() {
+            return heapMax();
+        }
+
+        /**
+         * returns the heap usage in percent. -1 signals unknown.
+         */
+        public short heapUsedPercent() {
+            if (heapMax == 0) {
+                return -1;
+            }
+            return (short) (heapUsed * 100 / heapMax);
+        }
+
+        /**
+         * returns the heap usage in percent. -1 signals unknown.
+         */
+        public short getHeapUsedPrecent() {
+            return heapUsedPercent();
         }
 
         public ByteSizeValue nonHeapCommitted() {

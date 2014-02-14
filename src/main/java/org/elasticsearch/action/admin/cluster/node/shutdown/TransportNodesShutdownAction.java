@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -96,11 +97,11 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected NodesShutdownResponse masterOperation(final NodesShutdownRequest request, final ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final NodesShutdownRequest request, final ClusterState state, final ActionListener<NodesShutdownResponse> listener) throws ElasticsearchException {
         if (disabled) {
-            throw new ElasticSearchIllegalStateException("Shutdown is disabled");
+            throw new ElasticsearchIllegalStateException("Shutdown is disabled");
         }
-        final Set<DiscoveryNode> nodes = Sets.newHashSet();
+        final ObjectOpenHashSet<DiscoveryNode> nodes = new ObjectOpenHashSet<DiscoveryNode>();
         if (state.nodes().isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
             nodes.addAll(state.nodes().dataNodes().values());
@@ -118,7 +119,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                     clusterService.stop();
 
                     final CountDownLatch latch = new CountDownLatch(nodes.size());
-                    for (final DiscoveryNode node : nodes) {
+                    for (ObjectCursor<DiscoveryNode> cursor : nodes) {
+                        final DiscoveryNode node = cursor.value;
                         if (node.id().equals(state.nodes().masterNodeId())) {
                             // don't shutdown the master yet...
                             latch.countDown();
@@ -218,7 +220,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
         }
-        return new NodesShutdownResponse(clusterName, nodes.toArray(new DiscoveryNode[nodes.size()]));
+        listener.onResponse(new NodesShutdownResponse(clusterName, nodes.toArray(DiscoveryNode.class)));
     }
 
     private class NodeShutdownRequestHandler extends BaseTransportRequestHandler<NodeShutdownRequest> {
@@ -238,7 +240,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         @Override
         public void messageReceived(final NodeShutdownRequest request, TransportChannel channel) throws Exception {
             if (disabled) {
-                throw new ElasticSearchIllegalStateException("Shutdown is disabled");
+                throw new ElasticsearchIllegalStateException("Shutdown is disabled");
             }
             logger.info("shutting down in [{}]", delay);
             Thread t = new Thread(new Runnable() {
@@ -266,7 +268,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                             wrapperManager.getMethod("stopAndReturn", int.class).invoke(null, 0);
                             shutdownWithWrapper = true;
                         } catch (Throwable e) {
-                            e.printStackTrace();
+                            logger.error("failed to initial shutdown on service wrapper", e);
                         }
                     }
                     if (!shutdownWithWrapper) {

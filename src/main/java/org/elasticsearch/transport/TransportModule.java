@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
@@ -34,6 +35,8 @@ import org.elasticsearch.transport.netty.NettyTransportModule;
 public class TransportModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
+    
+    public static final String TRANSPORT_TYPE_KEY = "transport.type";
 
     public TransportModule(Settings settings) {
         this.settings = settings;
@@ -42,12 +45,12 @@ public class TransportModule extends AbstractModule implements SpawnModules {
     @Override
     public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> defaultTransportModule;
-        if (settings.getAsBoolean("node.local", false)) {
+        if (DiscoveryNode.localNode(settings)) {
             defaultTransportModule = LocalTransportModule.class;
         } else {
             defaultTransportModule = NettyTransportModule.class;
         }
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass(TRANSPORT_TYPE_KEY, defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
     }
 
     @Override

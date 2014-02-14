@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -31,6 +31,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 
 /**
@@ -65,6 +66,68 @@ public class MoreLikeThisQuery extends Query {
         this.likeText = likeText;
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = boostTerms ? 1 : 0;
+        result = 31 * result + Float.floatToIntBits(boostTermsFactor);
+        result = 31 * result + likeText.hashCode();
+        result = 31 * result + maxDocFreq;
+        result = 31 * result + maxQueryTerms;
+        result = 31 * result + maxWordLen;
+        result = 31 * result + minDocFreq;
+        result = 31 * result + minTermFrequency;
+        result = 31 * result + minWordLen;
+        result = 31 * result + Arrays.hashCode(moreLikeFields);
+        result = 31 * result + Float.floatToIntBits(percentTermsToMatch);
+        result = 31 * result + (stopWords == null ? 0 : stopWords.hashCode());
+        result = 31 * result + Float.floatToIntBits(getBoost());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass())
+            return false;
+        MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
+        if (getBoost() != other.getBoost())
+            return false;
+        if (!analyzer.equals(other.analyzer))
+            return false;
+        if (boostTerms != other.boostTerms)
+            return false;
+        if (boostTermsFactor != other.boostTermsFactor)
+            return false;
+        if (!likeText.equals(other.likeText))
+            return false;
+        if (maxDocFreq != other.maxDocFreq)
+            return false;
+        if (maxQueryTerms != other.maxQueryTerms)
+            return false;
+        if (maxWordLen != other.maxWordLen)
+            return false;
+        if (minDocFreq != other.minDocFreq)
+            return false;
+        if (minTermFrequency != other.minTermFrequency)
+            return false;
+        if (minWordLen != other.minWordLen)
+            return false;
+        if (!Arrays.equals(moreLikeFields, other.moreLikeFields))
+            return false;
+        if (percentTermsToMatch != other.percentTermsToMatch)
+            return false;
+        if (similarity == null) {
+            if (other.similarity != null)
+                return false;
+        } else if (!similarity.equals(other.similarity))
+            return false;
+        if (stopWords == null) {
+            if (other.stopWords != null)
+                return false;
+        } else if (!stopWords.equals(other.stopWords))
+            return false;
+        return true;
     }
 
     @Override
@@ -212,4 +275,3 @@ public class MoreLikeThisQuery extends Query {
         this.boostTermsFactor = boostTermsFactor;
     }
 }
-

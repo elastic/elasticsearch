@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.common.lucene.all;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
@@ -40,12 +40,18 @@ public class AllEntries extends Reader {
     public static class Entry {
         private final String name;
         private final FastStringReader reader;
+        private final int startOffset;
         private final float boost;
 
-        public Entry(String name, FastStringReader reader, float boost) {
+        public Entry(String name, FastStringReader reader, int startOffset, float boost) {
             this.name = name;
             this.reader = reader;
+            this.startOffset = startOffset;
             this.boost = boost;
+        }
+
+        public int startOffset() {
+            return startOffset;
         }
 
         public String name() {
@@ -75,7 +81,15 @@ public class AllEntries extends Reader {
         if (boost != 1.0f) {
             customBoost = true;
         }
-        Entry entry = new Entry(name, new FastStringReader(text), boost);
+        final int lastStartOffset;
+        if (entries.isEmpty()) {
+            lastStartOffset = -1;
+        } else {
+            final Entry last = entries.get(entries.size() - 1);
+            lastStartOffset = last.startOffset() + last.reader().length();
+        }
+        final int startOffset = lastStartOffset + 1; // +1 because we insert a space between tokens
+        Entry entry = new Entry(name, new FastStringReader(text), startOffset, boost);
         entries.add(entry);
     }
 
@@ -96,7 +110,7 @@ public class AllEntries extends Reader {
                 entry.reader().reset();
             }
         } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("should not happen");
+            throw new ElasticsearchIllegalStateException("should not happen");
         }
         it = entries.iterator();
         if (it.hasNext()) {
@@ -129,8 +143,25 @@ public class AllEntries extends Reader {
         return fields;
     }
 
-    public Entry current() {
-        return this.current;
+    // compute the boost for a token with the given startOffset
+    public float boost(int startOffset) {
+        if (!entries.isEmpty()) {
+            int lo = 0, hi = entries.size() - 1;
+            while (lo <= hi) {
+                final int mid = (lo + hi) >>> 1;
+                final int midOffset = entries.get(mid).startOffset();
+                if (startOffset < midOffset) {
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            final int index = Math.max(0, hi); // protection against broken token streams
+            assert entries.get(index).startOffset() <= startOffset;
+            assert index == entries.size() - 1 || entries.get(index + 1).startOffset() > startOffset;
+            return entries.get(index).boost();
+        }
+        return 1.0f;
     }
 
     @Override
@@ -186,7 +217,7 @@ public class AllEntries extends Reader {
     @Override
     public void close() {
         if (current != null) {
-            current.reader().close();
+            // no need to close, these are readers on strings
             current = null;
         }
     }

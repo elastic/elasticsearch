@@ -1,0 +1,76 @@
+[[modules-indices]]
+== Indices
+
+The indices module allow to control settings that are globally managed
+for all indices.
+
+[float]
+[[buffer]]
+=== Indexing Buffer
+
+The indexing buffer setting allows to control how much memory will be
+allocated for the indexing process. It is a global setting that bubbles
+down to all the different shards allocated on a specific node.
+
+The `indices.memory.index_buffer_size` accepts either a percentage or a
+byte size value. It defaults to `10%`, meaning that `10%` of the total
+memory allocated to a node will be used as the indexing buffer size.
+This amount is then divided between all the different shards. Also, if
+percentage is used, allow to set `min_index_buffer_size` (defaults to
+`48mb`) and `max_index_buffer_size` which by default is unbounded.
+
+The `indices.memory.min_shard_index_buffer_size` allows to set a hard
+lower limit for the memory allocated per shard for its own indexing
+buffer. It defaults to `4mb`.
+
+[float]
+[[indices-ttl]]
+=== TTL interval
+
+You can dynamically set the `indices.ttl.interval` allows to set how
+often expired documents will be automatically deleted. The default value
+is 60s.
+
+The deletion orders are processed by bulk. You can set
+`indices.ttl.bulk_size` to fit your needs. The default value is 10000.
+
+See also <<mapping-ttl-field>>.
+
+[float]
+[[recovery]]
+=== Recovery
+
+The following settings can be set to manage recovery policy:
+
+[horizontal]
+`indices.recovery.concurrent_streams`::
+    defaults to `3`.
+
+`indices.recovery.file_chunk_size`::
+    defaults to `512kb`.
+
+`indices.recovery.translog_ops`::
+    defaults to `1000`.
+
+`indices.recovery.translog_size`::
+    defaults to `512kb`.
+
+`indices.recovery.compress`::
+    defaults to `true`.
+
+`indices.recovery.max_bytes_per_sec`::
+    defaults to `20mb`.
+
+[float]
+[[throttling]]
+=== Store level throttling
+
+The following settings can be set to control store throttling:
+
+[horizontal]
+`indices.store.throttle.type`::
+    could be `merge` (default), `not` or `all`. See <<index-modules-store>>.
+
+`indices.store.throttle.max_bytes_per_sec`::
+    defaults to `20mb`.
+

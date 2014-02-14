@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,7 +22,7 @@ package org.elasticsearch.indices.store;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
@@ -72,7 +72,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         this.nodeEnv = nodeEnv;
     }
 
-    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds, @Nullable TimeValue timeout) {
+    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, String[] nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
@@ -123,24 +123,24 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticSearchException {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticsearchException {
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {
-                return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
             if (!indexService.hasShard(request.shardId.id())) {
-                return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
         }
         IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.index().name());
         if (metaData == null) {
-            return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+            return new NodeStoreFilesMetaData(clusterService.localNode(), null);
         }
         try {
-            return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), listStoreMetaData(request.shardId));
+            return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
-            throw new ElasticSearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
+            throw new ElasticsearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
         }
     }
 

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -75,7 +75,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected abstract String transportAction();
 
-    protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticSearchException;
+    protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 
@@ -105,7 +105,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     /**
      * Should return an iterator with a single shard!
      */
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticsearchException;
 
     class AsyncSingleAction {
 
@@ -128,7 +128,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             start(false);
         }
 
-        public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
+        public boolean start(final boolean fromClusterEvent) throws ElasticsearchException {
             final ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
             try {
@@ -184,20 +184,31 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             request.shardId = shardIt.shardId().id();
             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                 request.beforeLocalFork();
-                threadPool.executor(executor).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            shardOperation(request, listener);
-                        } catch (Exception e) {
-                            if (retryOnFailure(e)) {
-                                retry(fromClusterEvent, null);
-                            } else {
-                                listener.onFailure(e);
+                try {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                shardOperation(request, listener);
+                            } catch (Throwable e) {
+                                if (retryOnFailure(e)) {
+                                    operationStarted.set(false);
+                                    // we already marked it as started when we executed it (removed the listener) so pass false
+                                    // to re-add to the cluster listener
+                                    retry(false, null);
+                                } else {
+                                    listener.onFailure(e);
+                                }
                             }
                         }
+                    });
+                } catch (Throwable e) {
+                    if (retryOnFailure(e)) {
+                        retry(fromClusterEvent, null);
+                    } else {
+                        listener.onFailure(e);
                     }
-                });
+                }
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
                 transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {

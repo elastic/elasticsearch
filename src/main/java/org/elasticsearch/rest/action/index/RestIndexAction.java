@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -79,7 +79,6 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-        indexRequest.percolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
@@ -110,18 +109,11 @@ public class RestIndexAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
-                            .field(Fields.OK, true)
                             .field(Fields._INDEX, response.getIndex())
                             .field(Fields._TYPE, response.getType())
                             .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion());
-                    if (response.getMatches() != null) {
-                        builder.startArray(Fields.MATCHES);
-                        for (String match : response.getMatches()) {
-                            builder.value(match);
-                        }
-                        builder.endArray();
-                    }
+                            .field(Fields._VERSION, response.getVersion())
+                            .field(Fields.CREATED, response.isCreated());
                     builder.endObject();
                     RestStatus status = OK;
                     if (response.isCreated()) {
@@ -145,12 +137,11 @@ public class RestIndexAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString CREATED = new XContentBuilderString("created");
     }
 
 }

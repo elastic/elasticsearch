@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
@@ -35,6 +35,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -48,19 +49,21 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
+    private final int shardSize;
 
-    final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
+    final Recycler.V<DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> entries;
     long missing;
 
     public TermsStatsDoubleFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
-                                         int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
+                                         int size, int shardSize, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
 
-        this.entries = CacheRecycler.popDoubleObjectMap();
+        this.entries = context.cacheRecycler().doubleObjectMap(-1);
     }
 
     @Override
@@ -70,17 +73,27 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (entries.isEmpty()) {
+        if (entries.v().isEmpty()) {
+            entries.release();
             return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsDoubleFacet.DoubleEntry>of(), missing);
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.valueCollection(), missing);
+            List<InternalTermsStatsDoubleFacet.DoubleEntry> doubleEntries = new ArrayList<InternalTermsStatsDoubleFacet.DoubleEntry>(entries.v().size());
+            boolean[] states = entries.v().allocated;
+            Object[] values = entries.v().values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    doubleEntries.add((InternalTermsStatsDoubleFacet.DoubleEntry) values[i]);
+                }
+            }
+            entries.release();
+            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, doubleEntries, missing);
         }
-        Object[] values = entries.internalValues();
+        Object[] values = entries.v().values;
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
-        int limit = size;
+        int limit = shardSize;
         List<InternalTermsStatsDoubleFacet.DoubleEntry> ordered = Lists.newArrayList();
         for (int i = 0; i < limit; i++) {
             InternalTermsStatsDoubleFacet.DoubleEntry value = (InternalTermsStatsDoubleFacet.DoubleEntry) values[i];
@@ -90,7 +103,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
             ordered.add(value);
         }
 
-        CacheRecycler.pushDoubleObjectMap(entries);
+        entries.release();
         return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ordered, missing);
     }
 
@@ -101,9 +114,9 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script == null) {
-                this.aggregator = new Aggregator(entries);
+                this.aggregator = new Aggregator(entries.v());
             } else {
-                this.aggregator = new ScriptAggregator(entries, script);
+                this.aggregator = new ScriptAggregator(entries.v(), script);
             }
         }
 
@@ -137,12 +150,12 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     public static class Aggregator extends DoubleFacetAggregatorBase {
 
-        final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
+        final DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
         int missing;
         DoubleValues valueFieldData;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public Aggregator(ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries) {
+        public Aggregator(DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries) {
             this.entries = entries;
         }
 
@@ -181,7 +194,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         private final SearchScript script;
 
-        public ScriptAggregator(ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries, SearchScript script) {
+        public ScriptAggregator(DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries, SearchScript script) {
             super(entries);
             this.script = script;
         }

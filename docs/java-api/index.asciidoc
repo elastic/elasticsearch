@@ -1,0 +1,61 @@
+[[java-api]]
+= Java API
+:ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current
+
+[preface]
+== Preface
+This section describes the Java API that elasticsearch provides. All
+elasticsearch operations are executed using a
+<<client,Client>> object. All
+operations are completely asynchronous in nature (either accepts a
+listener, or return a future).
+
+Additionally, operations on a client may be accumulated and executed in
+<<bulk,Bulk>>.
+
+Note, all the APIs are exposed through the
+Java API (actually, the Java API is used internally to execute them).
+
+
+== Maven Repository
+
+Elasticsearch is hosted on
+http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch%22[Maven
+Central].
+
+For example, you can define the latest version in your `pom.xml` file:
+
+[source,xml]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch</groupId>
+    <artifactId>elasticsearch</artifactId>
+    <version>${es.version}</version>
+</dependency>
+--------------------------------------------------
+
+
+include::client.asciidoc[]
+
+include::index_.asciidoc[]
+
+include::get.asciidoc[]
+
+include::delete.asciidoc[]
+
+include::bulk.asciidoc[]
+
+include::search.asciidoc[]
+
+include::count.asciidoc[]
+
+include::delete-by-query.asciidoc[]
+
+include::facets.asciidoc[]
+
+include::percolate.asciidoc[]
+
+include::query-dsl-queries.asciidoc[]
+
+include::query-dsl-filters.asciidoc[]
+

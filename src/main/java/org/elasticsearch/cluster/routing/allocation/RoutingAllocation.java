@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,11 +19,13 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -92,9 +94,13 @@ public class RoutingAllocation {
 
     private final AllocationExplanation explanation = new AllocationExplanation();
 
+    private final ClusterInfo clusterInfo;
+
     private Map<ShardId, String> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
+
+    private boolean debugDecision = false;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -103,10 +109,11 @@ public class RoutingAllocation {
      * @param routingNodes Routing nodes in the current cluster 
      * @param nodes TODO: Documentation
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.nodes = nodes;
+        this.clusterInfo = clusterInfo;
     }
 
     /**
@@ -149,6 +156,10 @@ public class RoutingAllocation {
         return nodes;
     }
 
+    public ClusterInfo clusterInfo() {
+        return clusterInfo;
+    }
+
     /**
      * Get explanations of current routing
      * @return explanation of routing
@@ -165,6 +176,14 @@ public class RoutingAllocation {
         return this.ignoreDisable;
     }
 
+    public void debugDecision(boolean debug) {
+        this.debugDecision = debug;
+    }
+
+    public boolean debugDecision() {
+        return this.debugDecision;
+    }
+
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
             ignoredShardToNodes = new HashMap<ShardId, String>();
@@ -174,5 +193,17 @@ public class RoutingAllocation {
 
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
         return ignoredShardToNodes != null && nodeId.equals(ignoredShardToNodes.get(shardId));
+    }
+
+    /**
+     * Create a routing decision, including the reason if the debug flag is
+     * turned on
+     */
+    public Decision decision(Decision decision, String reason, Object... params) {
+        if (debugDecision()) {
+            return Decision.single(decision.type(), reason, params);
+        } else {
+            return decision;
+        }
     }
 }

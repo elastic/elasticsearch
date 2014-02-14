@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,11 +21,11 @@ package org.elasticsearch.indices.fielddata.cache;
 
 import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,7 +39,6 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -59,8 +58,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     public IndicesFieldDataCache(Settings settings) {
         super(settings);
         this.size = componentSettings.get("size", "-1");
+        this.sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
         this.expire = componentSettings.getAsTime("expire", null);
-        computeSizeInBytes();
         buildCache();
     }
 
@@ -79,17 +78,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         cache = cacheBuilder.build();
     }
 
-    private void computeSizeInBytes() {
-        if (size.equals("-1")) {
-            sizeInBytes = -1;
-        } else if (size.endsWith("%")) {
-            double percent = Double.parseDouble(size.substring(0, size.length() - 1));
-            sizeInBytes = (long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
-        } else {
-            sizeInBytes = ByteSizeValue.parseBytesSizeValue(size).bytes();
-        }
-    }
-
     public void close() {
         cache.invalidateAll();
     }
@@ -100,14 +88,17 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
     @Override
     public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-        if (notification.getKey() != null && notification.getKey().listener != null) {
-            IndexFieldCache indexCache = notification.getKey().indexCache;
-            long sizeInBytes = notification.getKey().sizeInBytes;
-            if (sizeInBytes == -1 && notification.getValue() != null) {
-                sizeInBytes = notification.getValue().getMemorySizeInBytes();
-            }
-            notification.getKey().listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes, notification.getValue());
+        Key key = notification.getKey();
+        if (key == null || key.listener == null) {
+            return; // nothing to do here really...
         }
+        IndexFieldCache indexCache = key.indexCache;
+        long sizeInBytes = key.sizeInBytes;
+        AtomicFieldData value = notification.getValue();
+        if (sizeInBytes == -1 && value != null) {
+            sizeInBytes = value.getMemorySizeInBytes();
+        }
+        key.listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes, value);
     }
 
     public static class FieldDataWeigher implements Weigher<Key, AtomicFieldData> {
@@ -144,9 +135,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             return (FD) cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    if (context.reader() instanceof SegmentReader) {
-                        ((SegmentReader) context.reader()).addCoreClosedListener(IndexFieldCache.this);
-                    }
+                    SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
 
                     if (indexService != null) {
@@ -169,8 +158,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public void onClose(SegmentReader owner) {
-            cache.invalidate(new Key(this, owner.getCoreCacheKey()));
+        public void onClose(Object coreKey) {
+            cache.invalidate(new Key(this, coreKey));
         }
 
         @Override
@@ -194,8 +183,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            cache.invalidate(new Key(this, reader.getCoreCacheKey()));
+        public void clear(Object coreCacheKey) {
+            cache.invalidate(new Key(this, coreCacheKey));
         }
     }
 

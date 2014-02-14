@@ -1,0 +1,145 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.create:
+        index: test_idx
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.put_warmer:
+        index: test_idx
+        name: test_warmer2
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      indices.put_warmer:
+        index: test_index
+        name: test_warmer
+        body:
+          query:
+            match_all: {}
+
+---
+"Basic test for warmers":
+  - do:
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+
+  - do:
+      indices.delete_warmer:
+        index: test_index
+        name: test_warmer
+
+  - do:
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer
+  
+  - match: { '': {}}
+
+---
+"Getting all warmers via /_warmer should work":
+
+  - do:
+      indices.get_warmer: {}
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+
+---
+"Getting warmers for several indices should work using *":
+
+  - do:
+      indices.get_warmer:
+        index: '*'
+        name: '*'
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+---
+"Getting warmers for several indices should work using _all":
+
+  - do:
+      indices.get_warmer:
+        index: _all
+        name: _all
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+---
+"Getting all warmers without specifying index should work":
+
+  - do:
+      indices.get_warmer:
+        name: _all
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+---
+"Getting warmers for several indices should work using prefix*":
+
+  - do:
+      indices.get_warmer:
+        index: test_i*
+        name: test_w*
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+---
+"Getting warmers for several indices should work using comma-separated lists":
+
+  - do:
+      indices.get_warmer:
+        index: test_index,test_idx
+        name: test_warmer,test_warmer2
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_idx.warmers.test_warmer2.source.query.match_all: {}}
+
+---
+"Getting a non-existent warmer on an existing index should return an empty body":
+
+  - do:
+      indices.get_warmer:
+        index: test_index
+        name: non-existent
+
+  - match: { '': {}}
+
+---
+"Getting an existent and non-existent warmer should return the existent and no data about the non-existent warmer":
+  
+  - do:
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer,non-existent
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - is_false: test_index.warmers.non-existent
+
+--- 
+"Getting warmer on an non-existent index should return 404":
+
+  - do:
+      catch: missing
+      indices.get_warmer:
+        index: non-existent
+        name: foo
+

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,18 +18,14 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -44,6 +40,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private SmoothingModel model;
     private Boolean forceUnigrams;
     private Integer tokenLimit;
+    private String preTag;
+    private String postTag;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -56,7 +54,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      */
     public PhraseSuggestionBuilder gramSize(int gramSize) {
         if (gramSize < 1) {
-            throw new ElasticSearchIllegalArgumentException("gramSize must be >= 1");
+            throw new ElasticsearchIllegalArgumentException("gramSize must be >= 1");
         }
         this.gramSize = gramSize;
         return this;
@@ -123,6 +121,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         list.add(generator);
         return this;
     }
+
+    /**
+     * Clear the candidate generators.
+     */
+    public PhraseSuggestionBuilder clearCandidateGenerators() {
+        this.generators.clear();
+        return this;
+    }
     
     /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
@@ -144,6 +150,19 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
         this.tokenLimit = tokenLimit;
+        return this;
+    }
+
+    /**
+     * Setup highlighting for suggestions.  If this is called a highlight field
+     * is returned with suggestions wrapping changed tokens with preTag and postTag.
+     */
+    public PhraseSuggestionBuilder highlight(String preTag, String postTag) {
+        if ((preTag == null) != (postTag == null)) {
+            throw new ElasticsearchIllegalArgumentException("Pre and post tag must both be null or both not be null.");
+        }
+        this.preTag = preTag;
+        this.postTag = postTag;
         return this;
     }
 
@@ -183,6 +202,12 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         if (model != null) {
             builder.startObject("smoothing");
             model.toXContent(builder, params);
+            builder.endObject();
+        }
+        if (preTag != null) {
+            builder.startObject("highlight");
+            builder.field("pre_tag", preTag);
+            builder.field("post_tag", postTag);
             builder.endObject();
         }
         return builder;
@@ -401,7 +426,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
          */
         public DirectCandidateGenerator size(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticsearchIllegalArgumentException("Size must be positive");
             }
             this.size = size;
             return this;
@@ -565,10 +590,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
                 builder.field("max_term_freq", maxTermFreq);
             }
             if (prefixLength != null) {
-                builder.field("prefix_len", prefixLength);
+                builder.field("prefix_length", prefixLength);
             }
             if (minWordLength != null) {
-                builder.field("min_word_len", minWordLength);
+                builder.field("min_word_length", minWordLength);
             }
             if (minDocFreq != null) {
                 builder.field("min_doc_freq", minDocFreq);

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,8 +33,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
+ * Request to submit cluster reroute allocation commands
  */
-public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRerouteRequest> {
+public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
 
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
@@ -60,6 +61,10 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         return this;
     }
 
+    /**
+     * Returns the current dry run flag which allows to run the commands without actually applying them,
+     * just to get back the resulting cluster state back.
+     */
     public boolean dryRun() {
         return this.dryRun;
     }
@@ -79,13 +84,13 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
                     if ("commands".equals(currentFieldName)) {
                         this.commands = AllocationCommands.fromXContent(parser);
                     } else {
-                        throw new ElasticSearchParseException("failed to parse reroute request, got start array with wrong field name [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("dry_run".equals(currentFieldName) || "dryRun".equals(currentFieldName)) {
                         dryRun = parser.booleanValue();
                     } else {
-                        throw new ElasticSearchParseException("failed to parse reroute request, got value with wrong field name [" + currentFieldName + "]");
+                        throw new ElasticsearchParseException("failed to parse reroute request, got value with wrong field name [" + currentFieldName + "]");
                     }
                 }
             }
@@ -105,6 +110,7 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         super.readFrom(in);
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
+        readTimeout(in);
     }
 
     @Override
@@ -112,5 +118,6 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         super.writeTo(out);
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
+        writeTimeout(out);
     }
 }

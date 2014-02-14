@@ -1,0 +1,78 @@
+[[analysis-stemmer-tokenfilter]]
+=== Stemmer Token Filter
+
+A filter that stems words (similar to `snowball`, but with more
+options). The `language`/`name` parameter controls the stemmer with the
+following available values:
+
+http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Far%2FArabicStemmer.html[arabic],
+http://snowball.tartarus.org/algorithms/armenian/stemmer.html[armenian],
+http://snowball.tartarus.org/algorithms/basque/stemmer.html[basque],
+http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Fbr%2FBrazilianStemmer.html[brazilian],
+http://members.unine.ch/jacques.savoy/Papers/BUIR.pdf[bulgarian],
+http://snowball.tartarus.org/algorithms/catalan/stemmer.html[catalan],
+http://portal.acm.org/citation.cfm?id=1598600[czech],
+http://snowball.tartarus.org/algorithms/danish/stemmer.html[danish],
+http://snowball.tartarus.org/algorithms/dutch/stemmer.html[dutch],
+http://snowball.tartarus.org/algorithms/english/stemmer.html[english],
+http://snowball.tartarus.org/algorithms/finnish/stemmer.html[finnish],
+http://snowball.tartarus.org/algorithms/french/stemmer.html[french],
+http://snowball.tartarus.org/algorithms/german/stemmer.html[german],
+http://snowball.tartarus.org/algorithms/german2/stemmer.html[german2],
+http://sais.se/mthprize/2007/ntais2007.pdf[greek],
+http://snowball.tartarus.org/algorithms/hungarian/stemmer.html[hungarian],
+http://snowball.tartarus.org/algorithms/italian/stemmer.html[italian],
+http://snowball.tartarus.org/algorithms/kraaij_pohlmann/stemmer.html[kp],
+http://ciir.cs.umass.edu/pubfiles/ir-35.pdf[kstem],
+http://snowball.tartarus.org/algorithms/lovins/stemmer.html[lovins],
+http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Flv%2FLatvianStemmer.html[latvian],
+http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[norwegian],
+http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Fno%2FNorwegianMinimalStemFilter.html[minimal_norwegian],
+http://snowball.tartarus.org/algorithms/porter/stemmer.html[porter],
+http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[portuguese],
+http://snowball.tartarus.org/algorithms/romanian/stemmer.html[romanian],
+http://snowball.tartarus.org/algorithms/russian/stemmer.html[russian],
+http://snowball.tartarus.org/algorithms/spanish/stemmer.html[spanish],
+http://snowball.tartarus.org/algorithms/swedish/stemmer.html[swedish],
+http://snowball.tartarus.org/algorithms/turkish/stemmer.html[turkish],
+http://www.medialab.tfe.umu.se/courses/mdm0506a/material/fulltext_ID%3D10049387%26PLACEBO%3DIE.pdf[minimal_english],
+http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Fen%2FEnglishPossessiveFilter.html[possessive_english],
+http://clef.isti.cnr.it/2003/WN_web/22.pdf[light_finnish],
+http://dl.acm.org/citation.cfm?id=1141523[light_french],
+http://dl.acm.org/citation.cfm?id=318984[minimal_french],
+http://dl.acm.org/citation.cfm?id=1141523[light_german],
+http://members.unine.ch/jacques.savoy/clef/morpho.pdf[minimal_german],
+http://computing.open.ac.uk/Sites/EACLSouthAsia/Papers/p6-Ramanathan.pdf[hindi],
+http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[light_hungarian],
+http://www.illc.uva.nl/Publications/ResearchReports/MoL-2003-02.text.pdf[indonesian],
+http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[light_italian],
+http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[light_portuguese],
+http://www.inf.ufrgs.br/\~buriol/papers/Orengo_CLEF07.pdf[minimal_portuguese],
+http://www.inf.ufrgs.br/\~viviane/rslp/index.htm[portuguese],
+http://doc.rero.ch/lm.php?url=1000%2C43%2C4%2C20091209094227-CA%2FDolamic_Ljiljana_-_Indexing_and_Searching_Strategies_for_the_Russian_20091209.pdf[light_russian],
+http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[light_spanish],
+http://clef.isti.cnr.it/2003/WN_web/22.pdf[light_swedish].
+
+For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "my_stemmer"]
+                }
+            },
+            "filter" : {
+                "my_stemmer" : {
+                    "type" : "stemmer",
+                    "name" : "light_german"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,13 +20,12 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.CloseableComponent;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +49,7 @@ import java.util.List;
  */
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
+    static final String INDEX_CODEC = "index.codec";
     static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
 
     /**
@@ -80,8 +81,23 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     GetResult get(Get get) throws EngineException;
 
-    Searcher searcher() throws EngineException;
+    /**
+     * Returns a new searcher instance. The consumer of this
+     * API is responsible for releasing the returned seacher in a
+     * safe manner, preferably in a try/finally block.
+     *
+     * @see Searcher#release()
+     */
+    Searcher acquireSearcher(String source) throws EngineException;
 
+    /**
+     * Global stats on segments.
+     */
+    SegmentsStats segmentsStats();
+
+    /**
+     * The list of segments in the engine.
+     */
     List<Segment> segments();
 
     /**
@@ -138,11 +154,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      */
     static interface RecoveryHandler {
 
-        void phase1(SnapshotIndexCommit snapshot) throws ElasticSearchException;
+        void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException;
 
-        void phase2(Translog.Snapshot snapshot) throws ElasticSearchException;
+        void phase2(Translog.Snapshot snapshot) throws ElasticsearchException;
 
-        void phase3(Translog.Snapshot snapshot) throws ElasticSearchException;
+        void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
     }
 
     static interface SnapshotHandler<T> {
@@ -152,6 +168,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static interface Searcher extends Releasable {
 
+        /**
+         * The source that caused this searcher to be acquired.
+         */
+        String source();
+
         IndexReader reader();
 
         IndexSearcher searcher();
@@ -159,10 +180,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class SimpleSearcher implements Searcher {
 
+        private final String source;
         private final IndexSearcher searcher;
 
-        public SimpleSearcher(IndexSearcher searcher) {
+        public SimpleSearcher(String source, IndexSearcher searcher) {
+            this.source = source;
             this.searcher = searcher;
+        }
+
+        @Override
+        public String source() {
+            return source;
         }
 
         @Override
@@ -176,7 +204,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         @Override
-        public boolean release() throws ElasticSearchException {
+        public boolean release() throws ElasticsearchException {
             // nothing to release here...
             return true;
         }
@@ -184,14 +212,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Refresh {
 
-        private final boolean waitForOperations;
-
+        private final String source;
         private boolean force = false;
 
-        public Refresh(boolean waitForOperations) {
-            this.waitForOperations = waitForOperations;
+        public Refresh(String source) {
+            this.source = source;
         }
 
+        /**
+         * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
+         * to true (note, still lightweight if no refresh is needed).
+         */
         public Refresh force(boolean force) {
             this.force = force;
             return this;
@@ -201,13 +232,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.force;
         }
 
-        public boolean waitForOperations() {
-            return waitForOperations;
+        public String source() {
+            return this.source;
         }
 
         @Override
         public String toString() {
-            return "waitForOperations[" + waitForOperations + "]";
+            return "force[" + force + "], source [" + source + "]";
         }
     }
 
@@ -229,27 +260,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         private Type type = Type.COMMIT_TRANSLOG;
-        private boolean refresh = false;
         private boolean force = false;
         /**
          * Should the flush operation wait if there is an ongoing flush operation.
          */
         private boolean waitIfOngoing = false;
-
-        /**
-         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
-         */
-        public boolean refresh() {
-            return this.refresh;
-        }
-
-        /**
-         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
-         */
-        public Flush refresh(boolean refresh) {
-            this.refresh = refresh;
-            return this;
-        }
 
         public Type type() {
             return this.type;
@@ -283,7 +298,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         @Override
         public String toString() {
-            return "type[" + type + "], refresh[" + refresh + "], force[" + force + "]";
+            return "type[" + type + "], force[" + force + "]";
         }
     }
 
@@ -292,7 +307,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private int maxNumSegments = -1;
         private boolean onlyExpungeDeletes = false;
         private boolean flush = false;
-        private boolean refresh = false;
 
         public Optimize() {
         }
@@ -333,18 +347,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        public boolean refresh() {
-            return refresh;
-        }
-
-        public Optimize refresh(boolean refresh) {
-            this.refresh = refresh;
-            return this;
-        }
-
         @Override
         public String toString() {
-            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], refresh[" + refresh + "]";
+            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "]";
         }
     }
 
@@ -651,7 +656,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
-        private boolean notFound;
+        private boolean found;
 
         private long startTime;
         private long endTime;
@@ -710,12 +715,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.versionType;
         }
 
-        public boolean notFound() {
-            return this.notFound;
+        public boolean found() {
+            return this.found;
         }
 
-        public Delete notFound(boolean notFound) {
-            this.notFound = notFound;
+        public Delete found(boolean found) {
+            this.found = found;
             return this;
         }
 
@@ -751,6 +756,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Filter aliasFilter;
         private final String[] types;
         private final Filter parentFilter;
+        private Operation.Origin origin = Operation.Origin.PRIMARY;
 
         private long startTime;
         private long endTime;
@@ -792,6 +798,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return parentFilter;
         }
 
+        public DeleteByQuery origin(Operation.Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        public Operation.Origin origin() {
+            return this.origin;
+        }
+
         public DeleteByQuery startTime(long startTime) {
             this.startTime = startTime;
             return this;
@@ -822,6 +837,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final boolean realtime;
         private final Term uid;
         private boolean loadSource = true;
+        private long version;
+        private VersionType versionType;
 
         public Get(boolean realtime, Term uid) {
             this.realtime = realtime;
@@ -842,6 +859,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Get loadSource(boolean loadSource) {
             this.loadSource = loadSource;
+            return this;
+        }
+
+        public long version() {
+            return version;
+        }
+
+        public Get version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return versionType;
+        }
+
+        public Get versionType(VersionType versionType) {
+            this.versionType = versionType;
             return this;
         }
     }

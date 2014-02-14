@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 
 import java.util.Set;
 
@@ -81,15 +82,11 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FuzzyQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(RegexpQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FieldQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(RangeQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(PrefixQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(WildcardQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FilteredQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(ConstantScoreQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(CustomBoostFactorQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(CustomScoreQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(CustomFiltersScoreQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanTermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanNotQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FieldMaskingSpanQueryParser.class).asEagerSingleton();
@@ -104,6 +101,8 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(IndicesQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(CommonTermsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanMultiTermQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FunctionScoreQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(SimpleQueryStringParser.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             qpBinders.addBinding().to(GeoShapeQueryParser.class).asEagerSingleton();
@@ -132,7 +131,7 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoBoundingBoxFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(GeohashFilter.Parser.class).asEagerSingleton();
+        fpBinders.addBinding().to(GeohashCellFilter.Parser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoPolygonFilterParser.class).asEagerSingleton();
         if (ShapesAvailability.JTS_AVAILABLE) {
             fpBinders.addBinding().to(GeoShapeFilterParser.class).asEagerSingleton();

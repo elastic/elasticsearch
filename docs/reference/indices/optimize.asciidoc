@@ -1,0 +1,51 @@
+[[indices-optimize]]
+== Optimize
+
+The optimize API allows to optimize one or more indices through an API.
+The optimize process basically optimizes the index for faster search
+operations (and relates to the number of segments a Lucene index holds
+within each shard). The optimize operation allows to reduce the number
+of segments by merging them.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter/_optimize'
+--------------------------------------------------
+
+[float]
+[[optimize-parameters]]
+=== Request Parameters
+
+The optimize API accepts the following request parameters:
+
+[horizontal]
+`max_num_segments`:: The number of segments to optimize to. To fully
+optimize the index, set it to `1`. Defaults to simply checking if a
+merge needs to execute, and if so, executes it.
+
+`only_expunge_deletes`:: Should the optimize process only expunge segments
+with deletes in it. In Lucene, a document is not deleted from a segment,
+just marked as deleted. During a merge process of segments, a new
+segment is created that does not have those deletes. This flag allow to
+only merge segments that have deletes. Defaults to `false`.
+
+`flush`::  Should a flush be performed after the optimize. Defaults to
+`true`.
+
+`wait_for_merge`:: Should the request wait for the merge to end. Defaults
+to `true`. Note, a merge can potentially be a very heavy operation, so
+it might make sense to run it set to `false`.
+
+[float]
+[[optimize-multi-index]]
+=== Multi Index
+
+The optimize API can be applied to more than one index with a single
+call, or even on `_all` the indices.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_optimize'
+
+$ curl -XPOST 'http://localhost:9200/_optimize'
+--------------------------------------------------

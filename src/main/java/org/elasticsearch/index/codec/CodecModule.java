@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,13 +20,17 @@
 package org.elasticsearch.index.codec;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormats;
+import org.elasticsearch.index.codec.docvaluesformat.PreBuiltDocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
@@ -35,9 +39,9 @@ import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvid
 import java.util.Map;
 
 /**
- * The {@link CodecModule} creates and loads the {@link CodecService} and
- * {@link PostingsFormatService} allowing low level data-structure
- * specialization on a Lucene Segment basis.
+ * The {@link CodecModule} creates and loads the {@link CodecService},
+ * {@link PostingsFormatService} and {@link DocValuesFormatService},
+ * allowing low level data-structure specialization on a Lucene Segment basis.
  * <p>
  * The codec module is the authoritative source for build-in and custom
  * {@link PostingsFormatProvider}. During module bootstrap it processes the
@@ -72,21 +76,25 @@ public class CodecModule extends AbstractModule {
 
     private final Settings indexSettings;
 
-    private Map<String, Class<? extends PostingsFormatProvider>> customProviders = Maps.newHashMap();
+    private final Map<String, Class<? extends PostingsFormatProvider>> customPostingsFormatProviders = Maps.newHashMap();
+    private final Map<String, Class<? extends DocValuesFormatProvider>> customDocValuesFormatProviders = Maps.newHashMap();
 
     public CodecModule(Settings indexSettings) {
         this.indexSettings = indexSettings;
     }
 
     public CodecModule addPostingFormat(String name, Class<? extends PostingsFormatProvider> provider) {
-        this.customProviders.put(name, provider);
+        this.customPostingsFormatProviders.put(name, provider);
         return this;
     }
 
-    @Override
-    protected void configure() {
+    public CodecModule addDocValuesFormat(String name, Class<? extends DocValuesFormatProvider> provider) {
+        this.customDocValuesFormatProviders.put(name, provider);
+        return this;
+    }
 
-        Map<String, Class<? extends PostingsFormatProvider>> postingFormatProviders = Maps.newHashMap(customProviders);
+    private void configurePostingsFormats() {
+        Map<String, Class<? extends PostingsFormatProvider>> postingFormatProviders = Maps.newHashMap(customPostingsFormatProviders);
 
         Map<String, Settings> postingsFormatsSettings = indexSettings.getGroups(PostingsFormatProvider.POSTINGS_FORMAT_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : postingsFormatsSettings.entrySet()) {
@@ -95,14 +103,14 @@ public class CodecModule extends AbstractModule {
 
             String sType = settings.get("type");
             if (sType == null || sType.trim().isEmpty()) {
-                throw new ElasticSearchIllegalArgumentException("PostingsFormat Factory [" + name + "] must have a type associated with it");
+                throw new ElasticsearchIllegalArgumentException("PostingsFormat Factory [" + name + "] must have a type associated with it");
             }
 
             Class<? extends PostingsFormatProvider> type;
             try {
                 type = settings.getAsClass("type", null, "org.elasticsearch.index.codec.postingsformat.", "PostingsFormatProvider");
             } catch (NoClassSettingsException e) {
-                throw new ElasticSearchIllegalArgumentException("The specified type [" + sType + "] for postingsFormat Factory [" + name + "] can't be found");
+                throw new ElasticsearchIllegalArgumentException("The specified type [" + sType + "] for postingsFormat Factory [" + name + "] can't be found");
             }
             postingFormatProviders.put(name, type);
         }
@@ -123,6 +131,53 @@ public class CodecModule extends AbstractModule {
         }
 
         bind(PostingsFormatService.class).asEagerSingleton();
+    }
+
+    private void configureDocValuesFormats() {
+        Map<String, Class<? extends DocValuesFormatProvider>> docValuesFormatProviders = Maps.newHashMap(customDocValuesFormatProviders);
+
+        Map<String, Settings> docValuesFormatSettings = indexSettings.getGroups(DocValuesFormatProvider.DOC_VALUES_FORMAT_SETTINGS_PREFIX);
+        for (Map.Entry<String, Settings> entry : docValuesFormatSettings.entrySet()) {
+            final String name = entry.getKey();
+            final Settings settings = entry.getValue();
+
+            final String sType = settings.get("type");
+            if (sType == null || sType.trim().isEmpty()) {
+                throw new ElasticsearchIllegalArgumentException("DocValuesFormat Factory [" + name + "] must have a type associated with it");
+            }
+
+            final Class<? extends DocValuesFormatProvider> type;
+            try {
+                type = settings.getAsClass("type", null, "org.elasticsearch.index.codec.docvaluesformat.", "DocValuesFormatProvider");
+            } catch (NoClassSettingsException e) {
+                throw new ElasticsearchIllegalArgumentException("The specified type [" + sType + "] for docValuesFormat Factory [" + name + "] can't be found");
+            }
+            docValuesFormatProviders.put(name, type);
+        }
+
+        // now bind
+        MapBinder<String, DocValuesFormatProvider.Factory> docValuesFormatFactoryBinder
+                = MapBinder.newMapBinder(binder(), String.class, DocValuesFormatProvider.Factory.class);
+
+        for (Map.Entry<String, Class<? extends DocValuesFormatProvider>> entry : docValuesFormatProviders.entrySet()) {
+            docValuesFormatFactoryBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(DocValuesFormatProvider.Factory.class, entry.getValue())).in(Scopes.SINGLETON);
+        }
+
+        for (PreBuiltDocValuesFormatProvider.Factory factory : DocValuesFormats.listFactories()) {
+            if (docValuesFormatProviders.containsKey(factory.name())) {
+                continue;
+            }
+            docValuesFormatFactoryBinder.addBinding(factory.name()).toInstance(factory);
+        }
+
+        bind(DocValuesFormatService.class).asEagerSingleton();
+    }
+
+    @Override
+    protected void configure() {
+        configurePostingsFormats();
+        configureDocValuesFormats();
+
         bind(CodecService.class).asEagerSingleton();
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,13 +23,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -76,7 +75,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         clear("close");
     }
 
@@ -105,19 +104,19 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void onClose(SegmentReader owner) {
-        clear(owner);
+    public void onClose(Object coreKey) {
+        clear(coreKey);
     }
 
     @Override
-    public void clear(IndexReader reader) {
+    public void clear(Object coreCacheKey) {
         // we add the seen reader before we add the first cache entry for this reader
         // so, if we don't see it here, its won't be in the cache
-        Boolean removed = seenReaders.remove(reader.getCoreCacheKey());
+        Boolean removed = seenReaders.remove(coreCacheKey);
         if (removed == null) {
             return;
         }
-        indicesFilterCache.addReaderKeyToClean(reader.getCoreCacheKey());
+        indicesFilterCache.addReaderKeyToClean(coreCacheKey);
     }
 
     @Override
@@ -186,7 +185,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
             // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
             // filter on its own
-            return cacheValue == DocIdSet.EMPTY_DOCIDSET ? null : cacheValue;
+            return DocIdSets.isEmpty(cacheValue) ? null : cacheValue;
         }
 
         public String toString() {

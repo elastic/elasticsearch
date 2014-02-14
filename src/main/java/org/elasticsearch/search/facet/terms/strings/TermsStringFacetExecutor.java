@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -44,6 +44,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     private final TermsFacet.ComparatorType comparatorType;
     private final SearchScript script;
 
+    private final int shardSize;
     private final int size;
 
     // the aggregation map
@@ -52,10 +53,11 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     private final boolean allTerms;
     private final HashedAggregator aggregator;
 
-    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, int shardSize, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                     ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.indexFieldData = indexFieldData;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.script = script;
         this.allTerms = allTerms;
@@ -79,7 +81,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         try {
-            return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+            return HashedAggregator.buildFacet(facetName, size, shardSize, missing, total, comparatorType, aggregator);
         } finally {
             aggregator.release();
         }
@@ -105,7 +107,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues();
+            values = indexFieldData.load(context).getBytesValues(true);
             if (script != null) {
                 script.setNextReader(context);
             }
@@ -124,39 +126,24 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     }
 
     static void loadAllTerms(SearchContext context, IndexFieldData indexFieldData, HashedAggregator aggregator) {
+
         for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
+                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues(false);
                 Ordinals.Docs ordinals = values.ordinals();
                 // 0 = docs with no value for field, so start from 1 instead
-                for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
                     BytesRef value = values.getValueByOrd(ord);
                     aggregator.addValue(value, value.hashCode(), values);
                 }
             } else {
-                BytesValues values = indexFieldData.load(readerContext).getBytesValues();
-                // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
-                if (values.isMultiValued()) {
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        if (!values.hasValue(docId)) {
-                            continue;
-                        }
-
-                        BytesValues.Iter iter = values.getIter(docId);
-                        while (iter.hasNext()) {
-                            aggregator.addValue(iter.next(), iter.hash(), values);
-                        }
-                    }
-                } else {
-                    BytesRef spare = new BytesRef();
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        if (!values.hasValue(docId)) {
-                            continue;
-                        }
-
-                        int hash = values.getValueHashed(docId, spare);
-                        aggregator.addValue(spare, hash, values);
+                BytesValues values = indexFieldData.load(readerContext).getBytesValues(true);
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    final int size = values.setDocument(docId);
+                    for (int i = 0; i < size; i++) {
+                        final BytesRef value = values.nextValue();
+                        aggregator.addValue(value, values.currentValueHash(), values);
                     }
                 }
             }

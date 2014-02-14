@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -37,27 +37,16 @@ public class FieldsParseElement implements SearchParseElement {
             boolean added = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 String name = parser.text();
-                if (name.contains("_source.") || name.contains("doc[")) {
-                    // script field to load from source
-                    SearchScript searchScript = context.scriptService().search(context.lookup(), "mvel", name, null);
-                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript, true));
-                } else {
-                    added = true;
-                    context.fieldNames().add(name);
-                }
+                added = true;
+                context.fieldNames().add(name);
             }
             if (!added) {
                 context.emptyFieldNames();
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
             String name = parser.text();
-            if (name.contains("_source.") || name.contains("doc[")) {
-                // script field to load from source
-                SearchScript searchScript = context.scriptService().search(context.lookup(), "mvel", name, null);
-                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, searchScript, true));
-            } else {
-                context.fieldNames().add(name);
-            }
+            context.fieldNames().add(name);
+
         }
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.gateway.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -142,7 +142,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     }
 
     @Override
-    protected void delete(IndexMetaData indexMetaData) throws ElasticSearchException {
+    protected void delete(IndexMetaData indexMetaData) throws ElasticsearchException {
         BlobPath indexPath = basePath().add("indices").add(indexMetaData.index());
         blobStore.delete(indexPath);
     }
@@ -150,24 +150,20 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     @Override
     public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            StreamOutput streamOutput;
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            StreamOutput stream = bStream;
             if (compress) {
-                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-            } else {
-                streamOutput = cachedEntry.bytes();
+                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
             }
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
             builder.startObject();
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            metaDataBlobContainer.writeBlob(newMetaData, cachedEntry.bytes().bytes().streamInput(), cachedEntry.bytes().size());
+            metaDataBlobContainer.writeBlob(newMetaData, bStream.bytes().streamInput(), bStream.bytes().length());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
 
         currentIndex++;

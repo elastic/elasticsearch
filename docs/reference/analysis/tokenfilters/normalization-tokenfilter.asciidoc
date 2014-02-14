@@ -1,0 +1,15 @@
+[[analysis-normalization-tokenfilter]]
+=== Normalization Token Filter
+
+There are several token filters available which try to normalize special
+characters of a certain language.
+
+You can currently choose between `arabic_normalization` and
+`persian_normalization` normalization in your token filter
+configuration. For more information check the
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/ar/ArabicNormalizer.html[ArabicNormalizer]
+or the
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/fa/PersianNormalizer.html[PersianNormalizer]
+documentation.
+
+*Note:* These filters are available since `0.90.2`

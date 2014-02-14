@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -42,7 +42,23 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
  */
 public class GeoBoundingBoxFilterParser implements FilterParser {
 
+    public static final String TOP = "top";
+    public static final String LEFT = "left";
+    public static final String RIGHT = "right";
+    public static final String BOTTOM = "bottom";
+
+    public static final String TOP_LEFT = TOP + "_" + LEFT;
+    public static final String TOP_RIGHT = TOP + "_" + RIGHT;
+    public static final String BOTTOM_LEFT = BOTTOM + "_" + LEFT;
+    public static final String BOTTOM_RIGHT = BOTTOM + "_" + RIGHT;
+
+    public static final String TOPLEFT = "topLeft";
+    public static final String TOPRIGHT = "topRight";
+    public static final String BOTTOMLEFT = "bottomLeft";
+    public static final String BOTTOMRIGHT = "bottomRight";
+
     public static final String NAME = "geo_bbox";
+    public static final String FIELD = "field";
 
     @Inject
     public GeoBoundingBoxFilterParser() {
@@ -60,14 +76,19 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        GeoPoint topLeft = new GeoPoint();
-        GeoPoint bottomRight = new GeoPoint();
 
+        double top = Double.NaN;
+        double bottom = Double.NaN;
+        double left = Double.NaN;
+        double right = Double.NaN;
+        
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
         boolean normalize = true;
 
+        GeoPoint sparse = new GeoPoint();
+        
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -79,62 +100,40 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        GeoPoint point = null;
-                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                            point = topLeft;
-                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                            point = bottomRight;
-                        }
-
-                        if (point != null) {
-                            token = parser.nextToken();
-                            point.resetLon(parser.doubleValue());
-                            token = parser.nextToken();
-                            point.resetLat(parser.doubleValue());
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                            }
-                        }
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        GeoPoint point = null;
-                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                            point = topLeft;
-                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                            point = bottomRight;
-                        }
-
-                        if (point != null) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token.isValue()) {
-                                    if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                        point.resetLat(parser.doubleValue());
-                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                        point.resetLon(parser.doubleValue());
-                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                        GeoHashUtils.decode(parser.text(), point);
-                                    }
-                                }
-                            }
-                        }
-                    } else if (token.isValue()) {
-                        if ("field".equals(currentFieldName)) {
+                        token = parser.nextToken();
+                        if (FIELD.equals(currentFieldName)) {
                             fieldName = parser.text();
+                        } else if (TOP.equals(currentFieldName)) {
+                            top = parser.doubleValue();
+                        } else if (BOTTOM.equals(currentFieldName)) {
+                            bottom = parser.doubleValue();
+                        } else if (LEFT.equals(currentFieldName)) {
+                            left = parser.doubleValue();
+                        } else if (RIGHT.equals(currentFieldName)) {
+                            right = parser.doubleValue();
                         } else {
-                            GeoPoint point = null;
-                            if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                                point = topLeft;
-                            } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                                point = bottomRight;
-                            }
-
-                            if (point != null) {
-                                String value = parser.text();
-                                point.resetFromString(value);
+                            if (TOP_LEFT.equals(currentFieldName) || TOPLEFT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                top = sparse.getLat();
+                                left = sparse.getLon();
+                            } else if (BOTTOM_RIGHT.equals(currentFieldName) || BOTTOMRIGHT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                bottom = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (TOP_RIGHT.equals(currentFieldName) || TOPRIGHT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                top = sparse.getLat();
+                                right = sparse.getLon();
+                            } else if (BOTTOM_LEFT.equals(currentFieldName) || BOTTOMLEFT.equals(currentFieldName)) {
+                                GeoPoint.parse(parser, sparse);
+                                bottom = sparse.getLat();
+                                left = sparse.getLon();
+                            } else {
+                                throw new ElasticsearchParseException("Unexpected field [" + currentFieldName + "]");
                             }
                         }
+                    } else {
+                        throw new ElasticsearchParseException("fieldname expected but [" + token + "] found");
                     }
                 }
             } else if (token.isValue()) {
@@ -154,6 +153,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             }
         }
 
+        final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
+        final GeoPoint bottomRight = new GeoPoint(bottom, right);
+        
         if (normalize) {
             GeoUtils.normalizePoint(topLeft);
             GeoUtils.normalizePoint(bottomRight);
@@ -164,10 +166,10 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
-        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+        if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+        GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
         Filter filter;
         if ("indexed".equals(type)) {
@@ -187,5 +189,5 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             parseContext.addNamedFilter(filterName, filter);
         }
         return filter;
-    }
+    }    
 }

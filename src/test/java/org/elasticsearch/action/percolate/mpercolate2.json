@@ -1,0 +1,6 @@
+{"percolate" : {"routing" : "my-routing-1", "preference" : "_local"}}
+{"doc" : {"field1" : "value1"}}
+{"percolate" : {"index" : "my-index1", "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local", "ignore_unavailable" : true}}
+{"doc" : {"field1" : "value2"}}
+{"percolate" : {}}
+{"doc" : {"field1" : "value3"}}

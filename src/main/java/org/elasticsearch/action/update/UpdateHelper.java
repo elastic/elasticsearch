@@ -1,6 +1,25 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -17,12 +36,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,6 +47,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -65,7 +83,8 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);
+                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME},
+                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
 
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
@@ -76,7 +95,6 @@ public class UpdateHelper extends AbstractComponent {
                     // it has to be a "create!"
                     .create(true)
                     .routing(request.routing())
-                    .percolate(request.percolate())
                     .refresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
@@ -85,11 +103,6 @@ public class UpdateHelper extends AbstractComponent {
                 indexRequest.version(request.version()).versionType(VersionType.EXTERNAL);
             }
             return new Result(indexRequest, Operation.UPSERT, null, null);
-        }
-
-        if (request.versionType().isVersionConflict(getResult.getVersion(), request.version())) {
-            throw new VersionConflictEngineException(new ShardId(request.index(), request.shardId()), request.type(), request.id(),
-                    getResult.getVersion(), request.version());
         }
 
         long updateVersion = getResult.getVersion();
@@ -137,7 +150,7 @@ public class UpdateHelper extends AbstractComponent {
                 // we need to unwrap the ctx...
                 ctx = (Map<String, Object>) script.unwrap(ctx);
             } catch (Exception e) {
-                throw new ElasticSearchIllegalArgumentException("failed to execute script", e);
+                throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
             }
 
             operation = (String) ctx.get("op");
@@ -170,7 +183,6 @@ public class UpdateHelper extends AbstractComponent {
                     .version(updateVersion).versionType(request.versionType())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
-                    .percolate(request.percolate())
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
             return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);

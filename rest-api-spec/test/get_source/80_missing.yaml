@@ -1,0 +1,19 @@
+---
+"Missing document with catch":
+
+  - do:
+      catch:   missing
+      get_source:
+        index: test_1
+        type:  test
+        id:    1
+
+---
+"Missing document with ignore":
+
+  - do:
+      get_source:
+        index:  test_1
+        type:   test
+        id:     1
+        ignore: 404

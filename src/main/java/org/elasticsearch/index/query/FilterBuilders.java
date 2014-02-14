@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -300,7 +300,10 @@ public abstract class FilterBuilders {
      * field data cache (loading all the values for the specified field into memory)
      *
      * @param name The field name
+     * @deprecated The numeric_range filter will be removed at some point in time in favor for the range filter with
+     *             the execution mode <code>fielddata</code>.
      */
+    @Deprecated
     public static NumericRangeFilterBuilder numericRangeFilter(String name) {
         return new NumericRangeFilterBuilder(name);
     }
@@ -355,10 +358,10 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
+     * @param name The geo point field name.
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname) {
-        return new GeohashFilter.Builder(fieldname);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name) {
+        return new GeohashCellFilter.Builder(name);
     }
 
     /**
@@ -366,11 +369,11 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
+     * @param name The geo point field name.
      * @param geohash The Geohash to filter
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash) {
-        return new GeohashFilter.Builder(fieldname, geohash);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, String geohash) {
+        return new GeohashCellFilter.Builder(name, geohash);
     }
 
     /**
@@ -378,11 +381,11 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name.
-     * @param point a geopoint within the geohash bucket
+     * @param name The geo point field name.
+     * @param point a geo point within the geohash bucket
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, GeoPoint point) {
-        return new GeohashFilter.Builder(fieldname, point);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, GeoPoint point) {
+        return new GeohashCellFilter.Builder(name, point);
     }
 
     /**
@@ -390,12 +393,12 @@ public abstract class FilterBuilders {
      * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
      * to work.
      *
-     * @param fieldname The geopoint field name
+     * @param name The geo point field name
      * @param geohash The Geohash to filter
      * @param neighbors should the neighbor cell also be filtered
      */
-    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash, boolean neighbors) {
-        return new GeohashFilter.Builder(fieldname, geohash, neighbors);
+    public static GeohashCellFilter.Builder geoHashCellFilter(String name, String geohash, boolean neighbors) {
+        return new GeohashCellFilter.Builder(name, geohash, neighbors);
     }
     
     /**

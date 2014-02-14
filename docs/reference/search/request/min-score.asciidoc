@@ -1,0 +1,18 @@
+[[search-request-min-score]]
+=== min_score
+
+Exclude documents which have a `_score` less than the minimum specified
+in `min_score`:
+
+[source,js]
+--------------------------------------------------
+{
+    "min_score": 0.5,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+Note, most times, this does not make much sense, but is provided for
+advanced use cases.

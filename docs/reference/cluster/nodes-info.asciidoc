@@ -1,0 +1,93 @@
+[[cluster-nodes-info]]
+== Nodes Info
+
+The cluster nodes info API allows to retrieve one or more (or all) of
+the cluster nodes information.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_nodes'
+curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2'
+--------------------------------------------------
+
+The first command retrieves information of all the nodes in the cluster.
+The second command selectively retrieves nodes information of only
+`nodeId1` and `nodeId2`. All the nodes selective options are explained
+<<cluster-nodes,here>>.
+
+By default, it just returns all attributes and core settings for a node.
+It also allows to get only information on `settings`, `os`, `process`, `jvm`,
+`thread_pool`, `network`, `transport`, `http` and `plugins`:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_nodes/process'
+curl -XGET 'http://localhost:9200/_nodes/_all/process'
+curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/jvm,process'
+# same as above
+curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/info/jvm,process'
+
+curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/_all
+--------------------------------------------------
+
+The `_all` flag can be set to return all the information - or you can simply omit it.
+
+`plugins` - if set, the result will contain details about the loaded
+plugins per node:
+
+* `name`: plugin name
+* `description`: plugin description if any
+* `site`: `true` if the plugin is a site plugin
+* `jvm`: `true` if the plugin is a plugin running in the JVM
+* `url`: URL if the plugin is a site plugin
+
+The result will look similar to:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster_name" : "test-cluster-MacBook-Air-de-David.local",
+  "nodes" : {
+    "hJLXmY_NTrCytiIMbX4_1g" : {
+      "name" : "node4",
+      "transport_address" : "inet[/172.18.58.139:9303]",
+      "hostname" : "MacBook-Air-de-David.local",
+      "version" : "0.90.0.Beta2-SNAPSHOT",
+      "http_address" : "inet[/172.18.58.139:9203]",
+      "plugins" : [ {
+        "name" : "test-plugin",
+        "description" : "test-plugin description",
+        "site" : true,
+        "jvm" : false
+      }, {
+        "name" : "test-no-version-plugin",
+        "description" : "test-no-version-plugin description",
+        "site" : true,
+        "jvm" : false
+      }, {
+        "name" : "dummy",
+        "description" : "No description found for dummy.",
+        "url" : "/_plugin/dummy/",
+        "site" : false,
+        "jvm" : true
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+
+if your `plugin` data is subject to change use
+`plugins.info_refresh_interval` to change or disable the caching
+interval:
+
+[source,js]
+--------------------------------------------------
+# Change cache to 20 seconds
+plugins.info_refresh_interval: 20s
+
+# Infinite cache
+plugins.info_refresh_interval: -1
+
+# Disable cache
+plugins.info_refresh_interval: 0
+--------------------------------------------------

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -204,6 +204,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
 
     /**
      * Constructs a simple document with a field name and value pairs.
+     * <b>Note: the number of objects passed to this method must be and even number.</b> 
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);
@@ -291,16 +292,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
-        return this;
-    }
-
-    /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
         return this;
     }
 

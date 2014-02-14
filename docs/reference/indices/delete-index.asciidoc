@@ -1,0 +1,19 @@
+[[indices-delete-index]]
+== Delete Index
+
+The delete index API allows to delete an existing index.
+
+[source,js]
+--------------------------------------------------
+$ curl -XDELETE 'http://localhost:9200/twitter/'
+--------------------------------------------------
+
+The above example deletes an index called `twitter`. Specifying an index,
+alias or wildcard expression is required.
+
+The delete index API can also be applied to more than one index, or on
+all indices (be careful!) by using `_all` or `*` as index.
+
+In order to disable allowing to delete indices via wildcards or `_all`,
+set `action.destructive_requires_name` setting in the config to `true`.
+This setting can also be changed via the cluster update settings api.

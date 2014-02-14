@@ -1,0 +1,109 @@
+---
+"Fields":
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      mget:
+        index: test_1
+        type:  test
+        body:
+          docs:
+            - { _id: 1                         }
+            - { _id: 1, fields: foo            }
+            - { _id: 1, fields: [foo]          }
+            - { _id: 1, fields: [foo, _source] }
+
+  - is_false: docs.0.fields
+  - match:  { docs.0._source: { foo: bar }}
+
+  - match:  { docs.1.fields.foo: [bar] }
+  - is_false: docs.1._source
+
+  - match:  { docs.2.fields.foo: [bar] }
+  - is_false: docs.2._source
+
+  - match:  { docs.3.fields.foo: [bar] }
+  - match:  { docs.3._source: { foo: bar }}
+
+  - do:
+      mget:
+        index: test_1
+        type:  test
+        fields: foo
+        body:
+          docs:
+            - { _id: 1                         }
+            - { _id: 1, fields: foo            }
+            - { _id: 1, fields: [foo]          }
+            - { _id: 1, fields: [foo, _source] }
+
+  - match:  { docs.0.fields.foo: [bar] }
+  - is_false: docs.0._source
+
+  - match:  { docs.1.fields.foo: [bar] }
+  - is_false: docs.1._source
+
+  - match:  { docs.2.fields.foo: [bar] }
+  - is_false: docs.2._source
+
+  - match:  { docs.3.fields.foo: [bar] }
+  - match:  { docs.3._source: { foo: bar }}
+
+  - do:
+      mget:
+        index:  test_1
+        type:   test
+        fields: [foo]
+        body:
+          docs:
+            - { _id: 1                         }
+            - { _id: 1, fields: foo            }
+            - { _id: 1, fields: [foo]          }
+            - { _id: 1, fields: [foo, _source] }
+
+  - match:  { docs.0.fields.foo: [bar] }
+  - is_false: docs.0._source
+
+  - match:  { docs.1.fields.foo: [bar] }
+  - is_false: docs.1._source
+
+  - match:  { docs.2.fields.foo: [bar] }
+  - is_false: docs.2._source
+
+  - match:  { docs.3.fields.foo: [bar] }
+  - match:  { docs.3._source: { foo: bar }}
+
+  - do:
+      mget:
+        index:  test_1
+        type:   test
+        fields: [foo, _source]
+        body:
+          docs:
+            - { _id: 1                         }
+            - { _id: 1, fields: foo            }
+            - { _id: 1, fields: [foo]          }
+            - { _id: 1, fields: [foo, _source] }
+
+  - match:  { docs.0.fields.foo: [bar] }
+  - match:  { docs.0._source: { foo: bar }}
+
+  - match:  { docs.1.fields.foo: [bar] }
+  - is_false: docs.1._source
+
+  - match:  { docs.2.fields.foo: [bar] }
+  - is_false: docs.2._source
+
+  - match:  { docs.3.fields.foo: [bar] }
+  - match:  { docs.3._source: { foo: bar }}
+

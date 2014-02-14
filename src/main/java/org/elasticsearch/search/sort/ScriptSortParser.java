@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleScriptDataComparator;
@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.fieldcomparator.StringScriptDataComparator;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.script.SearchScript;
@@ -67,7 +68,8 @@ public class ScriptSortParser implements SortParser {
                 if ("params".equals(currentName)) {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
+                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
@@ -117,11 +119,11 @@ public class ScriptSortParser implements SortParser {
         if (nestedPath != null) {
             ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
             if (objectMappers == null) {
-                throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
             }
             objectMapper = objectMappers.mapper();
             if (!objectMapper.nested().isNested()) {
-                throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
             }
 
             Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);

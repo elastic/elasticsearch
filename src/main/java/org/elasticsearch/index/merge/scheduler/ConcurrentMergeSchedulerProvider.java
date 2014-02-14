@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,8 +61,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
-        concurrentMergeScheduler.setMaxMergeCount(maxMergeCount);
-        concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
+        concurrentMergeScheduler.setMaxMergesAndThreads(maxMergeCount, maxThreadCount);
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
     }
@@ -73,6 +74,14 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
                     scheduler.currentMerges(), scheduler.currentMergesNumDocs(), scheduler.currentMergesSizeInBytes());
         }
         return mergeStats;
+    }
+
+    @Override
+    public Set<OnGoingMerge> onGoingMerges() {
+        for (CustomConcurrentMergeScheduler scheduler : schedulers) {
+            return scheduler.onGoingMerges();
+        }
+        return ImmutableSet.of();
     }
 
     public static class CustomConcurrentMergeScheduler extends TrackingConcurrentMergeScheduler {
@@ -105,6 +114,18 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         public void close() {
             super.close();
             provider.schedulers.remove(this);
+        }
+
+        @Override
+        protected void beforeMerge(OnGoingMerge merge) {
+            super.beforeMerge(merge);
+            provider.beforeMerge(merge);
+        }
+
+        @Override
+        protected void afterMerge(OnGoingMerge merge) {
+            super.afterMerge(merge);
+            provider.afterMerge(merge);
         }
     }
 }

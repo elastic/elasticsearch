@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -102,29 +102,14 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
                 if (value >= entry.getFrom() && value < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
-                    if (valueValues.isMultiValued()) {
-                        for (DoubleValues.Iter iter = valueValues.getIter(docId); iter.hasNext(); ) {
-                            double valueValue = iter.next();
-                            entry.total += valueValue;
-                            if (valueValue < entry.min) {
-                                entry.min = valueValue;
-                            }
-                            if (valueValue > entry.max) {
-                                entry.max = valueValue;
-                            }
-                            entry.totalCount++;
-                        }
-                    } else if (valueValues.hasValue(docId)) {
-                        double valueValue = valueValues.getValue(docId);
-                        entry.totalCount++;
+                    int seek = valueValues.setDocument(docId);
+                    for (int i = 0; i < seek; i++) {
+                        double valueValue = valueValues.nextValue();
                         entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
+                        entry.min = Math.min(entry.min, valueValue);
+                        entry.max = Math.max(entry.max, valueValue);
                     }
+                    entry.totalCount+=seek;
                 }
             }
         }

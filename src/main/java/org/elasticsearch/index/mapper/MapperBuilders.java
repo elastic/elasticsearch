@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,9 +22,10 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
@@ -61,6 +62,14 @@ public final class MapperBuilders {
         return new UidFieldMapper.Builder();
     }
 
+    public static SizeFieldMapper.Builder size() {
+        return new SizeFieldMapper.Builder();
+    }
+
+    public static VersionFieldMapper.Builder version() {
+        return new VersionFieldMapper.Builder();
+    }
+
     public static TypeFieldMapper.Builder type() {
         return new TypeFieldMapper.Builder();
     }
@@ -73,6 +82,14 @@ public final class MapperBuilders {
         return new TimestampFieldMapper.Builder();
     }
 
+    public static TTLFieldMapper.Builder ttl() {
+        return new TTLFieldMapper.Builder();
+    }
+
+    public static ParentFieldMapper.Builder parent() {
+        return new ParentFieldMapper.Builder();
+    }
+
     public static BoostFieldMapper.Builder boost(String name) {
         return new BoostFieldMapper.Builder(name);
     }
@@ -83,10 +100,6 @@ public final class MapperBuilders {
 
     public static AnalyzerMapper.Builder analyzer() {
         return new AnalyzerMapper.Builder();
-    }
-
-    public static MultiFieldMapper.Builder multiField(String name) {
-        return new MultiFieldMapper.Builder(name);
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {
@@ -129,6 +142,10 @@ public final class MapperBuilders {
         return new IntegerFieldMapper.Builder(name);
     }
 
+    public static TokenCountFieldMapper.Builder tokenCountField(String name) {
+        return new TokenCountFieldMapper.Builder(name);
+    }
+
     public static LongFieldMapper.Builder longField(String name) {
         return new LongFieldMapper.Builder(name);
     }
@@ -139,5 +156,17 @@ public final class MapperBuilders {
 
     public static DoubleFieldMapper.Builder doubleField(String name) {
         return new DoubleFieldMapper.Builder(name);
+    }
+
+    public static GeoPointFieldMapper.Builder geoPointField(String name) {
+        return new GeoPointFieldMapper.Builder(name);
+    }
+
+    public static GeoShapeFieldMapper.Builder geoShapeField(String name) {
+        return new GeoShapeFieldMapper.Builder(name);
+    }
+
+    public static CompletionFieldMapper.Builder completionField(String name) {
+        return new CompletionFieldMapper.Builder(name);
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,8 +22,7 @@ package org.elasticsearch.action.admin.indices.warmer.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -34,14 +33,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to put a search warmer.
  */
-public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerRequest> {
+public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> {
 
     private String name;
 
     private SearchRequest searchRequest;
 
     PutWarmerRequest() {
-
     }
 
     /**
@@ -81,14 +79,18 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
         return this;
     }
 
-    @Nullable
     SearchRequest searchRequest() {
         return this.searchRequest;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = searchRequest.validate();
+        ActionRequestValidationException validationException = null;
+        if (searchRequest == null) {
+            validationException = addValidationError("search request is missing", validationException);
+        } else {
+            validationException = searchRequest.validate();
+        }
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
         }
@@ -103,6 +105,7 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
             searchRequest = new SearchRequest();
             searchRequest.readFrom(in);
         }
+        readTimeout(in);
     }
 
     @Override
@@ -115,5 +118,6 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
             out.writeBoolean(true);
             searchRequest.writeTo(out);
         }
+        writeTimeout(out);
     }
 }

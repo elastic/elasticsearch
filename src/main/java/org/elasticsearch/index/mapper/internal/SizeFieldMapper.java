@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,17 +23,21 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.size;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
 public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
@@ -66,21 +70,16 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
 
-        public Builder store(boolean store) {
-            this.fieldType.setStored(store);
-            return builder;
-        }
-
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabledState, fieldType, provider, fieldDataSettings);
+            return new SizeFieldMapper(enabledState, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            SizeFieldMapper.Builder builder = new SizeFieldMapper.Builder();
+            SizeFieldMapper.Builder builder = size();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -97,13 +96,20 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null);
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
     }
 
-    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider, null, fieldDataSettings);
+    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
+                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
+                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, postingsProvider, docValuesProvider, null, null, fieldDataSettings, 
+                indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 
     @Override
@@ -140,27 +146,29 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabledState.enabled) {
-            return null;
+            return;
         }
         if (context.flyweight()) {
-            return null;
+            return;
         }
-        return new CustomIntegerNumericField(this, context.source().length(), fieldType);
+        fields.add(new CustomIntegerNumericField(this, context.source().length(), fieldType));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // all are defaults, no need to write it at all
-        if (enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
-        if (enabledState != Defaults.ENABLED_STATE) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
+        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

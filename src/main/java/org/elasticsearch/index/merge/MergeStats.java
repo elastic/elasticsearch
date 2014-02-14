@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -133,14 +133,11 @@ public class MergeStats implements Streamable, ToXContent {
         builder.startObject(Fields.MERGES);
         builder.field(Fields.CURRENT, current);
         builder.field(Fields.CURRENT_DOCS, currentNumDocs);
-        builder.field(Fields.CURRENT_SIZE, getCurrentSize().toString());
-        builder.field(Fields.CURRENT_SIZE_IN_BYTES, currentSizeInBytes);
+        builder.byteSizeField(Fields.CURRENT_SIZE_IN_BYTES, Fields.CURRENT_SIZE, currentSizeInBytes);
         builder.field(Fields.TOTAL, total);
-        builder.field(Fields.TOTAL_TIME, getTotalTime().toString());
-        builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalTimeInMillis);
+        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
         builder.field(Fields.TOTAL_DOCS, totalNumDocs);
-        builder.field(Fields.TOTAL_SIZE, getTotalSize().toString());
-        builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
+        builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, totalSizeInBytes);
         builder.endObject();
         return builder;
     }

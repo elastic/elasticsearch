@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CustomAnalyzerWrapper;
 
 /**
@@ -47,10 +46,7 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
-        // our named analyzer always wrap a non per field analyzer, so no need to have per field analyzer
-        super(new GlobalReuseStrategy());
-        // TODO would be nice to pick the reuse start based on the analyzer...
-        assert !(analyzer instanceof AnalyzerWrapper); // this is the only one in Lucene currently that uses PerFieldStrategy, make sure we don't wrap it
+        super(analyzer.getReuseStrategy());
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;

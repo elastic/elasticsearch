@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,37 +16,80 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.index.percolator.PercolatorService;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.percolator.PercolateException;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
  */
-public class TransportPercolateAction extends TransportSingleCustomOperationAction<PercolateRequest, PercolateResponse> {
+public class TransportPercolateAction extends TransportBroadcastOperationAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
 
-    private final IndicesService indicesService;
+    private final PercolatorService percolatorService;
+    private final TransportGetAction getAction;
 
     @Inject
-    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                    IndicesService indicesService) {
+    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                    TransportService transportService, PercolatorService percolatorService,
+                                    TransportGetAction getAction) {
         super(settings, threadPool, clusterService, transportService);
-        this.indicesService = indicesService;
+        this.percolatorService = percolatorService;
+        this.getAction = getAction;
+    }
+
+    @Override
+    protected void doExecute(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+        request.startTime = System.currentTimeMillis();
+        if (request.getRequest() != null) {
+            getAction.execute(request.getRequest(), new ActionListener<GetResponse>() {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                    if (!getResponse.isExists()) {
+                        onFailure(new DocumentMissingException(null, request.getRequest().type(), request.getRequest().id()));
+                        return;
+                    }
+
+                    BytesReference docSource = getResponse.getSourceAsBytesRef();
+                    TransportPercolateAction.super.doExecute(new PercolateRequest(request, docSource), listener);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            super.doExecute(request, listener);
+        }
     }
 
     @Override
@@ -60,11 +103,6 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected PercolateResponse newResponse() {
-        return new PercolateResponse();
-    }
-
-    @Override
     protected String transportAction() {
         return PercolateAction.NAME;
     }
@@ -75,22 +113,90 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request) {
-        request.index(state.metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
-        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
+    protected PercolateResponse newResponse(PercolateRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        return reduce(request, shardsResponses, percolatorService);
+    }
+
+    public static PercolateResponse reduce(PercolateRequest request, AtomicReferenceArray shardsResponses, PercolatorService percolatorService) {
+        int successfulShards = 0;
+        int failedShards = 0;
+
+        List<PercolateShardResponse> shardResults = null;
+        List<ShardOperationFailedException> shardFailures = null;
+
+        byte percolatorTypeId = 0x00;
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                // simply ignore non active shards
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                PercolateShardResponse percolateShardResponse = (PercolateShardResponse) shardResponse;
+                successfulShards++;
+                if (!percolateShardResponse.isEmpty()) {
+                    if (shardResults == null) {
+                        percolatorTypeId = percolateShardResponse.percolatorTypeId();
+                        shardResults = newArrayList();
+                    }
+                    shardResults.add(percolateShardResponse);
+                }
+            }
+        }
+
+        if (shardResults == null) {
+            long tookInMillis = System.currentTimeMillis() - request.startTime;
+            PercolateResponse.Match[] matches = request.onlyCount() ? null : PercolateResponse.EMPTY;
+            return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis, matches);
+        } else {
+            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults);
+            long tookInMillis = System.currentTimeMillis() - request.startTime;
+            return new PercolateResponse(
+                    shardsResponses.length(), successfulShards, failedShards, shardFailures,
+                    result.matches(), result.count(), tookInMillis, result.reducedFacets(), result.reducedAggregations()
+            );
+        }
     }
 
     @Override
-    protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        PercolatorService percolatorService = indexService.percolateService();
-
-        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.type(), request.source()));
-        return new PercolateResponse(percolate.matches());
+    protected PercolateShardRequest newShardRequest() {
+        return new PercolateShardRequest();
     }
+
+    @Override
+    protected PercolateShardRequest newShardRequest(ShardRouting shard, PercolateRequest request) {
+        return new PercolateShardRequest(shard.index(), shard.id(), request);
+    }
+
+    @Override
+    protected PercolateShardResponse newShardResponse() {
+        return new PercolateShardResponse();
+    }
+
+    @Override
+    protected GroupShardsIterator shards(ClusterState clusterState, PercolateRequest request, String[] concreteIndices) {
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+    }
+
+    @Override
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticsearchException {
+        try {
+            return percolatorService.percolate(request);
+        } catch (Throwable e) {
+            logger.trace("[{}][{}] failed to percolate", e, request.index(), request.shardId());
+            ShardId shardId = new ShardId(request.index(), request.shardId());
+            throw new PercolateException(shardId, "failed to percolate", e);
+        }
+    }
+
 }

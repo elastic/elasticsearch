@@ -1,0 +1,49 @@
+[[query-dsl-geo-shape-query]]
+=== GeoShape Query
+
+Query version of the
+<<query-dsl-geo-shape-filter,geo_shape Filter>>.
+
+Requires the <<mapping-geo-shape-type,geo_shape
+Mapping>>.
+
+Given a document that looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+    "name": "Wind & Wetter, Berlin, Germany",
+    "location": {
+        "type": "Point",
+        "coordinates": [13.400544, 52.530286]
+    }
+}
+--------------------------------------------------
+
+The following query will find the point:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "geo_shape": {
+            "location": {
+                "shape": {
+                    "type": "envelope",
+                    "coordinates": [[13, 53],[14, 52]]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+See the Filter's documentation for more information.
+
+[float]
+==== Relevancy and Score
+
+Currently Elasticsearch does not have any notion of geo shape relevancy,
+consequently the Query internally uses a `constant_score` Query which
+wraps a <<query-dsl-geo-shape-filter,geo_shape
+filter>>.

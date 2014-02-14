@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,15 +32,14 @@ import java.io.IOException;
 
 /**
  */
-public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<ClusterSearchShardsRequest> {
+public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<ClusterSearchShardsRequest> {
     private String[] indices;
     @Nullable
     private String routing;
     @Nullable
     private String preference;
-    private boolean local = false;
     private String[] types = Strings.EMPTY_ARRAY;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
 
     public ClusterSearchShardsRequest() {
@@ -60,11 +59,11 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
      */
     public ClusterSearchShardsRequest indices(String... indices) {
         if (indices == null) {
-            throw new ElasticSearchIllegalArgumentException("indices must not be null");
+            throw new ElasticsearchIllegalArgumentException("indices must not be null");
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticSearchIllegalArgumentException("indices[" + i + "] must not be null");
+                    throw new ElasticsearchIllegalArgumentException("indices[" + i + "] must not be null");
                 }
             }
         }
@@ -79,12 +78,12 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         return indices;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
-    public ClusterSearchShardsRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public ClusterSearchShardsRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -142,15 +141,6 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         return this.preference;
     }
 
-    public ClusterSearchShardsRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return this.local;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -164,8 +154,8 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         preference = in.readOptionalString();
 
         types = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
-        local = in.readBoolean();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        readLocal(in);
     }
 
     @Override
@@ -181,8 +171,8 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         out.writeOptionalString(preference);
 
         out.writeStringArray(types);
-        out.writeByte(ignoreIndices.id());
-        out.writeBoolean(local);
+        indicesOptions.writeIndicesOptions(out);
+        writeLocal(out);
     }
 
 }

@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
@@ -69,6 +68,7 @@ public class TermsQueryParser implements QueryParser {
         float boost = 1.0f;
         String minimumShouldMatch = null;
         List<Object> values = newArrayList();
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -93,6 +93,8 @@ public class TermsQueryParser implements QueryParser {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
                 }
@@ -116,17 +118,21 @@ public class TermsQueryParser implements QueryParser {
         }
 
         try {
-            BooleanQuery query = new BooleanQuery(disableCoord);
+            BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
             for (Object value : values) {
                 if (mapper != null) {
-                    query.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                    booleanQuery.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
                 } else {
-                    query.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
+                    booleanQuery.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
                 }
             }
-            query.setBoost(boost);
-            Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
-            return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
+            booleanQuery.setBoost(boost);
+            Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+            Query query = wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(booleanQuery)), smartNameFieldMappers, parseContext);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
+            return query;
         } finally {
             if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 QueryParseContext.setTypes(previousTypes);

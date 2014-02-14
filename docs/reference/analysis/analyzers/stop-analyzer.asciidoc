@@ -1,0 +1,22 @@
+[[analysis-stop-analyzer]]
+=== Stop Analyzer
+
+An analyzer of type `stop` that is built using a
+<<analysis-lowercase-tokenizer,Lower
+Case Tokenizer>>, with
+<<analysis-stop-tokenfilter,Stop
+Token Filter>>.
+
+The following are settings that can be set for a `stop` analyzer type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`stopwords` |A list of stopwords to initialize the stop filter with.
+Defaults to the english stop words.
+|`stopwords_path` |A path (either relative to `config` location, or
+absolute) to a stopwords file configuration.
+|=======================================================================
+
+Use `stopwords: _none_` to explicitly specify an 'empty' stopword list.
+

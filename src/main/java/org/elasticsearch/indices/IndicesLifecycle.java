@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -86,6 +87,10 @@ public interface IndicesLifecycle {
 
         }
 
+        public void afterIndexShardPostRecovery(IndexShard indexShard) {
+
+        }
+
         /**
          * Called after the index shard has been started.
          */
@@ -126,6 +131,19 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          */
         public void afterIndexShardClosed(ShardId shardId) {
+
+        }
+
+        /**
+         * Called after a shard's {@link org.elasticsearch.index.shard.IndexShardState} changes.
+         * The order of concurrent events is preserved. The execution must be lightweight.
+         *
+         * @param indexShard the shard the new state was applied to
+         * @param previousState the previous index shard state if there was one, null otherwise
+         * @param currentState the new shard state
+         * @param reason the reason for the state change if there is one, null otherwise
+         */
+        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
 
         }
     }

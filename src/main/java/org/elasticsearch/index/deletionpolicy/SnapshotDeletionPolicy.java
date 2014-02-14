@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -66,7 +66,10 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
      * Called by Lucene. Same as {@link #onCommit(java.util.List)}.
      */
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        onCommit(commits);
+        if (!commits.isEmpty()) { // this might be empty if we create a new index. 
+            // the behavior has changed in Lucene 4.4 that calls onInit even with an empty commits list.
+            onCommit(commits);
+        }
     }
 
     /**
@@ -74,6 +77,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
      * and delegates to the wrapped deletion policy.
      */
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        assert !commits.isEmpty() : "Commits must not be empty";
         synchronized (mutex) {
             List<SnapshotIndexCommit> snapshotCommits = wrapCommits(commits);
             primary.onCommit(snapshotCommits);
@@ -94,7 +98,8 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
             }
             this.commits = newCommits;
             // the last commit that is not deleted
-            this.lastCommit = newCommits.get(newCommits.size() - 1);
+            this.lastCommit = newCommits.get(newCommits.size() - 1);     
+           
         }
     }
 
@@ -131,7 +136,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
     @Override
     public IndexDeletionPolicy clone() {
        // Lucene IW makes a clone internally but since we hold on to this instance 
-       // the clone will just be the identity. See RobinEngine recovery why we need this.
+       // the clone will just be the identity. See InternalEngine recovery why we need this.
        return this;
     }
 

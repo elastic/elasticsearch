@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -29,10 +29,8 @@ import java.io.IOException;
  */
 public class HandlesStreamInput extends AdapterStreamInput {
 
-    private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
-    private final TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
-
-    private final TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
+    private final IntObjectOpenHashMap<String> handles = new IntObjectOpenHashMap<String>();
+    private final IntObjectOpenHashMap<Text> handlesText = new IntObjectOpenHashMap<Text>();
 
     HandlesStreamInput() {
         super();
@@ -43,7 +41,7 @@ public class HandlesStreamInput extends AdapterStreamInput {
     }
 
     @Override
-    public String readString() throws IOException {
+    public String readSharedString() throws IOException {
         byte b = in.readByte();
         if (b == 0) {
             // full string with handle
@@ -53,17 +51,14 @@ public class HandlesStreamInput extends AdapterStreamInput {
             return s;
         } else if (b == 1) {
             return handles.get(in.readVInt());
-        } else if (b == 2) {
-            // full string with handle
-            int handle = in.readVInt();
-            String s = in.readString();
-            identityHandles.put(handle, s);
-            return s;
-        } else if (b == 3) {
-            return identityHandles.get(in.readVInt());
         } else {
             throw new IOException("Expected handle header, got [" + b + "]");
         }
+    }
+
+    @Override
+    public String readString() throws IOException {
+        return in.readString();
     }
 
     @Override
@@ -86,21 +81,16 @@ public class HandlesStreamInput extends AdapterStreamInput {
     @Override
     public void reset() throws IOException {
         super.reset();
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void reset(StreamInput in) {
         super.reset(in);
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void cleanHandles() {
         handles.clear();
-        identityHandles.clear();
         handlesText.clear();
     }
 }

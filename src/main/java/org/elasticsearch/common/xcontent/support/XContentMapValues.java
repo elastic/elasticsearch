@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
@@ -136,7 +137,7 @@ public class XContentMapValues {
 
     public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
         Map<String, Object> result = Maps.newHashMap();
-        filter(map, result, includes, excludes, new StringBuilder());
+        filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
         return result;
     }
 
@@ -153,24 +154,18 @@ public class XContentMapValues {
             }
             sb.append(key);
             String path = sb.toString();
-            boolean excluded = false;
-            for (String exclude : excludes) {
-                if (Regex.simpleMatch(exclude, path)) {
-                    excluded = true;
-                    break;
-                }
-            }
-            if (excluded) {
+
+            if (Regex.simpleMatch(excludes, path)) {
                 sb.setLength(mark);
                 continue;
             }
-            boolean exactIncludeMatch;
+
+            boolean exactIncludeMatch = false; // true if the current position was specifically mentioned
+            boolean pathIsPrefixOfAnInclude = false; // true if potentially a sub scope can be included
             if (includes.length == 0) {
                 // implied match anything
                 exactIncludeMatch = true;
             } else {
-                exactIncludeMatch = false;
-                boolean pathIsPrefixOfAnInclude = false;
                 for (String include : includes) {
                     // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
                     // note, this does not work well with middle matches, like obj1.*.obj3
@@ -197,11 +192,12 @@ public class XContentMapValues {
                         break;
                     }
                 }
-                if (!pathIsPrefixOfAnInclude && !exactIncludeMatch) {
-                    // skip subkeys, not interesting.
-                    sb.setLength(mark);
-                    continue;
-                }
+            }
+
+            if (!(pathIsPrefixOfAnInclude || exactIncludeMatch)) {
+                // skip subkeys, not interesting.
+                sb.setLength(mark);
+                continue;
             }
 
 
@@ -209,7 +205,7 @@ public class XContentMapValues {
                 Map<String, Object> innerInto = Maps.newHashMap();
                 // if we had an exact match, we want give deeper excludes their chance
                 filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                if (!innerInto.isEmpty()) {
+                if (exactIncludeMatch || !innerInto.isEmpty()) {
                     into.put(entry.getKey(), innerInto);
                 }
             } else if (entry.getValue() instanceof List) {
@@ -382,5 +378,13 @@ public class XContentMapValues {
             return TimeValue.timeValueMillis(((Number) node).longValue());
         }
         return TimeValue.parseTimeValue(node.toString(), null);
+    }
+
+    public static Map<String, Object> nodeMapValue(Object node, String desc) {
+        if (node instanceof Map) {
+            return (Map<String, Object>) node;
+        } else {
+            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+        }
     }
 }

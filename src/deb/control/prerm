@@ -1,10 +1,26 @@
 #!/bin/sh
 set -e
 
-if [ -x "/etc/init.d/elasticsearch" ]; then
-	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
-		invoke-rc.d elasticsearch stop || true
-	else
-		/etc/init.d/elasticsearch stop || true
+[ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
+
+stopElasticsearch() {
+	if [ -x "/etc/init.d/elasticsearch" ]; then
+		if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+			invoke-rc.d elasticsearch stop || true
+		else
+			/etc/init.d/elasticsearch stop || true
+		fi
 	fi
-fi
+}
+
+case "$1" in
+	upgrade)
+	if [ "$RESTART_ON_UPGRADE" = "true" ] ; then
+		stopElasticsearch
+	fi
+	;;
+	remove)
+	stopElasticsearch
+	;;
+esac
+

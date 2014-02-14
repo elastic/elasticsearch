@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,11 +20,11 @@
 package org.elasticsearch.rest.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.explain.ExplainSourceBuilder;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -75,7 +76,7 @@ public class RestExplainAction extends BaseRestHandler {
             queryStringBuilder.analyzer(request.param("analyzer"));
             queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
             queryStringBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryStringBuilder.lenient(request.paramAsBooleanOptional("lenient", null));
+            queryStringBuilder.lenient(request.paramAsBoolean("lenient", null));
             String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
                 if ("OR".equals(defaultOperator)) {
@@ -83,13 +84,13 @@ public class RestExplainAction extends BaseRestHandler {
                 } else if ("AND".equals(defaultOperator)) {
                     queryStringBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                    throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
 
-            ExplainSourceBuilder explainSourceBuilder = new ExplainSourceBuilder();
-            explainSourceBuilder.setQuery(queryStringBuilder);
-            explainRequest.source(explainSourceBuilder);
+            QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+            querySourceBuilder.setQuery(queryStringBuilder);
+            explainRequest.source(querySourceBuilder);
         }
 
         String sField = request.param("fields");
@@ -100,6 +101,8 @@ public class RestExplainAction extends BaseRestHandler {
             }
         }
 
+        explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
+
         client.explain(explainRequest, new ActionListener<ExplainResponse>() {
 
             @Override
@@ -107,8 +110,7 @@ public class RestExplainAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.OK, response.isExists())
-                            .field(Fields._INDEX, explainRequest.index())
+                    builder.field(Fields._INDEX, explainRequest.index())
                             .field(Fields._TYPE, explainRequest.type())
                             .field(Fields._ID, explainRequest.id())
                             .field(Fields.MATCHED, response.isMatch());
@@ -158,7 +160,6 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");

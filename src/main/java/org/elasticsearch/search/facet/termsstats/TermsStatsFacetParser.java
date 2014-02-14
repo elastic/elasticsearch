@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -67,6 +67,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         String keyField = null;
         String valueField = null;
         int size = 10;
+        int shardSize = -1;
         TermsStatsFacet.ComparatorType comparatorType = TermsStatsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
@@ -92,6 +93,8 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
                     if (parser.booleanValue()) {
                         size = 0; // indicates all terms
@@ -117,11 +120,17 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         }
         IndexFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
 
+        if (shardSize < size) {
+            shardSize = size;
+        }
+
         IndexNumericFieldData valueIndexFieldData = null;
         SearchScript valueScript = null;
         if (valueField != null) {
             FieldMapper fieldMapper = context.smartNameFieldMapper(valueField);
-            if (!(fieldMapper instanceof NumberFieldMapper)) {
+            if (fieldMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "failed to find mapping for " + valueField);
+            } else if (!(fieldMapper instanceof NumberFieldMapper)) {
                 throw new FacetPhaseExecutionException(facetName, "value_field [" + valueField + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
             }
             valueIndexFieldData = context.fieldData().getForField(fieldMapper);
@@ -132,11 +141,11 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         if (keyIndexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData keyIndexNumericFieldData = (IndexNumericFieldData) keyIndexFieldData;
             if (keyIndexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsStatsDoubleFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+                return new TermsStatsDoubleFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
             } else {
-                return new TermsStatsLongFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+                return new TermsStatsLongFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
             }
         }
-        return new TermsStatsStringFacetExecutor(keyIndexFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+        return new TermsStatsStringFacetExecutor(keyIndexFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,10 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 /**
  *
@@ -30,15 +33,20 @@ public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory 
     private final PreBuiltAnalyzerProvider analyzerProvider;
 
     public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(new PreBuiltAnalyzerProvider(name, scope, analyzer));
-    }
-
-    public PreBuiltAnalyzerProviderFactory(PreBuiltAnalyzerProvider analyzerProvider) {
-        this.analyzerProvider = analyzerProvider;
+        analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer);
     }
 
     @Override
     public AnalyzerProvider create(String name, Settings settings) {
+        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (!Version.CURRENT.equals(indexVersion)) {
+            PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
+            if (preBuiltAnalyzers != null) {
+                Analyzer analyzer = preBuiltAnalyzers.getAnalyzer(indexVersion);
+                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+            }
+        }
+
         return analyzerProvider;
     }
 

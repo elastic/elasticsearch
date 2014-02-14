@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,13 +21,21 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.readClusterShardHealth;
@@ -35,7 +43,7 @@ import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.r
 /**
  *
  */
-public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable {
+public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
 
     private String index;
 
@@ -62,11 +70,66 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
     private ClusterIndexHealth() {
     }
 
-    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, List<String> validationFailures) {
-        this.index = index;
-        this.numberOfShards = numberOfShards;
-        this.numberOfReplicas = numberOfReplicas;
-        this.validationFailures = validationFailures;
+    public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
+        this.index = indexMetaData.index();
+        this.numberOfShards = indexMetaData.getNumberOfShards();
+        this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
+        this.validationFailures = indexRoutingTable.validate(indexMetaData);
+
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
+            for (ShardRouting shardRouting : shardRoutingTable) {
+                if (shardRouting.active()) {
+                    shardHealth.activeShards++;
+                    if (shardRouting.relocating()) {
+                        // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
+                        shardHealth.relocatingShards++;
+                    }
+                    if (shardRouting.primary()) {
+                        shardHealth.primaryActive = true;
+                    }
+                } else if (shardRouting.initializing()) {
+                    shardHealth.initializingShards++;
+                } else if (shardRouting.unassigned()) {
+                    shardHealth.unassignedShards++;
+                }
+            }
+            if (shardHealth.primaryActive) {
+                if (shardHealth.activeShards == shardRoutingTable.size()) {
+                    shardHealth.status = ClusterHealthStatus.GREEN;
+                } else {
+                    shardHealth.status = ClusterHealthStatus.YELLOW;
+                }
+            } else {
+                shardHealth.status = ClusterHealthStatus.RED;
+            }
+            shards.put(shardHealth.getId(), shardHealth);
+        }
+
+        // update the index status
+        status = ClusterHealthStatus.GREEN;
+
+        for (ClusterShardHealth shardHealth : shards.values()) {
+            if (shardHealth.isPrimaryActive()) {
+                activePrimaryShards++;
+            }
+            activeShards += shardHealth.activeShards;
+            relocatingShards += shardHealth.relocatingShards;
+            initializingShards += shardHealth.initializingShards;
+            unassignedShards += shardHealth.unassignedShards;
+
+            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
+                status = ClusterHealthStatus.RED;
+            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
+                // do not override an existing red
+                status = ClusterHealthStatus.YELLOW;
+            }
+        }
+        if (!validationFailures.isEmpty()) {
+            status = ClusterHealthStatus.RED;
+        } else if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+            status = ClusterHealthStatus.RED;
+        }
     }
 
     public String getIndex() {
@@ -172,5 +235,59 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         for (String failure : validationFailures) {
             out.writeString(failure);
         }
+    }
+
+    static final class Fields {
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
+        static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
+        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
+        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
+        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
+        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
+        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
+        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
+        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+        static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(Fields.NUMBER_OF_SHARDS, getNumberOfShards());
+        builder.field(Fields.NUMBER_OF_REPLICAS, getNumberOfReplicas());
+        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
+        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
+
+        if (!getValidationFailures().isEmpty()) {
+            builder.startArray(Fields.VALIDATION_FAILURES);
+            for (String validationFailure : getValidationFailures()) {
+                builder.value(validationFailure);
+            }
+            builder.endArray();
+        }
+
+        if ("shards".equals(params.param("level", "indices"))) {
+            builder.startObject(Fields.SHARDS);
+
+            for (ClusterShardHealth shardHealth : shards.values()) {
+                builder.startObject(Integer.toString(shardHealth.getId()));
+
+                builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
+                builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
+                builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
+                builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
+                builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
+                builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
+
+                builder.endObject();
+            }
+
+            builder.endObject();
+        }
+        return builder;
     }
 }

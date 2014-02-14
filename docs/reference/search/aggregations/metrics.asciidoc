@@ -1,0 +1,15 @@
+[[search-aggregations-metrics]]
+
+include::metrics/min-aggregation.asciidoc[]
+
+include::metrics/max-aggregation.asciidoc[]
+
+include::metrics/sum-aggregation.asciidoc[]
+
+include::metrics/avg-aggregation.asciidoc[]
+
+include::metrics/stats-aggregation.asciidoc[]
+
+include::metrics/extendedstats-aggregation.asciidoc[]
+
+include::metrics/valuecount-aggregation.asciidoc[]

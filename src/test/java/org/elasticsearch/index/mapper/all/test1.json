@@ -1,0 +1,18 @@
+{
+    "_boost":3.7,
+    "_id":"1",
+    "name":{
+        "first":"shay",
+        "last":"banon"
+    },
+    "address":{
+        "first":{
+            "location":"first location"
+        },
+        "last":{
+            "location":"last location"
+        }
+    },
+    "simple1":1,
+    "simple2":2
+}

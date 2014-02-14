@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,17 +19,20 @@
 
 package org.elasticsearch.index.fielddata;
 
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesAtomicFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -43,15 +46,18 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
 
     final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
 
+    private final CircuitBreakerService breakerService;
+
     @Inject
-    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings, CircuitBreakerService breakerService) {
         super(shardId, indexSettings);
+        this.breakerService = breakerService;
     }
 
     public FieldDataStats stats(String... fields) {
-        TObjectLongHashMap<String> fieldTotals = null;
+        ObjectLongOpenHashMap<String> fieldTotals = null;
         if (fields != null && fields.length > 0) {
-            fieldTotals = new TObjectLongHashMap<String>();
+            fieldTotals = new ObjectLongOpenHashMap<String>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 for (String field : fields) {
                     if (Regex.simpleMatch(field, entry.getKey())) {
@@ -89,6 +95,10 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
             evictionsMetric.inc();
         }
         if (sizeInBytes != -1) {
+            // Since field data is being unloaded (due to expiration or manual
+            // clearing), we also need to decrement the used bytes in the breaker
+            breakerService.getBreaker().addWithoutBreaking(-sizeInBytes);
+
             totalMetric.dec(sizeInBytes);
 
             String keyFieldName = fieldNames.indexName();

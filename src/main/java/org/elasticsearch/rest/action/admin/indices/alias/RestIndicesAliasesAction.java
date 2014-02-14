@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,15 +19,13 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
@@ -36,10 +34,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  *
@@ -56,6 +51,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.listenerThreaded(false);
+        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
         XContentParser parser = null;
         try {
             // {
@@ -64,11 +60,11 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
-            indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+            indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
             parser = XContentFactory.xContent(request.content()).createParser(request.content());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
-                throw new ElasticSearchIllegalArgumentException("No action is specified");
+                throw new ElasticsearchIllegalArgumentException("No action is specified");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.START_ARRAY) {
@@ -81,7 +77,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             } else if ("remove".equals(action)) {
                                 type = AliasAction.Type.REMOVE;
                             } else {
-                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] not supported");
+                                throw new ElasticsearchIllegalArgumentException("Alias action [" + action + "] not supported");
                             }
                             String index = null;
                             String alias = null;
@@ -117,12 +113,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     }
                                 }
                             }
-                            if (index == null) {
-                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [index] to be set");
-                            }
-                            if (alias == null) {
-                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
-                            }
+
                             if (type == AliasAction.Type.ADD) {
                                 AliasAction aliasAction = newAddAliasAction(index, alias).filter(filter);
                                 if (routingSet) {
@@ -152,29 +143,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         } finally {
             parser.close();
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new ActionListener<IndicesAliasesResponse>() {
-            @Override
-            public void onResponse(IndicesAliasesResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    builder.startObject()
-                            .field("ok", true)
-                            .field("acknowledged", response.isAcknowledged())
-                            .endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestResponseActionListener<IndicesAliasesResponse>(request, channel, logger));
     }
 }

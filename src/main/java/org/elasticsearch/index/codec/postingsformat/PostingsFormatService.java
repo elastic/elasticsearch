@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.index.codec.postingsformat;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -35,14 +35,15 @@ import java.util.Map;
 /**
  * The {@link PostingsFormatService} provides access to
  * all configured {@link PostingsFormatProvider} instances by
- * {@link PostingsFormatProvider#name() name}. 
- * 
- * @see CodecService 
- * 
+ * {@link PostingsFormatProvider#name() name}.
+ *
+ * @see CodecService
  */
 public class PostingsFormatService extends AbstractIndexComponent {
 
     private final ImmutableMap<String, PostingsFormatProvider> providers;
+
+    public final static String DEFAULT_FORMAT = "default";
 
     public PostingsFormatService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -70,8 +71,7 @@ public class PostingsFormatService extends AbstractIndexComponent {
             providers.put(name, factory.create(name, settings));
         }
 
-        // even though we have this logic in the cache module (where it should be, so posting format with delegates will work properly wiht the pre initialized map)
-        // we do it here as well so we can use just this instance for tests
+        // This is only needed for tests when guice doesn't have the chance to populate the list of PF factories
         for (PreBuiltPostingsFormatProvider.Factory factory : PostingFormats.listFactories()) {
             if (providers.containsKey(factory.name())) {
                 continue;
@@ -82,10 +82,10 @@ public class PostingsFormatService extends AbstractIndexComponent {
         this.providers = providers.immutableMap();
     }
 
-    public PostingsFormatProvider get(String name) throws ElasticSearchIllegalArgumentException {
+    public PostingsFormatProvider get(String name) throws ElasticsearchIllegalArgumentException {
         PostingsFormatProvider provider = providers.get(name);
         if (provider == null) {
-            throw new ElasticSearchIllegalArgumentException("failed to find postings_format [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("failed to find postings_format [" + name + "]");
         }
         return provider;
     }

@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -262,18 +262,24 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return new Builder();
     }
 
+    public static Builder builder(RoutingTable routingTable) {
+        return new Builder(routingTable);
+    }
+
     public static class Builder {
 
         private long version;
-
         private final Map<String, IndexRoutingTable> indicesRouting = newHashMap();
 
-        public Builder routingTable(RoutingTable routingTable) {
+        public Builder() {
+
+        }
+
+        public Builder(RoutingTable routingTable) {
             version = routingTable.version;
             for (IndexRoutingTable indexRoutingTable : routingTable) {
                 indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
             }
-            return this;
         }
 
         public Builder updateNodes(RoutingNodes routingNodes) {
@@ -373,6 +379,20 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                         .initializeAsRecovery(indexMetaData);
                 add(indexRoutingBuilder);
             }
+            return this;
+        }
+
+        public Builder addAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                    .initializeAsRestore(indexMetaData, restoreSource);
+            add(indexRoutingBuilder);
+            return this;
+        }
+
+        public Builder addAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                    .initializeAsNewRestore(indexMetaData, restoreSource);
+            add(indexRoutingBuilder);
             return this;
         }
 

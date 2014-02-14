@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.warmer;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,8 +31,8 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,28 +84,23 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming [{}], new [{}]", context.shardId().index().name(), context.shardId().id(), context.fullSearcher().reader(), context.newSearcher().reader());
+            logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
+        final List<IndicesWarmer.Listener.TerminationHandle> terminationHandles = Lists.newArrayList();
+        // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            threadPool.executor(listener.executor()).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        listener.warm(indexShard, indexMetaData, context);
-                    } catch (Throwable e) {
-                        indexShard.warmerService().logger().warn("failed to warm [{}]", e, listener);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
+            terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
+        }
+        // wait for termination
+        for (IndicesWarmer.Listener.TerminationHandle terminationHandle : terminationHandles) {
             try {
-                latch.await();
+                terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
-                return;
+                Thread.currentThread().interrupt();
+                logger.warn("Warming has been interrupted", e);
+                break;
             }
         }
         long took = System.nanoTime() - time;

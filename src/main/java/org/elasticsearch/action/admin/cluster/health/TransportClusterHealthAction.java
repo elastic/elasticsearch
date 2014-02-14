@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,21 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class TransportClusterHealthAction extends TransportMasterNodeOperationAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction extends TransportMasterNodeReadOperationAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private final ClusterName clusterName;
 
@@ -56,6 +52,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String executor() {
+        // we block here...
         return ThreadPool.Names.GENERIC;
     }
 
@@ -75,12 +72,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected boolean localExecute(ClusterHealthRequest request) {
-        return request.local();
-    }
-
-    @Override
-    protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState unusedState) throws ElasticSearchException {
+    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticsearchException {
         long endTime = System.currentTimeMillis() + request.timeout().millis();
 
         if (request.waitForEvents() != null) {
@@ -92,8 +84,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
 
@@ -124,7 +121,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         if (waitFor == 0) {
             // no need to wait for anything
             ClusterState clusterState = clusterService.state();
-            return clusterHealth(request, clusterState);
+            listener.onResponse(clusterHealth(request, clusterState));
+            return;
         }
         while (true) {
             int waitForCounter = 0;
@@ -197,130 +195,39 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 }
             }
             if (waitForCounter == waitFor) {
-                return response;
+                listener.onResponse(response);
+                return;
             }
             if (System.currentTimeMillis() > endTime) {
                 response.timedOut = true;
-                return response;
+                listener.onResponse(response);
+                return;
             }
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
                 response.timedOut = true;
-                // we got interrupted, bail
-                return response;
+                listener.onResponse(response);
+                return;
             }
         }
     }
+
 
     private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
-        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
-        ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
-        response.numberOfNodes = clusterState.nodes().size();
-        response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
-
         String[] concreteIndices;
         try {
             concreteIndices = clusterState.metaData().concreteIndicesIgnoreMissing(request.indices());
         } catch (IndexMissingException e) {
+            // one of the specified indices is not there - treat it as RED.
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);
+            response.status = ClusterHealthStatus.RED;
             return response;
         }
-        for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), validation.indexFailures(indexMetaData.index()));
 
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
-                for (ShardRouting shardRouting : shardRoutingTable) {
-                    if (shardRouting.active()) {
-                        shardHealth.activeShards++;
-                        if (shardRouting.relocating()) {
-                            // the shard is relocating, the one he is relocating to will be in initializing state, so we don't count it
-                            shardHealth.relocatingShards++;
-                        }
-                        if (shardRouting.primary()) {
-                            shardHealth.primaryActive = true;
-                        }
-                    } else if (shardRouting.initializing()) {
-                        shardHealth.initializingShards++;
-                    } else if (shardRouting.unassigned()) {
-                        shardHealth.unassignedShards++;
-                    }
-                }
-                if (shardHealth.primaryActive) {
-                    if (shardHealth.activeShards == shardRoutingTable.size()) {
-                        shardHealth.status = ClusterHealthStatus.GREEN;
-                    } else {
-                        shardHealth.status = ClusterHealthStatus.YELLOW;
-                    }
-                } else {
-                    shardHealth.status = ClusterHealthStatus.RED;
-                }
-                indexHealth.shards.put(shardHealth.getId(), shardHealth);
-            }
-
-            for (ClusterShardHealth shardHealth : indexHealth) {
-                if (shardHealth.isPrimaryActive()) {
-                    indexHealth.activePrimaryShards++;
-                }
-                indexHealth.activeShards += shardHealth.activeShards;
-                indexHealth.relocatingShards += shardHealth.relocatingShards;
-                indexHealth.initializingShards += shardHealth.initializingShards;
-                indexHealth.unassignedShards += shardHealth.unassignedShards;
-            }
-            // update the index status
-            indexHealth.status = ClusterHealthStatus.GREEN;
-            if (!indexHealth.getValidationFailures().isEmpty()) {
-                indexHealth.status = ClusterHealthStatus.RED;
-            } else if (indexHealth.getShards().isEmpty()) { // might be since none has been created yet (two phase index creation)
-                indexHealth.status = ClusterHealthStatus.RED;
-            } else {
-                for (ClusterShardHealth shardHealth : indexHealth) {
-                    if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
-                        indexHealth.status = ClusterHealthStatus.RED;
-                        break;
-                    }
-                    if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW) {
-                        indexHealth.status = ClusterHealthStatus.YELLOW;
-                    }
-                }
-            }
-
-            response.indices.put(indexHealth.getIndex(), indexHealth);
-        }
-
-        for (ClusterIndexHealth indexHealth : response) {
-            response.activePrimaryShards += indexHealth.activePrimaryShards;
-            response.activeShards += indexHealth.activeShards;
-            response.relocatingShards += indexHealth.relocatingShards;
-            response.initializingShards += indexHealth.initializingShards;
-            response.unassignedShards += indexHealth.unassignedShards;
-        }
-
-        response.status = ClusterHealthStatus.GREEN;
-        if (!response.getValidationFailures().isEmpty()) {
-            response.status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            response.status = ClusterHealthStatus.RED;
-        } else {
-            for (ClusterIndexHealth indexHealth : response) {
-                if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
-                    response.status = ClusterHealthStatus.RED;
-                    break;
-                }
-                if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW) {
-                    response.status = ClusterHealthStatus.YELLOW;
-                }
-            }
-        }
-
-        return response;
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState);
     }
 }

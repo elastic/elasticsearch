@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -52,6 +52,7 @@ public class SpanNotQueryParser implements QueryParser {
 
         SpanQuery include = null;
         SpanQuery exclude = null;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -77,6 +78,8 @@ public class SpanNotQueryParser implements QueryParser {
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
@@ -91,6 +94,9 @@ public class SpanNotQueryParser implements QueryParser {
 
         SpanNotQuery query = new SpanNotQuery(include, exclude);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

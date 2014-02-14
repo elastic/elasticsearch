@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,8 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.ElasticSearchException;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -41,9 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
  *
@@ -97,7 +95,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         gateway.start();
         // if we received initial state, see if we can recover within the start phase, so we hold the
         // node from starting until we recovered properly
@@ -141,13 +139,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         clusterService.remove(this);
         gateway.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         gateway.close();
     }
 
@@ -248,8 +246,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .blocks(recoveredState.blocks())
                             .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
-                    MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                            .metaData(recoveredState.metaData());
+                    MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
+                    // automatically generate a UID for the metadata if we need to
+                    metaDataBuilder.generateUuidIfNeeded();
 
                     if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
@@ -261,28 +260,33 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     }
 
                     // update the state to reflect the new metadata and routing
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState)
+                    ClusterState updatedState = ClusterState.builder(currentState)
                             .blocks(blocks)
                             .metaData(metaDataBuilder)
                             .build();
 
                     // initialize all index routing tables as empty
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
-                    for (IndexMetaData indexMetaData : updatedState.metaData().indices().values()) {
-                        routingTableBuilder.addAsRecovery(indexMetaData);
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable());
+                    for (ObjectCursor<IndexMetaData> cursor : updatedState.metaData().indices().values()) {
+                        routingTableBuilder.addAsRecovery(cursor.value);
                     }
                     // start with 0 based versions for routing table
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
 
-                    return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
-                    logger.info("recovered [{}] indices into cluster_state", clusterState.metaData().indices().size());
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
                     latch.countDown();
                 }
             });

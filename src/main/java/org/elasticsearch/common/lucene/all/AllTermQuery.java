@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,15 +19,15 @@
 
 package org.elasticsearch.common.lucene.all;
 
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.similarities.Similarity.SloppySimScorer;
+import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.spans.SpanScorer;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWeight;
@@ -46,15 +46,8 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.decodeFloat;
  */
 public class AllTermQuery extends SpanTermQuery {
 
-    private boolean includeSpanScore;
-
     public AllTermQuery(Term term) {
-        this(term, true);
-    }
-
-    public AllTermQuery(Term term, boolean includeSpanScore) {
         super(term);
-        this.includeSpanScore = includeSpanScore;
     }
 
     @Override
@@ -69,12 +62,12 @@ public class AllTermQuery extends SpanTermQuery {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder,
+        public AllTermSpanScorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder,
                 boolean topScorer, Bits acceptDocs) throws IOException {
             if (this.stats == null) {
                 return null;
             }
-            SloppySimScorer sloppySimScorer = similarity.sloppySimScorer(stats, context);
+            SimScorer sloppySimScorer = similarity.simScorer(stats, context);
             return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
         }
 
@@ -83,7 +76,7 @@ public class AllTermQuery extends SpanTermQuery {
             protected float payloadScore;
             protected int payloadsSeen;
 
-            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SloppySimScorer docScorer) throws IOException {
+            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SimScorer docScorer) throws IOException {
                 super(spans, weight, docScorer);
                 positions = spans.getPostings();
             }
@@ -95,18 +88,19 @@ public class AllTermQuery extends SpanTermQuery {
                 }
                 doc = spans.doc();
                 freq = 0.0f;
+                numMatches = 0;
                 payloadScore = 0;
                 payloadsSeen = 0;
-                while (more && doc == spans.doc()) {
+                do {
                     int matchLength = spans.end() - spans.start();
 
                     freq += docScorer.computeSlopFactor(matchLength);
+                    numMatches++;
                     processPayload();
 
-                    more = spans.next();// this moves positions to the next match in this
-                    // document
-                }
-                return more || (freq != 0);
+                    more = spans.next();// this moves positions to the next match
+                } while (more && (doc == spans.doc()));
+                return true;
             }
 
             protected void processPayload() throws IOException {
@@ -126,7 +120,7 @@ public class AllTermQuery extends SpanTermQuery {
              */
             @Override
             public float score() throws IOException {
-                return includeSpanScore ? getSpanScore() * getPayloadScore() : getPayloadScore();
+                return getSpanScore() * getPayloadScore();
             }
 
             /**
@@ -153,12 +147,12 @@ public class AllTermQuery extends SpanTermQuery {
         
         @Override
         public Explanation explain(AtomicReaderContext context, int doc) throws IOException{
-            AllTermSpanScorer scorer = (AllTermSpanScorer) scorer(context, true, false, context.reader().getLiveDocs());
+            AllTermSpanScorer scorer = scorer(context, true, false, context.reader().getLiveDocs());
             if (scorer != null) {
               int newDoc = scorer.advance(doc);
               if (newDoc == doc) {
-                float freq = scorer.freq();
-                SloppySimScorer docScorer = similarity.sloppySimScorer(stats, context);
+                float freq = scorer.sloppyFreq();
+                SimScorer docScorer = similarity.simScorer(stats, context);
                 ComplexExplanation inner = new ComplexExplanation();
                 inner.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
                 Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));
@@ -188,10 +182,7 @@ public class AllTermQuery extends SpanTermQuery {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + (includeSpanScore ? 1231 : 1237);
-        return result;
+        return super.hashCode() + 1;
     }
 
     @Override
@@ -201,9 +192,6 @@ public class AllTermQuery extends SpanTermQuery {
         if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
-            return false;
-        AllTermQuery other = (AllTermQuery) obj;
-        if (includeSpanScore != other.includeSpanScore)
             return false;
         return true;
     }

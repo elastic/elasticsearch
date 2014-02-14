@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -34,19 +34,25 @@ public class TransportRequestOptions {
     }
 
     public static enum Type {
-        LOW,
-        MED,
-        HIGH;
+        RECOVERY,
+        BULK,
+        REG,
+        STATE,
+        PING;
 
         public static Type fromString(String type) {
-            if ("low".equalsIgnoreCase(type)) {
-                return LOW;
-            } else if ("med".equalsIgnoreCase(type)) {
-                return MED;
-            } else if ("high".equalsIgnoreCase(type)) {
-                return HIGH;
+            if ("bulk".equalsIgnoreCase(type)) {
+                return BULK;
+            } else if ("reg".equalsIgnoreCase(type)) {
+                return REG;
+            } else if ("state".equalsIgnoreCase(type)) {
+                return STATE;
+            } else if ("recovery".equalsIgnoreCase(type)) {
+                return RECOVERY;
+            } else if ("ping".equalsIgnoreCase(type)) {
+                return PING;
             } else {
-                throw new ElasticSearchIllegalArgumentException("failed to match transport type for [" + type + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to match transport type for [" + type + "]");
             }
         }
     }
@@ -55,7 +61,7 @@ public class TransportRequestOptions {
 
     private boolean compress;
 
-    private Type type = Type.MED;
+    private Type type = Type.REG;
 
     public TransportRequestOptions withTimeout(long timeout) {
         return withTimeout(TimeValue.timeValueMillis(timeout));
@@ -73,30 +79,6 @@ public class TransportRequestOptions {
 
     public TransportRequestOptions withType(Type type) {
         this.type = type;
-        return this;
-    }
-
-    /**
-     * A request that requires very low latency. Usually reserved for ping requests with very small payload.
-     */
-    public TransportRequestOptions withHighType() {
-        this.type = Type.HIGH;
-        return this;
-    }
-
-    /**
-     * The typical requests flows go through this one.
-     */
-    public TransportRequestOptions withMedType() {
-        this.type = Type.MED;
-        return this;
-    }
-
-    /**
-     * Batch oriented (big payload) based requests use this one.
-     */
-    public TransportRequestOptions withLowType() {
-        this.type = Type.LOW;
         return this;
     }
 

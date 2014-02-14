@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,20 +23,23 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
-
 /**
- * An allocation decider that prevents the more than prevents multiple instances
- * of the same shard to be allocated on a single <tt>host</tt>. The cluster setting can
- * be modified in real-time by updating the {@value #SAME_HOST_SETTING} value of
- * cluster setting API. The default is <code>false</code>.
+ * An allocation decider that prevents multiple instances of the same shard to
+ * be allocated on the same <tt>node</tt>.
+ *
+ * The {@value #SAME_HOST_SETTING} setting allows to perform a check to prevent
+ * allocation of multiple instances of the same shard on a single <tt>host</tt>,
+ * based on host name and host address. Defaults to `false`, meaning that no
+ * check is performed by default.
+ *
  * <p>
  * Note: this setting only applies if multiple nodes are started on the same
- * <tt>host</tt>. Multiple allocations of the same shard on the same <tt>node</tt> are
- * not allowed independent of this setting.
+ * <tt>host</tt>. Allocations of multiple copies of the same shard on the same
+ * <tt>node</tt> are not allowed independently of this setting.
  * </p>
  */
 public class SameShardAllocationDecider extends AllocationDecider {
@@ -54,11 +57,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        List<MutableShardRouting> shards = node.shards();
-        for (int i = 0; i < shards.size(); i++) {
-            // we do not allow for two shards of the same shard id to exists on the same node
-            if (shards.get(i).shardId().equals(shardRouting.shardId())) {
-                return Decision.NO;
+        Iterable<MutableShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting);
+        for (MutableShardRouting assignedShard : assignedShards) {
+            if (node.nodeId().equals(assignedShard.currentNodeId())) {
+                return allocation.decision(Decision.NO, "shard cannot be allocated on same node [%s] it already exists on", node.nodeId());
             }
         }
         if (sameHost) {
@@ -68,18 +70,27 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         continue;
                     }
                     // check if its on the same host as the one we want to allocate to
-                    if (!checkNode.node().address().sameHost(node.node().address())) {
-                        continue;
+                    boolean checkNodeOnSameHost = false;
+                    if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
+                        if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
+                            checkNodeOnSameHost = true;
+                        }
+                    } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
+                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                            checkNodeOnSameHost = true;
+                        }
                     }
-                    shards = checkNode.shards();
-                    for (int i = 0; i < shards.size(); i++) {
-                        if (shards.get(i).shardId().equals(shardRouting.shardId())) {
-                            return Decision.NO;
+                    if (checkNodeOnSameHost) {
+                        for (MutableShardRouting assignedShard : assignedShards) {
+                            if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+                                return allocation.decision(Decision.NO, "shard cannot be allocated on same host [%s] it already exists on",
+                                        node.nodeId());
+                            }
                         }
                     }
                 }
             }
         }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "shard is not allocated to same node or host");
     }
 }

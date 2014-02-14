@@ -1,0 +1,34 @@
+---
+"Basic test for aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                alias: test_alias
+                routing: routing_value
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_true: ''
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+
+  - match: {test_index.aliases.test_alias: {'index_routing': 'routing_value', 'search_routing': 'routing_value'}}

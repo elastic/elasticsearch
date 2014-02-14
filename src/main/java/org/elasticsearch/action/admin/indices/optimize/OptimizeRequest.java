@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -47,18 +46,12 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
-        public static final boolean REFRESH = true;
     }
 
     private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
-
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
-
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
-
     private boolean flush = Defaults.FLUSH;
-
-    private boolean refresh = Defaults.FLUSH;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -67,8 +60,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      */
     public OptimizeRequest(String... indices) {
         super(indices);
-        // we want to do the optimize in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public OptimizeRequest() {
@@ -139,28 +130,12 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         return this;
     }
 
-    /**
-     * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
-     */
-    public boolean refresh() {
-        return refresh;
-    }
-
-    /**
-     * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         waitForMerge = in.readBoolean();
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        refresh = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -169,6 +144,5 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        out.writeBoolean(refresh);
     }
 }

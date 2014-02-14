@@ -1,0 +1,20 @@
+---
+"Internal version":
+
+ - do:
+      create:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+ - match:   { _version: 1}
+
+ - do:
+      catch: conflict
+      create:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+

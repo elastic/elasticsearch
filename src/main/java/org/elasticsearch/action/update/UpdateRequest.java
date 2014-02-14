@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,6 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -64,8 +63,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
-
-    private String percolate;
 
     private boolean refresh = false;
 
@@ -283,7 +280,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
-     * getting it and updating it. Defaults to 1.
+     * getting it and updating it. Defaults to 0.
      */
     public UpdateRequest retryOnConflict(int retryOnConflict) {
         this.retryOnConflict = retryOnConflict;
@@ -317,20 +314,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    /**
-     * Causes the update request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public UpdateRequest percolate(String percolate) {
-        this.percolate = percolate;
-        return this;
-    }
-
-    public String percolate() {
-        return this.percolate;
     }
 
     /**
@@ -596,14 +579,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        percolate = in.readOptionalString();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
             doc = new IndexRequest();
@@ -620,9 +602,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_0_90_2)) {
-            docAsUpsert = in.readBoolean();
-        }
+        docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -632,14 +612,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        out.writeOptionalString(percolate);
         out.writeBoolean(refresh);
         if (doc == null) {
             out.writeBoolean(false);
@@ -669,9 +648,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_0_90_2)) {
-            out.writeBoolean(docAsUpsert);
-        }
+        out.writeBoolean(docAsUpsert);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }

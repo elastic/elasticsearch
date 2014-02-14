@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.SlicedDoubleList;
 import org.elasticsearch.common.util.SlicedLongList;
 import org.elasticsearch.common.util.SlicedObjectList;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
@@ -95,28 +94,40 @@ public abstract class ScriptDocValues {
 
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
+        }
+
+        public BytesValues getInternalValues() {
+            return this.values;
+        }
+
+        public BytesRef getBytesValue() {
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return null;
+            }
+            return values.nextValue();
         }
 
         public String getValue() {
-            final BytesRef value = values.getValue(docId);
-            if (value != null) {
-                UnicodeUtil.UTF8toUTF16(value, spare);
-                return spare.toString();
+            String value = null;
+            if (values.setDocument(docId) > 0) {
+                UnicodeUtil.UTF8toUTF16(values.nextValue(), spare);
+                value = spare.toString();
             }
-            return null;
+            return value;
         }
 
         public List<String> getValues() {
             if (!listLoaded) {
+                final int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                Iter iter = values.getIter(docId);
-                while (iter.hasNext()) {
-                    BytesRef next = iter.next();
-                    list.grow(list.length + 1);
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    BytesRef next = values.nextValue();
                     UnicodeUtil.UTF8toUTF16(next, spare);
-                    list.values[list.length++] = spare.toString();
+                    list.values[i] = spare.toString();
                 }
                 listLoaded = true;
             }
@@ -124,7 +135,6 @@ public abstract class ScriptDocValues {
         }
 
     }
-
 
     public static class Longs extends ScriptDocValues {
 
@@ -137,23 +147,31 @@ public abstract class ScriptDocValues {
             this.list = new SlicedLongList(values.isMultiValued() ? 10 : 1);
         }
 
+        public LongValues getInternalValues() {
+            return this.values;
+        }
+
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
         public long getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return 0l;
+            }
+            return values.nextValue();
         }
 
         public List<Long> getValues() {
             if (!listLoaded) {
-                final LongValues.Iter iter = values.getIter(docId);
+                final int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    list.grow(list.length + 1);
-                    list.values[list.length++] = iter.next();
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    list.values[i] = values.nextValue();
                 }
                 listLoaded = true;
             }
@@ -178,23 +196,32 @@ public abstract class ScriptDocValues {
 
         }
 
-        @Override
-        public boolean isEmpty() {
-            return !values.hasValue(docId);
+        public DoubleValues getInternalValues() {
+            return this.values;
         }
 
+        @Override
+        public boolean isEmpty() {
+            return values.setDocument(docId) == 0;
+        }
+
+
         public double getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return 0d;
+            }
+            return values.nextValue();
         }
 
         public List<Double> getValues() {
             if (!listLoaded) {
-                final DoubleValues.Iter iter = values.getIter(docId);
+                int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    list.grow(list.length + 1);
-                    list.values[list.length++] = iter.next();
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    list.values[i] = values.nextValue();
                 }
                 listLoaded = true;
             }
@@ -224,14 +251,17 @@ public abstract class ScriptDocValues {
             };
         }
 
-
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
         public GeoPoint getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return null;
+            }
+            return values.nextValue();
         }
 
         public double getLat() {
@@ -260,22 +290,20 @@ public abstract class ScriptDocValues {
             return getValue().lon();
         }
 
-
         public List<GeoPoint> getValues() {
             if (!listLoaded) {
-                GeoPointValues.Iter iter = values.getIter(docId);
+                int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    int index = list.length;
-                    list.grow(index + 1);
-                    GeoPoint next = iter.next();
-                    GeoPoint point = list.values[index];
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    GeoPoint next = values.nextValue();
+                    GeoPoint point = list.values[i];
                     if (point == null) {
-                        point = list.values[index] = new GeoPoint();
+                        point = list.values[i] = new GeoPoint();
                     }
                     point.reset(next.lat(), next.lon());
-                    list.values[list.length++] = point;
+                    list.values[i] = point;
                 }
                 listLoaded = true;
             }
@@ -285,7 +313,7 @@ public abstract class ScriptDocValues {
 
         public double factorDistance(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double factorDistanceWithDefault(double lat, double lon, double defaultValue) {
@@ -293,22 +321,22 @@ public abstract class ScriptDocValues {
                 return defaultValue;
             }
             GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double factorDistance02(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES) + 1;
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 1;
         }
 
         public double factorDistance13(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES) + 2;
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT) + 2;
         }
 
         public double arcDistance(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double arcDistanceWithDefault(double lat, double lon, double defaultValue) {
@@ -316,7 +344,7 @@ public abstract class ScriptDocValues {
                 return defaultValue;
             }
             GeoPoint point = getValue();
-            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double arcDistanceInKm(double lat, double lon) {
@@ -332,9 +360,22 @@ public abstract class ScriptDocValues {
             return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
 
+        public double arcDistanceInMiles(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double arcDistanceInMilesWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
         public double distance(double lat, double lon) {
             GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double distanceWithDefault(double lat, double lon, double defaultValue) {
@@ -342,7 +383,7 @@ public abstract class ScriptDocValues {
                 return defaultValue;
             }
             GeoPoint point = getValue();
-            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.DEFAULT);
         }
 
         public double distanceInKm(double lat, double lon) {
@@ -356,6 +397,19 @@ public abstract class ScriptDocValues {
             }
             GeoPoint point = getValue();
             return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
+        }
+
+        public double distanceInMiles(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double distanceInMilesWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
         }
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
+
+import java.util.Locale;
 
 /**
  * Geo distance calculation.
@@ -47,6 +50,7 @@ public enum GeoDistance {
             return new PlaneFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
     },
+
     /**
      * Calculates distance factor.
      */
@@ -70,23 +74,17 @@ public enum GeoDistance {
         }
     },
     /**
-     * Calculates distance as points in a globe.
+     * Calculates distance as points on a globe.
      */
     ARC() {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double a = Math.toRadians(90D - sourceLatitude);
-            double c = Math.toRadians(90D - targetLatitude);
-            double factor = (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
-
-            if (factor < -1D) {
-                return Math.PI * unit.getEarthRadius();
-            } else if (factor >= 1D) {
-                return 0;
-            } else {
-                return Math.acos(factor) * unit.getEarthRadius();
-            }
+            double x1 = sourceLatitude * Math.PI / 180D;
+            double x2 = targetLatitude * Math.PI / 180D;
+            double h1 = (1D - Math.cos(x1 - x2)) / 2D;
+            double h2 = (1D - Math.cos((sourceLongitude - targetLongitude) * Math.PI / 180D)) / 2D;
+            double h = h1 + Math.cos(x1) * Math.cos(x2) * h2;
+            return unit.fromMeters(GeoUtils.EARTH_MEAN_RADIUS * 2D * Math.asin(Math.min(1, Math.sqrt(h))));
         }
 
         @Override
@@ -98,8 +96,35 @@ public enum GeoDistance {
         public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             return new ArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
         }
+    },
+    /**
+     * Calculates distance as points on a globe in a sloppy way. Close to the pole areas the accuracy
+     * of this function decreases.
+     */
+    SLOPPY_ARC() {
+
+        @Override
+        public double normalize(double distance, DistanceUnit unit) {
+            return distance;
+        }
+
+        @Override
+        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
+            return unit.fromMeters(SloppyMath.haversin(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude) * 1000.0);
+        }
+
+        @Override
+        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            return new SloppyArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+        }
     };
 
+    /**
+     * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
+     * This is an alias for <code>SLOPPY_ARC</code>
+     */
+    public static final GeoDistance DEFAULT = SLOPPY_ARC; 
+    
     public abstract double normalize(double distance, DistanceUnit unit);
 
     public abstract double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit);
@@ -144,15 +169,31 @@ public enum GeoDistance {
         return new SimpleDistanceBoundingCheck(topLeft, bottomRight);
     }
 
-    public static GeoDistance fromString(String s) {
-        if ("plane".equals(s)) {
+    /**
+     * Get a {@link GeoDistance} according to a given name. Valid values are
+     * 
+     * <ul>
+     *     <li><b>plane</b> for <code>GeoDistance.PLANE</code></li>
+     *     <li><b>sloppy_arc</b> for <code>GeoDistance.SLOPPY_ARC</code></li>
+     *     <li><b>factor</b> for <code>GeoDistance.FACTOR</code></li>
+     *     <li><b>arc</b> for <code>GeoDistance.ARC</code></li>
+     * </ul>
+     * 
+     * @param name name of the {@link GeoDistance}
+     * @return a {@link GeoDistance}
+     */
+    public static GeoDistance fromString(String name) {
+        name = name.toLowerCase(Locale.ROOT);
+        if ("plane".equals(name)) {
             return PLANE;
-        } else if ("arc".equals(s)) {
+        } else if ("arc".equals(name)) {
             return ARC;
-        } else if ("factor".equals(s)) {
+        } else if ("sloppy_arc".equals(name)) {
+            return SLOPPY_ARC;
+        } else if ("factor".equals(name)) {
             return FACTOR;
         }
-        throw new ElasticSearchIllegalArgumentException("No geo distance for [" + s + "]");
+        throw new ElasticsearchIllegalArgumentException("No geo distance for [" + name + "]");
     }
 
     public static interface FixedSourceDistance {
@@ -263,18 +304,14 @@ public enum GeoDistance {
 
     public static class FactorFixedSourceDistance implements FixedSourceDistance {
 
-        private final double sourceLatitude;
         private final double sourceLongitude;
-        private final double earthRadius;
 
         private final double a;
         private final double sinA;
         private final double cosA;
 
         public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            this.sourceLatitude = sourceLatitude;
             this.sourceLongitude = sourceLongitude;
-            this.earthRadius = unit.getEarthRadius();
             this.a = Math.toRadians(90D - sourceLatitude);
             this.sinA = Math.sin(a);
             this.cosA = Math.cos(a);
@@ -288,39 +325,44 @@ public enum GeoDistance {
         }
     }
 
+    /**
+     * Basic implementation of {@link FixedSourceDistance}. This class keeps the basic parameters for a distance
+     * functions based on a fixed source. Namely latitude, longitude and unit. 
+     */
+    public static abstract class FixedSourceDistanceBase implements FixedSourceDistance {
+        protected final double sourceLatitude;
+        protected final double sourceLongitude;
+        protected final DistanceUnit unit;
 
-    public static class ArcFixedSourceDistance implements FixedSourceDistance {
-
-        private final double sourceLatitude;
-        private final double sourceLongitude;
-        private final double earthRadius;
-
-        private final double a;
-        private final double sinA;
-        private final double cosA;
-
-        public ArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        public FixedSourceDistanceBase(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
             this.sourceLatitude = sourceLatitude;
             this.sourceLongitude = sourceLongitude;
-            this.earthRadius = unit.getEarthRadius();
-            this.a = Math.toRadians(90D - sourceLatitude);
-            this.sinA = Math.sin(a);
-            this.cosA = Math.cos(a);
+            this.unit = unit;
+        }
+    }
+    
+    public static class ArcFixedSourceDistance extends FixedSourceDistanceBase {
+
+        public ArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            super(sourceLatitude, sourceLongitude, unit);
         }
 
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double c = Math.toRadians(90D - targetLatitude);
-            double factor = (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
+            return ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
+        }
 
-            if (factor < -1D) {
-                return Math.PI * earthRadius;
-            } else if (factor >= 1D) {
-                return 0;
-            } else {
-                return Math.acos(factor) * earthRadius;
-            }
+    }
+
+    public static class SloppyArcFixedSourceDistance extends FixedSourceDistanceBase {
+
+        public SloppyArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+            super(sourceLatitude, sourceLongitude, unit);
+        }
+
+        @Override
+        public double calculate(double targetLatitude, double targetLongitude) {
+            return SLOPPY_ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
         }
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class SearchPhaseExecutionException extends ElasticSearchException {
+public class SearchPhaseExecutionException extends ElasticsearchException {
 
     private final String phaseName;
 
@@ -40,6 +41,23 @@ public class SearchPhaseExecutionException extends ElasticSearchException {
         super(buildMessage(phaseName, msg, shardFailures), cause);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+    }
+
+    @Override
+    public RestStatus status() {
+        if (shardFailures.length == 0) {
+            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
+            return RestStatus.SERVICE_UNAVAILABLE;
+        }
+        RestStatus status = shardFailures[0].status();
+        if (shardFailures.length > 1) {
+            for (int i = 1; i < shardFailures.length; i++) {
+                if (shardFailures[i].status().getStatus() >= 500) {
+                    status = shardFailures[i].status();
+                }
+            }
+        }
+        return status;
     }
 
     public String phaseName() {

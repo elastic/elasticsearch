@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,12 +19,14 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -47,22 +49,33 @@ public class RestActions {
         return 0;
     }
 
+    static final class Fields {
+        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString INDEX = new XContentBuilderString("index");
+        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
+    }
+
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
-        builder.startObject("_shards");
-        builder.field("total", response.getTotalShards());
-        builder.field("successful", response.getSuccessfulShards());
-        builder.field("failed", response.getFailedShards());
-        if (response.getShardFailures()!=null && response.getShardFailures().length>0) {
-            builder.startArray("failures");
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, response.getTotalShards());
+        builder.field(Fields.SUCCESSFUL, response.getSuccessfulShards());
+        builder.field(Fields.FAILED, response.getFailedShards());
+        if (response.getShardFailures() != null && response.getShardFailures().length > 0) {
+            builder.startArray(Fields.FAILURES);
             for (ShardOperationFailedException shardFailure : response.getShardFailures()) {
                 builder.startObject();
                 if (shardFailure.index() != null) {
-                    builder.field("index", shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(Fields.INDEX, shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 if (shardFailure.shardId() != -1) {
-                    builder.field("shard", shardFailure.shardId());
+                    builder.field(Fields.SHARD, shardFailure.shardId());
                 }
-                builder.field("reason", shardFailure.reason());
+                builder.field(Fields.REASON, shardFailure.reason());
                 builder.endObject();
             }
             builder.endArray();
@@ -70,7 +83,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static BytesReference parseQuerySource(RestRequest request) {
+    public static QuerySourceBuilder parseQuerySource(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -85,30 +98,28 @@ public class RestActions {
             } else if ("AND".equals(defaultOperator)) {
                 queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }
         }
-        return queryBuilder.buildAsBytes();
+        return new QuerySourceBuilder().setQuery(queryBuilder);
     }
 
-    public static String[] splitIndices(String indices) {
-        if (indices == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(indices);
-    }
+    /**
+     * Get Rest content from either payload or source parameter
+     * @param request Rest request
+     * @return rest content
+     */
+    public static BytesReference getRestContent(RestRequest request) {
+        assert request != null;
 
-    public static String[] splitTypes(String typeNames) {
-        if (typeNames == null) {
-            return Strings.EMPTY_ARRAY;
+        BytesReference content = request.content();
+        if (!request.hasContent()) {
+            String source = request.param("source");
+            if (source != null) {
+                content = new BytesArray(source);
+            }
         }
-        return Strings.splitStringByCommaToArray(typeNames);
-    }
 
-    public static String[] splitNodes(String nodes) {
-        if (nodes == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(nodes);
+        return content;
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,85 +19,67 @@
 
 package org.elasticsearch.rest.action.admin.indices.settings;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 public class RestGetSettingsAction extends BaseRestHandler {
 
-    private final SettingsFilter settingsFilter;
-
     @Inject
-    public RestGetSettingsAction(Settings settings, Client client, RestController controller, SettingsFilter settingsFilter) {
+    public RestGetSettingsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
-
-        this.settingsFilter = settingsFilter;
+        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
+        controller.registerHandler(GET, "/_settings/{name}", this);
+        controller.registerHandler(GET, "/{index}/_setting/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final String[] indices = splitIndices(request.param("index"));
+        final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+                .indices(Strings.splitStringByCommaToArray(request.param("index")))
+                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
+                .names(names);
+        getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterRoutingTable(true)
-                .filterNodes(true)
-                .filteredIndices(indices);
-        clusterStateRequest.listenerThreaded(false);
+        client.admin().indices().getSettings(getSettingsRequest, new ActionListener<GetSettingsResponse>() {
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetSettingsResponse getSettingsResponse) {
                 try {
-                    MetaData metaData = response.getState().metaData();
-
-                    if (metaData.indices().isEmpty() && indices.length > 0) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
-                        return;
-                    }
-
-                    boolean foundAny = false;
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-
-                    for (IndexMetaData indexMetaData : metaData) {
-                        builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-                        foundAny = true;
-                        builder.startObject("settings");
-                        Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                            builder.field(entry.getKey(), entry.getValue());
+                    for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
+                        // no settings, jump over it to shorten the response data
+                        if (cursor.value.getAsMap().isEmpty()) {
+                            continue;
                         }
+                        builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                        builder.startObject(Fields.SETTINGS);
+                        cursor.value.toXContent(builder, request);
                         builder.endObject();
-
                         builder.endObject();
                     }
-
                     builder.endObject();
-
-                    channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
-                } catch (Throwable e) {
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                } catch (IOException e) {
                     onFailure(e);
                 }
             }
@@ -111,5 +93,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    static class Fields {
+
+        static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
+
     }
 }

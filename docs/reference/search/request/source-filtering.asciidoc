@@ -1,0 +1,65 @@
+[[search-request-source-filtering]]
+=== Source filtering
+
+added[1.0.0.Beta1]
+
+
+Allows to control how the `_source` field is returned with every hit.
+
+By default operations return the contents of the `_source` field unless
+you have used the `fields` parameter or if the `_source` field is disabled.
+
+You can turn off `_source` retrieval by using the `_source` parameter:
+
+To disable `_source` retrieval set to `false`:
+
+[source,js]
+--------------------------------------------------
+{
+    "_source": false,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+The `_source` also accepts one or more wildcard patterns to control what parts of the `_source` should be returned:
+
+For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "_source": "obj.*",
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+Or
+
+[source,js]
+--------------------------------------------------
+{
+    "_source": [ "obj1.*", "obj2.*" ],
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+Finally, for complete control, you can specify both include and exclude patterns:
+
+[source,js]
+--------------------------------------------------
+{
+    "_source": {
+        "include": [ "obj1.*", "obj2.*" ],
+        "exclude": [ "*.description" ],
+    }
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------

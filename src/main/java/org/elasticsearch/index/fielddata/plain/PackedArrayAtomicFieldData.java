@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,18 +19,20 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  * {@link AtomicNumericFieldData} implementation which stores data in packed arrays to save memory.
  */
-public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData {
+public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
-    public static final PackedArrayAtomicFieldData EMPTY = new Empty();
+    public static PackedArrayAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
 
     private final int numDocs;
 
@@ -52,8 +54,8 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
     static class Empty extends PackedArrayAtomicFieldData {
 
-        Empty() {
-            super(0);
+        Empty(int numDocs) {
+            super(numDocs);
         }
 
         @Override
@@ -82,7 +84,12 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
-        public BytesValues getBytesValues() {
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
+        public BytesValues getBytesValues(boolean needsHashes) {
             return BytesValues.EMPTY;
         }
 
@@ -116,9 +123,14 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + values.ramBytesUsed() + ordinals.getMemorySizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + values.ramBytesUsed() + ordinals.getMemorySizeInBytes();
             }
             return size;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
         }
 
         @Override
@@ -141,8 +153,9 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public long getValueByOrd(int ord) {
-                return ord == 0 ? 0L : values.get(ord - 1);
+            public long getValueByOrd(long ord) {
+                assert ord != Ordinals.MISSING_ORDINAL;
+                return values.get(ord - 1);
             }
         }
 
@@ -156,8 +169,9 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public double getValueByOrd(int ord) {
-                return ord == 0 ? 0L : values.get(ord - 1);
+            public double getValueByOrd(long ord) {
+                assert ord != Ordinals.MISSING_ORDINAL;
+                return values.get(ord - 1);
             }
 
 
@@ -173,12 +187,14 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         private final PackedInts.Mutable values;
         private final long minValue;
         private final long missingValue;
+        private final long numOrds;
 
-        public SingleSparse(PackedInts.Mutable values, long minValue, int numDocs, long missingValue) {
+        public SingleSparse(PackedInts.Mutable values, long minValue, int numDocs, long missingValue, long numOrds) {
             super(numDocs);
             this.values = values;
             this.minValue = minValue;
             this.missingValue = missingValue;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -192,9 +208,14 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = values.ramBytesUsed() + 2 * RamUsage.NUM_BYTES_LONG;
+                size = values.ramBytesUsed() + 2 * RamUsageEstimator.NUM_BYTES_LONG;
             }
             return size;
         }
@@ -223,14 +244,14 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return values.get(docId) != missingValue;
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return values.get(docId) != missingValue ? 1 : 0;
             }
 
             @Override
-            public long getValue(int docId) {
-                final long value = values.get(docId);
-                return value == missingValue ? 0L : minValue + value;
+            public long nextValue() {
+                return  minValue + values.get(docId);
             }
         }
 
@@ -247,16 +268,15 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
                 this.missingValue = missingValue;
             }
 
-
             @Override
-            public boolean hasValue(int docId) {
-                return values.get(docId) != missingValue;
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return values.get(docId) != missingValue ? 1 : 0;
             }
 
             @Override
-            public double getValue(int docId) {
-                final long value = values.get(docId);
-                return value == missingValue ? 0L : minValue + value;
+            public double nextValue() {
+                return  minValue + values.get(docId);
             }
         }
     }
@@ -268,15 +288,17 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
         private final PackedInts.Mutable values;
         private final long minValue;
+        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(PackedInts.Mutable values, long minValue, int numDocs) {
+        public Single(PackedInts.Mutable values, long minValue, int numDocs, long numOrds) {
             super(numDocs);
             this.values = values;
             this.minValue = minValue;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -287,6 +309,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override
@@ -307,7 +334,7 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             return new DoubleValues(values, minValue);
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
+        static class LongValues extends DenseLongValues {
 
             private final PackedInts.Mutable values;
             private final long minValue;
@@ -318,14 +345,16 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
                 this.minValue = minValue;
             }
 
+
             @Override
-            public long getValue(int docId) {
+            public long nextValue() {
                 return minValue + values.get(docId);
             }
+            
 
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
             private final PackedInts.Mutable values;
             private final long minValue;
@@ -337,7 +366,13 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public double getValue(int docId) {
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return 1;
+            }
+
+            @Override
+            public double nextValue() {
                 return minValue + values.get(docId);
             }
 

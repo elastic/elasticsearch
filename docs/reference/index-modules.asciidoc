@@ -1,0 +1,81 @@
+[[index-modules]]
+= Index Modules
+
+[partintro]
+--
+Index Modules are modules created per index and control all aspects
+related to an index. Since those modules lifecycle are tied to an index,
+all the relevant modules settings can be provided when creating an index
+(and it is actually the recommended way to configure an index).
+
+[float]
+[[index-modules-settings]]
+== Index Settings
+
+There are specific index level settings that are not associated with any
+specific module. These include:
+
+[[index-compound-format]]`index.compound_format`::
+
+	Should the compound file format be used (boolean setting).
+	The compound format was created to reduce the number of open
+	file handles when using file based storage. However, by default it is set
+	to `false` as the non-compound format gives better performance. It is important
+	that OS is configured to give Elasticsearch ``enough'' file handles.
+    See <<file-descriptors>>.
++
+Alternatively, `compound_format` can be set to a number between `0` and
+`1`, where `0` means `false`, `1` means `true` and a number inbetween
+represents a percentage: if the merged segment is less than this
+percentage of the total index, then it is written in compound format,
+otherwise it is written in non-compound format.
+
+[[index-compound-on-flush]]`index.compound_on_flush`::
+
+    Should a new segment (create by indexing, not by merging) be written
+    in compound format or non-compound format? Defaults to `true`.
+    This is a dynamic setting.
+
+`index.refresh_interval`::
+	A time setting controlling how often the
+	refresh operation will be executed. Defaults to `1s`. Can be set to `-1`
+	in order to disable it.
+
+`index.shard.check_on_startup`::
+        Should shard consistency be checked upon opening.
+        When `true`, the shard will be checked, preventing it from being open in
+        case some segments appear to be corrupted.
+        When `fix`, the shard will also be checked but segments that were reported
+        as corrupted will be automatically removed.
+        Default value is `false`, which doesn't check shards.
+
+NOTE: Checking shards may take a lot of time on large indices.
+
+WARNING: Setting `index.shard.check_on_startup` to `fix` may result in data loss,
+         use with caution.
+
+--
+
+include::index-modules/analysis.asciidoc[]
+
+include::index-modules/allocation.asciidoc[]
+
+include::index-modules/slowlog.asciidoc[]
+
+include::index-modules/merge.asciidoc[]
+
+include::index-modules/store.asciidoc[]
+
+include::index-modules/mapper.asciidoc[]
+
+include::index-modules/translog.asciidoc[]
+
+include::index-modules/cache.asciidoc[]
+
+include::index-modules/fielddata.asciidoc[]
+
+include::index-modules/codec.asciidoc[]
+
+include::index-modules/similarity.asciidoc[]
+
+

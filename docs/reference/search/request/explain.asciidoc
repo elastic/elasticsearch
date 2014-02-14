@@ -1,0 +1,14 @@
+[[search-request-explain]]
+=== Explain
+
+Enables explanation for each hit on how its score was computed.
+
+[source,js]
+--------------------------------------------------
+{
+    "explain": true,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------

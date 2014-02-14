@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -114,13 +114,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                             long version = Versions.MATCH_ANY;
                             boolean found = false;
                             for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
-                                if (!deleteResponse.isNotFound()) {
+                                if (deleteResponse.isFound()) {
                                     version = deleteResponse.getVersion();
                                     found = true;
                                     break;
                                 }
                             }
-                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, !found));
+                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, found));
                         }
 
                         @Override
@@ -187,13 +187,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
+                indexShard.refresh(new Engine.Refresh("refresh_flag_delete").force(false));
             } catch (Exception e) {
                 // ignore
             }
         }
 
-        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
+        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.found());
         return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
     }
 
@@ -208,7 +208,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
+                indexShard.refresh(new Engine.Refresh("refresh_flag_delete").force(false));
             } catch (Exception e) {
                 // ignore
             }

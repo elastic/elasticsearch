@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,11 +19,9 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.iterator.TObjectIntIterator;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +29,7 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
@@ -169,14 +168,17 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
-            return facets.get(0);
+            InternalStringTermsFacet facet = (InternalStringTermsFacet) facets.get(0);
+            facet.trimExcessEntries();
+            return facet;
         }
 
         InternalStringTermsFacet first = null;
 
-        TObjectIntHashMap<Text> aggregated = CacheRecycler.popObjectIntMap();
+        Recycler.V<ObjectIntOpenHashMap<Text>> aggregated = context.cacheRecycler().objectIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -188,7 +190,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
                 // the assumption is that if one of the facets is of different type, it should do the
                 // reduction (all the facets we iterated so far most likely represent unmapped fields, if not
                 // class cast exception will be thrown)
-                return termsFacet.reduce(facets);
+                return termsFacet.reduce(context);
             }
 
             if (first == null) {
@@ -196,22 +198,48 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             }
 
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
+                aggregated.v().addTo(entry.getTerm(), entry.getCount());
             }
         }
 
         BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<TermEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TObjectIntIterator<Text> it = aggregated.iterator(); it.hasNext(); ) {
-            it.advance();
-            ordered.add(new TermEntry(it.key(), it.value()));
+        ObjectIntOpenHashMap<Text> aggregatedEntries = aggregated.v();
+
+        final boolean[] states = aggregatedEntries.allocated;
+        Object[] keys = aggregatedEntries.keys;
+        int[] values = aggregatedEntries.values;
+        for (int i = 0; i < aggregatedEntries.allocated.length; i++) {
+            if (states[i]) {
+                Text key = (Text) keys[i];
+                ordered.add(new TermEntry(key, values[i]));
+            }
         }
         first.entries = ordered;
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushObjectIntMap(aggregated);
+        aggregated.release();
 
         return first;
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<TermEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
+        }
     }
 
     static final class Fields {

@@ -1,13 +1,13 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.indices.analysis;
 
 import com.google.common.cache.CacheBuilder;
@@ -24,7 +23,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import org.apache.lucene.analysis.hunspell.HunspellDictionary;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -75,7 +74,7 @@ public class HunspellService extends AbstractComponent {
     private final static AffixFileFilter AFFIX_FILE_FILTER = new AffixFileFilter();
 
     private final LoadingCache<String, HunspellDictionary> dictionaries;
-    private final Map<String, HunspellDictionary> knownDicitionaries;
+    private final Map<String, HunspellDictionary> knownDictionaries;
 
     private final boolean defaultIgnoreCase;
     private final boolean defaultStrictAffixParsing;
@@ -86,9 +85,9 @@ public class HunspellService extends AbstractComponent {
     }
 
     @Inject
-    public HunspellService(final Settings settings, final Environment env, final Map<String, HunspellDictionary> knownDicitionaries) {
+    public HunspellService(final Settings settings, final Environment env, final Map<String, HunspellDictionary> knownDictionaries) {
         super(settings);
-        this.knownDicitionaries = knownDicitionaries;
+        this.knownDictionaries = knownDictionaries;
         this.hunspellDir = resolveHunspellDirectory(settings, env);
         this.defaultIgnoreCase = settings.getAsBoolean("indices.analysis.hunspell.dictionary.ignore_case", false);
         this.defaultStrictAffixParsing = settings.getAsBoolean("indices.analysis.hunspell.dictionary.strict_affix_parsing", false);
@@ -96,7 +95,7 @@ public class HunspellService extends AbstractComponent {
         dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, HunspellDictionary>() {
             @Override
             public HunspellDictionary load(String locale) throws Exception {
-                HunspellDictionary dictionary = knownDicitionaries.get(locale);
+                HunspellDictionary dictionary = knownDictionaries.get(locale);
                 if (dictionary == null) {
                     dictionary = loadDictionary(locale, settings, env, version);
                 }
@@ -146,7 +145,7 @@ public class HunspellService extends AbstractComponent {
      * @param env          The node environment (from which the conf path will be resolved)
      * @param version      The lucene version
      * @return The loaded Hunspell dictionary
-     * @throws Exception when loading fails (due to IO erros or malformed dictionary files)
+     * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
      */
     private HunspellDictionary loadDictionary(String locale, Settings nodeSettings, Environment env, Version version) throws Exception {
         if (logger.isDebugEnabled()) {
@@ -154,7 +153,7 @@ public class HunspellService extends AbstractComponent {
         }
         File dicDir = new File(hunspellDir, locale);
         if (!dicDir.exists() || !dicDir.isDirectory()) {
-            throw new ElasticSearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
+            throw new ElasticsearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 
         // merging node settings with hunspell dictionary specific settings
@@ -165,7 +164,7 @@ public class HunspellService extends AbstractComponent {
 
         File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
         if (affixFiles.length != 1) {
-            throw new ElasticSearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
+            throw new ElasticsearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
         }
         InputStream affixStream = null;
 
@@ -218,7 +217,7 @@ public class HunspellService extends AbstractComponent {
             try {
                 return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
             } catch (MalformedURLException e) {
-                throw new ElasticSearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
+                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
             }
         }
 
@@ -227,7 +226,7 @@ public class HunspellService extends AbstractComponent {
             try {
                 return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
             } catch (MalformedURLException e) {
-                throw new ElasticSearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
+                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
             }
         }
 

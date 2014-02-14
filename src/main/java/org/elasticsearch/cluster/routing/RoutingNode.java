@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import com.google.common.collect.Iterators;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -52,6 +54,10 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     @Override
     public Iterator<MutableShardRouting> iterator() {
+        return Iterators.unmodifiableIterator(shards.iterator());
+    }
+
+    Iterator<MutableShardRouting> mutableIterator() {
         return shards.iterator();
     }
 
@@ -72,39 +78,22 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return this.nodeId;
     }
 
-    /**
-     * Get a list of shards hosted on this node  
-     * @return list of shards
-     */
-    public List<MutableShardRouting> shards() {
-        return this.shards;
+    public int size() {
+        return shards.size();
     }
 
     /**
      * Add a new shard to this node
      * @param shard Shard to crate on this Node
      */
-    public void add(MutableShardRouting shard) {
+    void add(MutableShardRouting shard) {
+        // TODO use Set with ShardIds for faster lookup.
         for (MutableShardRouting shardRouting : shards) {
             if (shardRouting.shardId().equals(shard.shardId())) {
-                throw new ElasticSearchIllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
+                throw new ElasticsearchIllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
             }
         }
         shards.add(shard);
-        shard.assignToNode(node.id());
-    }
-
-    /**
-     * Remove a shard from this node
-     * @param shardId id of the shard to remove
-     */
-    public void removeByShardId(int shardId) {
-        for (Iterator<MutableShardRouting> it = shards.iterator(); it.hasNext(); ) {
-            MutableShardRouting shard = it.next();
-            if (shard.id() == shardId) {
-                it.remove();
-            }
-        }
     }
 
     /**
@@ -164,21 +153,6 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     /**
-     * Get the number of shard that not match the given states
-     * @param state set states to exclude
-     * @return number of shards which state is listed
-     */
-    public int numberOfShardsNotWithState(ShardRoutingState state) {
-        int count = 0;
-        for (MutableShardRouting shardEntry : this) {
-            if (shardEntry.state() != state) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
      * The number of shards on this node that will not be eventually relocated.
      */
     public int numberOfOwningShards() {
@@ -199,5 +173,17 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }
         return sb.toString();
+    }
+
+    public MutableShardRouting get(int i) {
+        return shards.get(i) ;
+    }
+
+    public Collection<MutableShardRouting> copyShards() {
+        return new ArrayList<MutableShardRouting>(shards);
+    }
+
+    public boolean isEmpty() {
+        return shards.isEmpty();
     }
 }

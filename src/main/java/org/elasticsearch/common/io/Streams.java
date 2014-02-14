@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,7 +22,6 @@ package org.elasticsearch.common.io;
 import com.google.common.base.Charsets;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 
 import java.io.*;
 
@@ -35,7 +34,7 @@ import java.io.*;
  * but also useful for application code.
  */
 public abstract class Streams {
-    
+
     public static final int BUFFER_SIZE = 1024 * 8;
 
 
@@ -161,14 +160,9 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static byte[] copyToByteArray(InputStream in) throws IOException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            BytesStreamOutput out = cachedEntry.bytes();
-            copy(in, out);
-            return out.bytes().copyBytesArray().toBytes();
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
-        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        copy(in, out);
+        return out.bytes().toBytes();
     }
 
 

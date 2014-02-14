@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.io.SerializedString;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.*;
@@ -34,6 +35,7 @@ import java.io.OutputStream;
 public class JsonXContentGenerator implements XContentGenerator {
 
     protected final JsonGenerator generator;
+    private boolean writeLineFeedAtEnd;
 
     public JsonXContentGenerator(JsonGenerator generator) {
         this.generator = generator;
@@ -47,6 +49,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void usePrettyPrint() {
         generator.useDefaultPrettyPrinter();
+    }
+
+    @Override
+    public void usePrintLineFeedAtEnd() {
+        writeLineFeedAtEnd = true;
     }
 
     @Override
@@ -272,7 +279,27 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+    public final void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+        XContentType contentType = XContentFactory.xContentType(content);
+        if (contentType != null) {
+            writeObjectRaw(fieldName, content, bos);
+        } else {
+            writeFieldName(fieldName);
+            // we could potentially optimize this to not rely on exception logic...
+            String sValue = content.toUtf8();
+            try {
+                writeNumber(Long.parseLong(sValue));
+            } catch (NumberFormatException e) {
+                try {
+                    writeNumber(Double.parseDouble(sValue));
+                } catch (NumberFormatException e1) {
+                    writeString(sValue);
+                }
+            }
+        }
+    }
+
+    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
         generator.writeRaw(", \"");
         generator.writeRaw(fieldName);
         generator.writeRaw("\" : ");
@@ -300,6 +327,15 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void close() throws IOException {
+        if (generator.isClosed()) {
+            return;
+        }
+        if (writeLineFeedAtEnd) {
+            flush();
+            generator.writeRaw(LF);
+        }
         generator.close();
     }
+
+    private static final SerializedString LF = new SerializedString("\n");
 }

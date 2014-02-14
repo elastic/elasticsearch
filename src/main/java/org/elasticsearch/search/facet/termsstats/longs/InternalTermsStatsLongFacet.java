@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,17 +19,17 @@
 
 package org.elasticsearch.search.facet.termsstats.longs;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -169,26 +169,28 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
+            InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
             if (requiredSize == 0) {
                 // we need to sort it here!
-                InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<LongEntry> entries = tsFacet.mutableList();
                     CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
+            tsFacet.trimExcessEntries();
             return facets.get(0);
         }
         int missing = 0;
-        ExtTLongObjectHashMap<LongEntry> map = CacheRecycler.popLongObjectMap();
+        Recycler.V<LongObjectOpenHashMap<LongEntry>> map = context.cacheRecycler().longObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 LongEntry longEntry = (LongEntry) entry;
-                LongEntry current = map.get(longEntry.term);
+                LongEntry current = map.v().get(longEntry.term);
                 if (current != null) {
                     current.count += longEntry.count;
                     current.totalCount += longEntry.totalCount;
@@ -200,21 +202,21 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                         current.max = longEntry.max;
                     }
                 } else {
-                    map.put(longEntry.term, longEntry);
+                    map.v().put(longEntry.term, longEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            LongEntry[] entries1 = map.values(new LongEntry[map.size()]);
+            LongEntry[] entries1 = map.v().values().toArray(LongEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<LongEntry> ordered = new ArrayList<LongEntry>(map.size());
+            List<LongEntry> ordered = new ArrayList<LongEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 LongEntry value = (LongEntry) values[i];
                 if (value == null) {
@@ -222,8 +224,27 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
+        }
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize == 0 || requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<LongEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
         }
     }
 

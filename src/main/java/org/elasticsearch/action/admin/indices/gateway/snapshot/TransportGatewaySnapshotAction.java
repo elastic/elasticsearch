@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -42,8 +42,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- *
+ * @deprecated use Snapshot/Restore API instead
  */
+@Deprecated
 public class TransportGatewaySnapshotAction extends TransportBroadcastOperationAction<GatewaySnapshotRequest, GatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
 
     private final IndicesService indicesService;
@@ -68,11 +69,6 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     @Override
     protected GatewaySnapshotRequest newRequest() {
         return new GatewaySnapshotRequest();
-    }
-
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
     }
 
     @Override
@@ -113,7 +109,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
+    protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticsearchException {
         IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.index())
                 .shardInjectorSafe(request.shardId()).getInstance(IndexShardGatewayService.class);
         shardGatewayService.snapshot("api");

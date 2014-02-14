@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +31,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
@@ -37,8 +38,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> {
 
     private String[] indices;
-
-    private TimeValue timeout = timeValueSeconds(10);
+    // Delete index should work by default on both open and closed indices.
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+    private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
     DeleteIndexRequest() {
     }
@@ -54,10 +56,19 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         this.indices = indices;
     }
 
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public DeleteIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("index / indices is missing", validationException);
         }
         return validationException;
@@ -79,7 +90,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    public TimeValue timeout() {
         return timeout;
     }
 
@@ -103,24 +114,16 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         timeout = readTimeValue(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (indices == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-        }
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
         timeout.writeTo(out);
     }
 }

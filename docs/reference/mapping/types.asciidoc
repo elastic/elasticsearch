@@ -1,0 +1,24 @@
+[[mapping-types]]
+== Types
+
+The datatype for each field in a document (eg strings, numbers, 
+objects etc) can be controlled via the type mapping.
+
+include::types/core-types.asciidoc[]
+
+include::types/array-type.asciidoc[]
+
+include::types/object-type.asciidoc[]
+
+include::types/root-object-type.asciidoc[]
+
+include::types/nested-type.asciidoc[]
+
+include::types/ip-type.asciidoc[]
+
+include::types/geo-point-type.asciidoc[]
+
+include::types/geo-shape-type.asciidoc[]
+
+include::types/attachment-type.asciidoc[]
+

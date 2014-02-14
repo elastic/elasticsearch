@@ -1,0 +1,117 @@
+[[modules-threadpool]]
+== Thread Pool
+
+A node holds several thread pools in order to improve how threads are
+managed and memory consumption within a node. There are several thread
+pools, but the important ones include:
+
+[horizontal]
+`index`:: 
+    For index/delete operations, defaults to `fixed`, 
+    size `# of available processors`. 
+    queue_size `200`.
+
+`search`:: 
+    For count/search operations, defaults to `fixed`,
+    size `3x # of available processors`. 
+    queue_size `1000`.
+
+`suggest`::
+    For suggest operations, defaults to `fixed`,
+    size `# of available processors`.
+    queue_size `1000`.
+
+`get`:: 
+    For get operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `1000`.
+
+`bulk`::
+    For bulk operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `50`.
+
+`percolate`::
+    For percolate operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `1000`.
+
+`warmer`:: 
+    For segment warm-up operations, defaults to `scaling`
+    with a `5m` keep-alive. 
+
+`refresh`:: 
+    For refresh operations, defaults to `scaling`
+    with a `5m` keep-alive. 
+
+Changing a specific thread pool can be done by setting its type and
+specific type parameters, for example, changing the `index` thread pool
+to have more threads:
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: fixed
+        size: 30
+--------------------------------------------------
+
+NOTE: you can update threadpool settings live using
+      <<cluster-update-settings>>.
+
+
+[float]
+[[types]]
+=== Thread pool types
+
+The following are the types of thread pools that can be used and their
+respective parameters:
+
+[float]
+==== `cache`
+
+The `cache` thread pool is an unbounded thread pool that will spawn a
+thread if there are pending requests. Here is an example of how to set
+it:
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: cached
+--------------------------------------------------
+
+[float]
+==== `fixed`
+
+The `fixed` thread pool holds a fixed size of threads to handle the
+requests with a queue (optionally bounded) for pending requests that
+have no threads to service them.
+
+The `size` parameter controls the number of threads, and defaults to the
+number of cores times 5.
+
+The `queue_size` allows to control the size of the queue of pending
+requests that have no threads to execute them. By default, it is set to
+`-1` which means its unbounded. When a request comes in and the queue is
+full, it will abort the request.
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: fixed
+        size: 30
+        queue_size: 1000
+--------------------------------------------------
+
+[float]
+[[processors]]
+=== Processors setting
+The number of processors is automatically detected, and the thread pool
+settings are automatically set based on it. Sometimes, the number of processors
+are wrongly detected, in such cases, the number of processors can be
+explicitly set using the `processors` setting.
+
+In order to check the number of processors detected, use the nodes info
+API with the `os` flag.

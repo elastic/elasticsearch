@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -65,11 +65,12 @@ public class GeoShapeQueryParser implements QueryParser {
         String id = null;
         String type = null;
         String index = DEFAULTS.INDEX_NAME;
-        String shapeFieldName = DEFAULTS.SHAPE_FIELD_NAME;
+        String shapePath = DEFAULTS.SHAPE_FIELD_NAME;
 
         XContentParser.Token token;
         String currentFieldName = null;
         float boost = 1f;
+        String queryName = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -101,8 +102,8 @@ public class GeoShapeQueryParser implements QueryParser {
                                         type = parser.text();
                                     } else if ("index".equals(currentFieldName)) {
                                         index = parser.text();
-                                    } else if ("shape_field_name".equals(currentFieldName)) {
-                                        shapeFieldName = parser.text();
+                                    } else if ("path".equals(currentFieldName)) {
+                                        shapePath = parser.text();
                                     }
                                 }
                             }
@@ -111,13 +112,19 @@ public class GeoShapeQueryParser implements QueryParser {
                             } else if (type == null) {
                                 throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
                             }
-                            shape = fetchService.fetch(id, type, index, shapeFieldName);
+                            shape = fetchService.fetch(id, type, index, shapePath);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -147,6 +154,9 @@ public class GeoShapeQueryParser implements QueryParser {
         }
         Query query = strategy.makeQuery(getArgs(shape, shapeRelation));
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 
@@ -164,7 +174,7 @@ public class GeoShapeQueryParser implements QueryParser {
         case WITHIN:
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
         default:
-            throw new ElasticSearchIllegalArgumentException("");
+            throw new ElasticsearchIllegalArgumentException("");
         
         }
     }

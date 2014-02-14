@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
@@ -48,16 +50,16 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
 
     @Override
-    public long throttleTimeInNanos() {
+    public final long throttleTimeInNanos() {
         return rateLimitingTimeInNanos.count();
     }
 
     @Override
-    public StoreRateLimiting rateLimiting() {
+    public final StoreRateLimiting rateLimiting() {
         return indexStore.rateLimiting();
     }
 
-    protected LockFactory buildLockFactory() throws IOException {
+    protected final LockFactory buildLockFactory() throws IOException {
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
         LockFactory lockFactory = NoLockFactory.getNoLockFactory();
         if (fsLock.equals("native")) {
@@ -70,10 +72,14 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         }
         return lockFactory;
     }
-
+    
     @Override
-    public void renameFile(Directory dir, String from, String to) throws IOException {
-        File directory = ((RateLimitedFSDirectory) dir).wrappedDirectory().getDirectory();
+    public final void renameFile(Directory dir, String from, String to) throws IOException {
+        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
+        if (fsDirectory == null) {
+            throw new ElasticsearchIllegalArgumentException("Can not rename file on non-filesystem based directory ");
+        }
+        File directory = fsDirectory.getDirectory();
         File old = new File(directory, from);
         File nu = new File(directory, to);
         if (nu.exists())
@@ -102,8 +108,11 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
 
     @Override
-    public void fullDelete(Directory dir) throws IOException {
-        FSDirectory fsDirectory = ((RateLimitedFSDirectory) dir).wrappedDirectory();
+    public final void fullDelete(Directory dir) throws IOException {
+        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
+        if (fsDirectory == null) {
+            throw new ElasticsearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
+        }
         FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
         // if we are the last ones, delete also the actual index
         String[] list = fsDirectory.getDirectory().getParentFile().list();
@@ -127,7 +136,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     protected abstract FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
 
     @Override
-    public void onPause(long nanos) {
+    public final void onPause(long nanos) {
         rateLimitingTimeInNanos.inc(nanos);
     }
 }

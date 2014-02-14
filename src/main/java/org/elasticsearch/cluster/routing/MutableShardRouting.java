@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -42,16 +42,22 @@ public class MutableShardRouting extends ImmutableShardRouting {
 
     public MutableShardRouting(String index, int shardId, String currentNodeId,
                                String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        super(index, shardId, currentNodeId, relocatingNodeId, primary, state, version);
+        super(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version);
+    }
+
+    public MutableShardRouting(String index, int shardId, String currentNodeId,
+                               String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
+        super(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version);
     }
 
     /**
      * Assign this shard to a node.
-     * 
+     *
      * @param nodeId id of the node to assign this shard to
      */
-    public void assignToNode(String nodeId) {
+    void assignToNode(String nodeId) {
         version++;
+
         if (currentNodeId == null) {
             assert state == ShardRoutingState.UNASSIGNED;
 
@@ -68,10 +74,10 @@ public class MutableShardRouting extends ImmutableShardRouting {
 
     /**
      * Relocate the shard to another node.
-     * 
+     *
      * @param relocatingNodeId id of the node to relocate the shard
      */
-    public void relocate(String relocatingNodeId) {
+    void relocate(String relocatingNodeId) {
         version++;
         assert state == ShardRoutingState.STARTED;
         state = ShardRoutingState.RELOCATING;
@@ -82,7 +88,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Cancel relocation of a shard. The shards state must be set
      * to <code>RELOCATING</code>.
      */
-    public void cancelRelocation() {
+    void cancelRelocation() {
         version++;
         assert state == ShardRoutingState.RELOCATING;
         assert assignedToNode();
@@ -96,7 +102,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Set the shards state to <code>UNASSIGNED</code>.
      * //TODO document the state
      */
-    public void deassignNode() {
+    void deassignNode() {
         version++;
         assert state != ShardRoutingState.UNASSIGNED;
 
@@ -108,12 +114,13 @@ public class MutableShardRouting extends ImmutableShardRouting {
     /**
      * Set the shards state to <code>STARTED</code>. The shards state must be
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
-     * canceled. 
+     * canceled.
      */
-    public void moveToStarted() {
+    void moveToStarted() {
         version++;
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
         relocatingNodeId = null;
+        restoreSource = null;
         state = ShardRoutingState.STARTED;
     }
 
@@ -121,7 +128,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
      * Make the shard primary unless it's not Primary
      * //TODO: doc exception
      */
-    public void moveToPrimary() {
+    void moveToPrimary() {
         version++;
         if (primary) {
             throw new IllegalShardRoutingStateException(this, "Already primary, can't move to primary");
@@ -132,12 +139,22 @@ public class MutableShardRouting extends ImmutableShardRouting {
     /**
      * Set the primary shard to non-primary
      */
-    public void moveFromPrimary() {
+    void moveFromPrimary() {
         version++;
         if (!primary) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         primary = false;
+    }
+
+    private long hashVersion = version-1;
+    private int hashCode = 0;
+
+    @Override
+    public int hashCode() {
+        hashCode = (hashVersion != version ? super.hashCode() : hashCode);
+        hashVersion = version;
+        return hashCode;
     }
 }
 

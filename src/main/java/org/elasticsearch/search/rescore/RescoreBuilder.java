@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,24 +19,21 @@
 
 package org.elasticsearch.search.rescore;
 
-import java.io.IOException;
-
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilderException;
+
+import java.io.IOException;
 
 public class RescoreBuilder implements ToXContent {
 
     private Rescorer rescorer;
     private Integer windowSize;
-    
+
     public static QueryRescorer queryRescorer(QueryBuilder queryBuilder) {
         return new QueryRescorer(queryBuilder);
     }
-    
+
     public RescoreBuilder rescorer(Rescorer rescorer) {
         this.rescorer = rescorer;
         return this;
@@ -47,21 +44,25 @@ public class RescoreBuilder implements ToXContent {
         return this;
     }
 
+    public Integer windowSize() {
+        return windowSize;
+    }
+
+    public boolean isEmpty() {
+        return rescorer == null;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (rescorer != null) {
-            builder.startObject("rescore");
-            if (windowSize != null) {
-                builder.field("window_size", windowSize);
-            }
-            rescorer.toXContent(builder, params);
-            builder.endObject();
+        if (windowSize != null) {
+            builder.field("window_size", windowSize);
         }
+        rescorer.toXContent(builder, params);
         return builder;
     }
 
     public static abstract class Rescorer implements ToXContent {
-        
+
         private String name;
 
         public Rescorer(String name) {
@@ -76,15 +77,16 @@ public class RescoreBuilder implements ToXContent {
         }
 
         protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-        
+
     }
-    
+
     public static class QueryRescorer extends Rescorer {
         private static final String NAME = "query";
         private QueryBuilder queryBuilder;
         private Float rescoreQueryWeight;
         private Float queryWeight;
-        
+        private String scoreMode;
+
         /**
          * Creates a new {@link QueryRescorer} instance
          * @param builder the query builder to build the rescore query from
@@ -100,12 +102,20 @@ public class RescoreBuilder implements ToXContent {
             this.queryWeight = queryWeight;
             return this;
         }
-        
+
         /**
          * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
          */
         public QueryRescorer setRescoreQueryWeight(float rescoreQueryWeight) {
             this.rescoreQueryWeight = rescoreQueryWeight;
+            return this;
+        }
+
+        /**
+         * Sets the original query score mode. The default is <tt>total</tt>
+         */
+        public QueryRescorer setScoreMode(String scoreMode) {
+            this.scoreMode = scoreMode;
             return this;
         }
 
@@ -117,6 +127,9 @@ public class RescoreBuilder implements ToXContent {
             }
             if (rescoreQueryWeight != null) {
                 builder.field("rescore_query_weight", rescoreQueryWeight);
+            }
+            if (scoreMode != null) {
+                builder.field("score_mode", scoreMode);
             }
             return builder;
         }

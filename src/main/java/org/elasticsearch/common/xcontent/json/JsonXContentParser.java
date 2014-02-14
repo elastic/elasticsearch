@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
@@ -203,7 +203,7 @@ public class JsonXContentParser extends AbstractXContentParser {
             case DOUBLE:
                 return NumberType.DOUBLE;
         }
-        throw new ElasticSearchIllegalStateException("No matching token for number_type [" + numberType + "]");
+        throw new ElasticsearchIllegalStateException("No matching token for number_type [" + numberType + "]");
     }
 
     private Token convertToken(JsonToken token) {
@@ -234,6 +234,6 @@ public class JsonXContentParser extends AbstractXContentParser {
             case VALUE_EMBEDDED_OBJECT:
                 return Token.VALUE_EMBEDDED_OBJECT;
         }
-        throw new ElasticSearchIllegalStateException("No matching token for json_token [" + token + "]");
+        throw new ElasticsearchIllegalStateException("No matching token for json_token [" + token + "]");
     }
 }

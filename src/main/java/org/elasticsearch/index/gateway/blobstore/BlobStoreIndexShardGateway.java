@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,16 +22,14 @@ package org.elasticsearch.index.gateway.blobstore;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.*;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
@@ -130,7 +128,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
     }
 
     @Override
@@ -318,7 +316,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         CommitPoint commitPoint = new CommitPoint(version, commitPointName, CommitPoint.Type.GENERATED, indexCommitPointFiles, translogCommitPointFiles);
         try {
             byte[] commitPointData = CommitPoints.toXContent(commitPoint);
-            blobContainer.writeBlob(commitPointName, new FastByteArrayInputStream(commitPointData), commitPointData.length);
+            blobContainer.writeBlob(commitPointName, new BytesStreamInput(commitPointData, false), commitPointData.length);
         } catch (Exception e) {
             throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to write commit point", e);
         }
@@ -431,7 +429,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             // no translog files, bail
             recoveryStatus.start().startTime(System.currentTimeMillis());
             recoveryStatus.updateStage(RecoveryStatus.Stage.START);
-            indexShard.start("post recovery from gateway, no translog");
+            indexShard.postRecovery("post recovery from gateway, no translog");
             recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
             recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;
@@ -453,7 +451,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             final Iterator<CommitPoint.FileInfo> transIt = commitPoint.translogFiles().iterator();
 
             blobContainer.readBlob(transIt.next().name(), new BlobContainer.ReadBlobListener() {
-                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                BytesStreamOutput bos = new BytesStreamOutput();
                 boolean ignore = false;
 
                 @Override
@@ -489,7 +487,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                                 position = si.position();
                                 break;
                             }
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             logger.warn("failed to retrieve translog after [{}] operations, ignoring the rest, considered corrupted", e, recoveryStatus.translog().currentTranslogOperations());
                             ignore = true;
                             latch.countDown();
@@ -497,7 +495,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         }
                     }
 
-                    FastByteArrayOutputStream newBos = new FastByteArrayOutputStream();
+                    BytesStreamOutput newBos = new BytesStreamOutput();
 
                     int leftOver = bos.size() - position;
                     if (leftOver > 0) {

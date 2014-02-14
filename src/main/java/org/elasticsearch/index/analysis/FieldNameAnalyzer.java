@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,27 +19,25 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
-
-import java.util.Map;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 /**
  *
  */
 public final class FieldNameAnalyzer extends AnalyzerWrapper {
 
-    private final ImmutableMap<String, Analyzer> analyzers;
+    private final ImmutableOpenMap<String, Analyzer> analyzers;
 
     private final Analyzer defaultAnalyzer;
 
-    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
-        this.analyzers = ImmutableMap.copyOf(analyzers);
+    public FieldNameAnalyzer(ImmutableOpenMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+        this.analyzers = analyzers;
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
-    public ImmutableMap<String, Analyzer> analyzers() {
+    public ImmutableOpenMap<String, Analyzer> analyzers() {
         return analyzers;
     }
 

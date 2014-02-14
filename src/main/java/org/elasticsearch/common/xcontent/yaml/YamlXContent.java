@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.*;
@@ -55,37 +55,37 @@ public class YamlXContent implements XContent {
 
     @Override
     public byte streamSeparator() {
-        throw new ElasticSearchParseException("yaml does not support stream parsing...");
+        throw new ElasticsearchParseException("yaml does not support stream parsing...");
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createJsonGenerator(writer));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(writer));
     }
 
     @Override
     public XContentParser createParser(String content) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(new FastStringReader(content)));
+        return new YamlXContentParser(yamlFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
     public XContentParser createParser(InputStream is) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(is));
+        return new YamlXContentParser(yamlFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(byte[] data) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(data));
+        return new YamlXContentParser(yamlFactory.createParser(data));
     }
 
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(data, offset, length));
+        return new YamlXContentParser(yamlFactory.createParser(data, offset, length));
     }
 
     @Override
@@ -98,6 +98,6 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParser(Reader reader) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(reader));
+        return new YamlXContentParser(yamlFactory.createParser(reader));
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,7 +22,8 @@ package org.elasticsearch.index.gateway.local;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -103,12 +104,12 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             SegmentInfos si = null;
             try {
                 si = Lucene.readSegmentInfos(indexShard.store().directory());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 String files = "_unknown_";
                 try {
                     files = Arrays.toString(indexShard.store().directory().listAll());
-                } catch (Exception e1) {
-                    // ignore
+                } catch (Throwable e1) {
+                    files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                 }
                 if (indexShouldExists && indexShard.store().indexStore().persistent()) {
                     throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
@@ -131,8 +132,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     writer.close();
                 }
             }
-        } catch (IOException e) {
-            throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
+        } catch (Throwable e) {
+            throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
         }
         recoveryStatus.index().updateVersion(version);
         recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
@@ -154,7 +155,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryStatus.updateStage(RecoveryStatus.Stage.START);
         if (translogId == -1) {
             // no translog files, bail
-            indexShard.start("post recovery from gateway, no translog");
+            indexShard.postRecovery("post recovery from gateway, no translog");
             // no index, just start the shard and bail
             recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
             recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
@@ -189,7 +190,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
             // no translog to recovery from, start and bail
             // no translog files, bail
-            indexShard.start("post recovery from gateway, no translog");
+            indexShard.postRecovery("post recovery from gateway, no translog");
             // no index, just start the shard and bail
             recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
             recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
@@ -222,7 +223,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 try {
                     indexShard.performRecoveryOperation(operation);
                     recoveryStatus.translog().addTranslogOperations(1);
-                } catch (ElasticSearchException e) {
+                } catch (ElasticsearchException e) {
                     if (e.status() == RestStatus.BAD_REQUEST) {
                         // mainly for MapperParsingException and Failure to detect xcontent
                         logger.info("ignoring recovery of a corrupt translog entry", e);

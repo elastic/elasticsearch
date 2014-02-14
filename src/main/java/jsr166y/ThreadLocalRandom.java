@@ -107,9 +107,9 @@ public class ThreadLocalRandom extends Random {
      *
      * @param least the least value returned
      * @param bound the upper bound (exclusive)
+     * @return the next value
      * @throws IllegalArgumentException if least greater than or equal
      * to bound
-     * @return the next value
      */
     public int nextInt(int least, int bound) {
         if (least >= bound)

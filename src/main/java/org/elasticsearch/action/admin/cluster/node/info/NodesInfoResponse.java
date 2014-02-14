@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -71,7 +71,7 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", getClusterName().value());
+        builder.field("cluster_name", getClusterName().value(), XContentBuilder.FieldCaseConversion.NONE);
 
         builder.startObject("nodes");
         for (NodeInfo nodeInfo : this) {
@@ -79,25 +79,22 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
             builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeInfo.getNode().address().toString());
+            builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
-            if (nodeInfo.getHostname() != null) {
-                builder.field("hostname", nodeInfo.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
-            }
-
-            if (nodeInfo.getVersion() != null) {
-                builder.field("version", nodeInfo.getVersion());
-            }
+            builder.field("version", nodeInfo.getVersion());
+            builder.field("build", nodeInfo.getBuild().hashShort());
 
             if (nodeInfo.getServiceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
-                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
+                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }
             }
 
             if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> attr : nodeInfo.getNode().attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
+                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }
@@ -105,10 +102,8 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
             if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
-                Settings settings = settingsFilter.filterSettings(nodeInfo.getSettings());
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                Settings settings = settingsFilter != null ? settingsFilter.filterSettings(nodeInfo.getSettings()) : nodeInfo.getSettings();
+                settings.toXContent(builder, params);
                 builder.endObject();
             }
 

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,25 +30,29 @@ import java.io.IOException;
  * The DistanceUnit enumerates several units for measuring distances. These units 
  * provide methods for converting strings and methods to convert units among each
  * others. Some methods like {@link DistanceUnit#getEarthCircumference} refer to
- * the earth ellipsoid defined in {@link GeoUtils}.
+ * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
+ * this project is <code>METERS</code> which is defined by <code>DEFAULT</code>
  */
 public enum DistanceUnit {
     INCH(0.0254, "in", "inch"),
     YARD(0.9144, "yd", "yards"),
+    FEET(0.3048, "ft", "feet"),
     MILES(1609.344, "mi", "miles"),
     KILOMETERS(1000.0, "km", "kilometers"),
     MILLIMETERS(0.001, "mm", "millimeters"),
     CENTIMETERS(0.01, "cm", "centimeters"),
-    
+
     // since 'm' is suffix of other unit
     // it must be the last entry of unit
     // names ending with 'm'. otherwise
     // parsing would fail
-    METERS(1, "m", "meters");   
+    METERS(1, "m", "meters");
+
+    public static DistanceUnit DEFAULT = METERS;
 
     private double meters; 
     private final String[] names;
-    
+
     DistanceUnit(double meters, String...names) {
         this.meters = meters;
         this.names = names;
@@ -82,26 +86,6 @@ public enum DistanceUnit {
     }
 
     /**
-     * Convert a value into miles
-     * 
-     * @param distance distance in this unit
-     * @return value in miles
-     */
-    public double toMiles(double distance) {
-        return convert(distance, this, DistanceUnit.MILES);
-    }
-
-    /**
-     * Convert a value into kilometers
-     * 
-     * @param distance distance in this unit
-     * @return value in kilometers
-     */
-    public double toKilometers(double distance) {
-        return convert(distance, this, DistanceUnit.KILOMETERS);
-    }
-
-    /**
      * Convert a value into meters
      * 
      * @param distance distance in this unit
@@ -125,11 +109,11 @@ public enum DistanceUnit {
      * Convert a given value into another unit
      * 
      * @param distance value in this unit
-     * @param unit target unit
-     * @return value of the target unit
+     * @param unit source unit
+     * @return value in this unit
      */
     public double convert(double distance, DistanceUnit unit) {
-        return convert(distance, this, unit);
+        return convert(distance, unit, this);
     }
 
     /**
@@ -141,7 +125,7 @@ public enum DistanceUnit {
     public String toString(double distance) {
         return distance + toString();
     }
-    
+
     @Override
     public String toString() {
         return names[0];
@@ -177,11 +161,22 @@ public enum DistanceUnit {
     }
 
     /**
+     * Parses a given distance and converts it to this unit.
+     * 
+     * @param distance String defining a distance (value and unit)
+     * @param defaultUnit unit to expect if none if provided
+     * @return parsed distance
+     */
+    public double parse(String distance, DistanceUnit defaultUnit) {
+        return parse(distance, defaultUnit, this);
+    }
+
+    /**
      * Convert a String to a {@link DistanceUnit}
      * 
      * @param unit name of the unit
      * @return unit matching the given name
-     * @throws ElasticSearchIllegalArgumentException if no unit matches the given name
+     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if no unit matches the given name
      */
     public static DistanceUnit fromString(String unit) {
         for (DistanceUnit dunit : values()) {
@@ -191,7 +186,7 @@ public enum DistanceUnit {
                 }
             }
         }
-        throw new ElasticSearchIllegalArgumentException("No distance unit match [" + unit + "]");
+        throw new ElasticsearchIllegalArgumentException("No distance unit match [" + unit + "]");
     }
 
     /**
@@ -229,13 +224,13 @@ public enum DistanceUnit {
      * @param in {@link StreamInput} to read the {@link DistanceUnit} from
      * @return {@link DistanceUnit} read from the {@link StreamInput}
      * @throws IOException if no unit can be read from the {@link StreamInput}
-     * @thrown ElasticSearchIllegalArgumentException if no matching {@link DistanceUnit} can be found
+     * @thrown ElasticsearchIllegalArgumentException if no matching {@link DistanceUnit} can be found
      */
     public static DistanceUnit readDistanceUnit(StreamInput in) throws IOException {
         byte b = in.readByte();
 
         if(b<0 || b>=values().length) {
-            throw new ElasticSearchIllegalArgumentException("No type for distance unit matching [" + b + "]");
+            throw new ElasticsearchIllegalArgumentException("No type for distance unit matching [" + b + "]");
         } else {
             return values()[b];
         }
@@ -248,7 +243,7 @@ public enum DistanceUnit {
         public final double value;
         public final DistanceUnit unit;
 
-        private Distance(double value, DistanceUnit unit) {
+        public Distance(double value, DistanceUnit unit) {
             super();
             this.value = value;
             this.unit = unit;
@@ -297,6 +292,17 @@ public enum DistanceUnit {
         }
 
         /**
+         * Parse a {@link Distance} from a given String. If no unit is given
+         * <code>DistanceUnit.DEFAULT</code> will be used 
+         * 
+         * @param distance String defining a {@link Distance} 
+         * @return parsed {@link Distance}
+         */
+        public static Distance parseDistance(String distance) {
+            return parseDistance(distance, DEFAULT);
+        }
+
+        /**
          * Parse a {@link Distance} from a given String
          * 
          * @param distance String defining a {@link Distance} 
@@ -304,7 +310,7 @@ public enum DistanceUnit {
          *          if not unit is provided in the first argument  
          * @return parsed {@link Distance}
          */
-        public static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
+        private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
             for (DistanceUnit unit : values()) {
                 for (String name : unit.names) {
                     if(distance.endsWith(name)) {

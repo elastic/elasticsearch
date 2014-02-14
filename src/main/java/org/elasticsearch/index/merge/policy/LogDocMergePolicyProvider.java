@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,13 +22,11 @@ package org.elasticsearch.index.merge.policy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider.CustomLogByteSizeMergePolicy;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -70,7 +68,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         indexSettingsService.removeListener(applySettings);
     }
 
@@ -86,7 +84,6 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
-        mergePolicy.setUseCompoundFile(compoundFormat);
         mergePolicy.setNoCFSRatio(noCFSRatio);
         policies.add(mergePolicy);
         return mergePolicy;
@@ -130,11 +127,9 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
             final boolean compoundFormat = noCFSRatio != 0.0;
             if (noCFSRatio != LogDocMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(LogDocMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
-                LogDocMergePolicyProvider.this.compoundFormat = compoundFormat;
                 LogDocMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomLogDocMergePolicy policy : policies) {
                     policy.setNoCFSRatio(noCFSRatio);
-                    policy.setUseCompoundFile(compoundFormat);
                 }
             }
         }

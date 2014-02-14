@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
@@ -34,10 +34,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,6 +78,97 @@ public class ImmutableSettings implements Settings {
     public ImmutableMap<String, String> getAsMap() {
         return this.settings;
     }
+
+    @Override
+    public Map<String, Object> getAsStructuredMap() {
+        Map<String, Object> map = Maps.newHashMapWithExpectedSize(2);
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            processSetting(map, "", entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked") Map<String, Object> valMap = (Map<String, Object>) entry.getValue();
+                entry.setValue(convertMapsToArrays(valMap));
+            }
+        }
+
+        return map;
+    }
+
+    private void processSetting(Map<String, Object> map, String prefix, String setting, String value) {
+        int prefixLength = setting.indexOf('.');
+        if (prefixLength == -1) {
+            @SuppressWarnings("unchecked") Map<String, Object> innerMap = (Map<String, Object>) map.get(prefix + setting);
+            if (innerMap != null) {
+                // It supposed to be a value, but we already have a map stored, need to convert this map to "." notation
+                for (Map.Entry<String, Object> entry : innerMap.entrySet()) {
+                    map.put(prefix + setting + "." + entry.getKey(), entry.getValue());
+                }
+            }
+            map.put(prefix + setting, value);
+        } else {
+            String key = setting.substring(0, prefixLength);
+            String rest = setting.substring(prefixLength + 1);
+            Object existingValue = map.get(prefix + key);
+            if (existingValue == null) {
+                Map<String, Object> newMap = Maps.newHashMapWithExpectedSize(2);
+                processSetting(newMap, "", rest, value);
+                map.put(key, newMap);
+            } else {
+                if (existingValue instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> innerMap = (Map<String, Object>) existingValue;
+                    processSetting(innerMap, "", rest, value);
+                    map.put(key, innerMap);
+                } else {
+                    // It supposed to be a map, but we already have a value stored, which is not a map
+                    // fall back to "." notation
+                    processSetting(map, prefix + key + ".", rest, value);
+                }
+            }
+        }
+    }
+
+    private Object convertMapsToArrays(Map<String, Object> map) {
+        if (map.isEmpty()) {
+            return map;
+        }
+        boolean isArray = true;
+        int maxIndex = -1;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (isArray) {
+                try {
+                    int index = Integer.parseInt(entry.getKey());
+                    if (index >= 0) {
+                        maxIndex = Math.max(maxIndex, index);
+                    } else {
+                        isArray = false;
+                    }
+                } catch (NumberFormatException ex) {
+                    isArray = false;
+                }
+            }
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked") Map<String, Object> valMap = (Map<String, Object>) entry.getValue();
+                entry.setValue(convertMapsToArrays(valMap));
+            }
+        }
+        if (isArray && (maxIndex + 1) == map.size()) {
+            ArrayList<Object> newValue = Lists.newArrayListWithExpectedSize(maxIndex + 1);
+            for (int i = 0; i <= maxIndex; i++) {
+                Object obj = map.get(Integer.toString(i));
+                if (obj == null) {
+                    // Something went wrong. Different format?
+                    // Bailout!
+                    return map;
+                }
+                newValue.add(obj);
+            }
+            return newValue;
+        }
+        return map;
+    }
+
 
     @Override
     public Settings getComponentSettings(Class component) {
@@ -290,6 +379,16 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
+    }
+
+    @Override
+    public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
+    }
+
+    @Override
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
     }
@@ -352,19 +451,28 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public String[] getAsArray(String settingPrefix) throws SettingsException {
-        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY);
+        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
     }
 
     @Override
     public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
+        return getAsArray(settingPrefix, defaultArray, true);
+    }
+
+    @Override
+    public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = Lists.newArrayList();
 
         if (get(settingPrefix) != null) {
-            String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
-            if (strings.length > 0) {
-                for (String string : strings) {
-                    result.add(string.trim());
+            if (commaDelimited) {
+                String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+                if (strings.length > 0) {
+                    for (String string : strings) {
+                        result.add(string.trim());
+                    }
                 }
+            } else {
+                result.add(get(settingPrefix).trim());
             }
         }
 
@@ -384,6 +492,14 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public Map<String, Settings> getGroups(String settingPrefix) throws SettingsException {
+        return getGroups(settingPrefix, false);
+    }
+
+    @Override
+    public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
+        if (!Strings.hasLength(settingPrefix)) {
+            throw new ElasticsearchIllegalArgumentException("illegal setting prefix " + settingPrefix);
+        }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }
@@ -395,6 +511,9 @@ public class ImmutableSettings implements Settings {
                 String nameValue = setting.substring(settingPrefix.length());
                 int dotIndex = nameValue.indexOf('.');
                 if (dotIndex == -1) {
+                    if (ignoreNonGrouped) {
+                        continue;
+                    }
                     throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting [" + setting + "] because of a missing '.'");
                 }
                 String name = nameValue.substring(0, dotIndex);
@@ -484,6 +603,20 @@ public class ImmutableSettings implements Settings {
         return new Builder();
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!params.paramAsBoolean("flat_settings", false)) {
+            for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+        } else {
+            for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+            }
+        }
+        return builder;
+    }
+
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link ImmutableSettings#settingsBuilder()} in order to
@@ -529,6 +662,18 @@ public class ImmutableSettings implements Settings {
          * put for each one.
          */
         public Builder put(Object... settings) {
+            if (settings.length == 1) {
+                // support cases where the actual type gets lost down the road...
+                if (settings[0] instanceof Map) {
+                    //noinspection unchecked
+                    return put((Map) settings[0]);
+                } else if (settings[0] instanceof Settings) {
+                    return put((Settings) settings[0]);
+                }
+            }
+            if ((settings.length % 2) != 0) {
+                throw new ElasticsearchIllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+            }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
             }
@@ -718,7 +863,7 @@ public class ImmutableSettings implements Settings {
             for (String s : values) {
                 int index = s.indexOf('=');
                 if (index == -1) {
-                    throw new ElasticSearchIllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
+                    throw new ElasticsearchIllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
                 }
                 map.put(s.substring(0, index), s.substring(index + 1));
             }

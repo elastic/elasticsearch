@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.Lists;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -33,11 +31,6 @@ public class MergeContext {
     private final DocumentMapper documentMapper;
     private final DocumentMapper.MergeFlags mergeFlags;
     private final List<String> mergeConflicts = Lists.newArrayList();
-
-    private final FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
-    private final ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
-
-    private List<FieldMapper> fieldDataChanges = null;
 
     public MergeContext(DocumentMapper documentMapper, DocumentMapper.MergeFlags mergeFlags) {
         this.documentMapper = documentMapper;
@@ -52,14 +45,6 @@ public class MergeContext {
         return mergeFlags;
     }
 
-    public FieldMapperListener.Aggregator newFieldMappers() {
-        return newFieldMappers;
-    }
-
-    public ObjectMapperListener.Aggregator newObjectMappers() {
-        return newObjectMappers;
-    }
-
     public void addConflict(String mergeFailure) {
         mergeConflicts.add(mergeFailure);
     }
@@ -70,19 +55,5 @@ public class MergeContext {
 
     public String[] buildConflicts() {
         return mergeConflicts.toArray(new String[mergeConflicts.size()]);
-    }
-
-    public void addFieldDataChange(FieldMapper mapper) {
-        if (fieldDataChanges == null) {
-            fieldDataChanges = new ArrayList<FieldMapper>();
-        }
-        fieldDataChanges.add(mapper);
-    }
-
-    public List<FieldMapper> fieldMapperChanges() {
-        if (fieldDataChanges == null) {
-            return Collections.emptyList();
-        }
-        return fieldDataChanges;
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,7 +24,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -46,8 +46,8 @@ public class GeoDistanceRangeFilter extends Filter {
     private final double lat;
     private final double lon;
 
-    private final double inclusiveLowerPoint; // in miles
-    private final double inclusiveUpperPoint; // in miles
+    private final double inclusiveLowerPoint; // in meters
+    private final double inclusiveUpperPoint; // in meters
 
     private final GeoDistance geoDistance;
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
@@ -63,7 +63,7 @@ public class GeoDistanceRangeFilter extends Filter {
         this.geoDistance = geoDistance;
         this.indexFieldData = indexFieldData;
 
-        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
+        this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.DEFAULT);
 
         if (lowerVal != null) {
             double f = lowerVal.doubleValue();
@@ -85,14 +85,14 @@ public class GeoDistanceRangeFilter extends Filter {
         }
 
         if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
-            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.MILES);
+            distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, inclusiveUpperPoint, DistanceUnit.DEFAULT);
             if ("memory".equals(optimizeBbox)) {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {
                 boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
-                throw new ElasticSearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+                throw new ElasticsearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
             }
         } else {
             distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;
@@ -195,32 +195,17 @@ public class GeoDistanceRangeFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!values.hasValue(doc)) {
-                return false;
-            }
-
-            if (values.isMultiValued()) {
-                GeoPointValues.Iter iter = values.getIter(doc);
-                while (iter.hasNext()) {
-                    GeoPoint point = iter.next();
-                    if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
-                        double d = fixedSourceDistance.calculate(point.lat(), point.lon());
-                        if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            } else {
-                GeoPoint point = values.getValue(doc);
+            final int length = values.setDocument(doc);
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = values.nextValue();
                 if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
                     double d = fixedSourceDistance.calculate(point.lat(), point.lon());
                     if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
                         return true;
                     }
                 }
-                return false;
             }
+            return false;
         }
     }
 }

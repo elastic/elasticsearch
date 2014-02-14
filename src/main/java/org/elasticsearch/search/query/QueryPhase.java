@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import java.util.List;
-import java.util.Map;
-
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -31,16 +28,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.facet.FacetPhase;
-import org.elasticsearch.search.group.GroupCollector;
-import org.elasticsearch.search.group.GroupParseElement;
-import org.elasticsearch.search.group.terms.InternalTermsGroup;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
+
+import java.util.Map;
 
 /**
  *
@@ -48,14 +46,14 @@ import org.elasticsearch.search.suggest.SuggestPhase;
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
-    private final GroupParseElement groupElement;
-private RescorePhase rescorePhase;
-private final SuggestPhase suggestPhase;
+    private final AggregationPhase aggregationPhase;
+    private final SuggestPhase suggestPhase;
+    private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, GroupParseElement groupElement, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
+    public QueryPhase(FacetPhase facetPhase, AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.facetPhase = facetPhase;
-        this.groupElement = groupElement;
+        this.aggregationPhase = aggregationPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
     }
@@ -67,10 +65,11 @@ private final SuggestPhase suggestPhase;
                 .put("indices_boost", new IndicesBoostParseElement())
                 .put("indicesBoost", new IndicesBoostParseElement())
                 .put("query", new QueryParseElement())
-                .put("group", groupElement)
                 .put("queryBinary", new QueryBinaryParseElement())
                 .put("query_binary", new QueryBinaryParseElement())
-                .put("filter", new FilterParseElement())
+                .put("filter", new PostFilterParseElement()) // For bw comp reason, should be removed in version 1.1
+                .put("post_filter", new PostFilterParseElement())
+                .put("postFilter", new PostFilterParseElement())
                 .put("filterBinary", new FilterBinaryParseElement())
                 .put("filter_binary", new FilterBinaryParseElement())
                 .put("sort", new SortParseElement())
@@ -80,6 +79,7 @@ private final SuggestPhase suggestPhase;
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements())
+                .putAll(aggregationPhase.parseElements())
                 .putAll(suggestPhase.parseElements())
                 .putAll(rescorePhase.parseElements());
         return parseElements.build();
@@ -89,24 +89,11 @@ private final SuggestPhase suggestPhase;
     public void preProcess(SearchContext context) {
         context.preProcess();
         facetPhase.preProcess(context);
+        aggregationPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         searchContext.queryResult().searchTimedOut(false);
-
-        List<SearchContext.Rewrite> rewrites = searchContext.rewrites();
-        if (rewrites != null) {
-            try {
-                searchContext.searcher().inStage(ContextIndexSearcher.Stage.REWRITE);
-                for (SearchContext.Rewrite rewrite : rewrites) {
-                    rewrite.contextRewrite(searchContext);
-                }
-            } catch (Exception e) {
-                throw new QueryPhaseExecutionException(searchContext, "failed to execute context rewrite", e);
-            } finally {
-                searchContext.searcher().finishStage(ContextIndexSearcher.Stage.REWRITE);
-            }
-        }
 
         searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         boolean rescore = false;
@@ -117,13 +104,9 @@ private final SuggestPhase suggestPhase;
             Query query = searchContext.query();
 
             TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size() ;
-            if (numDocs == 0) {
-                // if 0 was asked, change it to 1 since 0 is not allowed
-                numDocs = 1;
-            }
+            int numDocs = searchContext.from() + searchContext.size();
 
-            if (searchContext.searchType() == SearchType.COUNT) {
+            if (searchContext.searchType() == SearchType.COUNT || numDocs == 0) {
                 TotalHitCountCollector collector = new TotalHitCountCollector();
                 searchContext.searcher().search(query, collector);
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
@@ -132,27 +115,15 @@ private final SuggestPhase suggestPhase;
             } else if (searchContext.sort() != null) {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
                         searchContext.trackScores(), searchContext.trackScores());
-            } else if (searchContext.sort() != null && searchContext.group() != null) {
-                GroupCollector collector = searchContext.group().groupCollector();
-                searchContext.searcher().search(query, collector);
-                searchContext.queryResult().group((InternalTermsGroup)collector.group());
-                // TODO: hits
-                topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
-            } else if (searchContext.group() != null) {
-                GroupCollector collector = searchContext.group().groupCollector();
-                searchContext.searcher().search(query, collector);
-                searchContext.queryResult().group((InternalTermsGroup)collector.group());
-                // TODO: hits
-                topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
-                if (searchContext.rescore() != null) {
-                    rescore = true;
-                    numDocs = Math.max(searchContext.rescore().window(), numDocs);
+                rescore = !searchContext.rescore().isEmpty();
+                for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(rescoreContext.window(), numDocs);
                 }
                 topDocs = searchContext.searcher().search(query, numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         } finally {
             searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
@@ -162,5 +133,6 @@ private final SuggestPhase suggestPhase;
         }
         suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
+        aggregationPhase.execute(searchContext);
     }
 }

@@ -1,0 +1,9 @@
+source 'https://rubygems.org'
+
+gem 'activesupport'
+gem 'rest-client'
+gem 'coderay'
+gem 'multi_json'
+gem 'thor'
+gem 'json'
+gem 'pry'

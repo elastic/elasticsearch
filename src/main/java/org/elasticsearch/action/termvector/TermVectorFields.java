@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,18 +19,9 @@
 
 package org.elasticsearch.action.termvector;
 
-import static org.apache.lucene.util.ArrayUtil.grow;
-import gnu.trove.map.hash.TObjectLongHashMap;
-
-import java.io.IOException;
-import java.util.Comparator;
-import java.util.Iterator;
-
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -38,16 +29,22 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.Iterator;
+
+import static org.apache.lucene.util.ArrayUtil.grow;
+
 /**
  * This class represents the result of a {@link TermVectorRequest}. It works
  * exactly like the {@link Fields} class except for one thing: It can return
  * offsets and payloads even if positions are not present. You must call
  * nextPosition() anyway to move the counter although this method only returns
  * <tt>-1,</tt>, if no positions were returned by the {@link TermVectorRequest}.
- * 
+ * <p/>
  * The data is stored in two byte arrays ({@code headerRef} and
  * {@code termVectors}, both {@link ByteRef}) that have the following format:
- * <p>
+ * <p/>
  * {@code headerRef}: Stores offsets per field in the {@code termVectors} array
  * and some header information as {@link BytesRef}. Format is
  * <ul>
@@ -64,9 +61,9 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
  * <li>vint: offset in {@code termVectors} for last field</li>
  * </ul>
  * </ul>
- * 
+ * <p/>
  * termVectors: Stores the actual term vectors as a {@link BytesRef}.
- * 
+ * <p/>
  * Term vectors for each fields are stored in blocks, one for each field. The
  * offsets in {@code headerRef} are used to find where the block for a field
  * starts. Each block begins with a
@@ -84,14 +81,14 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
  * <li>vint: number of documents in the shard that has an entry for this field
  * (docCount)</li>
  * </ul>
- * 
+ * <p/>
  * After that, for each term it stores
  * <ul>
  * <ul>
  * <li>vint: term lengths</li>
  * <li>BytesRef: term name</li>
  * </ul>
- * 
+ * <p/>
  * If term statistics are requested ({@code hasTermStatistics} is true, see
  * {@code headerRef}):
  * <ul>
@@ -111,28 +108,24 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
  * <li>BytesRef: payload_freqency (if payloads == true)</li>
  * <ul>
  * </ul> </ul>
- * 
  */
 
 public final class TermVectorFields extends Fields {
 
-    final private TObjectLongHashMap<String> fieldMap;
-    final private BytesReference termVectors;
+    private final ObjectLongOpenHashMap<String> fieldMap;
+    private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
 
     /**
-     * @param headerRef
-     *            Stores offsets per field in the {@code termVectors} and some
-     *            header information as {@link BytesRef}.
-     * 
-     * @param termVectors
-     *            Stores the actual term vectors as a {@link BytesRef}.
-     * 
+     * @param headerRef   Stores offsets per field in the {@code termVectors} and some
+     *                    header information as {@link BytesRef}.
+     * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
      */
     public TermVectorFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         BytesStreamInput header = new BytesStreamInput(headerRef);
-        fieldMap = new TObjectLongHashMap<String>();
+        fieldMap = new ObjectLongOpenHashMap<String>();
+
         // here we read the header to fill the field offset map
         String headerString = header.readString();
         assert headerString.equals("TV");
@@ -151,17 +144,36 @@ public final class TermVectorFields extends Fields {
 
     @Override
     public Iterator<String> iterator() {
-        return fieldMap.keySet().iterator();
+        final Iterator<ObjectLongCursor<String>> iterator = fieldMap.iterator();
+        return new Iterator<String>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return iterator.next().key;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     @Override
     public Terms terms(String field) throws IOException {
         // first, find where in the termVectors bytes the actual term vector for
         // this field is stored
-        Long offset = fieldMap.get(field);
+        if (!fieldMap.containsKey(field)) {
+            return null; // we don't have it.
+        }
+        long offset = fieldMap.lget();
         final BytesStreamInput perFieldTermVectorInput = new BytesStreamInput(this.termVectors);
         perFieldTermVectorInput.reset();
-        perFieldTermVectorInput.skip(offset.longValue());
+        perFieldTermVectorInput.skip(offset);
 
         // read how many terms....
         final long numTerms = perFieldTermVectorInput.readVLong();
@@ -233,16 +245,14 @@ public final class TermVectorFields extends Fields {
                             }
                             if (hasPayloads) {
                                 int payloadLength = input.readVInt();
-                                if (payloadLength > 0) {
-                                    if (payloads[i] == null) {
-                                        payloads[i] = new BytesRef(payloadLength);
-                                    } else {
-                                        payloads[i].grow(payloadLength);
-                                    }
-                                    input.readBytes(payloads[i].bytes, 0, payloadLength);
-                                    payloads[i].length = payloadLength;
-                                    payloads[i].offset = 0;
+                                if (payloads[i] == null) {
+                                    payloads[i] = new BytesRef(payloadLength);
+                                } else {
+                                    payloads[i].grow(payloadLength);
                                 }
+                                input.readBytes(payloads[i].bytes, 0, payloadLength);
+                                payloads[i].length = payloadLength;
+                                payloads[i].offset = 0;
                             }
                         }
                     }
@@ -271,7 +281,7 @@ public final class TermVectorFields extends Fields {
                     }
 
                     @Override
-                    public SeekStatus seekCeil(BytesRef text, boolean useCache) throws IOException {
+                    public SeekStatus seekCeil(BytesRef text) throws IOException {
                         throw new UnsupportedOperationException();
                     }
 
@@ -339,6 +349,11 @@ public final class TermVectorFields extends Fields {
             @Override
             public int getDocCount() throws IOException {
                 return docCount;
+            }
+            
+            @Override
+            public boolean hasFreqs() {
+                return true;
             }
 
             @Override

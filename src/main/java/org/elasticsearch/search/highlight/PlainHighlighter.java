@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -28,16 +26,15 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -61,7 +58,7 @@ public class PlainHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper<?> mapper = highlighterContext.mapper;
 
-        Encoder encoder = field.encoder().equals("html") ? Encoders.HTML : Encoders.DEFAULT;
+        Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
             Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
@@ -71,9 +68,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
-            // let the highlighter handle MultiTerm ones
-            Query query = context.parsedQuery().query();
+            Query query = highlighterContext.query.originalQuery();
             QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
@@ -86,7 +81,7 @@ public class PlainHighlighter implements Highlighter {
             } else if ("span".equals(field.fragmenter())) {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fragmentCharSize());
             } else {
-                throw new ElasticSearchIllegalArgumentException("unknown fragmenter option [" + field.fragmenter() + "] for the field [" + highlighterContext.fieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("unknown fragmenter option [" + field.fragmenter() + "] for the field [" + highlighterContext.fieldName + "]");
             }
             Formatter formatter = new SimpleHTMLFormatter(field.preTags()[0], field.postTags()[0]);
 
@@ -98,35 +93,18 @@ public class PlainHighlighter implements Highlighter {
             cache.put(mapper, entry);
         }
 
-        List<Object> textsToHighlight;
-        if (mapper.fieldType().stored()) {
-            try {
-                CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
-                hitContext.reader().document(hitContext.docId(), fieldVisitor);
-                textsToHighlight = fieldVisitor.fields().get(mapper.names().indexName());
-                if (textsToHighlight == null) {
-                    // Can happen if the document doesn't have the field to highlight
-                    textsToHighlight = ImmutableList.of();
-                }
-            } catch (Exception e) {
-                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
-            }
-        } else {
-            SearchLookup lookup = context.lookup();
-            lookup.setNextReader(hitContext.readerContext());
-            lookup.setNextDocId(hitContext.docId());
-            textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
-        }
-        assert textsToHighlight != null;
-
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<TextFragment>();
+        List<Object> textsToHighlight;
+
         try {
+            textsToHighlight = HighlightUtils.loadFieldValues(mapper, context, hitContext, field.forceSource());
+
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
-                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
+                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), text);
                 if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
@@ -142,13 +120,13 @@ public class PlainHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
         if (field.scoreOrdered()) {
-            CollectionUtil.quickSort(fragsList, new Comparator<TextFragment>() {
+            CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
                 public int compare(TextFragment o1, TextFragment o2) {
                     return Math.round(o2.getScore() - o1.getScore());
                 }
             });
         }
-        String[] fragments = null;
+        String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
         if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {
             fragments = new String[fragsList.size()];
@@ -168,11 +146,48 @@ public class PlainHighlighter implements Highlighter {
             return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
         }
 
+        int noMatchSize = highlighterContext.field.noMatchSize();
+        if (noMatchSize > 0 && textsToHighlight.size() > 0) {
+            // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
+            String fieldContents = textsToHighlight.get(0).toString();
+            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+            int end;
+            try {
+                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.names().indexName(), fieldContents));
+            } catch (Exception e) {
+                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            }
+            if (end > 0) {
+                return new HighlightField(highlighterContext.fieldName, new Text[] { new StringText(fieldContents.substring(0, end)) });
+            }
+        }
         return null;
     }
 
-    private static class Encoders {
-        public static Encoder DEFAULT = new DefaultEncoder();
-        public static Encoder HTML = new SimpleHTMLEncoder();
+    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {
+        try {
+            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+                // Can't split on term boundaries without offsets
+                return -1;
+            }
+            int end = -1;
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+                OffsetAttribute attr = tokenStream.getAttribute(OffsetAttribute.class);
+                if (attr.endOffset() >= noMatchSize) {
+                    // Jump to the end of this token if it wouldn't put us past the boundary
+                    if (attr.endOffset() == noMatchSize) {
+                        end = noMatchSize;
+                    }
+                    return end;
+                }
+                end = attr.endOffset();
+            }
+            // We've exhausted the token stream so we should just highlight everything.
+            return end;
+        } finally {
+            tokenStream.end();
+            tokenStream.close();
+        }
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.river.cluster;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -59,12 +59,12 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "riverClusterService#updateTask"));
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         updateTasksExecutor.shutdown();
         try {
             updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
@@ -74,7 +74,7 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     public void add(RiverClusterStateListener listener) {
@@ -83,6 +83,13 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
 
     public void remove(RiverClusterStateListener listener) {
         clusterStateListeners.remove(listener);
+    }
+
+    /**
+     * The current state.
+     */
+    public ClusterState state() {
+        return clusterService.state();
     }
 
     public void submitStateUpdateTask(final String source, final RiverClusterStateUpdateTask updateTask) {

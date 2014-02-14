@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -53,61 +54,121 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
 
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         for (Listener listener : listeners) {
-            listener.shardRoutingChanged(indexShard, oldRouting, newRouting);
+            try {
+                listener.shardRoutingChanged(indexShard, oldRouting, newRouting);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke shard touring changed callback", t, indexShard.shardId());
+            }
         }
     }
 
     public void beforeIndexCreated(Index index) {
         for (Listener listener : listeners) {
-            listener.beforeIndexCreated(index);
+            try {
+                listener.beforeIndexCreated(index);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke before index created callback", t, index.name());
+            }
         }
     }
 
     public void afterIndexCreated(IndexService indexService) {
         for (Listener listener : listeners) {
-            listener.afterIndexCreated(indexService);
+            try {
+                listener.afterIndexCreated(indexService);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke after index created callback", t, indexService.index().name());
+            }
         }
     }
 
     public void beforeIndexShardCreated(ShardId shardId) {
         for (Listener listener : listeners) {
-            listener.beforeIndexShardCreated(shardId);
+            try {
+                listener.beforeIndexShardCreated(shardId);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke before shard created callback", t, shardId);
+            }
         }
     }
 
     public void afterIndexShardCreated(IndexShard indexShard) {
         for (Listener listener : listeners) {
-            listener.afterIndexShardCreated(indexShard);
+            try {
+                listener.afterIndexShardCreated(indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard created callback", t, indexShard.shardId());
+            }
+        }
+    }
+
+    public void afterIndexShardPostRecovery(IndexShard indexShard) {
+        for (Listener listener : listeners) {
+            try {
+                listener.afterIndexShardPostRecovery(indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard post recovery callback", t, indexShard.shardId());
+            }
         }
     }
 
     public void afterIndexShardStarted(IndexShard indexShard) {
         for (Listener listener : listeners) {
-            listener.afterIndexShardStarted(indexShard);
+            try {
+                listener.afterIndexShardStarted(indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard started callback", t, indexShard.shardId());
+            }
         }
     }
 
     public void beforeIndexClosed(IndexService indexService) {
         for (Listener listener : listeners) {
-            listener.beforeIndexClosed(indexService);
+            try {
+                listener.beforeIndexClosed(indexService);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke before index closed callback", t, indexService.index().name());
+            }
         }
     }
 
     public void afterIndexClosed(Index index) {
         for (Listener listener : listeners) {
-            listener.afterIndexClosed(index);
+            try {
+                listener.afterIndexClosed(index);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke after index closed callback", t, index.name());
+            }
         }
     }
 
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
         for (Listener listener : listeners) {
-            listener.beforeIndexShardClosed(shardId, indexShard);
+            try {
+                listener.beforeIndexShardClosed(shardId, indexShard);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke before shard closed callback", t, shardId);
+            }
         }
     }
 
     public void afterIndexShardClosed(ShardId shardId) {
         for (Listener listener : listeners) {
-            listener.afterIndexShardClosed(shardId);
+            try {
+                listener.afterIndexShardClosed(shardId);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard closed callback", t, shardId);
+            }
+        }
+    }
+
+    public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, @Nullable String reason) {
+        for (Listener listener : listeners) {
+            try {
+                listener.indexShardStateChanged(indexShard, previousState, indexShard.state(), reason);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke index shard state changed callback", t, indexShard.shardId());
+            }
         }
     }
 }

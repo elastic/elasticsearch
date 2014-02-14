@@ -1,0 +1,27 @@
+{
+    "person" :{
+        "properties" :{
+            "name":{
+                "type" :"string",
+                "index" :"analyzed",
+                "store" :"yes",
+                "fields":{
+                    "name":{
+                        "type" :"string",
+                        "index" :"analyzed",
+                        "store" :"yes"
+                    },
+                    "indexed":{
+                        "type" :"string",
+                        "index" :"analyzed"
+                    },
+                    "not_indexed":{
+                        "type" :"string",
+                        "index" :"no",
+                        "store" :"yes"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,12 @@
 
 package org.elasticsearch.gateway.local;
 
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import gnu.trove.iterator.TObjectLongIterator;
-import gnu.trove.map.hash.TObjectLongHashMap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,7 +68,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
     private final ConcurrentMap<ShardId, Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData>> cachedStores = ConcurrentCollections.newConcurrentMap();
 
-    private final ConcurrentMap<ShardId, TObjectLongHashMap<DiscoveryNode>> cachedShardsState = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ObjectLongOpenHashMap<DiscoveryNode>> cachedShardsState = ConcurrentCollections.newConcurrentMap();
 
     private final TimeValue listTimeout;
 
@@ -95,9 +97,10 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
     @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        ShardRouting failedShard = allocation.failedShard();
-        cachedStores.remove(failedShard.shardId());
-        cachedShardsState.remove(failedShard.shardId());
+        for (ShardRouting failedShard : allocation.failedShards()) {
+            cachedStores.remove(failedShard.shardId());
+            cachedShardsState.remove(failedShard.shardId());
+        }
     }
 
     @Override
@@ -120,15 +123,21 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 continue;
             }
 
-            TObjectLongHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard);
+            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard);
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
             Set<DiscoveryNode> nodesWithHighestVersion = Sets.newHashSet();
-            for (TObjectLongIterator<DiscoveryNode> it = nodesState.iterator(); it.hasNext(); ) {
-                it.advance();
-                DiscoveryNode node = it.key();
-                long version = it.value();
+            final boolean[] states = nodesState.allocated;
+            final Object[] keys = nodesState.keys;
+            final long[] values = nodesState.values;
+            for (int i = 0; i < states.length; i++) {
+                if (!states[i]) {
+                    continue;
+                }
+
+                DiscoveryNode node = (DiscoveryNode) keys[i];
+                long version = values[i];
                 // since we don't check in NO allocation, we need to double check here
                 if (allocation.shouldIgnoreShardForNode(shard.shardId(), node.id())) {
                     continue;
@@ -205,7 +214,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    node.add(new MutableShardRouting(shard, highestVersion));
+                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
 
                     // found a node, so no throttling, no "no", and break out of the loop
@@ -225,7 +234,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    node.add(new MutableShardRouting(shard, highestVersion));
+                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
                     unassignedIterator.remove();
                 }
             } else {
@@ -249,8 +258,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;
-            for (DiscoveryNode discoNode : nodes.dataNodes().values()) {
-                RoutingNode node = routingNodes.node(discoNode.id());
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
+                RoutingNode node = routingNodes.node(cursor.value.id());
                 if (node == null) {
                     continue;
                 }
@@ -302,8 +311,9 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 }
 
                 if (!shard.primary()) {
-                    MutableShardRouting primaryShard = routingNodes.findPrimaryForReplica(shard);
-                    if (primaryShard != null && primaryShard.active()) {
+                    MutableShardRouting primaryShard = routingNodes.activePrimary(shard);
+                    if (primaryShard != null) {
+                        assert primaryShard.active();
                         DiscoveryNode primaryNode = nodes.get(primaryShard.currentNodeId());
                         if (primaryNode != null) {
                             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryNodeStore = shardStores.get(primaryNode);
@@ -342,33 +352,33 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     }
                     // we found a match
                     changed = true;
-                    lastNodeMatched.add(shard);
+                    allocation.routingNodes().assign(shard, lastNodeMatched.nodeId());
                     unassignedIterator.remove();
                 }
             }
         }
-
         return changed;
     }
 
-    private TObjectLongHashMap<DiscoveryNode> buildShardStates(DiscoveryNodes nodes, MutableShardRouting shard) {
-        TObjectLongHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
-        Set<String> nodeIds;
+    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard) {
+        ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
+        ObjectOpenHashSet<String> nodeIds;
         if (shardStates == null) {
-            shardStates = new TObjectLongHashMap<DiscoveryNode>();
+            shardStates = new ObjectLongOpenHashMap<DiscoveryNode>();
             cachedShardsState.put(shard.shardId(), shardStates);
-            nodeIds = nodes.dataNodes().keySet();
+            nodeIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
         } else {
             // clean nodes that have failed
-            for (TObjectLongIterator<DiscoveryNode> it = shardStates.iterator(); it.hasNext(); ) {
-                it.advance();
-                if (!nodes.nodeExists(it.key().id())) {
-                    it.remove();
+            shardStates.keys().removeAll(new ObjectPredicate<DiscoveryNode>() {
+                @Override
+                public boolean apply(DiscoveryNode node) {
+                    return !nodes.nodeExists(node.id());
                 }
-            }
-            nodeIds = Sets.newHashSet();
+            });
+            nodeIds = ObjectOpenHashSet.newInstance();
             // we have stored cached from before, see if the nodes changed, if they have, go fetch again
-            for (DiscoveryNode node : nodes.dataNodes().values()) {
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
+                DiscoveryNode node = cursor.value;
                 if (!shardStates.containsKey(node)) {
                     nodeIds.add(node.id());
                 }
@@ -378,7 +388,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             return shardStates;
         }
 
-        TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodes.dataNodes().keySet(), listTimeout).actionGet();
+        String[] nodesIdsArray = nodeIds.toArray(String.class);
+        TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
         if (logger.isDebugEnabled()) {
             if (response.failures().length > 0) {
                 StringBuilder sb = new StringBuilder(shard + ": failures when trying to list shards on nodes:");
@@ -402,13 +413,13 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
         Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> shardStores = cachedStores.get(shard.shardId());
-        Set<String> nodesIds;
+        ObjectOpenHashSet<String> nodesIds;
         if (shardStores == null) {
             shardStores = Maps.newHashMap();
             cachedStores.put(shard.shardId(), shardStores);
-            nodesIds = nodes.dataNodes().keySet();
+            nodesIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
         } else {
-            nodesIds = Sets.newHashSet();
+            nodesIds = ObjectOpenHashSet.newInstance();
             // clean nodes that have failed
             for (Iterator<DiscoveryNode> it = shardStores.keySet().iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
@@ -417,7 +428,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 }
             }
 
-            for (DiscoveryNode node : nodes.dataNodes().values()) {
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
+                DiscoveryNode node = cursor.value;
                 if (!shardStores.containsKey(node)) {
                     nodesIds.add(node.id());
                 }
@@ -425,7 +437,8 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         }
 
         if (!nodesIds.isEmpty()) {
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIds, listTimeout).actionGet();
+            String[] nodesIdsArray = nodesIds.toArray(String.class);
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
             if (logger.isTraceEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {
                     StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -182,9 +182,12 @@ public abstract class BaseFuture<V> implements Future<V> {
 
         // If it's an Error, we want to make sure it reaches the top of the
         // call stack, so we rethrow it.
-        if (throwable instanceof Error) {
-            throw (Error) throwable;
-        }
+
+        // we want to notify the listeners we have with errors as well, as it breaks
+        // how we work in ES in terms of using assertions
+//        if (throwable instanceof Error) {
+//            throw (Error) throwable;
+//        }
         return result;
     }
 

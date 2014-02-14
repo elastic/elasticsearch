@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,6 +34,8 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
 
     private float boost = -1;
 
+    private String queryName;
+
     public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
         this.matchBuilder = matchBuilder;
         this.end = end;
@@ -41,6 +43,14 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
 
     public SpanFirstQueryBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanFirstQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
@@ -52,6 +62,9 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
         builder.field("end", end);
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("name", queryName);
         }
         builder.endObject();
     }

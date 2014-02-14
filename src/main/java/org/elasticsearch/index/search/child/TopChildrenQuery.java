@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,25 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,8 +53,11 @@ import java.util.Set;
  * This query is most of the times faster than the {@link ChildrenQuery}. Usually enough parent documents can be returned
  * in the first child document query round.
  */
-public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
+public class TopChildrenQuery extends Query {
 
+    private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
+
+    private final CacheRecycler cacheRecycler;
     private final String parentType;
     private final String childType;
     private final ScoreType scoreType;
@@ -62,26 +67,28 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
-    private ExtTHashMap<Object, ParentDoc[]> parentDocs;
+    private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
+    public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler) {
         this.originalChildQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
         this.scoreType = scoreType;
         this.factor = factor;
         this.incrementalFactor = incrementalFactor;
+        this.cacheRecycler = cacheRecycler;
     }
 
     // Rewrite invocation logic:
-    // 1) query_then_fetch (default): First contextRewrite and then rewrite is executed
-    // 2) dfs_query_then_fetch:: First rewrite and then contextRewrite is executed. During query phase rewrite isn't
+    // 1) query_then_fetch (default): Rewrite is execute as part of the createWeight invocation, when search child docs.
+    // 2) dfs_query_then_fetch:: First rewrite and then createWeight is executed. During query phase rewrite isn't
     // executed any more because searchContext#queryRewritten() returns true.
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         if (rewrittenChildQuery == null) {
             rewrittenChildQuery = originalChildQuery.rewrite(reader);
+            rewriteIndexReader = reader;
         }
         // We can always return the current instance, and we can do this b/c the child query is executed separately
         // before the main query (other scope) in a different IS#search() invocation than the main query.
@@ -91,30 +98,40 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextRewrite(SearchContext searchContext) throws Exception {
-        this.parentDocs = CacheRecycler.popHashMap();
+    public void extractTerms(Set<Term> terms) {
+        rewrittenChildQuery.extractTerms(terms);
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs = cacheRecycler.hashMap(-1);
+        SearchContext searchContext = SearchContext.current();
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
-        int numChildDocs = (searchContext.from() + searchContext.size());
-        if (numChildDocs == 0) {
-            numChildDocs = 1;
+        int requestedDocs = (searchContext.from() + searchContext.size());
+        if (requestedDocs <= 0) {
+            requestedDocs = 1;
         }
-        numChildDocs *= factor;
+        int numChildDocs = requestedDocs * factor;
 
         Query childQuery;
         if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searchContext.searcher().rewrite(originalChildQuery);
+            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
         } else {
+            assert rewriteIndexReader == searcher.getIndexReader();
             childQuery = rewrittenChildQuery;
         }
+
+        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.setSimilarity(searcher.getSimilarity());
         while (true) {
-            parentDocs.clear();
-            TopDocs topChildDocs = searchContext.searcher().search(childQuery, numChildDocs);
-            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext);
+            parentDocs.v().clear();
+            TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);
+            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext, parentDocs);
 
             // check if we found enough docs, if so, break
-            if (parentHitsResolved >= (searchContext.from() + searchContext.size())) {
+            if (parentHitsResolved >= requestedDocs) {
                 break;
             }
             // if we did not find enough docs, check if it make sense to search further
@@ -127,19 +144,15 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 numChildDocs = topChildDocs.totalHits;
             }
         }
+
+        ParentWeight parentWeight =  new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
+        searchContext.addReleasable(parentWeight);
+        return parentWeight;
     }
 
-    @Override
-    public void contextClear() {
-        if (parentDocs != null) {
-            CacheRecycler.pushHashMap(parentDocs);
-            parentDocs = null;
-        }
-    }
-
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) {
         int parentHitsResolved = 0;
-        ExtTHashMap<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = CacheRecycler.popHashMap();
+        Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -159,13 +172,13 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
                     // we found a match, add it and break
 
-                    TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
+                    Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = CacheRecycler.popIntObjectMap();
-                        parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
+                        readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
+                        parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
 
-                    ParentDoc parentDoc = readerParentDocs.get(parentDocId);
+                    ParentDoc parentDoc = readerParentDocs.v().get(parentDocId);
                     if (parentDoc == null) {
                         parentHitsResolved++; // we have a hit on a parent
                         parentDoc = new ParentDoc();
@@ -173,7 +186,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                         parentDoc.count = 1;
                         parentDoc.maxScore = scoreDoc.score;
                         parentDoc.sumScores = scoreDoc.score;
-                        readerParentDocs.put(parentDocId, parentDoc);
+                        readerParentDocs.v().put(parentDocId, parentDoc);
                     } else {
                         parentDoc.count++;
                         parentDoc.sumScores += scoreDoc.score;
@@ -184,45 +197,20 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 }
             }
         }
-
-        for (Map.Entry<Object, TIntObjectHashMap<ParentDoc>> entry : parentDocsPerReader.entrySet()) {
-            ParentDoc[] values = entry.getValue().values(new ParentDoc[entry.getValue().size()]);
-            Arrays.sort(values, PARENT_DOC_COMP);
-            parentDocs.put(entry.getKey(), values);
-            CacheRecycler.pushIntObjectMap(entry.getValue());
+        boolean[] states = parentDocsPerReader.v().allocated;
+        Object[] keys = parentDocsPerReader.v().keys;
+        Object[] values = parentDocsPerReader.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                Recycler.V<IntObjectOpenHashMap<ParentDoc>> value = (Recycler.V<IntObjectOpenHashMap<ParentDoc>>) values[i];
+                ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
+                Arrays.sort(_parentDocs, PARENT_DOC_COMP);
+                parentDocs.v().put(keys[i], _parentDocs);
+                Releasables.release(value);
+            }
         }
-        CacheRecycler.pushHashMap(parentDocsPerReader);
+        Releasables.release(parentDocsPerReader);
         return parentHitsResolved;
-    }
-
-    private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
-
-    static class ParentDocComparator implements Comparator<ParentDoc> {
-        @Override
-        public int compare(ParentDoc o1, ParentDoc o2) {
-            return o1.docId - o2.docId;
-        }
-    }
-
-    static class ParentDoc {
-        public int docId;
-        public int count;
-        public float maxScore = Float.NaN;
-        public float sumScores = 0;
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        if (parentDocs == null) {
-            throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
-        }
-
-        return new ParentWeight(searcher, rewrittenChildQuery.createWeight(searcher));
     }
 
     @Override
@@ -244,6 +232,9 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         if (incrementalFactor != that.incrementalFactor) {
             return false;
         }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
         return true;
     }
 
@@ -252,6 +243,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         int result = originalChildQuery.hashCode();
         result = 31 * result + parentType.hashCode();
         result = 31 * result + incrementalFactor;
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -262,15 +254,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         return sb.toString();
     }
 
-    class ParentWeight extends Weight {
+    private class ParentWeight extends Weight implements Releasable {
 
-        final IndexSearcher searcher;
+        private final Weight queryWeight;
+        private final Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs;
 
-        final Weight queryWeight;
-
-        public ParentWeight(IndexSearcher searcher, Weight queryWeight) throws IOException {
-            this.searcher = searcher;
+        public ParentWeight(Weight queryWeight, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws IOException {
             this.queryWeight = queryWeight;
+            this.parentDocs = parentDocs;
         }
 
         public Query getQuery() {
@@ -290,8 +281,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
+        public boolean release() throws ElasticsearchException {
+            Releasables.release(parentDocs);
+            return true;
+        }
+
+        @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
+            ParentDoc[] readerParentDocs = parentDocs.v().get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MAX) {
                     return new ParentScorer(this, readerParentDocs) {
@@ -305,7 +302,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS; 
+                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
                             return doc.sumScores / doc.count;
                         }
                     };
@@ -314,12 +311,12 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                         @Override
                         public float score() throws IOException {
                             assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
-                            return doc.sumScores; 
+                            return doc.sumScores;
                         }
-                        
+
                     };
-                } 
-                throw new ElasticSearchIllegalStateException("No support for score type [" + scoreType + "]");                   
+                }
+                throw new ElasticsearchIllegalStateException("No support for score type [" + scoreType + "]");
             }
             return new EmptyScorer(this);
         }
@@ -330,7 +327,8 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
     }
 
-    static abstract class ParentScorer extends Scorer {
+    private static abstract class ParentScorer extends Scorer {
+
         private final ParentDoc spare = new ParentDoc();
         protected final ParentDoc[] docs;
         protected ParentDoc doc = spare;
@@ -350,10 +348,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
         @Override
         public final int advance(int target) throws IOException {
-            int doc;
-            while ((doc = nextDoc()) < target) {
-            }
-            return doc;
+            return slowAdvance(target);
         }
 
         @Override
@@ -376,4 +371,19 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             return docs.length;
         }
     }
+
+    private static class ParentDocComparator implements Comparator<ParentDoc> {
+        @Override
+        public int compare(ParentDoc o1, ParentDoc o2) {
+            return o1.docId - o2.docId;
+        }
+    }
+
+    private static class ParentDoc {
+        public int docId;
+        public int count;
+        public float maxScore = Float.NaN;
+        public float sumScores = 0;
+    }
+
 }

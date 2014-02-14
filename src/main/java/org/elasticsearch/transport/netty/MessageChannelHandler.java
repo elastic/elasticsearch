@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
@@ -96,7 +97,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     sb.append(buffer.getByte(offset + i)).append(",");
                 }
                 sb.append("]");
-                throw new ElasticSearchIllegalStateException(sb.toString());
+                throw new ElasticsearchIllegalStateException(sb.toString());
             }
             wrappedStream = CachedStreamInput.cachedHandlesCompressed(compressor, streamIn);
         } else {
@@ -143,7 +144,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         final TransportResponse response = handler.newInstance();
         try {
             response.readFrom(buffer);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
@@ -176,7 +177,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
         if (handler.executor() == ThreadPool.Names.SAME) {
-            handler.handleException(rtx);
+            try {
+                handler.handleException(rtx);
+            } catch (Throwable e) {
+                logger.error("failed to handle exception response [{}]", e, handler);
+            }
         } else {
             threadPool.executor(handler.executor()).execute(new Runnable() {
                 @Override
@@ -184,7 +189,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     try {
                         handler.handleException(rtx);
                     } catch (Throwable e) {
-                        logger.error("Failed to handle exception response", e);
+                        logger.error("failed to handle exception response [{}]", e, handler);
                     }
                 }
             });
@@ -245,7 +250,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    class RequestHandler implements Runnable {
+    class RequestHandler extends AbstractRunnable {
         private final TransportRequestHandler handler;
         private final TransportRequest request;
         private final NettyTransportChannel transportChannel;
@@ -274,6 +279,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     }
                 }
             }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return handler.isForceExecution();
         }
     }
 }

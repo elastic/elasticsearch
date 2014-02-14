@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,7 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
@@ -46,7 +47,7 @@ import java.util.List;
  */
 public class SortParseElement implements SearchParseElement {
 
-    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
+    public static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
@@ -80,7 +81,7 @@ public class SortParseElement implements SearchParseElement {
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
                 } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
+                    throw new ElasticsearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -88,7 +89,7 @@ public class SortParseElement implements SearchParseElement {
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
-            throw new ElasticSearchIllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
+            throw new ElasticsearchIllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really need sorting
@@ -129,7 +130,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     } else {
-                        throw new ElasticSearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
+                        throw new ElasticsearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
                     addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
                 } else {
@@ -157,13 +158,14 @@ public class SortParseElement implements SearchParseElement {
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();
                                 } else {
-                                    throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
-                                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
+                                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                                 } else {
-                                    throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             }
                         }
@@ -196,6 +198,10 @@ public class SortParseElement implements SearchParseElement {
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
 
+            if (!fieldMapper.isSortable()) {
+                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]");
+            }
+
             // Enable when we also know how to detect fields that do tokenize, but only emit one token
             /*if (fieldMapper instanceof StringFieldMapper) {
                 StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
@@ -219,11 +225,11 @@ public class SortParseElement implements SearchParseElement {
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
                 if (objectMappers == null) {
-                    throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+                    throw new ElasticsearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
                 }
                 objectMapper = objectMappers.mapper();
                 if (!objectMapper.nested().isNested()) {
-                    throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                    throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
                 }
             } else {
                 objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);

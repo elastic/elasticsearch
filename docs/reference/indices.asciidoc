@@ -1,0 +1,106 @@
+[[indices]]
+= Indices APIs
+
+[partintro]
+--
+The indices APIs are used to manage individual indices,
+index settings, aliases, mappings, index templates
+and warmers.
+
+[float]
+[[index-management]]
+== Index management:
+
+* <<indices-create-index>>
+* <<indices-delete-index>>
+* <<indices-exists>>
+* <<indices-open-close>>
+
+[float]
+[[mapping-management]]
+== Mapping management:
+
+* <<indices-put-mapping>>
+* <<indices-get-mapping>>
+* <<indices-get-field-mapping>>
+* <<indices-delete-mapping>>
+* <<indices-types-exists>>
+
+[float]
+[[alias-management]]
+== Alias management:
+* <<indices-aliases>>
+
+[float]
+[[index-settings]]
+== Index settings:
+* <<indices-update-settings>>
+* <<indices-get-settings>>
+* <<indices-analyze>>
+* <<indices-templates>>
+* <<indices-warmers>>
+
+[float]
+[[monitoring]]
+== Monitoring:
+* <<indices-status>>
+* <<indices-stats>>
+* <<indices-segments>>
+
+[float]
+[[status-management]]
+== Status management:
+* <<indices-clearcache>>
+* <<indices-refresh>>
+* <<indices-flush>>
+* <<indices-optimize>>
+* <<indices-gateway-snapshot>>
+
+--
+
+include::indices/create-index.asciidoc[]
+
+include::indices/delete-index.asciidoc[]
+
+include::indices/indices-exists.asciidoc[]
+
+include::indices/open-close.asciidoc[]
+
+include::indices/put-mapping.asciidoc[]
+
+include::indices/get-mapping.asciidoc[]
+
+include::indices/get-field-mapping.asciidoc[]
+
+include::indices/types-exists.asciidoc[]
+
+include::indices/delete-mapping.asciidoc[]
+
+include::indices/aliases.asciidoc[]
+
+include::indices/update-settings.asciidoc[]
+
+include::indices/get-settings.asciidoc[]
+
+include::indices/analyze.asciidoc[]
+
+include::indices/templates.asciidoc[]
+
+include::indices/warmers.asciidoc[]
+
+include::indices/status.asciidoc[]
+
+include::indices/stats.asciidoc[]
+
+include::indices/segments.asciidoc[]
+
+include::indices/clearcache.asciidoc[]
+
+include::indices/flush.asciidoc[]
+
+include::indices/refresh.asciidoc[]
+
+include::indices/optimize.asciidoc[]
+
+include::indices/gateway-snapshot.asciidoc[]
+

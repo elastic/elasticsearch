@@ -1,12 +1,11 @@
-package org.elasticsearch.search.rescore;
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -17,8 +16,8 @@ package org.elasticsearch.search.rescore;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.IOException;
-import java.util.Set;
+
+package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
@@ -27,8 +26,11 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+import java.util.Set;
+
 /**
- * A query rescorer interface used to re-rank the Top-K results of a previously 
+ * A query rescorer interface used to re-rank the Top-K results of a previously
  * executed search.
  */
 public interface Rescorer {
@@ -41,27 +43,31 @@ public interface Rescorer {
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
      * in place based on the given {@link RescoreSearchContext}.
-     * 
-     * @param topDocs the result of the previously exectued search
-     * @param context the current {@link SearchContext}. This will never be <code>null</code>.
+     *
+     * @param topDocs        the result of the previously exectued search
+     * @param context        the current {@link SearchContext}. This will never be <code>null</code>.
      * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
     public void rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
-    
+
     /**
-     * Executes an {@link Explanation} phase on the rescorer. 
+     * Executes an {@link Explanation} phase on the rescorer.
+     *
      * @param topLevelDocId the global / top-level document ID to explain
-     * @param context the current {@link SearchContext}
-     * @param rescoreContext TODO
+     * @param context the explanation for the results being fed to this rescorer
+     * @param rescoreContext context for this rescorer
+     * @param sourceExplanation explanation of the source of the documents being fed into this rescore
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
-    
+    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+            Explanation sourceExplanation) throws IOException;
+
     /**
      * Parses the {@link RescoreSearchContext} for this impelementation
-     * @param parser the parser to read the context from
+     *
+     * @param parser  the parser to read the context from
      * @param context the current search context
      * @return the parsed {@link RescoreSearchContext}
      * @throws IOException if an {@link IOException} occurs while parsing the context
@@ -86,5 +92,5 @@ public interface Rescorer {
      * documents are merged since in such a case we don't really have a score
      * per document rather a "X is more relevant than Y" relation
      */
-    
+
 }

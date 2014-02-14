@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,9 +19,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchInterruptedException;
-import org.elasticsearch.ElasticSearchTimeoutException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.util.concurrent.ExecutionException;
@@ -40,14 +40,15 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     }
 
     @Override
-    public V txGet() throws ElasticSearchException {
+    public V txGet() throws ElasticsearchException {
         try {
             return get();
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
+            if (e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new TransportException("Failed execution", e);
             }
@@ -55,16 +56,17 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     }
 
     @Override
-    public V txGet(long timeout, TimeUnit unit) throws ElasticSearchException {
+    public V txGet(long timeout, TimeUnit unit) throws ElasticsearchException {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
-            throw new ElasticSearchTimeoutException(e.getMessage());
+            throw new ElasticsearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
+            if (e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new TransportException("Failed execution", e);
             }
@@ -83,14 +85,21 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
 
     @Override
     public void handleResponse(V response) {
-        handler.handleResponse(response);
-        set(response);
+        try {
+            handler.handleResponse(response);
+            set(response);
+        } catch (Throwable t) {
+            handleException(new ResponseHandlerFailureTransportException(t));
+        }
     }
 
     @Override
     public void handleException(TransportException exp) {
-        handler.handleException(exp);
-        setException(exp);
+        try {
+            handler.handleException(exp);
+        } finally {
+            setException(exp);
+        }
     }
 
     @Override

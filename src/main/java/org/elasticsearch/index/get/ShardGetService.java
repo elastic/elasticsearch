@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,7 +22,9 @@ package org.elasticsearch.index.get;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -48,6 +51,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -94,11 +98,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
+            throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime);
+            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext);
+
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -117,7 +123,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
      * <p/>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
             return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
         }
@@ -130,8 +136,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 missingMetric.inc(System.nanoTime() - now);
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
-
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, engineGetResult, docMapper);
+            fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -143,12 +149,34 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
-        boolean loadSource = gFields == null || gFields.length > 0;
+    /**
+     * decides what needs to be done based on the request input and always returns a valid non-null FetchSourceContext
+     */
+    protected FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
+        if (context != null) {
+            return context;
+        }
+        if (gFields == null) {
+            return FetchSourceContext.FETCH_SOURCE;
+        }
+        for (String field : gFields) {
+            if (SourceFieldMapper.NAME.equals(field)) {
+                return FetchSourceContext.FETCH_SOURCE;
+            }
+        }
+        return FetchSourceContext.DO_NOT_FETCH_SOURCE;
+    }
+
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticsearchException {
+        fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
+
+        boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
+
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {
             for (String typeX : mapperService.types()) {
-                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id))).loadSource(loadSource));
+                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id)))
+                        .loadSource(loadSource).version(version).versionType(versionType));
                 if (get.exists()) {
                     type = typeX;
                     break;
@@ -164,7 +192,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
         } else {
-            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id))).loadSource(loadSource));
+            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id)))
+                    .loadSource(loadSource).version(version).versionType(versionType));
             if (!get.exists()) {
                 get.release();
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
@@ -180,31 +209,25 @@ public class ShardGetService extends AbstractIndexShardComponent {
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, get, docMapper);
+                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, docMapper);
             } else {
                 Translog.Source source = get.source();
 
                 Map<String, GetField> fields = null;
-                boolean sourceRequested = false;
+                SearchLookup searchLookup = null;
 
                 // we can only load scripts that can run against the source
-                if (gFields == null) {
-                    sourceRequested = true;
-                } else if (gFields.length == 0) {
-                    // no fields, and no source
-                    sourceRequested = false;
-                } else {
+                if (gFields != null && gFields.length > 0) {
                     Map<String, Object> sourceAsMap = null;
-                    SearchLookup searchLookup = null;
                     for (String field : gFields) {
-                        if (field.equals("_source")) {
-                            sourceRequested = true;
+                        if (SourceFieldMapper.NAME.equals(field)) {
+                            // dealt with when normalizing fetchSourceContext.
                             continue;
                         }
                         Object value = null;
                         if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().fieldType().stored()) {
                             value = source.routing;
-                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().fieldType().stored()) {
+                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper().active() && docMapper.parentFieldMapper().fieldType().stored()) {
                             value = source.parent;
                         } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().fieldType().stored()) {
                             value = source.timestamp;
@@ -216,50 +239,24 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).fieldType().stored()) {
                             value = source.source.length();
                         } else {
-                            if (field.contains("_source.")) {
-                                if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                                }
-                                if (sourceAsMap == null) {
-                                    sourceAsMap = SourceLookup.sourceAsMap(source.source);
-                                }
-                                SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                                // we can't do this, only allow to run scripts against the source
-                                //searchScript.setNextReader(docIdAndVersion.reader);
-                                //searchScript.setNextDocId(docIdAndVersion.docId);
+                            if (searchLookup == null) {
+                                searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                                searchLookup.source().setNextSource(source.source);
+                            }
 
-                                // but, we need to inject the parsed source into the script, so it will be used...
-                                searchScript.setNextSource(sourceAsMap);
-
-                                try {
-                                    value = searchScript.run();
-                                } catch (RuntimeException e) {
-                                    if (logger.isTraceEnabled()) {
-                                        logger.trace("failed to execute get request script field [{}]", e, field);
+                            FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
+                            if (x == null) {
+                                if (docMapper.objectMappers().get(field) != null) {
+                                    // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                                    throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                                }
+                            } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
+                                List<Object> values = searchLookup.source().extractRawValues(field);
+                                if (!values.isEmpty()) {
+                                    for (int i = 0; i < values.size(); i++) {
+                                        values.set(i, x.valueForSearch(values.get(i)));
                                     }
-                                    // ignore
-                                }
-                            } else {
-                                if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                                    searchLookup.source().setNextSource(source.source);
-                                }
-
-                                FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                                // only if the field is stored or source is enabled we should add it..
-                                if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
-                                    value = searchLookup.source().extractValue(field);
-                                    // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                                    if (value != null && x != null) {
-                                        if (value instanceof List) {
-                                            List list = (List) value;
-                                            for (int i = 0; i < list.size(); i++) {
-                                                list.set(i, x.valueForSearch(list.get(i)));
-                                            }
-                                        } else {
-                                            value = x.valueForSearch(value);
-                                        }
-                                    }
+                                    value = values;
                                 }
                             }
                         }
@@ -276,27 +273,38 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
 
-                // if source is not enabled, don't return it even though we have it from the translog
-                if (sourceRequested && !docMapper.sourceMapper().enabled()) {
-                    sourceRequested = false;
-                }
-
-                // Cater for source excludes/includes at the cost of performance
+                // deal with source, but only if it's enabled (we always have it from the translog)
                 BytesReference sourceToBeReturned = null;
-                if (sourceRequested) {
+                SourceFieldMapper sourceFieldMapper = docMapper.sourceMapper();
+                if (fetchSourceContext.fetchSource() && sourceFieldMapper.enabled()) {
+
                     sourceToBeReturned = source.source;
 
-                    SourceFieldMapper sourceFieldMapper = docMapper.sourceMapper();
-                    if (sourceFieldMapper.enabled()) {
-                        boolean filtered = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
-                        if (filtered) {
-                            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source.source, true);
-                            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), sourceFieldMapper.includes(), sourceFieldMapper.excludes());
-                            try {
-                                sourceToBeReturned = XContentFactory.contentBuilder(mapTuple.v1()).map(filteredSource).bytes();
-                            } catch (IOException e) {
-                                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
-                            }
+                    // Cater for source excludes/includes at the cost of performance
+                    // We must first apply the field mapper filtering to make sure we get correct results
+                    // in the case that the fetchSourceContext white lists something that's not included by the field mapper
+
+                    Map<String, Object> filteredSource = null;
+                    XContentType sourceContentType = null;
+                    if (sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0) {
+                        // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
+                        Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
+                        sourceContentType = typeMapTuple.v1();
+                        filteredSource = XContentMapValues.filter(typeMapTuple.v2(), sourceFieldMapper.includes(), sourceFieldMapper.excludes());
+                    }
+                    if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+                        if (filteredSource == null) {
+                            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
+                            sourceContentType = typeMapTuple.v1();
+                            filteredSource = typeMapTuple.v2();
+                        }
+                        filteredSource = XContentMapValues.filter(filteredSource, fetchSourceContext.includes(), fetchSourceContext.excludes());
+                    }
+                    if (filteredSource != null) {
+                        try {
+                            sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
+                        } catch (IOException e) {
+                            throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
                         }
                     }
                 }
@@ -308,16 +316,16 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, DocumentMapper docMapper) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
         Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
+        FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.context.reader().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
-                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
+                throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
             source = fieldVisitor.source();
 
@@ -335,42 +343,26 @@ public class ShardGetService extends AbstractIndexShardComponent {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
-                if (field.contains("_source.") || field.contains("doc[")) {
+                FieldMappers x = docMapper.mappers().smartName(field);
+                if (x == null) {
+                    if (docMapper.objectMappers().get(field) != null) {
+                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                    }
+                } else if (!x.mapper().fieldType().stored()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
+                        searchLookup.setNextReader(docIdAndVersion.context);
+                        searchLookup.source().setNextSource(source);
+                        searchLookup.setNextDocId(docIdAndVersion.docId);
                     }
-                    SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                    searchScript.setNextReader(docIdAndVersion.reader);
-                    searchScript.setNextDocId(docIdAndVersion.docId);
 
-                    try {
-                        value = searchScript.run();
-                    } catch (RuntimeException e) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("failed to execute get request script field [{}]", e, field);
+                    List<Object> values = searchLookup.source().extractRawValues(field);
+                    if (!values.isEmpty()) {
+                        for (int i = 0; i < values.size(); i++) {
+                            values.set(i, x.mapper().valueForSearch(values.get(i)));
                         }
-                        // ignore
-                    }
-                } else {
-                    FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null || !x.mapper().fieldType().stored()) {
-                        if (searchLookup == null) {
-                            searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                            searchLookup.setNextReader(docIdAndVersion.reader);
-                            searchLookup.setNextDocId(docIdAndVersion.docId);
-                        }
-                        value = searchLookup.source().extractValue(field);
-                        // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
-                        if (value != null && x != null) {
-                            if (value instanceof List) {
-                                List list = (List) value;
-                                for (int i = 0; i < list.size(); i++) {
-                                    list.set(i, x.mapper().valueForSearch(list.get(i)));
-                                }
-                            } else {
-                                value = x.mapper().valueForSearch(value);
-                            }
-                        }
+                        value = values;
                     }
                 }
 
@@ -387,19 +379,30 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
+        if (!fetchSourceContext.fetchSource()) {
+            source = null;
+        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+            Map<String, Object> filteredSource;
+            XContentType sourceContentType = null;
+            // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
+            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
+            sourceContentType = typeMapTuple.v1();
+            filteredSource = XContentMapValues.filter(typeMapTuple.v2(), fetchSourceContext.includes(), fetchSourceContext.excludes());
+            try {
+                source = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
+            }
+        }
+
         return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String... fields) {
-        if (fields == null) {
-            return new JustSourceFieldsVisitor();
+    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
+        if (fields == null || fields.length == 0) {
+            return fetchSourceContext.fetchSource() ? new JustSourceFieldsVisitor() : null;
         }
 
-        // don't load anything
-        if (fields.length == 0) {
-            return null;
-        }
-
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), false);
+        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
     }
 }

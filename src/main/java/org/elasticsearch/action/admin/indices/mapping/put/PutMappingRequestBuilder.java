@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,19 +20,18 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.common.Required;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
 
 /**
- *
+ * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new PutMappingRequest());
@@ -44,9 +43,18 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
     }
 
     /**
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
+     */
+    public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
+        request.indicesOptions(options);
+        return this;
+    }
+
+    /**
      * The type of the mappings.
      */
-    @Required
     public PutMappingRequestBuilder setType(String type) {
         request.type(type);
         return this;
@@ -82,24 +90,6 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      */
     public PutMappingRequestBuilder setSource(Object... source) {
         request.source(source);
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 

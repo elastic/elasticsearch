@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+
+import java.io.IOException;
 
 /**
  * Sorts by field's natural Term sort order.  All
@@ -33,19 +33,21 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
  * slow for medium to large result sets but possibly
  * very fast for very small results sets.
  */
-public final class BytesRefValComparator extends FieldComparator<BytesRef> {
+public final class BytesRefValComparator extends NestedWrappableComparator<BytesRef> {
 
     private final IndexFieldData<?> indexFieldData;
     private final SortMode sortMode;
+    private final BytesRef missingValue;
 
     private final BytesRef[] values;
     private BytesRef bottom;
     private BytesValues docTerms;
 
-    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode) {
+    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
         this.sortMode = sortMode;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
+        this.missingValue = missingValue;
     }
 
     @Override
@@ -57,24 +59,26 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        final BytesRef val2 = docTerms.getValue(doc);
+        BytesRef val2 = sortMode.getRelevantValue(docTerms, doc, missingValue);
         return compareValues(bottom, val2);
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        if (values[slot] == null) {
-            values[slot] = new BytesRef();
+        BytesRef relevantValue = sortMode.getRelevantValue(docTerms, doc, missingValue);
+        if (relevantValue == missingValue) {
+            values[slot] = missingValue;
+        } else {
+            if (values[slot] == null || values[slot] == missingValue) {
+                values[slot] = new BytesRef();
+            }
+            values[slot].copyBytes(relevantValue);
         }
-        docTerms.getValueScratch(doc, values[slot]);
     }
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = indexFieldData.load(context).getBytesValues();
-        if (docTerms.isMultiValued()) {
-            docTerms = new MultiValuedBytesWrapper(docTerms, sortMode);
-        }
+        docTerms = indexFieldData.load(context).getBytesValues(false);
         return this;
     }
 
@@ -103,73 +107,17 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     @Override
     public int compareDocToValue(int doc, BytesRef value) {
-        return docTerms.getValue(doc).compareTo(value);
+        return  sortMode.getRelevantValue(docTerms, doc, missingValue).compareTo(value);
     }
 
-    public static class FilteredByteValues extends BytesValues {
-
-        protected final BytesValues delegate;
-
-        public FilteredByteValues(BytesValues delegate) {
-            super(delegate.isMultiValued());
-            this.delegate = delegate;
-        }
-
-        public boolean hasValue(int docId) {
-            return delegate.hasValue(docId);
-        }
-
-        public BytesRef makeSafe(BytesRef bytes) {
-            return delegate.makeSafe(bytes);
-        }
-
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            return delegate.getValueScratch(docId, ret);
-        }
-
-        public Iter getIter(int docId) {
-            return delegate.getIter(docId);
-        }
-
+    @Override
+    public void missing(int slot) {
+        values[slot] = missingValue;
     }
 
-    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
-
-        private final SortMode sortMode;
-
-        public MultiValuedBytesWrapper(BytesValues delegate, SortMode sortMode) {
-            super(delegate);
-            this.sortMode = sortMode;
-        }
-
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef scratch) {
-            BytesValues.Iter iter = delegate.getIter(docId);
-            if (!iter.hasNext()) {
-                return null;
-            }
-
-            BytesRef currentVal = iter.next();
-            BytesRef relevantVal = currentVal;
-            while (true) {
-                int cmp = currentVal.compareTo(relevantVal);
-                if (sortMode == SortMode.MAX) {
-                    if (cmp > 0) {
-                        relevantVal = currentVal;
-                    }
-                } else {
-                    if (cmp < 0) {
-                        relevantVal = currentVal;
-                    }
-                }
-                if (!iter.hasNext()) {
-                    break;
-                }
-                currentVal = iter.next();
-            }
-            return relevantVal;
-        }
-
+    @Override
+    public int compareBottomMissing() {
+        return compareValues(bottom, missingValue);
     }
 
 }

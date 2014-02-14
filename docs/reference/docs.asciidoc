@@ -1,0 +1,44 @@
+[[docs]]
+= Document APIs
+
+[partintro]
+--
+
+This section describes the following CRUD APIs:
+
+.Single document APIs
+* <<docs-index_>>
+* <<docs-get>>
+* <<docs-delete>>
+* <<docs-update>>
+
+.Multi-document APIs
+* <<docs-multi-get>>
+* <<docs-bulk>>
+* <<docs-bulk-udp>>
+* <<docs-delete-by-query>>
+
+NOTE: All CRUD APIs are single-index APIs. The `index` parameter accepts a single
+index name, or an `alias` which points to a single index.
+
+--
+
+include::docs/index_.asciidoc[]
+
+include::docs/get.asciidoc[]
+
+include::docs/delete.asciidoc[]
+
+include::docs/update.asciidoc[]
+
+include::docs/multi-get.asciidoc[]
+
+include::docs/bulk.asciidoc[]
+
+include::docs/delete-by-query.asciidoc[]
+
+include::docs/bulk-udp.asciidoc[]
+
+include::docs/termvectors.asciidoc[]
+
+include::docs/multi-termvectors.asciidoc[]

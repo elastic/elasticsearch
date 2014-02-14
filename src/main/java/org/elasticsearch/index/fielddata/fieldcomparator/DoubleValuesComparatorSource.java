@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -50,15 +50,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert fieldname.equals(indexFieldData.getFieldNames().indexName());
 
-        double dMissingValue;
-        if (missingValue == null || "_last".equals(missingValue)) {
-            dMissingValue = reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-        } else if ("_first".equals(missingValue)) {
-            dMissingValue = reversed ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
-        } else {
-            dMissingValue = missingValue instanceof Number ? ((Number) missingValue).doubleValue() : Double.parseDouble(missingValue.toString());
-        }
-
+        final double dMissingValue = (Double) missingObject(missingValue, reversed);
         return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

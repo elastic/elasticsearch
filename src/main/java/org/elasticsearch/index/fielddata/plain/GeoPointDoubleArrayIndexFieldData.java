@@ -1,13 +1,13 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,127 +16,101 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.fielddata.plain;
 
-import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.*;
-import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
  */
-public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<GeoPointDoubleArrayAtomicFieldData> implements IndexGeoPointFieldData<GeoPointDoubleArrayAtomicFieldData> {
+public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFieldData {
+
+    private final CircuitBreakerService breakerService;
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                                       CircuitBreakerService breakerService) {
+            return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
 
-    public GeoPointDoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public GeoPointDoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
+                                             FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
+        this.breakerService = breakerService;
     }
 
     @Override
-    public boolean valuesOrdered() {
-        // because we might have single values? we can dynamically update a flag to reflect that
-        // based on the atomic field data loaded
-        return false;
-    }
-
-    @Override
-    public GeoPointDoubleArrayAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
-    }
-
-    @Override
-    public GeoPointDoubleArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicGeoPointFieldData<ScriptDocValues> loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
+        AtomicGeoPointFieldData data = null;
+        // TODO: Use an actual estimator to estimate before loading.
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            return GeoPointDoubleArrayAtomicFieldData.EMPTY;
+            data = new Empty(reader.maxDoc());
+            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            return data;
         }
-        // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final TDoubleArrayList lat = new TDoubleArrayList();
-        final TDoubleArrayList lon = new TDoubleArrayList();
+        final BigDoubleArrayList lat = new BigDoubleArrayList();
+        final BigDoubleArrayList lon = new BigDoubleArrayList();
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
-        final CharsRef spare = new CharsRef();
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio);
+        boolean success = false;
         try {
-            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null));
-            BytesRef term;
-            while ((term = iter.next()) != null) {
-                UnicodeUtil.UTF8toUTF16(term, spare);
-                boolean parsed = false;
-                for (int i = spare.offset; i < spare.length; i++) {
-                    if (spare.chars[i] == ',') { // safes a string creation 
-                        lat.add(Double.parseDouble(new String(spare.chars, spare.offset, (i - spare.offset))));
-                        lon.add(Double.parseDouble(new String(spare.chars, (spare.offset + (i + 1)), spare.length - ((i + 1) - spare.offset))));
-                        parsed = true;
-                        break;
-                    }
-                }
-                assert parsed;
+            final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
+            GeoPoint point;
+            while ((point = iter.next()) != null) {
+                lat.add(point.getLat());
+                lon.add(point.getLon());
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
-                double[] sLat = new double[reader.maxDoc()];
-                double[] sLon = new double[reader.maxDoc()];
-                for (int i = 0; i < sLat.length; i++) {
-                    int nativeOrdinal = ordinals.getOrd(i);
-                    sLat[i] = lat.get(nativeOrdinal);
-                    sLon[i] = lon.get(nativeOrdinal);
+                int maxDoc = reader.maxDoc();
+                BigDoubleArrayList sLat = new BigDoubleArrayList(reader.maxDoc());
+                BigDoubleArrayList sLon = new BigDoubleArrayList(reader.maxDoc());
+                for (int i = 0; i < maxDoc; i++) {
+                    long nativeOrdinal = ordinals.getOrd(i);
+                    sLat.add(lat.get(nativeOrdinal));
+                    sLon.add(lon.get(nativeOrdinal));
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc());
+                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc(), ordinals.getNumOrds());
                 } else {
-                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set);
+                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
                 }
             } else {
-                return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
-                        lon.toArray(new double[lon.size()]),
-                        lat.toArray(new double[lat.size()]),
-                        reader.maxDoc(), build);
+                data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, reader.maxDoc(), build);
             }
+            success = true;
+            return data;
         } finally {
+            if (success) {
+                estimator.afterLoad(null, data.getMemorySizeInBytes());
+            }
             builder.close();
         }
 
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        throw new ElasticSearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 }

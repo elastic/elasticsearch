@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,9 +34,9 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
-     * 
-     * @param shardId shard id of the group 
-     * @param shards shards to iterate
+     *
+     * @param shardId shard id of the group
+     * @param shards  shards to iterate
      */
     public PlainShardIterator(ShardId shardId, List<ShardRouting> shards) {
         super(shards);
@@ -46,20 +46,14 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
-     * 
-     * @param shardId shard id of the group 
-     * @param shards shards to iterate
-     * @param index the offset in the shards list to start the iteration from
+     *
+     * @param shardId shard id of the group
+     * @param shards  shards to iterate
+     * @param index   the offset in the shards list to start the iteration from
      */
     public PlainShardIterator(ShardId shardId, List<ShardRouting> shards, int index) {
         super(shards, index);
         this.shardId = shardId;
-    }
-
-    @Override
-    public ShardIterator reset() {
-        super.reset();
-        return this;
     }
 
     @Override

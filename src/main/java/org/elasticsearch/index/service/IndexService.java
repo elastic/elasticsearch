@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -53,8 +52,6 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     IndexSettingsService settingsService();
 
-    PercolatorService percolateService();
-
     AnalysisService analysisService();
 
     MapperService mapperService();
@@ -69,12 +66,12 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     IndexStore store();
 
-    IndexShard createShard(int sShardId) throws ElasticSearchException;
+    IndexShard createShard(int sShardId) throws ElasticsearchException;
 
     /**
      * Removes the shard, does not delete local data or the gateway.
      */
-    void removeShard(int shardId, String reason) throws ElasticSearchException;
+    void removeShard(int shardId, String reason) throws ElasticsearchException;
 
     int numberOfShards();
 
@@ -89,4 +86,6 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     Injector shardInjector(int shardId);
 
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
+
+    String indexUUID();
 }

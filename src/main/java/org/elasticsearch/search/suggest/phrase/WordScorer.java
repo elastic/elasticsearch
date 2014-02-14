@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
+
+import java.io.IOException;
 
 //TODO public for tests
 public abstract class WordScorer {
@@ -43,11 +43,15 @@ public abstract class WordScorer {
     private final boolean useTotalTermFreq;
     
     public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
+        this(reader, MultiFields.getTerms(reader, field), field, realWordLikelyHood, separator);
+    }
+    
+    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
         this.field = field;
-        this.terms = MultiFields.getTerms(reader, field);
         if (terms == null) {
-            throw new ElasticSearchIllegalArgumentException("Field: [" + field + "] does not exist");
+            throw new ElasticsearchIllegalArgumentException("Field: [" + field + "] does not exist");
         }
+        this.terms = terms;
         final long vocSize = terms.getSumTotalTermFreq();
         this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
@@ -59,7 +63,7 @@ public abstract class WordScorer {
    }
     
    public long frequency(BytesRef term) throws IOException {
-      if (termsEnum.seekExact(term, true)) {
+      if (termsEnum.seekExact(term)) {
           return useTotalTermFreq ? termsEnum.totalTermFreq() : termsEnum.docFreq();
       }
       return 0;
@@ -95,7 +99,7 @@ public abstract class WordScorer {
    }
    
    public static interface WordScorerFactory {
-       public WordScorer newScorer(IndexReader reader, String field,
-            double realWordLikelyhood, BytesRef separator) throws IOException;
+       public WordScorer newScorer(IndexReader reader, Terms terms,
+            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
    }
 }

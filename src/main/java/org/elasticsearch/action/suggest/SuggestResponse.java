@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-import java.util.List;
-
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
  * The response of the suggest action.
@@ -67,17 +66,17 @@ public final class SuggestResponse extends BroadcastOperationResponse {
         super.writeTo(out);
         this.suggest.writeTo(out);
     }
-    
+
     @Override
     public String toString() {
-        String source; 
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            suggest.toXContent(builder, null);
-            source = XContentHelper.convertToJson(builder.bytes(), true);
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            suggest.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
         } catch (IOException e) {
-            source = "Error: " + e.getMessage();
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
-        return "Suggest Response["+source+"]";
     }
 }

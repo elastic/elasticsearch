@@ -1,0 +1,37 @@
+[[query-dsl-indices-filter]]
+=== Indices Filter
+
+The `indices` filter can be used when executed across multiple indices,
+allowing to have a filter that executes only when executed on an index
+that matches a specific list of indices, and another filter that executes
+when it is executed on an index that does not match the listed indices.
+
+[source,js]
+--------------------------------------------------
+{
+    "indices" : {
+        "indices" : ["index1", "index2"],
+        "filter" : {
+            "term" : { "tag" : "wow" }
+        },
+        "no_match_filter" : {
+            "term" : { "tag" : "kow" }
+        }
+    }
+}
+--------------------------------------------------
+
+You can use the `index` field to provide a single index.
+
+`no_match_filter` can also have "string" value of `none` (to match no
+documents), and `all` (to match all). Defaults to `all`.
+
+`filter` is mandatory, as well as `indices` (or `index`).
+
+[TIP]
+===================================================================
+The fields order is important: if the `indices` are provided before `filter`
+or `no_match_filter`, the related filters get parsed only against the indices
+that they are going to be executed on. This is useful to avoid parsing filters
+when it is not necessary and prevent potential mapping errors.
+===================================================================

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,14 +19,10 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-import java.util.*;
-
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -38,7 +34,12 @@ import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import java.io.IOException;
+import java.util.*;
 
+/**
+ * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc 
+ */
 public abstract class ShapeBuilder implements ToXContent {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
@@ -514,14 +515,14 @@ public abstract class ShapeBuilder implements ToXContent {
                     return type;
                 }
             }
-            throw new ElasticSearchIllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
+            throw new ElasticsearchIllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
         }
 
         public static ShapeBuilder parse(XContentParser parser) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return null;
             } else if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchParseException("Shape must be an object consisting of type and coordinates");
+                throw new ElasticsearchParseException("Shape must be an object consisting of type and coordinates");
             }
 
             GeoShapeType shapeType = null;
@@ -541,7 +542,7 @@ public abstract class ShapeBuilder implements ToXContent {
                         node = parseCoordinates(parser);
                     } else if (CircleBuilder.FIELD_RADIUS.equals(fieldName)) {
                         parser.nextToken();
-                        radius = Distance.parseDistance(parser.text(), DistanceUnit.METERS);
+                        radius = Distance.parseDistance(parser.text());
                     } else {
                         parser.nextToken();
                         parser.skipChildren();
@@ -550,11 +551,11 @@ public abstract class ShapeBuilder implements ToXContent {
             }
 
             if (shapeType == null) {
-                throw new ElasticSearchParseException("Shape type not included");
+                throw new ElasticsearchParseException("Shape type not included");
             } else if (node == null) {
-                throw new ElasticSearchParseException("Coordinates not included");
+                throw new ElasticsearchParseException("Coordinates not included");
             } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
-                throw new ElasticSearchParseException("Field [" + CircleBuilder.FIELD_RADIUS + "] is supported for [" + CircleBuilder.TYPE
+                throw new ElasticsearchParseException("Field [" + CircleBuilder.FIELD_RADIUS + "] is supported for [" + CircleBuilder.TYPE
                         + "] only");
             }
 
@@ -568,7 +569,7 @@ public abstract class ShapeBuilder implements ToXContent {
                 case CIRCLE: return parseCircle(node, radius);
                 case ENVELOPE: return parseEnvelope(node);
                 default:
-                    throw new ElasticSearchParseException("Shape type [" + shapeType + "] not included");
+                    throw new ElasticsearchParseException("Shape type [" + shapeType + "] not included");
             }
         }
         

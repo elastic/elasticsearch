@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,10 +21,11 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.ngram.XNGramTokenizer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -45,16 +46,17 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     private final int minGram;
     private final int maxGram;
     private final CharMatcher matcher;
+    private org.elasticsearch.Version esVersion;
 
     static final Map<String, CharMatcher> MATCHERS;
 
     static {
         ImmutableMap.Builder<String, CharMatcher> builder = ImmutableMap.builder();
-        builder.put("letter",      CharMatcher.Basic.LETTER);
-        builder.put("digit",       CharMatcher.Basic.DIGIT);
-        builder.put("whitespace",  CharMatcher.Basic.WHITESPACE);
+        builder.put("letter", CharMatcher.Basic.LETTER);
+        builder.put("digit", CharMatcher.Basic.DIGIT);
+        builder.put("whitespace", CharMatcher.Basic.WHITESPACE);
         builder.put("punctuation", CharMatcher.Basic.PUNCTUATION);
-        builder.put("symbol",      CharMatcher.Basic.SYMBOL);
+        builder.put("symbol", CharMatcher.Basic.SYMBOL);
         // Populate with unicode categories from java.lang.Character
         for (Field field : Character.class.getFields()) {
             if (!field.getName().startsWith("DIRECTIONALITY")
@@ -81,7 +83,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             characterClass = characterClass.toLowerCase(Locale.ROOT).trim();
             CharMatcher matcher = MATCHERS.get(characterClass);
             if (matcher == null) {
-                throw new ElasticSearchIllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
+                throw new ElasticsearchIllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
             }
             builder.or(matcher);
         }
@@ -94,24 +96,31 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
+        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Tokenizer create(Reader reader) {
-        if (this.version.onOrAfter(Version.LUCENE_43)) {
-            // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4
+        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+            /*
+             * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
+             * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
+             */
+            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
             if (matcher == null) {
-                return new XNGramTokenizer(version, reader, minGram, maxGram);
+                return new NGramTokenizer(version, reader, minGram, maxGram);
             } else {
-                return new XNGramTokenizer(version, reader, minGram, maxGram) {
+                return new NGramTokenizer(version, reader, minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
                     }
                 };
             }
+        } else {
+            return new Lucene43NGramTokenizer(reader, minGram, maxGram);
         }
-        return new NGramTokenizer(reader, minGram, maxGram);
     }
 
 }

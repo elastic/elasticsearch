@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,10 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 
 /**
  *
@@ -61,11 +61,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
+        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
@@ -74,19 +72,19 @@ public class RestValidateQueryAction extends BaseRestHandler {
             }
             validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.content(), request.contentUnsafe());
+                validateQueryRequest.source(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateQueryRequest.query(source);
+                    validateQueryRequest.source(source);
                 } else {
-                    BytesReference querySource = RestActions.parseQuerySource(request);
-                    if (querySource != null) {
-                        validateQueryRequest.query(querySource, false);
+                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                    if (querySourceBuilder != null) {
+                        validateQueryRequest.source(querySourceBuilder);
                     }
                 }
             }
-            validateQueryRequest.types(splitTypes(request.param("type")));
+            validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
             if (request.paramAsBoolean("explain", false)) {
                 validateQueryRequest.explain(true);
             } else {

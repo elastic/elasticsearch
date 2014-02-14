@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchGenerationException;
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +31,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -41,15 +44,22 @@ public class AliasMetaData {
 
     private final CompressedString filter;
 
-    private String indexRouting;
+    private final String indexRouting;
 
-    private String searchRouting;
+    private final String searchRouting;
+
+    private final Set<String> searchRoutingValues;
 
     private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
         this.searchRouting = searchRouting;
+        if (searchRouting != null) {
+            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+        } else {
+            searchRoutingValues = ImmutableSet.of();
+        }
     }
 
     public String alias() {
@@ -68,6 +78,10 @@ public class AliasMetaData {
         return filter();
     }
 
+    public boolean filteringRequired() {
+        return filter != null;
+    }
+
     public String getSearchRouting() {
         return searchRouting();
     }
@@ -82,6 +96,10 @@ public class AliasMetaData {
 
     public String indexRouting() {
         return indexRouting;
+    }
+
+    public Set<String> searchRoutingValues() {
+        return searchRoutingValues;
     }
 
     public static Builder builder(String alias) {
@@ -162,7 +180,7 @@ public class AliasMetaData {
                 }
                 return this;
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+                throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
             }
         }
 
@@ -176,7 +194,7 @@ public class AliasMetaData {
                 this.filter = new CompressedString(builder.bytes());
                 return this;
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
         }
 
@@ -184,7 +202,7 @@ public class AliasMetaData {
             try {
                 return filter(filterBuilder.string());
             } catch (IOException e) {
-                throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
         }
 

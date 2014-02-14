@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.facet.geodistance;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -32,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -76,8 +73,8 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
         String scriptLang = null;
         Map<String, Object> params = null;
         GeoPoint point = new GeoPoint();
-        DistanceUnit unit = DistanceUnit.KILOMETERS;
-        GeoDistance geoDistance = GeoDistance.ARC;
+        DistanceUnit unit = DistanceUnit.DEFAULT;
+        GeoDistance geoDistance = GeoDistance.DEFAULT;
         List<GeoDistanceFacet.Entry> entries = Lists.newArrayList();
 
         boolean normalizeLon = true;
@@ -112,13 +109,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                         entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY));
                     }
                 } else {
-                    token = parser.nextToken();
-                    point.resetLon(parser.doubleValue());
-                    token = parser.nextToken();
-                    point.resetLat(parser.doubleValue());
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                    }
+                    GeoPoint.parse(parser, point);
                     fieldName = currentName;
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -127,19 +118,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
                     fieldName = currentName;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                point.resetLat(parser.doubleValue());
-                            } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
-                                point.resetLon(parser.doubleValue());
-                            } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                GeoHashUtils.decode(parser.text(), point);
-                            }
-                        }
-                    }
+                    GeoPoint.parse(parser, point);
                 }
             } else if (token.isValue()) {
                 if (currentName.equals("unit")) {

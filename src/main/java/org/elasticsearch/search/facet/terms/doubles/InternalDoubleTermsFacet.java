@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,19 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.facet.terms.doubles;
 
+import com.carrotsearch.hppc.DoubleIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.iterator.TDoubleIntIterator;
-import gnu.trove.map.hash.TDoubleIntHashMap;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -159,14 +157,21 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
-            return facets.get(0);
+            Facet facet = facets.get(0);
+
+            // can be of type InternalStringTermsFacet representing unmapped fields
+            if (facet instanceof InternalDoubleTermsFacet) {
+                ((InternalDoubleTermsFacet) facet).trimExcessEntries();
+            }
+            return facet;
         }
 
         InternalDoubleTermsFacet first = null;
 
-        TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
+        Recycler.V<DoubleIntOpenHashMap> aggregated = context.cacheRecycler().doubleIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -178,22 +183,46 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(((DoubleEntry)entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().addTo(((DoubleEntry) entry).term, entry.getCount());
             }
         }
 
         BoundedTreeSet<DoubleEntry> ordered = new BoundedTreeSet<DoubleEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TDoubleIntIterator it = aggregated.iterator(); it.hasNext(); ) {
-            it.advance();
-            ordered.add(new DoubleEntry(it.key(), it.value()));
+        final boolean[] states = aggregated.v().allocated;
+        final double[] keys = aggregated.v().keys;
+        final int[] values = aggregated.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                ordered.add(new DoubleEntry(keys[i], values[i]));
+            }
         }
+
         first.entries = ordered;
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushDoubleIntMap(aggregated);
+        aggregated.release();
 
         return first;
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<DoubleEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
+        }
     }
 
     static final class Fields {

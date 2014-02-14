@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -62,7 +62,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(MetaDataService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
-        bind(MetaDataStateIndexService.class).asEagerSingleton();
+        bind(MetaDataIndexStateService.class).asEagerSingleton();
         bind(MetaDataMappingService.class).asEagerSingleton();
         bind(MetaDataIndexAliasesService.class).asEagerSingleton();
         bind(MetaDataUpdateSettingsService.class).asEagerSingleton();
@@ -71,11 +71,10 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(RoutingService.class).asEagerSingleton();
 
         bind(ShardStateAction.class).asEagerSingleton();
-        bind(NodeIndexCreatedAction.class).asEagerSingleton();
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
-        bind(NodeMappingCreatedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-        bind(NodeAliasesUpdatedAction.class).asEagerSingleton();
+
+        bind(ClusterInfoService.class).to(InternalClusterInfoService.class).asEagerSingleton();
     }
 }

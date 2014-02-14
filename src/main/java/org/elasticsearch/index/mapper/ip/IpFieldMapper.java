@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -28,23 +28,25 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -52,6 +54,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -75,19 +78,19 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private static final Pattern pattern = Pattern.compile("\\.");
 
-    public static long ipToLong(String ip) throws ElasticSearchIllegalArgumentException {
+    public static long ipToLong(String ip) throws ElasticsearchIllegalArgumentException {
         try {
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticSearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
         } catch (Exception e) {
-            if (e instanceof ElasticSearchIllegalArgumentException) {
-                throw (ElasticSearchIllegalArgumentException) e;
+            if (e instanceof ElasticsearchIllegalArgumentException) {
+                throw (ElasticsearchIllegalArgumentException) e;
             }
-            throw new ElasticSearchIllegalArgumentException("failed to parse ip [" + ip + "]", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "]", e);
         }
     }
 
@@ -119,7 +122,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
+                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    postingsProvider, docValuesProvider, similarity,
+                    normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -143,12 +148,15 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
-    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
-                            String nullValue, Explicit<Boolean> ignoreMalformed,
-                            PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, boost, fieldType,
-                ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
+    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
+                            String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                            SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
+                            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, precisionStep, boost, fieldType, docValues,
+                ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
@@ -211,17 +219,13 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+    public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = ipToLong(value);
         long iSim;
         try {
-            iSim = ipToLong(minSim);
-        } catch (ElasticSearchIllegalArgumentException e) {
-            try {
-                iSim = Long.parseLong(minSim);
-            } catch (NumberFormatException e1) {
-                iSim = (long) Double.parseDouble(minSim);
-            }
+            iSim = ipToLong(fuzziness.asString());
+        } catch (ElasticsearchIllegalArgumentException e) {
+            iSim = fuzziness.asLong();
         }
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -266,7 +270,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
@@ -282,14 +286,21 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         if (ipAsString == null) {
-            return null;
+            return;
         }
         if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), ipAsString, boost);
         }
 
         final long value = ipToLong(ipAsString);
-        return new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
+        if (fieldType.indexed() || fieldType.stored()) {
+            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
+            field.setBoost(boost);
+            fields.add(field);
+        }
+        if (hasDocValues()) {
+            addDocValue(context, value);
+        }
     }
 
     @Override
@@ -309,17 +320,21 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (precisionStep != Defaults.PRECISION_STEP) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
-        if (nullValue != null) {
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        } else if (includeDefaults) {
+            builder.field("include_in_all", false);
         }
+
     }
 
     public static class NumericIpAnalyzer extends NumericAnalyzer<NumericIpTokenizer> {

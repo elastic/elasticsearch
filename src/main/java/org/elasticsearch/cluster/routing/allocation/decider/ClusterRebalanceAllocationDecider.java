@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,14 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -88,37 +85,29 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
-            for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
-                if (shard.primary()) {
-                    return Decision.NO;
-                }
+            // check if there are unassigned primaries.
+            if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
+                return allocation.decision(Decision.NO, "cluster has unassigned primary shards");
             }
-            for (RoutingNode node : allocation.routingNodes()) {
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
-                    if (shard.primary() && !shard.active() && shard.relocatingNodeId() == null) {
-                        return Decision.NO;
-                    }
-                }
+            // check if there are initializing primaries that don't have a relocatingNodeId entry.
+            if ( allocation.routingNodes().hasInactivePrimaries() ) {
+                return allocation.decision(Decision.NO, "cluster has inactive primary shards");
             }
-            return Decision.YES;
+
+            return allocation.decision(Decision.YES, "all primary shards are active");
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
-            if (!allocation.routingNodes().unassigned().isEmpty()) {
-                return Decision.NO;
+            // check if there are unassigned shards.
+            if ( allocation.routingNodes().hasUnassignedShards() ) {
+                return allocation.decision(Decision.NO, "cluster has unassigned shards");
             }
-            for (RoutingNode node : allocation.routingNodes()) {
-                List<MutableShardRouting> shards = node.shards();
-                for (int i = 0; i < shards.size(); i++) {
-                    MutableShardRouting shard = shards.get(i);
-                    if (!shard.active() && shard.relocatingNodeId() == null) {
-                        return Decision.NO;
-                    }
-                }
+            // in case all indices are assigned, are there initializing shards which
+            // are not relocating?
+            if ( allocation.routingNodes().hasInactiveShards() ) {
+                return allocation.decision(Decision.NO, "cluster has inactive shards");
             }
         }
         // type == Type.ALWAYS
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "all shards are active");
     }
 }

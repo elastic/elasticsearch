@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -30,7 +30,6 @@ import java.io.IOException;
  */
 class ShardFlushRequest extends BroadcastShardOperationRequest {
 
-    private boolean refresh;
     private boolean full;
     private boolean force;
 
@@ -39,13 +38,8 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     public ShardFlushRequest(String index, int shardId, FlushRequest request) {
         super(index, shardId, request);
-        this.refresh = request.refresh();
         this.full = request.full();
         this.force = request.force();
-    }
-
-    public boolean refresh() {
-        return this.refresh;
     }
 
     public boolean full() {
@@ -59,7 +53,6 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        refresh = in.readBoolean();
         full = in.readBoolean();
         force = in.readBoolean();
     }
@@ -67,7 +60,6 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(refresh);
         out.writeBoolean(full);
         out.writeBoolean(force);
     }

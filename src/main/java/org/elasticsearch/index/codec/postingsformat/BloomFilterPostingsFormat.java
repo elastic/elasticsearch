@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -27,7 +27,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.index.store.DirectoryUtils;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.*;
@@ -41,7 +43,7 @@ import java.util.Map.Entry;
  * delegate PostingsFormat is used to record all other Postings data.
  * </p>
  * <p>
- * This is a special bloom filter version, based on {@link BloomFilter} and inspired
+ * This is a special bloom filter version, based on {@link org.elasticsearch.common.util.BloomFilter} and inspired
  * by Lucene {@link org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
  * </p>
  */
@@ -103,7 +105,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     public final class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
-        
+
         // for internal use only
         FieldsProducer getDelegate() {
             return delegateFieldsProducer;
@@ -125,11 +127,18 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // Load the delegate postings format
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(bloomIn
                         .readString());
-                
+
                 this.delegateFieldsProducer = delegatePostingsFormat
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
-                if (state.context.context != IOContext.Context.MERGE) {
+
+                boolean load = true;
+                Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(state.directory);
+                if (storeDir != null && storeDir.codecService() != null) {
+                    load = storeDir.codecService().isLoadBloomFilter();
+                }
+
+                if (load && state.context.context != IOContext.Context.MERGE) {
                     // if we merge we don't need to load the bloom filters
                     for (int i = 0; i < numBlooms; i++) {
                         int fieldNum = bloomIn.readInt();
@@ -180,26 +189,26 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return delegateFieldsProducer.getUniqueTermCount();
         }
 
-      
+        @Override
+        public long ramBytesUsed() {
+            long size = delegateFieldsProducer.ramBytesUsed();
+            for (BloomFilter bloomFilter : bloomsByFieldName.values()) {
+                size += bloomFilter.getSizeInBytes();
+            }
+            return size;
+        }
     }
-    
-    public static final class BloomFilteredTerms extends Terms {
-        private Terms delegateTerms;
+
+    public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {
         private BloomFilter filter;
 
         public BloomFilteredTerms(Terms terms, BloomFilter filter) {
-            this.delegateTerms = terms;
+            super(terms);
             this.filter = filter;
         }
 
         public BloomFilter getFilter() {
             return filter;
-        }
-
-        @Override
-        public TermsEnum intersect(CompiledAutomaton compiled,
-                                   final BytesRef startTerm) throws IOException {
-            return delegateTerms.intersect(compiled, startTerm);
         }
 
         @Override
@@ -210,55 +219,15 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // to recycle its contained TermsEnum
                 BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
                 if (bfte.filter == filter) {
-                    bfte.reset(delegateTerms);
+                    bfte.reset(this.in);
                     return bfte;
                 }
                 reuse = bfte.reuse;
             }
             // We have been handed something we cannot reuse (either null, wrong
             // class or wrong filter) so allocate a new object
-            result = new BloomFilteredTermsEnum(delegateTerms, reuse, filter);
+            result = new BloomFilteredTermsEnum(this.in, reuse, filter);
             return result;
-        }
-
-        @Override
-        public Comparator<BytesRef> getComparator() {
-            return delegateTerms.getComparator();
-        }
-
-        @Override
-        public long size() throws IOException {
-            return delegateTerms.size();
-        }
-
-        @Override
-        public long getSumTotalTermFreq() throws IOException {
-            return delegateTerms.getSumTotalTermFreq();
-        }
-
-        @Override
-        public long getSumDocFreq() throws IOException {
-            return delegateTerms.getSumDocFreq();
-        }
-
-        @Override
-        public int getDocCount() throws IOException {
-            return delegateTerms.getDocCount();
-        }
-
-        @Override
-        public boolean hasOffsets() {
-            return delegateTerms.hasOffsets();
-        }
-
-        @Override
-        public boolean hasPositions() {
-            return delegateTerms.hasPositions();
-        }
-
-        @Override
-        public boolean hasPayloads() {
-            return delegateTerms.hasPayloads();
         }
     }
 
@@ -274,13 +243,13 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             this.reuse = reuse;
             this.filter = filter;
         }
-        
+
         void reset(Terms others) {
             reuse = this.delegateTermsEnum;
             this.delegateTermsEnum = null;
             this.delegateTerms = others;
         }
-        
+
         private TermsEnum getDelegate() throws IOException {
             if (delegateTermsEnum == null) {
                 /* pull the iterator only if we really need it -
@@ -303,7 +272,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public final boolean seekExact(BytesRef text, boolean useCache)
+        public final boolean seekExact(BytesRef text)
                 throws IOException {
             // The magical fail-fast speed up that is the entire point of all of
             // this code - save a disk seek if there is a match on an in-memory
@@ -313,13 +282,13 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             if (!filter.mightContain(text)) {
                 return false;
             }
-            return getDelegate().seekExact(text, useCache);
+            return getDelegate().seekExact(text);
         }
 
         @Override
-        public final SeekStatus seekCeil(BytesRef text, boolean useCache)
+        public final SeekStatus seekCeil(BytesRef text)
                 throws IOException {
-            return getDelegate().seekCeil(text, useCache);
+            return getDelegate().seekCeil(text);
         }
 
         @Override
@@ -377,7 +346,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             // this.delegatePostingsFormat=delegatePostingsFormat;
             this.state = state;
         }
-        
+
         // for internal use only
         FieldsConsumer getDelegate() {
             return delegateFieldsConsumer;

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -25,10 +25,11 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,8 +41,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 
 /**
  *
@@ -57,21 +56,23 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {
-                deleteByQueryRequest.query(request.content(), request.contentUnsafe());
+                deleteByQueryRequest.source(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    deleteByQueryRequest.query(source);
+                    deleteByQueryRequest.source(source);
                 } else {
-                    BytesReference bytes = RestActions.parseQuerySource(request);
-                    deleteByQueryRequest.query(bytes, false);
+                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                    if (querySourceBuilder != null) {
+                        deleteByQueryRequest.source(querySourceBuilder);
+                    }
                 }
             }
-            deleteByQueryRequest.types(splitTypes(request.param("type")));
+            deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
             deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
             deleteByQueryRequest.routing(request.param("routing"));
@@ -83,10 +84,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (consistencyLevel != null) {
                 deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
-            final String ignoreIndices = request.param("ignore_indices");
-            if (ignoreIndices != null) {
-                deleteByQueryRequest.ignoreIndices(IgnoreIndices.fromString(ignoreIndices));
-            }
+            deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -102,8 +100,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     RestStatus restStatus = result.status();
-                    builder.startObject().field("ok", restStatus == RestStatus.OK);
-
+                    builder.startObject();
                     builder.startObject("_indices");
                     for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
                         builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
@@ -117,7 +114,6 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endObject();
-
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
                 } catch (Throwable e) {

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -33,6 +33,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
     private String scoreMode;
 
     private float boost = 1.0f;
+
+    private String queryName;
 
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
@@ -63,6 +65,14 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public NestedQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NestedQueryParser.NAME);
@@ -79,6 +89,9 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

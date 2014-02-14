@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -126,8 +126,8 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                         builder.field(Fields.GENERATION, segment.getGeneration());
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
-                        builder.field(Fields.SIZE, segment.getSize().toString());
-                        builder.field(Fields.SIZE_IN_BYTES, segment.getSizeInBytes());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSizeInBytes());
+                        builder.byteSizeField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, segment.getMemoryInBytes());
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {
@@ -135,6 +135,9 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                         }
                         if (segment.isCompound() != null) {
                             builder.field(Fields.COMPOUND, segment.isCompound());
+                        }
+                        if (segment.getMergeId() != null) {
+                            builder.field(Fields.MERGE_ID, segment.getMergeId());
                         }
                         builder.endObject();
                     }
@@ -174,5 +177,8 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
         static final XContentBuilderString SEARCH = new XContentBuilderString("search");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
         static final XContentBuilderString COMPOUND = new XContentBuilderString("compound");
+        static final XContentBuilderString MERGE_ID = new XContentBuilderString("merge_id");
+        static final XContentBuilderString MEMORY = new XContentBuilderString("memory");
+        static final XContentBuilderString MEMORY_IN_BYTES = new XContentBuilderString("memory_in_bytes");
     }
 }

@@ -1,0 +1,52 @@
+[[search-search]]
+== Search
+
+The search API allows to execute a search query and get back search hits
+that match the query. The query can either be provided using a simple
+<<search-uri-request,query string as a parameter>>, or using a
+<<search-request-body,request body>>.
+
+["float",id="search-multi-index-type"]
+=== Multi-Index, Multi-Type
+
+All search APIs can be applied across multiple types within an index, and
+across multiple indices with support for the
+<<multi-index,multi index syntax>>. For
+example, we can search on all documents across all types within the
+twitter index:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/_search?q=user:kimchy'
+--------------------------------------------------
+
+We can also search within specific types:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet,user/_search?q=user:kimchy'
+--------------------------------------------------
+
+We can also search all tweets with a certain tag across several indices
+(for example, when each user has his own index):
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/kimchy,elasticsearch/tweet/_search?q=tag:wow'
+--------------------------------------------------
+
+Or we can search all tweets across all available indices using `_all`
+placeholder:
+
+[source,js]
+--------------------------------------------------
+$ curl - XGET 'http://localhost:9200/_all/tweet/_search?q=tag:wow'
+--------------------------------------------------
+
+Or even search across all indices and all types:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_search?q=tag:wow'
+--------------------------------------------------
+

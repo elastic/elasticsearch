@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -48,13 +48,16 @@ public class SingleThreadBulkStress {
     public static void main(String[] args) throws Exception {
         Random random = new Random();
 
+        int shardsCount = Integer.parseInt(System.getProperty("es.shards", "1"));
+        int replicaCount = Integer.parseInt(System.getProperty("es.replica", "1"));
+
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "1s")
                 .put("index.merge.async", true)
                 .put("index.translog.flush_threshold_ops", 5000)
                 .put("gateway.type", "none")
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, shardsCount)
+                .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
                 .build();
 
         Node[] nodes = new Node[1];

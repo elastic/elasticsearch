@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,9 +24,9 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,7 +52,7 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
-    void clear(IndexReader reader);
+    void clear(Object coreCacheKey);
 
     interface Listener {
 
@@ -76,18 +76,22 @@ public interface IndexFieldDataCache {
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
             cache.removalListener(this);
+            //noinspection unchecked
             this.cache = cache.build();
         }
 
         @Override
         public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-            if (notification.getKey() != null) {
-                long sizeInBytes = notification.getKey().sizeInBytes;
-                if (sizeInBytes == -1 && notification.getValue() != null) {
-                    sizeInBytes = notification.getValue().getMemorySizeInBytes();
-                }
-                notification.getKey().listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, notification.getValue());
+            Key key = notification.getKey();
+            if (key == null || key.listener == null) {
+                return; // we can't do anything here...
             }
+            AtomicFieldData value = notification.getValue();
+            long sizeInBytes = key.sizeInBytes;
+            if (sizeInBytes == -1 && value != null) {
+                sizeInBytes = value.getMemorySizeInBytes();
+            }
+            key.listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, value);
         }
 
         @Override
@@ -97,10 +101,7 @@ public interface IndexFieldDataCache {
             return (FD) cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    if (context.reader() instanceof SegmentReader) {
-                        ((SegmentReader) context.reader()).addCoreClosedListener(FieldBased.this);
-                    }
-
+                    SegmentReaderUtils.registerCoreListener(context.reader(), FieldBased.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                     key.sizeInBytes = fieldData.getMemorySizeInBytes();
 
@@ -134,13 +135,13 @@ public interface IndexFieldDataCache {
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            cache.invalidate(new Key(reader.getCoreCacheKey()));
+        public void clear(Object coreCacheKey) {
+            cache.invalidate(new Key(coreCacheKey));
         }
 
         @Override
-        public void onClose(SegmentReader owner) {
-            cache.invalidate(new Key(owner.getCoreCacheKey()));
+        public void onClose(Object coreCacheKey) {
+            cache.invalidate(new Key(coreCacheKey));
         }
 
         static class Key {

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,36 +19,28 @@
 
 package org.elasticsearch.rest.action.termvector;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.StringTokenizer;
-
-import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * This class parses the json request and translates it into a
@@ -67,22 +59,24 @@ public class RestTermVectorAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
 
         TermVectorRequest termVectorRequest = new TermVectorRequest(request.param("index"), request.param("type"), request.param("id"));
-        termVectorRequest.routing(request.param("routing"));
-        termVectorRequest.parent(request.param("parent"));
-        termVectorRequest.preference(request.param("preference"));
+        XContentParser parser = null;
         if (request.hasContent()) {
             try {
-                parseRequest(request.content(), termVectorRequest);
-            } catch (IOException e1) {
-                Set<String> selectedFields = termVectorRequest.selectedFields();
-                String fieldString = "all";
-                if (selectedFields != null) {
-                    Strings.arrayToDelimitedString(termVectorRequest.selectedFields().toArray(new String[1]), " ");
+                parser = XContentFactory.xContent(request.content()).createParser(request.content());
+                TermVectorRequest.parseRequest(termVectorRequest, parser);
+            } catch (IOException e) {
+                try {
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
+
+                } catch (IOException e1) {
+                    logger.warn("Failed to send response", e1);
+                    return;
                 }
-                logger.error("Something is wrong with your parameters for the term vector request. I am using parameters "
-                        + "\n positions :" + termVectorRequest.positions() + "\n offsets :" + termVectorRequest.offsets() + "\n payloads :"
-                        + termVectorRequest.payloads() + "\n termStatistics :" + termVectorRequest.termStatistics()
-                        + "\n fieldStatistics :" + termVectorRequest.fieldStatistics() + "\nfields " + fieldString, (Object) null);
+            } finally {
+                if (parser != null) {
+                    parser.close();
+                }
             }
         }
         readURIParameters(termVectorRequest, request);
@@ -117,6 +111,9 @@ public class RestTermVectorAction extends BaseRestHandler {
         termVectorRequest.offsets(request.paramAsBoolean("offsets", termVectorRequest.offsets()));
         termVectorRequest.positions(request.paramAsBoolean("positions", termVectorRequest.positions()));
         termVectorRequest.payloads(request.paramAsBoolean("payloads", termVectorRequest.payloads()));
+        termVectorRequest.routing(request.param("routing"));
+        termVectorRequest.parent(request.param("parent"));
+        termVectorRequest.preference(request.param("preference"));
         termVectorRequest.termStatistics(request.paramAsBoolean("termStatistics", termVectorRequest.termStatistics()));
         termVectorRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorRequest.termStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorRequest.fieldStatistics()));
@@ -142,47 +139,4 @@ public class RestTermVectorAction extends BaseRestHandler {
         }
     }
 
-    static public void parseRequest(BytesReference cont, TermVectorRequest termVectorRequest) throws IOException {
-
-        XContentParser parser = XContentFactory.xContent(cont).createParser(cont);
-        try {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            List<String> fields = new ArrayList<String>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (currentFieldName != null) {
-                    if (currentFieldName.equals("fields")) {
-
-                        if (token == XContentParser.Token.START_ARRAY) {
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                fields.add(parser.text());
-                            }
-                        } else {
-                            throw new ElasticSearchParseException(
-                                    "The parameter fields must be given as an array! Use syntax : \"fields\" : [\"field1\", \"field2\",...]");
-                        }
-                    } else if (currentFieldName.equals("offsets")) {
-                        termVectorRequest.offsets(parser.booleanValue());
-                    } else if (currentFieldName.equals("positions")) {
-                        termVectorRequest.positions(parser.booleanValue());
-                    } else if (currentFieldName.equals("payloads")) {
-                        termVectorRequest.payloads(parser.booleanValue());
-                    } else if (currentFieldName.equals("term_statistics") || currentFieldName.equals("termStatistics")) {
-                        termVectorRequest.termStatistics(parser.booleanValue());
-                    } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
-                        termVectorRequest.fieldStatistics(parser.booleanValue());
-                    } else {
-                        throw new ElasticSearchParseException("The parameter " + currentFieldName
-                                + " is not valid for term vector request!");
-                    }
-                }
-            }
-            String[] fieldsAsArray = new String[fields.size()];
-            termVectorRequest.selectedFields(fields.toArray(fieldsAsArray));
-        } finally {
-            parser.close();
-        }
-    }
 }

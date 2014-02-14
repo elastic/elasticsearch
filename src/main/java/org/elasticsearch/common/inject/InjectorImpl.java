@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.*;
 import org.elasticsearch.common.inject.util.Providers;

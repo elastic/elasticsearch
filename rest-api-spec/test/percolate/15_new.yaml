@@ -1,0 +1,40 @@
+---
+"Basic percolation tests":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      index:
+        index: test_index
+        type: .percolator
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+        index: test_index
+        type:  test_type
+        body:
+          doc:
+            foo: bar
+
+  - match: {'total': 1}
+  - match: {'matches': [{_index: test_index, _id: test_percolator}]}
+
+  - do:
+      count_percolate:
+        index: test_index
+        type:  test_type
+        body:
+          doc:
+            foo: bar
+
+  - is_false:  matches
+  - match: {'total': 1}

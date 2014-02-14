@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,24 +19,22 @@
 
 package org.elasticsearch.benchmark.transport;
 
-import static org.elasticsearch.transport.TransportRequestOptions.options;
-
-import java.util.concurrent.CountDownLatch;
-
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
+
+import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  *
@@ -52,11 +50,13 @@ public class BenchmarkNettyLargeMessages {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool threadPool = new ThreadPool();
-        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
-        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
+        NetworkService networkService = new NetworkService(settings);
 
-        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300));
+        final ThreadPool threadPool = new ThreadPool();
+        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool, networkService, Version.CURRENT), threadPool).start();
+        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool, networkService, Version.CURRENT), threadPool).start();
+
+        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300), Version.CURRENT);
 //        final DiscoveryNode smallNode = new DiscoveryNode("small", new InetSocketTransportAddress("localhost", 9300));
         final DiscoveryNode smallNode = bigNode;
 
@@ -87,7 +87,7 @@ public class BenchmarkNettyLargeMessages {
                 public void run() {
                     for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                         BenchmarkMessageRequest message = new BenchmarkMessageRequest(1, payload);
-                        transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withLowType(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                        transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withType(TransportRequestOptions.Type.BULK), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                             @Override
                             public BenchmarkMessageResponse newInstance() {
                                 return new BenchmarkMessageResponse();
@@ -119,7 +119,7 @@ public class BenchmarkNettyLargeMessages {
                 for (int i = 0; i < 1; i++) {
                     BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, BytesRef.EMPTY_BYTES);
                     long start = System.currentTimeMillis();
-                    transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                    transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withType(TransportRequestOptions.Type.STATE), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                         @Override
                         public BenchmarkMessageResponse newInstance() {
                             return new BenchmarkMessageResponse();

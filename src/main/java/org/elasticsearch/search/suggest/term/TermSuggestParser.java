@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@ package org.elasticsearch.search.suggest.term;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
@@ -47,7 +47,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             } else if (token.isValue()) {
                 parseTokenValue(parser, mapperService, fieldName, suggestion, settings);
             } else {
-                throw new ElasticSearchIllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
             }
         }
         return suggestion;
@@ -57,7 +57,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             DirectSpellcheckerSettings settings) throws IOException {
         if (!(SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion) || SuggestUtils.parseDirectSpellcheckerSettings(
                 parser, fieldName, settings))) {
-            throw new ElasticSearchIllegalArgumentException("suggester[term] doesn't support [" + fieldName + "]");
+            throw new ElasticsearchIllegalArgumentException("suggester[term] doesn't support [" + fieldName + "]");
 
         }
     }

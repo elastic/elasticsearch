@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,26 +19,107 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.hppc.ObjectObjectMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
  */
 public class ParseContext {
+
+    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
+    public static class Document implements Iterable<IndexableField> {
+
+        private final List<IndexableField> fields;
+        private ObjectObjectMap<Object, IndexableField> keyedFields;
+
+        public Document() {
+            fields = Lists.newArrayList();
+        }
+
+        @Override
+        public Iterator<IndexableField> iterator() {
+            return fields.iterator();
+        }
+
+        public List<IndexableField> getFields() {
+            return fields;
+        }
+
+        public void add(IndexableField field) {
+            fields.add(field);
+        }
+
+        /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
+        public void addWithKey(Object key, IndexableField field) {
+            if (keyedFields == null) {
+                keyedFields = new ObjectObjectOpenHashMap<Object, IndexableField>();
+            } else if (keyedFields.containsKey(key)) {
+                throw new ElasticsearchIllegalStateException("Only one field can be stored per key");
+            }
+            keyedFields.put(key, field);
+            add(field);
+        }
+
+        /** Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}. */
+        public IndexableField getByKey(Object key) {
+            return keyedFields == null ? null : keyedFields.get(key);
+        }
+
+        public IndexableField[] getFields(String name) {
+            List<IndexableField> f = new ArrayList<IndexableField>();
+            for (IndexableField field : fields) {
+                if (field.name().equals(name)) {
+                    f.add(field);
+                }
+            }
+            return f.toArray(new IndexableField[f.size()]);
+        }
+
+        public IndexableField getField(String name) {
+            for (IndexableField field : fields) {
+                if (field.name().equals(name)) {
+                    return field;
+                }
+            }
+            return null;
+        }
+
+        public String get(String name) {
+            for (IndexableField f : fields) {
+                if (f.name().equals(name) && f.stringValue() != null) {
+                    return f.stringValue();
+                }
+            }
+            return null;
+        }
+
+        public BytesRef getBinaryValue(String name) {
+            for (IndexableField f : fields) {
+                if (f.name().equals(name) && f.binaryValue() != null) {
+                    return f.binaryValue();
+                }
+            }
+            return null;
+        }
+
+    }
 
     private final DocumentMapper docMapper;
 
@@ -50,7 +131,7 @@ public class ParseContext {
 
     private Document document;
 
-    private List<Document> documents = new ArrayList<Document>();
+    private List<Document> documents = Lists.newArrayList();
 
     private Analyzer analyzer;
 
@@ -73,6 +154,8 @@ public class ParseContext {
     private Map<String, String> ignoredValues = new HashMap<String, String>();
 
     private boolean mappingsModified = false;
+    private boolean withinNewMapper = false;
+    private boolean withinCopyTo = false;
 
     private boolean externalValueSet;
 
@@ -81,9 +164,6 @@ public class ParseContext {
     private AllEntries allEntries = new AllEntries();
 
     private float docBoost = 1.0f;
-
-    private FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
-    private ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
 
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
@@ -97,7 +177,7 @@ public class ParseContext {
         this.parser = parser;
         this.document = document;
         if (document != null) {
-            this.documents = new ArrayList<Document>();
+            this.documents = Lists.newArrayList();
             this.documents.add(document);
         } else {
             this.documents = null;
@@ -110,24 +190,15 @@ public class ParseContext {
         this.source = source == null ? null : sourceToParse.source();
         this.path.reset();
         this.mappingsModified = false;
+        this.withinNewMapper = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
         this.docBoost = 1.0f;
-        this.newFieldMappers.mappers.clear();
-        this.newObjectMappers.mappers.clear();
     }
 
     public boolean flyweight() {
         return sourceToParse.flyweight();
-    }
-
-    public FieldMapperListener.Aggregator newFieldMappers() {
-        return newFieldMappers;
-    }
-
-    public ObjectMapperListener.Aggregator newObjectMappers() {
-        return newObjectMappers;
     }
 
     public DocumentMapperParser docMapperParser() {
@@ -140,6 +211,30 @@ public class ParseContext {
 
     public void setMappingsModified() {
         this.mappingsModified = true;
+    }
+
+    public void setWithinNewMapper() {
+        this.withinNewMapper = true;
+    }
+
+    public void clearWithinNewMapper() {
+        this.withinNewMapper = false;
+    }
+
+    public boolean isWithinNewMapper() {
+        return withinNewMapper;
+    }
+
+    public void setWithinCopyTo() {
+        this.withinCopyTo = true;
+    }
+
+    public void clearWithinCopyTo() {
+        this.withinCopyTo = false;
+    }
+
+    public boolean isWithinCopyTo() {
+        return withinCopyTo;
     }
 
     public String index() {
@@ -262,6 +357,9 @@ public class ParseContext {
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
     private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
+        if (withinCopyTo) {
+            return false;
+        }
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
@@ -314,4 +412,5 @@ public class ParseContext {
         stringBuilder.setLength(0);
         return this.stringBuilder;
     }
+
 }

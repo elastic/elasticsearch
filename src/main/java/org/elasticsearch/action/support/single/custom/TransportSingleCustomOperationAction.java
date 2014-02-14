@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.action.support.single.custom;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -79,7 +78,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
      */
     protected abstract ShardsIterator shards(ClusterState state, Request request);
 
-    protected abstract Response shardOperation(Request request, int shardId) throws ElasticSearchException;
+    protected abstract Response shardOperation(Request request, int shardId) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 
@@ -219,26 +218,26 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     // we don't prefer local shard, so try and do it here
                     if (!request.preferLocalShard()) {
-                        if (request.operationThreaded()) {
-                            request.beforeLocalFork();
-                            threadPool.executor(executor).execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        Response response = shardOperation(request, shard.id());
-                                        listener.onResponse(response);
-                                    } catch (Throwable e) {
-                                        onFailure(shard, e);
+                        try {
+                            if (request.operationThreaded()) {
+                                request.beforeLocalFork();
+                                threadPool.executor(executor).execute(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            Response response = shardOperation(request, shard.id());
+                                            listener.onResponse(response);
+                                        } catch (Throwable e) {
+                                            onFailure(shard, e);
+                                        }
                                     }
-                                }
-                            });
-                        } else {
-                            try {
+                                });
+                            } else {
                                 final Response response = shardOperation(request, shard.id());
                                 listener.onResponse(response);
-                            } catch (Throwable e) {
-                                onFailure(shard, e);
                             }
+                        } catch (Throwable e) {
+                            onFailure(shard, e);
                         }
                     } else {
                         perform(lastException);

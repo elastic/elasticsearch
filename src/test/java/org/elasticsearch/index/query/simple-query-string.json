@@ -1,0 +1,8 @@
+{
+  "simple_query_string": {
+    "query": "foo bar",
+    "analyzer": "keyword",
+    "fields": ["body^5","_all"],
+    "default_operator": "and"
+  }
+}

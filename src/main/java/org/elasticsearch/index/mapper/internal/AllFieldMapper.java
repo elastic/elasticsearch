@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -28,20 +28,25 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -58,6 +63,8 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         void includeInAll(Boolean includeInAll);
 
         void includeInAllIfNotSet(Boolean includeInAll);
+
+        void unsetIncludeInAll();
     }
 
     public static final String NAME = "_all";
@@ -102,7 +109,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity, fieldDataSettings);
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -134,12 +141,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, fieldDataSettings);
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
+                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+                similarity, normsLoading, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -199,9 +209,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabled) {
-            return null;
+            return;
         }
         // reset the entries
         context.allEntries().reset();
@@ -214,7 +224,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
 
         Analyzer analyzer = findAnalyzer(context);
-        return new AllField(names.indexName(), context.allEntries(), analyzer, fieldType);
+        fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
@@ -249,54 +259,102 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // if all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
-                fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
-                indexAnalyzer == null && searchAnalyzer == null) {
-            return builder;
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        if (!includeDefaults) {
+            // simulate the generation to make sure we don't add unnecessary content if all is default
+            // if all are defaults, no need to write it at all - generating is twice is ok though
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
+            XContentBuilder b =  new XContentBuilder(builder.contentType().xContent(), bytesStreamOutput);
+            long pos = bytesStreamOutput.position();
+            innerToXContent(b, false);
+            b.flush();
+            if (pos == bytesStreamOutput.position()) {
+                return builder;
+            }
         }
         builder.startObject(CONTENT_TYPE);
-        if (enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
-        }
-        if (autoBoost != false) {
-            builder.field("auto_boost", autoBoost);
-        }
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
-        }
-        if (fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
-            builder.field("store_term_vector", fieldType.storeTermVectors());
-        }
-        if (fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
-        }
-        if (fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
-        }
-        if (fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
-        }
-        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
-            // same analyzers, output it once
-            builder.field("analyzer", indexAnalyzer.name());
-        } else {
-            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        }
-        if (similarity() != null) {
-            builder.field("similarity", similarity().name());
-        }
+        innerToXContent(builder, includeDefaults);
         builder.endObject();
         return builder;
     }
 
+    private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        if (includeDefaults || enabled != Defaults.ENABLED) {
+            builder.field("enabled", enabled);
+        }
+        if (includeDefaults || autoBoost != false) {
+            builder.field("auto_boost", autoBoost);
+        }
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
+        }
+        if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vectors", fieldType.storeTermVectors());
+        }
+        if (includeDefaults || fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
+        }
+        if (includeDefaults || fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
+        }
+        if (includeDefaults || fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+        }
+        if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("omit_norms", fieldType.omitNorms());
+        }
+
+
+        if (indexAnalyzer == null && searchAnalyzer == null) {
+            if (includeDefaults) {
+                builder.field("analyzer", "default");
+            }
+        } else if (indexAnalyzer == null) {
+            // searchAnalyzer != null
+            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
+        } else if (searchAnalyzer == null) {
+            // indexAnalyzer != null
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
+            // indexAnalyzer == searchAnalyzer
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
+                builder.field("analyzer", indexAnalyzer.name());
+            }
+        } else {
+            // both are there but different
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
+        }
+
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
+        } else if (includeDefaults) {
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
+        }
+
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+        }
+    }
+
+
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 }

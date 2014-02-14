@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,9 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
@@ -46,9 +48,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -127,23 +130,28 @@ public class RecoveryTarget extends AbstractComponent {
         if (recoveryStatus.sentCanceledToSource) {
             return;
         }
-        recoveryStatus.canceled = true;
-        if (recoveryStatus.recoveryThread != null) {
-            recoveryStatus.recoveryThread.interrupt();
-        }
-        long time = System.currentTimeMillis();
-        // give it a grace period of actually getting the sent ack part
-        while (!recoveryStatus.sentCanceledToSource) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                // ignore
+        recoveryStatus.cancel();
+        try {
+            if (recoveryStatus.recoveryThread != null) {
+                recoveryStatus.recoveryThread.interrupt();
             }
-            if (System.currentTimeMillis() - time > 10000) {
-                break;
+            // give it a grace period of actually getting the sent ack part
+            final long sleepTime = 100;
+            final long maxSleepTime = 10000;
+            long rounds = Math.round(maxSleepTime / sleepTime);
+            while (!recoveryStatus.sentCanceledToSource && rounds > 0) {
+                rounds--;
+                try {
+                    Thread.sleep(sleepTime);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break; // interrupted - step out!
+                }
             }
+        } finally {
+            removeAndCleanOnGoingRecovery(recoveryStatus);
         }
-        removeAndCleanOnGoingRecovery(recoveryStatus);
+
     }
 
     public void startRecovery(final StartRecoveryRequest request, final InternalIndexShard indexShard, final RecoveryListener listener) {
@@ -188,7 +196,7 @@ public class RecoveryTarget extends AbstractComponent {
             listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
             return;
         }
-        if (recoveryStatus.canceled) {
+        if (recoveryStatus.isCanceled()) {
             // don't remove it, the cancellation code will remove it...
             listener.onIgnoreRecovery(false, "canceled recovery");
             return;
@@ -212,7 +220,7 @@ public class RecoveryTarget extends AbstractComponent {
                 return;
             }
             stopWatch.stop();
-            if (logger.isDebugEnabled()) {
+            if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
@@ -226,13 +234,15 @@ public class RecoveryTarget extends AbstractComponent {
                         .append("\n");
                 sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
-                logger.debug(sb.toString());
+                logger.trace(sb.toString());
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
             }
             removeAndCleanOnGoingRecovery(recoveryStatus);
             listener.onRecoveryDone();
-        } catch (Exception e) {
+        } catch (Throwable e) {
 //            logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
-            if (recoveryStatus.canceled) {
+            if (recoveryStatus.isCanceled()) {
                 // don't remove it, the cancellation code will remove it...
                 listener.onIgnoreRecovery(false, "canceled recovery");
                 return;
@@ -335,18 +345,18 @@ public class RecoveryTarget extends AbstractComponent {
         }
         // just mark it as canceled as well, just in case there are in flight requests
         // coming from the recovery target
-        status.canceled = true;
+        status.cancel();
         // clean open index outputs
-        for (Map.Entry<String, IndexOutput> entry : status.openIndexOutputs.entrySet()) {
+        Set<Entry<String, IndexOutput>> entrySet = status.cancleAndClearOpenIndexInputs();
+        Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, IndexOutput> entry = iterator.next();
             synchronized (entry.getValue()) {
-                try {
-                    entry.getValue().close();
-                } catch (Exception e) {
-                    // ignore
-                }
+                IOUtils.closeWhileHandlingException(entry.getValue());
             }
+            iterator.remove();
+
         }
-        status.openIndexOutputs = null;
         status.checksums = null;
     }
 
@@ -369,7 +379,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -400,7 +410,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -433,14 +443,14 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
 
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             for (Translog.Operation operation : request.operations()) {
-                if (onGoingRecovery.canceled) {
+                if (onGoingRecovery.isCanceled()) {
                     onGoingRecovery.sentCanceledToSource = true;
                     throw new IndexShardClosedException(request.shardId());
                 }
@@ -470,7 +480,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -505,7 +515,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -524,21 +534,18 @@ public class RecoveryTarget extends AbstractComponent {
             Exception failureToRename = null;
             if (!filesToRename.isEmpty()) {
                 // first, go and delete the existing ones
-                for (String fileToRename : filesToRename) {
-                    store.directory().deleteFile(fileToRename);
-                }
-                for (String fileToRename : filesToRename) {
-                    // now, rename the files...
+                final Directory directory = store.directory();
+                for (String file : filesToRename) {
                     try {
-                        store.renameFile(prefix + fileToRename, fileToRename);
-                    } catch (Exception e) {
-                        failureToRename = e;
-                        break;
+                        directory.deleteFile(file);
+                    } catch (Throwable ex) {
+                        logger.debug("failed to delete file [{}]", ex, file);
                     }
                 }
-            }
-            if (failureToRename != null) {
-                throw failureToRename;
+                for (String fileToRename : filesToRename) {
+                    // now, rename the files... and fail it it won't work
+                    store.renameFile(prefix + fileToRename, fileToRename);
+                }
             }
             // now write checksums
             store.writeChecksums(onGoingRecovery.checksums);
@@ -577,7 +584,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
-            if (onGoingRecovery.canceled) {
+            if (onGoingRecovery.isCanceled()) {
                 onGoingRecovery.sentCanceledToSource = true;
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -588,14 +595,8 @@ public class RecoveryTarget extends AbstractComponent {
             if (request.position() == 0) {
                 // first request
                 onGoingRecovery.checksums.remove(request.name());
-                indexOutput = onGoingRecovery.openIndexOutputs.remove(request.name());
-                if (indexOutput != null) {
-                    try {
-                        indexOutput.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
+                indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                IOUtils.closeWhileHandlingException(indexOutput);
                 // we create an output with no checksum, this is because the pure binary data of the file is not
                 // the checksum (because of seek). We will create the checksum file once copying is done
 
@@ -604,20 +605,19 @@ public class RecoveryTarget extends AbstractComponent {
                 // we only want to overwrite the index files once we copied all over, and not create a
                 // case where the index is half moved
 
-                String name = request.name();
-                if (store.directory().fileExists(name)) {
-                    name = "recovery." + onGoingRecovery.startTime + "." + name;
+                String fileName = request.name();
+                if (store.directory().fileExists(fileName)) {
+                    fileName = "recovery." + onGoingRecovery.startTime + "." + fileName;
                 }
-
-                indexOutput = store.createOutputRaw(name);
-                onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
+                indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, store);
             } else {
-                indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());
+                indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
             }
             if (indexOutput == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(request.shardId());
             }
+            boolean success = false;
             synchronized (indexOutput) {
                 try {
                     if (recoverySettings.rateLimiter() != null) {
@@ -637,17 +637,22 @@ public class RecoveryTarget extends AbstractComponent {
                             onGoingRecovery.checksums.put(request.name(), request.checksum());
                         }
                         store.directory().sync(Collections.singleton(request.name()));
-                        onGoingRecovery.openIndexOutputs.remove(request.name());
+                        IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                        assert remove == indexOutput;
+
                     }
-                } catch (IOException e) {
-                    onGoingRecovery.openIndexOutputs.remove(request.name());
-                    try {
-                        indexOutput.close();
-                    } catch (IOException e1) {
-                        // ignore
+                    success = true;
+                } finally {
+                    if (!success || onGoingRecovery.isCanceled()) {
+                        IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                        assert remove == indexOutput;
+                        IOUtils.closeWhileHandlingException(indexOutput);
                     }
-                    throw e;
                 }
+            }
+            if (onGoingRecovery.isCanceled()) {
+                onGoingRecovery.sentCanceledToSource = true;
+                throw new IndexShardClosedException(request.shardId());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

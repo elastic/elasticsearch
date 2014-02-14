@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,13 +21,15 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -49,7 +51,7 @@ public final class XContentBuilder implements BytesStream {
 
     public static enum FieldCaseConversion {
         /**
-         * No came conversion will occur.
+         * No conversion will occur.
          */
         NONE,
         /**
@@ -57,7 +59,7 @@ public final class XContentBuilder implements BytesStream {
          */
         UNDERSCORE,
         /**
-         * Underscore will be converted to Camel case conversion.
+         * Underscore will be converted to Camel case.
          */
         CAMELCASE
     }
@@ -70,41 +72,27 @@ public final class XContentBuilder implements BytesStream {
         XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
     }
 
-    /**
-     * Constructs a new builder using a fresh {@link FastByteArrayOutputStream}.
-     */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new FastByteArrayOutputStream());
+        return new XContentBuilder(xContent, new BytesStreamOutput());
     }
-
 
     private XContentGenerator generator;
 
     private final OutputStream bos;
 
-    private final Object payload;
-
     private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
     private StringBuilder cachedStringBuilder;
 
+    private boolean humanReadable = false;
 
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, null);
-    }
-
-    /**
-     * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
-     * to call {@link #close()} when the builder is done with.
-     */
-    public XContentBuilder(XContent xContent, OutputStream bos, @Nullable Object payload) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos);
-        this.payload = payload;
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
@@ -119,6 +107,20 @@ public final class XContentBuilder implements BytesStream {
     public XContentBuilder prettyPrint() {
         generator.usePrettyPrint();
         return this;
+    }
+
+    public XContentBuilder lfAtEnd() {
+        generator.usePrintLineFeedAtEnd();
+        return this;
+    }
+
+    public XContentBuilder humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
+    public boolean humanReadable() {
+        return this.humanReadable;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -840,6 +842,38 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, TimeValue timeValue) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, timeValue.toString());
+        }
+        field(rawFieldName, timeValue.millis());
+        return this;
+    }
+
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTime) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, new TimeValue(rawTime).toString());
+        }
+        field(rawFieldName, rawTime);
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, byteSizeValue.toString());
+        }
+        field(rawFieldName, byteSizeValue.bytes());
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawSize) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, new ByteSizeValue(rawSize).toString());
+        }
+        field(rawFieldName, rawSize);
+        return this;
+    }
+
     public XContentBuilder value(Boolean value) throws IOException {
         if (value == null) {
             return nullValue();
@@ -1024,11 +1058,6 @@ public final class XContentBuilder implements BytesStream {
         return this.generator;
     }
 
-    @Nullable
-    public Object payload() {
-        return this.payload;
-    }
-
     public OutputStream stream() {
         return this.bos;
     }
@@ -1094,6 +1123,11 @@ public final class XContentBuilder implements BytesStream {
             generator.writeNumber(((Short) value).shortValue());
         } else if (type == Boolean.class) {
             generator.writeBoolean(((Boolean) value).booleanValue());
+        } else if (type == GeoPoint.class) {
+            generator.writeStartObject();
+            generator.writeNumberField("lat", ((GeoPoint) value).lat());
+            generator.writeNumberField("lon", ((GeoPoint) value).lon());
+            generator.writeEndObject();
         } else if (value instanceof Map) {
             writeMap((Map) value);
         } else if (value instanceof Iterable) {
@@ -1114,6 +1148,8 @@ public final class XContentBuilder implements BytesStream {
             generator.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
         } else if (value instanceof Calendar) {
             generator.writeString(XContentBuilder.defaultDatePrinter.print((((Calendar) value)).getTimeInMillis()));
+        } else if (value instanceof ReadableInstant) {
+            generator.writeString(XContentBuilder.defaultDatePrinter.print((((ReadableInstant) value)).getMillis()));
         } else if (value instanceof BytesReference) {
             BytesReference bytes = (BytesReference) value;
             if (!bytes.hasArray()) {
@@ -1166,7 +1202,7 @@ public final class XContentBuilder implements BytesStream {
             // if this is a "value" object, like enum, DistanceUnit, ..., just toString it
             // yea, it can be misleading when toString a Java class, but really, jackson should be used in that case
             generator.writeString(value.toString());
-            //throw new ElasticSearchIllegalArgumentException("type not supported for generic value conversion: " + type);
+            //throw new ElasticsearchIllegalArgumentException("type not supported for generic value conversion: " + type);
         }
     }
 }

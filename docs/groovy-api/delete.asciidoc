@@ -1,0 +1,15 @@
+[[delete]]
+== Delete API
+
+The delete API is very similar to the
+{java}/delete.html[Java delete API], here is an
+example:
+
+[source,js]
+--------------------------------------------------
+def deleteF = node.client.delete {
+    index "test"
+    type "type1"
+    id "1"
+}
+--------------------------------------------------

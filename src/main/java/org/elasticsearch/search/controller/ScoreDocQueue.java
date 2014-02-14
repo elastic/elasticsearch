@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,22 +19,21 @@
 
 package org.elasticsearch.search.controller;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 
 /**
  * <p>Same as lucene {@link org.apache.lucene.search.HitQueue}.
- *
- *
  */
-public class ScoreDocQueue extends PriorityQueue<ShardScoreDoc> {
+public class ScoreDocQueue extends PriorityQueue<ScoreDoc> {
 
     public ScoreDocQueue(int size) {
         super(size);
     }
 
-    protected final boolean lessThan(ShardScoreDoc hitA, ShardScoreDoc hitB) {
+    protected final boolean lessThan(ScoreDoc hitA, ScoreDoc hitB) {
         if (hitA.score == hitB.score) {
-            int c = hitA.shardTarget().compareTo(hitB.shardTarget());
+            int c = hitA.shardIndex - hitB.shardIndex;
             if (c == 0) {
                 return hitA.doc > hitB.doc;
             }

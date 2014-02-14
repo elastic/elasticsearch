@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,16 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-
-import java.util.List;
 
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
@@ -70,20 +65,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
-            return Decision.YES;
+            return allocation.decision(Decision.YES, "all concurrent rebalances are allowed");
         }
-        int rebalance = 0;
-        for (RoutingNode node : allocation.routingNodes()) {
-            List<MutableShardRouting> shards = node.shards();
-            for (int i = 0; i < shards.size(); i++) {
-                if (shards.get(i).state() == ShardRoutingState.RELOCATING) {
-                    rebalance++;
-                }
-            }
+        if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
+            return allocation.decision(Decision.NO, "too man concurrent rebalances [%d], limit: [%d]",
+                    allocation.routingNodes().getRelocatingShardCount(), clusterConcurrentRebalance);
         }
-        if (rebalance >= clusterConcurrentRebalance) {
-            return Decision.NO;
-        }
-        return Decision.YES;
+        return allocation.decision(Decision.YES, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);
     }
 }

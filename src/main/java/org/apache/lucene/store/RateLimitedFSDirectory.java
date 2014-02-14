@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,10 +21,8 @@ package org.apache.lucene.store;
 import org.apache.lucene.store.IOContext.Context;
 
 import java.io.IOException;
-import java.util.Collection;
 
-public final class RateLimitedFSDirectory extends Directory {
-    private final FSDirectory delegate;
+public final class RateLimitedFSDirectory extends FilterDirectory{
 
     private final StoreRateLimiting.Provider rateLimitingProvider;
 
@@ -32,43 +30,14 @@ public final class RateLimitedFSDirectory extends Directory {
 
     public RateLimitedFSDirectory(FSDirectory wrapped, StoreRateLimiting.Provider rateLimitingProvider,
                                   StoreRateLimiting.Listener rateListener) {
-        this.delegate = wrapped;
+        super(wrapped);
         this.rateLimitingProvider = rateLimitingProvider;
         this.rateListener = rateListener;
     }
 
-    public FSDirectory wrappedDirectory() {
-        return this.delegate;
-    }
-
-    @Override
-    public String[] listAll() throws IOException {
-        ensureOpen();
-        return delegate.listAll();
-    }
-
-    @Override
-    public boolean fileExists(String name) throws IOException {
-        ensureOpen();
-        return delegate.fileExists(name);
-    }
-
-    @Override
-    public void deleteFile(String name) throws IOException {
-        ensureOpen();
-        delegate.deleteFile(name);
-    }
-
-    @Override
-    public long fileLength(String name) throws IOException {
-        ensureOpen();
-        return delegate.fileLength(name);
-    }
-
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        ensureOpen();
-        final IndexOutput output = delegate.createOutput(name, context);
+        final IndexOutput output = in.createOutput(name, context);
 
         StoreRateLimiting rateLimiting = rateLimitingProvider.rateLimiting();
         StoreRateLimiting.Type type = rateLimiting.getType();
@@ -87,58 +56,10 @@ public final class RateLimitedFSDirectory extends Directory {
         return output;
     }
 
-    @Override
-    public void sync(Collection<String> names) throws IOException {
-        ensureOpen();
-        delegate.sync(names);
-    }
-
-    @Override
-    public IndexInput openInput(String name, IOContext context) throws IOException {
-        ensureOpen();
-        return delegate.openInput(name, context);
-    }
 
     @Override
     public void close() throws IOException {
-        isOpen = false;
-        delegate.close();
-    }
-
-    @Override
-    public IndexInputSlicer createSlicer(String name, IOContext context) throws IOException {
-        ensureOpen();
-        return delegate.createSlicer(name, context);
-    }
-
-    @Override
-    public Lock makeLock(String name) {
-        ensureOpen();
-        return delegate.makeLock(name);
-    }
-
-    @Override
-    public void clearLock(String name) throws IOException {
-        ensureOpen();
-        delegate.clearLock(name);
-    }
-
-    @Override
-    public void setLockFactory(LockFactory lockFactory) throws IOException {
-        ensureOpen();
-        delegate.setLockFactory(lockFactory);
-    }
-
-    @Override
-    public LockFactory getLockFactory() {
-        ensureOpen();
-        return delegate.getLockFactory();
-    }
-
-    @Override
-    public String getLockID() {
-        ensureOpen();
-        return delegate.getLockID();
+        in.close();
     }
 
     @Override
@@ -147,17 +68,12 @@ public final class RateLimitedFSDirectory extends Directory {
         StoreRateLimiting.Type type = rateLimiting.getType();
         RateLimiter limiter = rateLimiting.getRateLimiter();
         if (type == StoreRateLimiting.Type.NONE || limiter == null) {
-            return StoreUtils.toString(delegate);
+            return StoreUtils.toString(in);
         } else {
-            return "rate_limited(" + StoreUtils.toString(delegate) + ", type=" + type.name() + ", rate=" + limiter.getMbPerSec() + ")";
+            return "rate_limited(" + StoreUtils.toString(in) + ", type=" + type.name() + ", rate=" + limiter.getMbPerSec() + ")";
         }
     }
 
-    @Override
-    public void copy(Directory to, String src, String dest, IOContext context) throws IOException {
-        ensureOpen();
-        delegate.copy(to, src, dest, context);
-    }
 
     static final class RateLimitedIndexOutput extends BufferedIndexOutput {
 
@@ -167,7 +83,7 @@ public final class RateLimitedFSDirectory extends Directory {
         private final StoreRateLimiting.Listener rateListener;
 
         RateLimitedIndexOutput(final RateLimiter rateLimiter, final StoreRateLimiting.Listener rateListener, final IndexOutput delegate) {
-            // TODO if Lucene exposed in BufferedIndexOutput#getBufferSize, we could initialize it if the delegate is buffered
+            super(delegate instanceof BufferedIndexOutput ? ((BufferedIndexOutput) delegate).getBufferSize() : BufferedIndexOutput.DEFAULT_BUFFER_SIZE);
             if (delegate instanceof BufferedIndexOutput) {
                 bufferedDelegate = (BufferedIndexOutput) delegate;
                 this.delegate = delegate;
@@ -208,6 +124,11 @@ public final class RateLimitedFSDirectory extends Directory {
             } finally {
                 delegate.flush();
             }
+        }
+
+        @Override
+        public void setLength(long length) throws IOException {
+            delegate.setLength(length);
         }
 
         @Override

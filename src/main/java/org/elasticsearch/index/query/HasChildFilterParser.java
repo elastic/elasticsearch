@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.search.child.HasChildFilter;
+import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -57,9 +57,8 @@ public class HasChildFilterParser implements FilterParser {
         Query query = null;
         boolean queryFound = false;
         String childType = null;
+        int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
 
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -98,9 +97,11 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    // noop to be backwards compatible
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    // noop to be backwards compatible
+                } else if ("short_circuit_cutoff".equals(currentFieldName)) {
+                    shortCircuitParentDocSet = parser.intValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -120,7 +121,7 @@ public class HasChildFilterParser implements FilterParser {
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
         }
-        if (childDocMapper.parentFieldMapper() == null) {
+        if (!childDocMapper.parentFieldMapper().active()) {
             throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
@@ -128,28 +129,28 @@ public class HasChildFilterParser implements FilterParser {
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
-        }
-
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext);
-        searchContext.addRewrite(childFilter);
-        Filter filter = childFilter;
-
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        Filter nonNestedDocsFilter = null;
+        if (parentDocMapper.hasNestedObjects()) {
+            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
         }
+
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
 
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, filter);
+            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
         }
-        return filter;
+
+        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
+        if (deleteByQuery) {
+            return new DeleteByQueryWrappingFilter(childrenConstantScoreQuery);
+        } else {
+            return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
+        }
     }
 }

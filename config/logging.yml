@@ -1,4 +1,6 @@
-rootLogger: INFO, console, file
+# you can override this using by setting a system property, for example -Des.logger.level=DEBUG
+es.logger.level: INFO
+rootLogger: ${es.logger.level}, console, file
 logger:
   # log action execution errors for easier debugging
   action: DEBUG

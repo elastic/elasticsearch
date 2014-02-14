@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -32,16 +32,18 @@ import java.util.Map;
 
 /**
  * Service for looking up configured {@link SimilarityProvider} implementations by name.
- *
+ * <p/>
  * The service instantiates the Providers through their Factories using configuration
  * values found with the {@link SimilarityModule#SIMILARITY_SETTINGS_PREFIX} prefix.
  */
 public class SimilarityLookupService extends AbstractIndexComponent {
 
+    public final static String DEFAULT_SIMILARITY = "default";
+
     private final ImmutableMap<String, SimilarityProvider> similarities;
 
     public SimilarityLookupService(Index index, Settings indexSettings) {
-        this (index, indexSettings, ImmutableMap.<String, SimilarityProvider.Factory>of());
+        this(index, indexSettings, ImmutableMap.<String, SimilarityProvider.Factory>of());
     }
 
     @Inject

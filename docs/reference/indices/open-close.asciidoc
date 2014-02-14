@@ -1,0 +1,29 @@
+[[indices-open-close]]
+== Open / Close Index API
+
+The open and close index APIs allow to close an index, and later on
+opening it. A closed index has almost no overhead on the cluster (except
+for maintaining its metadata), and is blocked for read/write operations.
+A closed index can be opened which will then go through the normal
+recovery process.
+
+The REST endpoint is `/{index}/_close` and `/{index}/_open`. For
+example:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/my_index/_close'
+
+curl -XPOST 'localhost:9200/my_index/_open'
+--------------------------------------------------
+
+It is possible to open and close multiple indices. An error will be thrown
+if the request explicitly refers to a missing index. This behaviour can be
+disabled using the `ignore_unavailable=true` parameter.
+
+All indices can be opened or closed at once using `_all` as the index name
+or specifying patterns that identify them all (e.g. `*`).
+
+Identifying indices via wildcards or `_all` can be disabled by setting the
+`action.destructive_requires_name` flag in the config file to `true`.
+This setting can also be changed via the cluster update settings api.

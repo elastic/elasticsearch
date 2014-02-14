@@ -1,13 +1,13 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.facet.terms;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -82,6 +82,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
     public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
         int size = 10;
+        int shardSize = -1;
 
         String[] fieldsNames = null;
         ImmutableSet<BytesRef> excluded = ImmutableSet.of();
@@ -102,6 +103,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
+                } else {
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("exclude".equals(currentFieldName)) {
@@ -116,6 +119,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                         fields.add(parser.text());
                     }
                     fieldsNames = fields.toArray(new String[fields.size()]);
+                } else {
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
@@ -124,6 +129,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
                     allTerms = parser.booleanValue();
                 } else if ("regex".equals(currentFieldName)) {
@@ -138,6 +145,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     scriptLang = parser.text();
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.textOrNull();
+                } else {
+                    throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             }
         }
@@ -161,6 +170,11 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
         }
 
+        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
+        if (shardSize < size) {
+            shardSize = size;
+        }
+
         if (fieldsNames != null) {
 
             // in case of multi files, we only collect the fields that are mapped and facet on them.
@@ -175,10 +189,14 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                 // non of the fields is mapped
                 return new UnmappedFieldExecutor(size, comparatorType);
             }
-            return new FieldsTermsStringFacetExecutor(facetName, mappers.toArray(new FieldMapper[mappers.size()]), size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+            return new FieldsTermsStringFacetExecutor(mappers.toArray(new FieldMapper[mappers.size()]), size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
-        if (field == null && fieldsNames == null && script != null) {
-            return new ScriptTermsStringFieldFacetExecutor(size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+        if (field == null && script != null) {
+            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
+        }
+
+        if (field == null) {
+            throw new ElasticsearchParseException("terms facet [" + facetName + "] must have a field, fields or script parameter");
         }
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);
@@ -190,17 +208,17 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         if (indexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) indexFieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, shardSize, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             } else {
-                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+                return new TermsLongFacetExecutor(indexNumericFieldData, size, shardSize, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             }
         } else {
             if (script != null || "map".equals(executionHint)) {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
             } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
+                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
             } else {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }
         }
     }

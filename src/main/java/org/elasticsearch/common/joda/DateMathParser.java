@@ -1,6 +1,25 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
@@ -20,14 +39,14 @@ public class DateMathParser {
     }
 
     public long parse(String text, long now) {
-        return parse(text, now, false, false);
+        return parse(text, now, false);
     }
 
-    public long parseUpperInclusive(String text, long now) {
-        return parse(text, now, true, true);
+    public long parseRoundCeil(String text, long now) {
+        return parse(text, now, true);
     }
 
-    public long parse(String text, long now, boolean roundUp, boolean upperInclusive) {
+    public long parse(String text, long now, boolean roundCeil) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
@@ -43,8 +62,8 @@ public class DateMathParser {
                 parseString = text.substring(0, index);
                 mathString = text.substring(index + 2);
             }
-            if (upperInclusive) {
-                time = parseUpperInclusiveStringValue(parseString);
+            if (roundCeil) {
+                time = parseRoundCeilStringValue(parseString);
             } else {
                 time = parseStringValue(parseString);
             }
@@ -54,10 +73,10 @@ public class DateMathParser {
             return time;
         }
 
-        return parseMath(mathString, time, roundUp);
+        return parseMath(mathString, time, roundCeil);
     }
 
-    private long parseMath(String mathString, long time, boolean roundUp) throws ElasticSearchParseException {
+    private long parseMath(String mathString, long time, boolean roundUp) throws ElasticsearchParseException {
         MutableDateTime dateTime = new MutableDateTime(time, DateTimeZone.UTC);
         try {
             for (int i = 0; i < mathString.length(); ) {
@@ -70,7 +89,7 @@ public class DateMathParser {
                 } else if (c == '-') {
                     type = 2;
                 } else {
-                    throw new ElasticSearchParseException("operator not supported for date math [" + mathString + "]");
+                    throw new ElasticsearchParseException("operator not supported for date math [" + mathString + "]");
                 }
 
                 int num;
@@ -86,11 +105,24 @@ public class DateMathParser {
                 if (type == 0) {
                     // rounding is only allowed on whole numbers
                     if (num != 1) {
-                        throw new ElasticSearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
+                        throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [" + mathString + "]");
                     }
                 }
                 char unit = mathString.charAt(i++);
                 switch (unit) {
+                    case 'y':
+                        if (type == 0) {
+                            if (roundUp) {
+                                dateTime.yearOfCentury().roundCeiling();
+                            } else {
+                                dateTime.yearOfCentury().roundFloor();
+                            }
+                        } else if (type == 1) {
+                            dateTime.addYears(num);
+                        } else if (type == 2) {
+                            dateTime.addYears(-num);
+                        }
+                        break;
                     case 'M':
                         if (type == 0) {
                             if (roundUp) {
@@ -171,14 +203,14 @@ public class DateMathParser {
                         }
                         break;
                     default:
-                        throw new ElasticSearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
+                        throw new ElasticsearchParseException("unit [" + unit + "] not supported for date math [" + mathString + "]");
                 }
             }
         } catch (Exception e) {
-            if (e instanceof ElasticSearchParseException) {
-                throw (ElasticSearchParseException) e;
+            if (e instanceof ElasticsearchParseException) {
+                throw (ElasticsearchParseException) e;
             }
-            throw new ElasticSearchParseException("failed to parse date math [" + mathString + "]");
+            throw new ElasticsearchParseException("failed to parse date math [" + mathString + "]");
         }
         return dateTime.getMillis();
     }
@@ -191,12 +223,12 @@ public class DateMathParser {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new ElasticSearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new ElasticsearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }
 
-    private long parseUpperInclusiveStringValue(String value) {
+    private long parseRoundCeilStringValue(String value) {
         try {
             // we create a date time for inclusive upper range, we "include" by default the day level data
             // so something like 2011-01-01 will include the full first day of 2011.
@@ -215,7 +247,7 @@ public class DateMathParser {
                     long time = Long.parseLong(value);
                     return timeUnit.toMillis(time);
                 } catch (NumberFormatException e1) {
-                    throw new ElasticSearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number");
+                    throw new ElasticsearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number");
                 }
             }
             return dateTime.getMillis();
@@ -224,7 +256,7 @@ public class DateMathParser {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new ElasticSearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new ElasticsearchParseException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
             }
         }
     }

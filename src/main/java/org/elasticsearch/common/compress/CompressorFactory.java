@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -28,7 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -163,14 +163,10 @@ public class CompressorFactory {
                 return new BytesArray(compressor.uncompress(bytes.array(), bytes.arrayOffset(), bytes.length()));
             }
             StreamInput compressed = compressor.streamInput(bytes.streamInput());
-            CachedStreamOutput.Entry entry = CachedStreamOutput.popEntry();
-            try {
-                Streams.copy(compressed, entry.bytes());
-                compressed.close();
-                return new BytesArray(entry.bytes().bytes().toBytes());
-            } finally {
-                CachedStreamOutput.pushEntry(entry);
-            }
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            Streams.copy(compressed, bStream);
+            compressed.close();
+            return bStream.bytes();
         }
         return bytes;
     }

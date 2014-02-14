@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.all;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.util.BytesRef;
 
@@ -42,11 +43,13 @@ public final class AllTokenStream extends TokenFilter {
 
     private final AllEntries allEntries;
 
+    private final OffsetAttribute offsetAttribute;
     private final PayloadAttribute payloadAttribute;
 
     AllTokenStream(TokenStream input, AllEntries allEntries) {
         super(input);
         this.allEntries = allEntries;
+        offsetAttribute = addAttribute(OffsetAttribute.class);
         payloadAttribute = addAttribute(PayloadAttribute.class);
     }
 
@@ -59,14 +62,12 @@ public final class AllTokenStream extends TokenFilter {
         if (!input.incrementToken()) {
             return false;
         }
-        if (allEntries.current() != null) {
-            float boost = allEntries.current().boost();
-            if (boost != 1.0f) {
-                encodeFloat(boost, payloadSpare.bytes, payloadSpare.offset);
-                payloadAttribute.setPayload(payloadSpare);
-            } else {
-                payloadAttribute.setPayload(null);
-            }
+        final float boost = allEntries.boost(offsetAttribute.startOffset());
+        if (boost != 1.0f) {
+            encodeFloat(boost, payloadSpare.bytes, payloadSpare.offset);
+            payloadAttribute.setPayload(payloadSpare);
+        } else {
+            payloadAttribute.setPayload(null);
         }
         return true;
     }

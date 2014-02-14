@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -31,13 +31,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 
 /**
  */
 public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
-    public static class Info implements Streamable {
+    public static class Info implements Streamable, ToXContent {
 
         String path;
         @Nullable
@@ -54,9 +56,15 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         double diskQueue = -1;
         double diskServiceTime = -1;
 
+        static public Info readInfoFrom(StreamInput in) throws IOException {
+            Info i = new Info();
+            i.readFrom(in);
+            return i;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            path = in.readString();
+            path = in.readOptionalString();
             mount = in.readOptionalString();
             dev = in.readOptionalString();
             total = in.readLong();
@@ -72,7 +80,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(path);
+            out.writeOptionalString(path); // total aggregates do not have a path
             out.writeOptionalString(mount);
             out.writeOptionalString(dev);
             out.writeLong(total);
@@ -84,6 +92,18 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeLong(diskWriteBytes);
             out.writeDouble(diskQueue);
             out.writeDouble(diskServiceTime);
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public String getMount() {
+            return mount;
+        }
+
+        public String getDev() {
+            return dev;
         }
 
         public ByteSizeValue getTotal() {
@@ -130,9 +150,136 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             return diskServiceTime;
         }
 
+        private long addLong(long current, long other) {
+            if (other == -1) {
+                return current;
+            }
+            if (current == -1) {
+                return other;
+            }
+            return current + other;
+        }
+
+        private double addDouble(double current, double other) {
+            if (other == -1) {
+                return current;
+            }
+            if (current == -1) {
+                return other;
+            }
+            return current + other;
+        }
+
+        public void add(Info info) {
+            total = addLong(total, info.total);
+            free = addLong(free, info.free);
+            available = addLong(available, info.available);
+            diskReads = addLong(diskReads, info.diskReads);
+            diskWrites = addLong(diskWrites, info.diskWrites);
+            diskReadBytes = addLong(diskReadBytes, info.diskReadBytes);
+            diskWriteBytes = addLong(diskWriteBytes, info.diskWriteBytes);
+            diskQueue = addDouble(diskQueue, info.diskQueue);
+            diskServiceTime = addDouble(diskServiceTime, info.diskServiceTime);
+        }
+
+        static final class Fields {
+            static final XContentBuilderString PATH = new XContentBuilderString("path");
+            static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
+            static final XContentBuilderString DEV = new XContentBuilderString("dev");
+            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+            static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
+            static final XContentBuilderString FREE = new XContentBuilderString("free");
+            static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
+            static final XContentBuilderString AVAILABLE = new XContentBuilderString("available");
+            static final XContentBuilderString AVAILABLE_IN_BYTES = new XContentBuilderString("available_in_bytes");
+            static final XContentBuilderString DISK_READS = new XContentBuilderString("disk_reads");
+            static final XContentBuilderString DISK_WRITES = new XContentBuilderString("disk_writes");
+            static final XContentBuilderString DISK_IO_OP = new XContentBuilderString("disk_io_op");
+            static final XContentBuilderString DISK_READ_SIZE = new XContentBuilderString("disk_read_size");
+            static final XContentBuilderString DISK_READ_SIZE_IN_BYTES = new XContentBuilderString("disk_read_size_in_bytes");
+            static final XContentBuilderString DISK_WRITE_SIZE = new XContentBuilderString("disk_write_size");
+            static final XContentBuilderString DISK_WRITE_SIZE_IN_BYTES = new XContentBuilderString("disk_write_size_in_bytes");
+            static final XContentBuilderString DISK_IO_SIZE = new XContentBuilderString("disk_io_size");
+            static final XContentBuilderString DISK_IO_IN_BYTES = new XContentBuilderString("disk_io_size_in_bytes");
+            static final XContentBuilderString DISK_QUEUE = new XContentBuilderString("disk_queue");
+            static final XContentBuilderString DISK_SERVICE_TIME = new XContentBuilderString("disk_service_time");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (path != null) {
+                builder.field(Fields.PATH, path, XContentBuilder.FieldCaseConversion.NONE);
+            }
+            if (mount != null) {
+                builder.field(Fields.MOUNT, mount, XContentBuilder.FieldCaseConversion.NONE);
+            }
+            if (dev != null) {
+                builder.field(Fields.DEV, dev, XContentBuilder.FieldCaseConversion.NONE);
+            }
+
+            if (total != -1) {
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, total);
+            }
+            if (free != -1) {
+                builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, free);
+            }
+            if (available != -1) {
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, available);
+            }
+
+            long iop = -1;
+
+            if (diskReads != -1) {
+                iop = diskReads;
+                builder.field(Fields.DISK_READS, diskReads);
+            }
+            if (diskWrites != -1) {
+                if (iop != -1) {
+                    iop += diskWrites;
+                } else {
+                    iop = diskWrites;
+                }
+                builder.field(Fields.DISK_WRITES, diskWrites);
+            }
+
+            if (iop != -1) {
+                builder.field(Fields.DISK_IO_OP, iop);
+            }
+
+            long ioBytes = -1;
+
+            if (diskReadBytes != -1) {
+                ioBytes = diskReadBytes;
+                builder.byteSizeField(Fields.DISK_READ_SIZE_IN_BYTES, Fields.DISK_READ_SIZE, diskReadBytes);
+            }
+            if (diskWriteBytes != -1) {
+                if (ioBytes != -1) {
+                    ioBytes += diskWriteBytes;
+                } else {
+                    ioBytes = diskWriteBytes;
+                }
+                builder.byteSizeField(Fields.DISK_WRITE_SIZE_IN_BYTES, Fields.DISK_WRITE_SIZE, diskWriteBytes);
+            }
+
+            if (ioBytes != -1) {
+                builder.byteSizeField(Fields.DISK_IO_IN_BYTES, Fields.DISK_IO_SIZE, ioBytes);
+            }
+
+            if (diskQueue != -1) {
+                builder.field(Fields.DISK_QUEUE, Strings.format1Decimals(diskQueue, ""));
+            }
+            if (diskServiceTime != -1) {
+                builder.field(Fields.DISK_SERVICE_TIME, Strings.format1Decimals(diskServiceTime, ""));
+            }
+
+            builder.endObject();
+            return builder;
+        }
     }
 
     long timestamp;
+    Info total;
     Info[] infos;
 
     FsStats() {
@@ -142,6 +289,29 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
     FsStats(long timestamp, Info[] infos) {
         this.timestamp = timestamp;
         this.infos = infos;
+        this.total = null;
+    }
+
+    public Info getTotal() {
+        return total();
+    }
+
+    public Info total() {
+        if (total != null) {
+            return total;
+        }
+        Info res = new Info();
+        Set<String> seenDevices = new HashSet<String>(infos.length);
+        for (Info subInfo : infos) {
+            if (subInfo.dev != null) {
+                if (!seenDevices.add(subInfo.dev)) {
+                    continue; // already added numbers for this device;
+                }
+            }
+            res.add(subInfo);
+        }
+        total = res;
+        return res;
     }
 
     public long getTimestamp() {
@@ -164,8 +334,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         timestamp = in.readVLong();
         infos = new Info[in.readVInt()];
         for (int i = 0; i < infos.length; i++) {
-            infos[i] = new Info();
-            infos[i].readFrom(in);
+            infos[i] = Info.readInfoFrom(in);
         }
     }
 
@@ -182,77 +351,18 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         static final XContentBuilderString FS = new XContentBuilderString("fs");
         static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
         static final XContentBuilderString DATA = new XContentBuilderString("data");
-        static final XContentBuilderString PATH = new XContentBuilderString("path");
-        static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
-        static final XContentBuilderString DEV = new XContentBuilderString("dev");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
-        static final XContentBuilderString FREE = new XContentBuilderString("free");
-        static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-        static final XContentBuilderString AVAILABLE = new XContentBuilderString("available");
-        static final XContentBuilderString AVAILABLE_IN_BYTES = new XContentBuilderString("available_in_bytes");
-        static final XContentBuilderString DISK_READS = new XContentBuilderString("disk_reads");
-        static final XContentBuilderString DISK_WRITES = new XContentBuilderString("disk_writes");
-        static final XContentBuilderString DISK_READ_SIZE = new XContentBuilderString("disk_read_size");
-        static final XContentBuilderString DISK_READ_SIZE_IN_BYTES = new XContentBuilderString("disk_read_size_in_bytes");
-        static final XContentBuilderString DISK_WRITE_SIZE = new XContentBuilderString("disk_write_size");
-        static final XContentBuilderString DISK_WRITE_SIZE_IN_BYTES = new XContentBuilderString("disk_write_size_in_bytes");
-        static final XContentBuilderString DISK_QUEUE = new XContentBuilderString("disk_queue");
-        static final XContentBuilderString DISK_SERVICE_TIME = new XContentBuilderString("disk_service_time");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FS);
         builder.field(Fields.TIMESTAMP, timestamp);
+        builder.field(Fields.TOTAL);
+        total().toXContent(builder, params);
         builder.startArray(Fields.DATA);
         for (Info info : infos) {
-            builder.startObject();
-            builder.field(Fields.PATH, info.path);
-            if (info.mount != null) {
-                builder.field(Fields.MOUNT, info.mount);
-            }
-            if (info.dev != null) {
-                builder.field(Fields.DEV, info.dev);
-            }
-
-            if (info.total != -1) {
-                builder.field(Fields.TOTAL, info.getTotal().toString());
-                builder.field(Fields.TOTAL_IN_BYTES, info.total);
-            }
-            if (info.free != -1) {
-                builder.field(Fields.FREE, info.getFree().toString());
-                builder.field(Fields.FREE_IN_BYTES, info.free);
-            }
-            if (info.available != -1) {
-                builder.field(Fields.AVAILABLE, info.getAvailable().toString());
-                builder.field(Fields.AVAILABLE_IN_BYTES, info.available);
-            }
-
-            if (info.diskReads != -1) {
-                builder.field(Fields.DISK_READS, info.diskReads);
-            }
-            if (info.diskWrites != -1) {
-                builder.field(Fields.DISK_WRITES, info.diskWrites);
-            }
-
-            if (info.diskReadBytes != -1) {
-                builder.field(Fields.DISK_READ_SIZE, info.getDiskReadSizeSize().toString());
-                builder.field(Fields.DISK_READ_SIZE_IN_BYTES, info.getDiskReadSizeInBytes());
-            }
-            if (info.diskWriteBytes != -1) {
-                builder.field(Fields.DISK_WRITE_SIZE, info.getDiskWriteSizeSize().toString());
-                builder.field(Fields.DISK_WRITE_SIZE_IN_BYTES, info.getDiskWriteSizeInBytes());
-            }
-
-            if (info.diskQueue != -1) {
-                builder.field(Fields.DISK_QUEUE, Strings.format1Decimals(info.diskQueue, ""));
-            }
-            if (info.diskServiceTime != -1) {
-                builder.field(Fields.DISK_SERVICE_TIME, Strings.format1Decimals(info.diskServiceTime, ""));
-            }
-
-            builder.endObject();
+            info.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();

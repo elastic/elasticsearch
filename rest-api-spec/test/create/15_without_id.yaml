@@ -1,0 +1,25 @@
+---
+"Create without ID":
+ - do:
+      create:
+          index:  test_1
+          type:   test
+          body:   { foo: bar }
+
+ - is_true:   _id
+ - match:   { _index:   test_1 }
+ - match:   { _type:    test   }
+ - match:   { _version: 1      }
+ - set:     { _id:      id    }
+
+ - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     '$id'
+
+ - match:   { _index:   test_1 }
+ - match:   { _type:    test   }
+ - match:   { _id:      $id    }
+ - match:   { _version: 1      }
+ - match:   { _source: { foo: bar }}

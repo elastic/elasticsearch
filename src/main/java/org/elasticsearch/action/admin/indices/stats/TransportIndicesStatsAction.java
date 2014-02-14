@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -74,11 +74,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     @Override
     protected IndicesStatsRequest newRequest() {
         return new IndicesStatsRequest();
-    }
-
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
     }
 
     /**
@@ -140,49 +135,66 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
+    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
-        ShardStats stats = new ShardStats(indexShard.routingEntry());
+
+        CommonStatsFlags flags = new CommonStatsFlags().clear();
 
         if (request.request.docs()) {
-            stats.stats.docs = indexShard.docStats();
+            flags.set(CommonStatsFlags.Flag.Docs);
         }
         if (request.request.store()) {
-            stats.stats.store = indexShard.storeStats();
+            flags.set(CommonStatsFlags.Flag.Store);
         }
         if (request.request.indexing()) {
-            stats.stats.indexing = indexShard.indexingStats(request.request.types());
+            flags.set(CommonStatsFlags.Flag.Indexing);
+            flags.types(request.request.types());
         }
         if (request.request.get()) {
-            stats.stats.get = indexShard.getStats();
+            flags.set(CommonStatsFlags.Flag.Get);
         }
         if (request.request.search()) {
-            stats.getStats().search = indexShard.searchStats(request.request.groups());
+            flags.set(CommonStatsFlags.Flag.Search);
+            flags.groups(request.request.groups());
         }
         if (request.request.merge()) {
-            stats.stats.merge = indexShard.mergeStats();
+            flags.set(CommonStatsFlags.Flag.Merge);
         }
         if (request.request.refresh()) {
-            stats.stats.refresh = indexShard.refreshStats();
+            flags.set(CommonStatsFlags.Flag.Refresh);
         }
         if (request.request.flush()) {
-            stats.stats.flush = indexShard.flushStats();
+            flags.set(CommonStatsFlags.Flag.Flush);
         }
         if (request.request.warmer()) {
-            stats.stats.warmer = indexShard.warmerStats();
+            flags.set(CommonStatsFlags.Flag.Warmer);
         }
         if (request.request.filterCache()) {
-            stats.stats.filterCache = indexShard.filterCacheStats();
+            flags.set(CommonStatsFlags.Flag.FilterCache);
         }
         if (request.request.idCache()) {
-            stats.stats.idCache = indexShard.idCacheStats();
+            flags.set(CommonStatsFlags.Flag.IdCache);
         }
         if (request.request.fieldData()) {
-            stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
+            flags.set(CommonStatsFlags.Flag.FieldData);
+            flags.fieldDataFields(request.request.fieldDataFields());
+        }
+        if (request.request.percolate()) {
+            flags.set(CommonStatsFlags.Flag.Percolate);
+        }
+        if (request.request.segments()) {
+            flags.set(CommonStatsFlags.Flag.Segments);
+        }
+        if (request.request.completion()) {
+            flags.set(CommonStatsFlags.Flag.Completion);
+            flags.completionDataFields(request.request.completionFields());
+        }
+        if (request.request.translog()) {
+            flags.set(CommonStatsFlags.Flag.Translog);
         }
 
-        return stats;
+        return new ShardStats(indexShard, flags);
     }
 
     public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {

@@ -1,0 +1,80 @@
+[[analysis-edgengram-tokenizer]]
+=== Edge NGram Tokenizer
+
+A tokenizer of type `edgeNGram`.
+
+This tokenizer is very similar to `nGram` but only keeps n-grams which
+start at the beginning of a token.
+
+The following are settings that can be set for a `edgeNGram` tokenizer
+type:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Setting |Description |Default value
+|`min_gram` |Minimum size in codepoints of a single n-gram |`1`.
+
+|`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
+
+|`token_chars` | Characters classes to keep in the
+tokens, Elasticsearch will split on characters that don't belong to any
+of these classes. |`[]` (Keep all characters)
+|=======================================================================
+
+
+`token_chars` accepts the following character classes: 
+
+[horizontal]
+`letter`::      for example `a`, `b`, `ï` or `京`
+`digit`::       for example `3` or `7`
+`whitespace`::  for example `" "` or `"\n"` 
+`punctuation`:: for example `!` or `"`
+`symbol`::      for example `$` or `â`
+
+[float]
+==== Example
+
+[source,js]
+--------------------------------------------------
+    curl -XPUT 'localhost:9200/test' -d '
+    {
+        "settings" : {
+            "analysis" : {
+                "analyzer" : {
+                    "my_edge_ngram_analyzer" : {
+                        "tokenizer" : "my_edge_ngram_tokenizer"
+                    }
+                },
+                "tokenizer" : {
+                    "my_edge_ngram_tokenizer" : {
+                        "type" : "edgeNGram",
+                        "min_gram" : "2",
+                        "max_gram" : "5",
+                        "token_chars": [ "letter", "digit" ]
+                    }
+                }
+            }
+        }
+    }'
+
+    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=my_edge_ngram_analyzer' -d 'FC Schalke 04'
+    # FC, Sc, Sch, Scha, Schal, 04
+--------------------------------------------------
+
+[float]
+==== `side` deprecated
+
+There used to be a `side` parameter up to `0.90.1` but it is now deprecated. In
+order to emulate the behavior of `"side" : "BACK"` a 
+<<analysis-reverse-tokenfilter,`reverse` token filter>>  should be used together 
+with the <<analysis-edgengram-tokenfilter,`edgeNGram` token filter>>. The 
+`edgeNGram` filter must be enclosed in `reverse` filters like this: 
+
+[source,js]
+--------------------------------------------------
+    "filter" : ["reverse", "edgeNGram", "reverse"]
+--------------------------------------------------
+
+which essentially reverses the token, builds front `EdgeNGrams` and reverses 
+the ngram again. This has the same effect as the previous `"side" : "BACK"` setting.
+ 

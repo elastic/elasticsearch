@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -258,6 +258,7 @@ public class MappingMetaData {
     private Id id;
     private Routing routing;
     private Timestamp timestamp;
+    private boolean hasParentField;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -265,13 +266,14 @@ public class MappingMetaData {
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
+        this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
     public MappingMetaData(CompressedString mapping) throws IOException {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
         if (mappingMap.size() != 1) {
-            throw new ElasticSearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
+            throw new ElasticsearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
         initMappers((Map<String, Object>) mappingMap.get(this.type));
@@ -344,14 +346,20 @@ public class MappingMetaData {
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
+        if (withoutType.containsKey("_parent")) {
+            this.hasParentField = true;
+        } else {
+            this.hasParentField = false;
+        }
     }
 
-    public MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp) {
+    public MappingMetaData(String type, CompressedString source, Id id, Routing routing, Timestamp timestamp, boolean hasParentField) {
         this.type = type;
         this.source = source;
         this.id = id;
         this.routing = routing;
         this.timestamp = timestamp;
+        this.hasParentField = hasParentField;
     }
 
     void updateDefaultMapping(MappingMetaData defaultMapping) {
@@ -372,6 +380,10 @@ public class MappingMetaData {
 
     public CompressedString source() {
         return this.source;
+    }
+
+    public boolean hasParentField() {
+        return hasParentField;
     }
 
     /**
@@ -516,6 +528,7 @@ public class MappingMetaData {
             out.writeBoolean(false);
         }
         out.writeString(mappingMd.timestamp().format());
+        out.writeBoolean(mappingMd.hasParentField());
     }
 
     @Override
@@ -553,7 +566,8 @@ public class MappingMetaData {
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
         Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString());
-        return new MappingMetaData(type, source, id, routing, timestamp);
+        final boolean hasParentField = in.readBoolean();
+        return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
     }
 
     public static class ParseContext {

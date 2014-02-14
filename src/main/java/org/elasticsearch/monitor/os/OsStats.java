@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -109,10 +109,14 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
         static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
         static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
+        static final XContentBuilderString LOAD_AVERAGE_1m = new XContentBuilderString("1m");
+        static final XContentBuilderString LOAD_AVERAGE_5m = new XContentBuilderString("5m");
+        static final XContentBuilderString LOAD_AVERAGE_15m = new XContentBuilderString("15m");
 
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString SYS = new XContentBuilderString("sys");
         static final XContentBuilderString USER = new XContentBuilderString("user");
+        static final XContentBuilderString USAGE = new XContentBuilderString("usage");
         static final XContentBuilderString IDLE = new XContentBuilderString("idle");
         static final XContentBuilderString STOLEN = new XContentBuilderString("stolen");
 
@@ -138,16 +142,23 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         builder.field(Fields.TIMESTAMP, timestamp);
 
         if (uptime != -1) {
-            builder.field(Fields.UPTIME, uptime().format());
-            builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
+            builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
         }
 
         if (loadAverage.length > 0) {
-            builder.startArray(Fields.LOAD_AVERAGE);
-            for (double value : loadAverage) {
-                builder.value(value);
+            if (params.param("load_average_format", "array").equals("hash")) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                builder.field(Fields.LOAD_AVERAGE_1m, loadAverage[0]);
+                builder.field(Fields.LOAD_AVERAGE_5m, loadAverage[1]);
+                builder.field(Fields.LOAD_AVERAGE_15m, loadAverage[2]);
+                builder.endObject();
+            } else {
+                builder.startArray(Fields.LOAD_AVERAGE);
+                for (double value : loadAverage) {
+                    builder.value(value);
+                }
+                builder.endArray();
             }
-            builder.endArray();
         }
 
         if (cpu != null) {
@@ -155,34 +166,29 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             builder.field(Fields.SYS, cpu.sys());
             builder.field(Fields.USER, cpu.user());
             builder.field(Fields.IDLE, cpu.idle());
+            builder.field(Fields.USAGE, cpu.user() + cpu.sys());
             builder.field(Fields.STOLEN, cpu.stolen());
             builder.endObject();
         }
 
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.field(Fields.FREE, mem.free().toString());
-            builder.field(Fields.FREE_IN_BYTES, mem.free);
-            builder.field(Fields.USED, mem.used().toString());
-            builder.field(Fields.USED_IN_BYTES, mem.used);
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, mem.free);
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, mem.used);
 
             builder.field(Fields.FREE_PERCENT, mem.freePercent());
             builder.field(Fields.USED_PERCENT, mem.usedPercent());
 
-            builder.field(Fields.ACTUAL_FREE, mem.actualFree().toString());
-            builder.field(Fields.ACTUAL_FREE_IN_BYTES, mem.actualFree);
-            builder.field(Fields.ACTUAL_USED, mem.actualUsed().toString());
-            builder.field(Fields.ACTUAL_USED_IN_BYTES, mem.actualUsed);
+            builder.byteSizeField(Fields.ACTUAL_FREE_IN_BYTES, Fields.ACTUAL_FREE, mem.actualFree);
+            builder.byteSizeField(Fields.ACTUAL_USED_IN_BYTES, Fields.ACTUAL_USED, mem.actualUsed);
 
             builder.endObject();
         }
 
         if (swap != null) {
             builder.startObject(Fields.SWAP);
-            builder.field(Fields.USED, swap.used().toString());
-            builder.field(Fields.USED_IN_BYTES, swap.used);
-            builder.field(Fields.FREE, swap.free().toString());
-            builder.field(Fields.FREE_IN_BYTES, swap.free);
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, swap.used);
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, swap.free);
             builder.endObject();
         }
 

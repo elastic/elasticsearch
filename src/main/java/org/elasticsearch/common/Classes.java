@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,15 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.NoClassSettingsException;
+
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Locale;
+
+import static org.elasticsearch.common.Strings.toCamelCase;
 
 /**
  *
@@ -67,13 +75,13 @@ public class Classes {
      * @return the package name, or the empty String if the class
      *         is defined in the default package
      */
-    public static String getPackageName(Class clazz) {
+    public static String getPackageName(Class<?> clazz) {
         String className = clazz.getName();
         int lastDotIndex = className.lastIndexOf(PACKAGE_SEPARATOR);
         return (lastDotIndex != -1 ? className.substring(0, lastDotIndex) : "");
     }
 
-    public static String getPackageNameNoDomain(Class clazz) {
+    public static String getPackageNameNoDomain(Class<?> clazz) {
         String fullPackage = getPackageName(clazz);
         if (fullPackage.startsWith("org.") || fullPackage.startsWith("com.") || fullPackage.startsWith("net.")) {
             return fullPackage.substring(4);
@@ -89,6 +97,46 @@ public class Classes {
     public static boolean isConcrete(Class<?> clazz) {
         int modifiers = clazz.getModifiers();
         return !clazz.isInterface() && !Modifier.isAbstract(modifiers);
+    }
+
+    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className, String prefixPackage, String suffixClassName) {
+        return loadClass(classLoader, className, prefixPackage, suffixClassName, null);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className, String prefixPackage, String suffixClassName, String errorPrefix) {
+        Throwable t = null;
+        String[] classNames = classNames(className, prefixPackage, suffixClassName);
+        for (String fullClassName : classNames) {
+            try {
+                return (Class<? extends T>) classLoader.loadClass(fullClassName);
+            } catch (ClassNotFoundException ex) {
+                t = ex;
+            } catch (NoClassDefFoundError er) {
+                t = er;
+            }
+        }
+        if (errorPrefix == null) {
+            errorPrefix = "failed to load class";
+        }
+        throw new NoClassSettingsException(errorPrefix + " with value [" + className + "]; tried " + Arrays.toString(classNames), t);
+    }
+
+    private static String[] classNames(String className, String prefixPackage, String suffixClassName) {
+        String prefixValue = prefixPackage;
+        int packageSeparator = className.lastIndexOf('.');
+        String classNameValue = className;
+        // If class name contains package use it as package prefix instead of specified default one
+        if (packageSeparator > 0) {
+            prefixValue = className.substring(0, packageSeparator + 1);
+            classNameValue = className.substring(packageSeparator + 1);
+        }
+        return new String[]{
+                className,
+                prefixValue + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
+                prefixValue + toCamelCase(classNameValue) + "." + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
+                prefixValue + toCamelCase(classNameValue).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
+        };
     }
 
     private Classes() {

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -132,13 +132,11 @@ public class IndexingStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
-            builder.field(Fields.INDEX_TIME, getIndexTime().toString());
-            builder.field(Fields.INDEX_TIME_IN_MILLIS, indexTimeInMillis);
+            builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
-            builder.field(Fields.DELETE_TIME, getDeleteTime().toString());
-            builder.field(Fields.DELETE_TIME_IN_MILLIS, deleteTimeInMillis);
+            builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             return builder;

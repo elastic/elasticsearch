@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -28,7 +28,21 @@ public interface ESLogger {
 
     String getName();
 
+    /**
+     * Allows to set the logger level
+     * If the new level is null, the logger will inherit its level
+     * from its nearest ancestor with a specific (non-null) level value.
+     * @param level the new level
+     */
     void setLevel(String level);
+
+    /**
+     * Returns the current logger level
+     * If the level is null, it means that the logger inherits its level
+     * from its nearest ancestor with a specific (non-null) level value.
+     * @return the logger level
+     */
+    String getLevel();
 
     /**
      * Returns {@code true} if a TRACE level message is logged.

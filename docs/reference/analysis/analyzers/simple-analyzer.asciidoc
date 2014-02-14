@@ -1,0 +1,6 @@
+[[analysis-simple-analyzer]]
+=== Simple Analyzer
+
+An analyzer of type `simple` that is built using a
+<<analysis-lowercase-tokenizer,Lower
+Case Tokenizer>>.

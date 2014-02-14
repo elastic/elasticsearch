@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -41,16 +41,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -86,7 +82,7 @@ public interface Client {
      *
      * @param action           The action type to execute.
      * @param request          The action request.
-     * @param <Request>        Teh request type.
+     * @param <Request>        The request type.
      * @param <Response>       the response type.
      * @param <RequestBuilder> The request builder type.
      * @return A future allowing to get back the response.
@@ -97,7 +93,7 @@ public interface Client {
      * Executes a generic action, denoted by an {@link Action}.
      *
      * @param action           The action type to execute.
-     * @param request          Teh action request.
+     * @param request          The action request.
      * @param listener         The listener to receive the response back.
      * @param <Request>        The request type.
      * @param <Response>       The response type.
@@ -436,7 +432,7 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-    
+
     /**
      * A more like this action to search for documents that are "like" a specific document.
      *
@@ -446,7 +442,7 @@ public interface Client {
      */
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
 
-    
+
     /**
      * An action that returns the term vectors for a specific document.
      *
@@ -473,6 +469,23 @@ public interface Client {
      */
     TermVectorRequestBuilder prepareTermVector(String index, String type, String id);
 
+
+    /**
+     * Multi get term vectors.
+     */
+    ActionFuture<MultiTermVectorsResponse> multiTermVectors(MultiTermVectorsRequest request);
+
+    /**
+     * Multi get term vectors.
+     */
+    void multiTermVectors(MultiTermVectorsRequest request, ActionListener<MultiTermVectorsResponse> listener);
+
+    /**
+     * Multi get term vectors.
+     */
+    MultiTermVectorsRequestBuilder prepareMultiTermVectors();
+
+
     /**
      * Percolates a request returning the matches documents.
      */
@@ -485,11 +498,23 @@ public interface Client {
 
     /**
      * Percolates a request returning the matches documents.
-     *
-     * @param index The index to percolate the doc
-     * @param type  The type of the doc
      */
-    PercolateRequestBuilder preparePercolate(String index, String type);
+    PercolateRequestBuilder preparePercolate();
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request);
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener);
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    MultiPercolateRequestBuilder prepareMultiPercolate();
 
     /**
      * Computes a score explanation for the specified request.
@@ -514,5 +539,20 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void explain(ExplainRequest request, ActionListener<ExplainResponse> listener);
+
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    ClearScrollRequestBuilder prepareClearScroll();
+
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request);
+
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.lang.management.ManagementFactory;
@@ -65,7 +65,7 @@ public class HotThreads {
         if ("cpu".equals(type) || "wait".equals(type) || "block".equals(type)) {
             this.type = type;
         } else {
-            throw new ElasticSearchIllegalArgumentException("type not supported [" + type + "]");
+            throw new ElasticsearchIllegalArgumentException("type not supported [" + type + "]");
         }
         return this;
     }
@@ -130,8 +130,9 @@ public class HotThreads {
             }
             // sort by delta CPU time on thread.
             List<MyThreadInfo> hotties = new ArrayList<MyThreadInfo>(threadInfos.values());
+            final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
             // skip that for now
-            CollectionUtil.quickSort(hotties, new Comparator<MyThreadInfo>() {
+            CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {
                     if ("cpu".equals(type)) {
                         return (int) (o2.cpuTime - o1.cpuTime);
@@ -151,6 +152,9 @@ public class HotThreads {
             }
             ThreadInfo[][] allInfos = new ThreadInfo[threadElementsSnapshotCount][];
             for (int j = 0; j < threadElementsSnapshotCount; j++) {
+                // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
+                // null will be set in the corresponding element in the returned array. A thread is alive if it has
+                // been started and has not yet died.
                 allInfos[j] = threadBean.getThreadInfo(ids, Integer.MAX_VALUE);
                 Thread.sleep(threadElementsSnapshotDelay.millis());
             }
@@ -163,8 +167,22 @@ public class HotThreads {
                 } else if ("block".equals(type)) {
                     time = hotties.get(t).blockedTime;
                 }
+                String threadName = null;
+                if (allInfos[0][t] == null) {
+                    for (ThreadInfo[] info : allInfos) {
+                        if (info != null && info[t] != null) {
+                            threadName = info[t].getThreadName();
+                            break;
+                        }
+                    }
+                    if (threadName == null) {
+                        continue; // thread is not alive yet or died before the first snapshot - ignore it!
+                    }
+                } else {
+                    threadName = allInfos[0][t].getThreadName();
+                }
                 double percent = (((double) time) / interval.nanos()) * 100;
-                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, allInfos[0][t].getThreadName()));
+                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, threadName));
                 // for each snapshot (2nd array index) find later snapshot for same thread with max number of
                 // identical StackTraceElements (starting from end of each)
                 boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -189,16 +207,18 @@ public class HotThreads {
                             count++;
                         }
                     }
-                    StackTraceElement[] show = allInfos[i][t].getStackTrace();
-                    if (count == 1) {
-                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
-                        for (int l = 0; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
-                        }
-                    } else {
-                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
-                        for (int l = show.length - maxSim; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                    if (allInfos[i][t] != null) {
+                        final StackTraceElement[] show = allInfos[i][t].getStackTrace();
+                        if (count == 1) {
+                            sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
+                            for (int l = 0; l < show.length; l++) {
+                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            }
+                        } else {
+                            sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
+                            for (int l = show.length - maxSim; l < show.length; l++) {
+                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            }
                         }
                     }
                 }
@@ -211,9 +231,11 @@ public class HotThreads {
         }
     }
 
+    private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
+
     private int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
-        StackTraceElement[] s1 = threadInfo.getStackTrace();
-        StackTraceElement[] s2 = threadInfo0.getStackTrace();
+        StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
+        StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
         int i = s1.length - 1;
         int j = s2.length - 1;
         int rslt = 0;

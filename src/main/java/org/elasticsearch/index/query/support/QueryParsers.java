@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -90,7 +90,7 @@ public final class QueryParsers {
             int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
             return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
         }
-        throw new ElasticSearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
+        throw new ElasticsearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,

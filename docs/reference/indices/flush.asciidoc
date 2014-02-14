@@ -1,0 +1,27 @@
+[[indices-flush]]
+== Flush
+
+The flush API allows to flush one or more indices through an API. The
+flush process of an index basically frees memory from the index by
+flushing data to the index storage and clearing the internal
+<<index-modules-translog,transaction log>>. By
+default, Elasticsearch uses memory heuristics in order to automatically
+trigger flush operations as required in order to clear memory.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter/_flush'
+--------------------------------------------------
+
+[float]
+=== Multi Index
+
+The flush API can be applied to more than one index with a single call,
+or even on `_all` the indices.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_flush'
+
+$ curl -XPOST 'http://localhost:9200/_flush'
+--------------------------------------------------

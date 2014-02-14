@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import java.util.Collection;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+
+import java.util.Collection;
 
 /**
  * A static factory for simple "import static" usage.
@@ -34,28 +36,6 @@ public abstract class QueryBuilders {
      */
     public static MatchAllQueryBuilder matchAllQuery() {
         return new MatchAllQueryBuilder();
-    }
-
-    /**
-     * Creates a text query with type "BOOLEAN" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textQuery(String, Object)} instead
-     */
-    public static MatchQueryBuilder text(String name, Object text) {
-        return textQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "BOOLEAN" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchQuery(String, Object)}
-     */
-    public static MatchQueryBuilder textQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
     }
 
     /**
@@ -251,86 +231,13 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name The name of the field
-     */
-    public static FieldQueryBuilder fieldQuery(String name, String query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
+     * A Query that matches documents using fuzzy query.
      *
      * @param name  The name of the field
-     * @param query The query string
+     * @param value The value of the term
      */
-    public static FieldQueryBuilder fieldQuery(String name, int query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, long query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, float query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, double query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, boolean query) {
-        return new FieldQueryBuilder(name, query);
-    }
-
-    /**
-     * A query that executes the query string against a field. It is a simplified
-     * version of {@link QueryStringQueryBuilder} that simply runs against
-     * a single field.
-     *
-     * @param name  The name of the field
-     * @param query The query string
-     */
-    public static FieldQueryBuilder fieldQuery(String name, Object query) {
-        return new FieldQueryBuilder(name, query);
+    public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
+        return new FuzzyQueryBuilder(name, value);
     }
 
     /**
@@ -389,6 +296,16 @@ public abstract class QueryBuilders {
      */
     public static QueryStringQueryBuilder queryString(String queryString) {
         return new QueryStringQueryBuilder(queryString);
+    }
+
+    /**
+     * A query that acts similar to a query_string query, but won't throw
+     * exceptions for any weird string syntax. See
+     * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
+     * supported syntax.
+     */
+    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
+        return new SimpleQueryStringBuilder(queryString);
     }
 
     /**
@@ -503,37 +420,59 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that simply applies the boost fact to the wrapped query (multiplies it).
-     *
-     * @param queryBuilder The query to apply the boost factor to.
-     */
-    public static CustomBoostFactorQueryBuilder customBoostFactorQuery(QueryBuilder queryBuilder) {
-        return new CustomBoostFactorQueryBuilder(queryBuilder);
-    }
-
-    /**
-     * A query that allows to define a custom scoring script.
+     * A query that allows to define a custom scoring function.
      *
      * @param queryBuilder The query to custom score
      */
-    public static CustomScoreQueryBuilder customScoreQuery(QueryBuilder queryBuilder) {
-        return new CustomScoreQueryBuilder(queryBuilder);
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
+        return new FunctionScoreQueryBuilder(queryBuilder);
     }
-
+    
     /**
-     * A query that allows to define a custom scoring script, that defines the score for each document that match
-     * with the specified filter.
-     *
-     * @param filterBuilder The filter that defines which documents are scored by a script.
+     * A query that allows to define a custom scoring function.
+     * 
      */
-    public static CustomScoreQueryBuilder customScoreQuery(FilterBuilder filterBuilder) {
-        return new CustomScoreQueryBuilder(filterBuilder);
+    public static FunctionScoreQueryBuilder functionScoreQuery() {
+        return new FunctionScoreQueryBuilder();
     }
-
-    public static CustomFiltersScoreQueryBuilder customFiltersScoreQuery(QueryBuilder queryBuilder) {
-        return new CustomFiltersScoreQueryBuilder(queryBuilder);
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param function The function builder used to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
+        return new FunctionScoreQueryBuilder(function);
     }
-
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder The query to custom score
+     * @param function The function builder used to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
+    }
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param filterBuilder The query to custom score
+     * @param function The function builder used to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(filterBuilder)).add(function);
+    }
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder) {
+        return new FunctionScoreQueryBuilder(filterBuilder);
+    }
     /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.

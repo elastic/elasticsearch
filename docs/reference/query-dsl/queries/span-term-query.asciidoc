@@ -1,0 +1,30 @@
+[[query-dsl-span-term-query]]
+=== Span Term Query
+
+Matches spans containing a term. The span term query maps to Lucene
+`SpanTermQuery`. Here is an example:
+
+[source,js]
+--------------------------------------------------
+{
+    "span_term" : { "user" : "kimchy" }
+}    
+--------------------------------------------------
+
+A boost can also be associated with the query:
+
+[source,js]
+--------------------------------------------------
+{
+    "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
+}    
+--------------------------------------------------
+
+Or :
+
+[source,js]
+--------------------------------------------------
+{
+    "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }
+}    
+--------------------------------------------------

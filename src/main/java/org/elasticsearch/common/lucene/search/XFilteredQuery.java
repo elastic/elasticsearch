@@ -41,7 +41,7 @@ import java.util.Set;
  */
 // Changes are marked with //CHANGE:
 // Delegate to FilteredQuery - this version fixes the bug in LUCENE-4705 and uses ApplyAcceptedDocsFilter internally
-public class XFilteredQuery extends Query {
+public final class XFilteredQuery extends Query {
     private final Filter rawFilter;
     private final FilteredQuery delegate;
     private final FilterStrategy strategy;
@@ -67,7 +67,11 @@ public class XFilteredQuery extends Query {
      * @see FilterStrategy
      */
     public XFilteredQuery(Query query, Filter filter, FilterStrategy strategy) {
-        delegate = new FilteredQuery(query, new ApplyAcceptedDocsFilter(filter), strategy);
+        this(new FilteredQuery(query, new ApplyAcceptedDocsFilter(filter), strategy), filter, strategy);
+    }
+
+    private XFilteredQuery(FilteredQuery delegate, Filter filter, FilterStrategy strategy) {
+        this.delegate = delegate;
         // CHANGE: we need to wrap it in post application of accepted docs
         this.rawFilter = filter;
         this.strategy = strategy;
@@ -160,7 +164,11 @@ public class XFilteredQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        return delegate.equals(o);
+        if (!(o instanceof XFilteredQuery)) {
+            return false;
+        } else {
+            return delegate.equals(((XFilteredQuery)o).delegate);
+        }
     }
 
     /**
@@ -243,6 +251,11 @@ public class XFilteredQuery extends Query {
             //TODO once we have a cost API on filters and scorers we should rethink this heuristic
             return firstFilterDoc < threshold;
         }
+    }
+
+    @Override
+    public Query clone() {
+        return new XFilteredQuery((FilteredQuery) delegate.clone(), rawFilter, strategy);
     }
 
 }

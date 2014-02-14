@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -37,18 +37,18 @@ public class DeleteResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
-    private boolean notFound;
+    private boolean found;
 
     public DeleteResponse() {
 
     }
 
-    public DeleteResponse(String index, String type, String id, long version, boolean notFound) {
+    public DeleteResponse(String index, String type, String id, long version, boolean found) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
-        this.notFound = notFound;
+        this.found = found;
     }
 
     /**
@@ -80,29 +80,29 @@ public class DeleteResponse extends ActionResponse {
     }
 
     /**
-     * Returns <tt>true</tt> if there was no doc found to delete.
+     * Returns <tt>true</tt> if a doc was found to delete.
      */
-    public boolean isNotFound() {
-        return notFound;
+    public boolean isFound() {
+        return found;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        index = in.readSharedString();
+        type = in.readSharedString();
         id = in.readString();
-        type = in.readString();
         version = in.readLong();
-        notFound = in.readBoolean();
+        found = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        out.writeSharedString(index);
+        out.writeSharedString(type);
         out.writeString(id);
-        out.writeString(type);
         out.writeLong(version);
-        out.writeBoolean(notFound);
+        out.writeBoolean(found);
     }
 }

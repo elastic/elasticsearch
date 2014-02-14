@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,11 +20,11 @@
 package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -110,7 +110,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void close() throws ElasticSearchException {
+    public void close() throws ElasticsearchException {
         close(false);
     }
 
@@ -292,15 +292,19 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public void revertTransient() {
-        FsTranslogFile old;
+        FsTranslogFile tmpTransient;
         rwl.writeLock().lock();
         try {
-            old = trans;
+            tmpTransient = trans;
             this.trans = null;
         } finally {
             rwl.writeLock().unlock();
         }
-        old.close(true);
+        // previous transient might be null because it was failed on its creation
+        // for example
+        if (tmpTransient != null) {
+            tmpTransient.close(true);
+        }
     }
 
     public byte[] read(Location location) {
@@ -329,10 +333,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public Location add(Operation operation) throws TranslogException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         rwl.readLock().lock();
         try {
-            BytesStreamOutput out = cachedEntry.bytes();
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
@@ -358,7 +361,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             rwl.readLock().unlock();
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 
@@ -405,5 +407,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } else {
             type = FsTranslogFile.Type.BUFFERED;
         }
+    }
+
+    @Override
+    public TranslogStats stats() {
+        return new TranslogStats(estimatedNumberOfOperations(), translogSizeInBytes());
     }
 }

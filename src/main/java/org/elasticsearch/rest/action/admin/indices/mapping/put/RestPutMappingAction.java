@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,71 +19,60 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
  *
  */
 public class RestPutMappingAction extends BaseRestHandler {
 
+
     @Inject
     public RestPutMappingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(PUT, "/{index}/_mapping", this);
+        controller.registerHandler(PUT, "/{index}/_mapping/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
+        controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
+        controller.registerHandler(PUT, "/_mapping/{type}", this);
 
-        controller.registerHandler(POST, "/{index}/_mapping", this);
+        controller.registerHandler(POST, "/{index}/_mapping/", this);
         controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
+        controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
+        controller.registerHandler(POST, "/_mapping/{type}", this);
+        
+        //register the same paths, but with plural form _mappings
+        controller.registerHandler(PUT, "/{index}/_mappings/", this);
+        controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
+        controller.registerHandler(PUT, "/{index}/_mappings/{type}", this);
+        controller.registerHandler(PUT, "/_mappings/{type}", this);
+
+        controller.registerHandler(POST, "/{index}/_mappings/", this);
+        controller.registerHandler(POST, "/{index}/{type}/_mappings", this);
+        controller.registerHandler(POST, "/{index}/_mappings/{type}", this);
+        controller.registerHandler(POST, "/_mappings/{type}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
+        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().toUtf8());
-        putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
-        client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
-            @Override
-            public void onResponse(PutMappingResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field("ok", true)
-                            .field("acknowledged", response.isAcknowledged());
-                    builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
+        putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
+        client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestResponseActionListener<PutMappingResponse>(request, channel, logger));
     }
 }

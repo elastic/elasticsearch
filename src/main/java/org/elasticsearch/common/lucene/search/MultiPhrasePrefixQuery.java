@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import gnu.trove.set.hash.THashSet;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -128,7 +128,7 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         if (termArrays.isEmpty()) {
-            return MatchNoDocsQuery.INSTANCE;
+            return new MatchNoDocsQuery();
         }
         MultiPhraseQuery query = new MultiPhraseQuery();
         query.setSlop(slop);
@@ -138,7 +138,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        Set<Term> terms = new THashSet<Term>();
+        ObjectOpenHashSet<Term> terms = new ObjectOpenHashSet<Term>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -146,13 +146,13 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            return MatchNoDocsQuery.INSTANCE;
+            return Queries.newMatchNoDocsQuery();
         }
-        query.add(terms.toArray(new Term[terms.size()]), position);
+        query.add(terms.toArray(Term.class), position);
         return query.rewrite(reader);
     }
 
-    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(ObjectOpenHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         TermsEnum termsEnum = null;

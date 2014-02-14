@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,7 +24,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -37,23 +37,23 @@ public class IndexedGeoBoundingBoxFilter {
 
     public static Filter create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
         if (!fieldMapper.isEnableLatLon()) {
-            throw new ElasticSearchIllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
+            throw new ElasticsearchIllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
         }
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon() > bottomRight.lon()) {
-            return new LeftGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
+            return new WestGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
         } else {
-            return new RightGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
+            return new EastGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
         }
     }
 
-    static class LeftGeoBoundingBoxFilter extends Filter {
+    static class WestGeoBoundingBoxFilter extends Filter {
 
         final Filter lonFilter1;
         final Filter lonFilter2;
         final Filter latFilter;
 
-        public LeftGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+        public WestGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
             lonFilter1 = fieldMapper.lonMapper().rangeFilter(null, bottomRight.lon(), true, true);
             lonFilter2 = fieldMapper.lonMapper().rangeFilter(topLeft.lon(), null, true, true);
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true);
@@ -97,7 +97,7 @@ public class IndexedGeoBoundingBoxFilter {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
-            LeftGeoBoundingBoxFilter that = (LeftGeoBoundingBoxFilter) o;
+            WestGeoBoundingBoxFilter that = (WestGeoBoundingBoxFilter) o;
 
             if (latFilter != null ? !latFilter.equals(that.latFilter) : that.latFilter != null) return false;
             if (lonFilter1 != null ? !lonFilter1.equals(that.lonFilter1) : that.lonFilter1 != null) return false;
@@ -115,12 +115,12 @@ public class IndexedGeoBoundingBoxFilter {
         }
     }
 
-    static class RightGeoBoundingBoxFilter extends Filter {
+    static class EastGeoBoundingBoxFilter extends Filter {
 
         final Filter lonFilter;
         final Filter latFilter;
 
-        public RightGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+        public EastGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
             lonFilter = fieldMapper.lonMapper().rangeFilter(topLeft.lon(), bottomRight.lon(), true, true);
             latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true);
         }
@@ -146,7 +146,7 @@ public class IndexedGeoBoundingBoxFilter {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
-            RightGeoBoundingBoxFilter that = (RightGeoBoundingBoxFilter) o;
+            EastGeoBoundingBoxFilter that = (EastGeoBoundingBoxFilter) o;
 
             if (latFilter != null ? !latFilter.equals(that.latFilter) : that.latFilter != null) return false;
             if (lonFilter != null ? !lonFilter.equals(that.lonFilter) : that.lonFilter != null) return false;

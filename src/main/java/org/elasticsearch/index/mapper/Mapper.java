@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
@@ -90,18 +91,25 @@ public interface Mapper extends ToXContent {
 
             private final PostingsFormatService postingsFormatService;
 
+            private final DocValuesFormatService docValuesFormatService;
+
             private final AnalysisService analysisService;
 
             private final SimilarityLookupService similarityLookupService;
 
             private final ImmutableMap<String, TypeParser> typeParsers;
 
-            public ParserContext(PostingsFormatService postingsFormatService, AnalysisService analysisService,
-                                 SimilarityLookupService similarityLookupService, ImmutableMap<String, TypeParser> typeParsers) {
+            private final Version indexVersionCreated;
+
+            public ParserContext(PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
+                                 AnalysisService analysisService, SimilarityLookupService similarityLookupService,
+                                 ImmutableMap<String, TypeParser> typeParsers, Version indexVersionCreated) {
                 this.postingsFormatService = postingsFormatService;
+                this.docValuesFormatService = docValuesFormatService;
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
                 this.typeParsers = typeParsers;
+                this.indexVersionCreated = indexVersionCreated;
             }
 
             public AnalysisService analysisService() {
@@ -112,12 +120,20 @@ public interface Mapper extends ToXContent {
                 return postingsFormatService;
             }
 
+            public DocValuesFormatService docValuesFormatService() {
+                return docValuesFormatService;
+            }
+
             public SimilarityLookupService similarityLookupService() {
                 return similarityLookupService;
             }
 
             public TypeParser typeParser(String type) {
                 return typeParsers.get(Strings.toUnderscoreCase(type));
+            }
+
+            public Version indexVersionCreated() {
+                return indexVersionCreated;
             }
         }
 

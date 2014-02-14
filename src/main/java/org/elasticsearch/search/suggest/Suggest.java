@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,8 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
@@ -113,6 +116,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             switch (type) {
             case TermSuggestion.TYPE:
                 suggestion = new TermSuggestion();
+                break;
+            case CompletionSuggestion.TYPE:
+                suggestion = new CompletionSuggestion();
+                break;
+            case PhraseSuggestion.TYPE:
+                suggestion = new PhraseSuggestion();
                 break;
             default:
                 suggestion = new Suggestion<Entry<Option>>();
@@ -241,7 +250,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             List<T> currentEntries = new ArrayList<T>();
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
-                    assert suggestion.entries.size() == size;
+                    if(suggestion.entries.size() != size) {
+                        throw new ElasticsearchIllegalStateException("Can't merge suggest result, this might be caused by suggest calls " +
+                                "across multiple indices with different analysis chains. Suggest entries have different sizes actual [" +
+                                suggestion.entries.size() + "] expected [" + size +"]");
+                    }
                     assert suggestion.name.equals(leader.name);
                     currentEntries.add(suggestion.entries.get(i));
                 }
@@ -352,30 +365,43 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 CollectionUtil.timSort(options, comparator);
             }
 
-            protected Entry<O> reduce(List<Entry<O>> toReduce) {
+            protected <T extends Entry<O>> Entry<O> reduce(List<T> toReduce) {
                 if (toReduce.size() == 1) {
                     return toReduce.get(0);
                 }
                 final Map<O, O> entries = new HashMap<O, O>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    assert leader.text.equals(entry.text);
+                    if (!leader.text.equals(entry.text)) {
+                        throw new ElasticsearchIllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
+                                "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
+                                entry.text + "] expected [" + leader.text +"]");
+                    }
                     assert leader.offset == entry.offset;
                     assert leader.length == entry.length;
+                    leader.merge(entry);
                     for (O option : entry) {
                         O merger = entries.get(option);
                         if (merger == null) {
-                           entries.put(option, option);
+                            entries.put(option, option);
                         } else {
                             merger.mergeInto(option);
-                        }    
+                        }
                     }
                 }
                 leader.options.clear();
-                leader.options.addAll(entries.keySet());
+                for (O option: entries.keySet()) {
+                    leader.addOption(option);
+                }
                 return leader;
             }
-            
+
+            /**
+             * Merge any extra fields for this subtype.
+             */
+            protected void merge(Entry<O> other) {
+            }
+
             /**
              * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
              *         single term.
@@ -492,16 +518,23 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 static class Fields {
 
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
+                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
                 }
 
                 private Text text;
+                private Text highlighted;
                 private float score;
 
-                public Option(Text text, float score) {
+                public Option(Text text, Text highlighted, float score) {
                     this.text = text;
+                    this.highlighted = highlighted;
                     this.score = score;
+                }
+
+                public Option(Text text, float score) {
+                    this(text, null, score);
                 }
 
                 public Option() {
@@ -515,23 +548,36 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 /**
+                 * @return Copy of suggested text with changes from user supplied text highlighted.
+                 */
+                public Text getHighlighted() {
+                    return highlighted;
+                }
+
+                /**
                  * @return The score based on the edit distance difference between the suggested term and the
                  *         term in the suggest text.
                  */
                 public float getScore() {
                     return score;
                 }
+                
+                protected void setScore(float score) {
+                    this.score = score;
+                }
 
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
                     score = in.readFloat();
+                    highlighted = in.readOptionalText();
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
                     out.writeFloat(score);
+                    out.writeOptionalText(highlighted);
                 }
 
                 @Override
@@ -544,6 +590,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(Fields.TEXT, text);
+                    if (highlighted != null) {
+                        builder.field(Fields.HIGHLIGHTED, highlighted);
+                    }
                     builder.field(Fields.SCORE, score);
                     return builder;
                 }
@@ -567,8 +616,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     return text.hashCode();
                 }
             }
-
         }
+
         public enum Sort {
 
             /**
@@ -597,11 +646,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 } else if (id == 1) {
                     return FREQUENCY;
                 } else {
-                    throw new ElasticSearchException("Illegal suggest sort " + id);
+                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
-
         }
-
     }
 }

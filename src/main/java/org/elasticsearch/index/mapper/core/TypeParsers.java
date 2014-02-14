@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,7 +20,8 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -29,18 +30,109 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
 
 /**
  *
  */
 public class TypeParsers {
 
+    public static final String MULTI_FIELD_CONTENT_TYPE = "multi_field";
+    public static final Mapper.TypeParser multiFieldConverterTypeParser = new Mapper.TypeParser() {
+
+        @Override
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            ContentPath.Type pathType = null;
+            AbstractFieldMapper.Builder mainFieldBuilder = null;
+            List<AbstractFieldMapper.Builder> fields = null;
+            String firstType = null;
+
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("path")) {
+                    pathType = parsePathType(name, fieldNode.toString());
+                } else if (fieldName.equals("fields")) {
+                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
+                    for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
+                        String propName = entry1.getKey();
+                        Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
+
+                        String type;
+                        Object typeNode = propNode.get("type");
+                        if (typeNode != null) {
+                            type = typeNode.toString();
+                            if (firstType == null) {
+                                firstType = type;
+                            }
+                        } else {
+                            throw new MapperParsingException("No type specified for property [" + propName + "]");
+                        }
+
+                        Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                        if (typeParser == null) {
+                            throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
+                        }
+                        if (propName.equals(name)) {
+                            mainFieldBuilder = (AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
+                        } else {
+                            if (fields == null) {
+                                fields = new ArrayList<AbstractFieldMapper.Builder>(2);
+                            }
+                            fields.add((AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
+                        }
+                    }
+                }
+            }
+
+            if (mainFieldBuilder == null) {
+                if (fields == null) {
+                    // No fields at all were specified in multi_field, so lets return a non indexed string field.
+                    return new StringFieldMapper.Builder(name).index(false);
+                }
+                Mapper.TypeParser typeParser = parserContext.typeParser(firstType);
+                if (typeParser == null) {
+                    // The first multi field's type is unknown
+                    mainFieldBuilder = new StringFieldMapper.Builder(name).index(false);
+                } else {
+                    Mapper.Builder substitute = typeParser.parse(name, Collections.<String, Object>emptyMap(), parserContext);
+                    if (substitute instanceof AbstractFieldMapper.Builder) {
+                        mainFieldBuilder = ((AbstractFieldMapper.Builder) substitute).index(false);
+                    } else {
+                        // The first multi isn't a core field type
+                        mainFieldBuilder =  new StringFieldMapper.Builder(name).index(false);
+                    }
+                }
+            }
+
+            if (fields != null && pathType != null) {
+                for (Mapper.Builder field : fields) {
+                    mainFieldBuilder.addMultiField(field);
+                }
+                mainFieldBuilder.multiFieldPathType(pathType);
+            } else if (fields != null) {
+                for (Mapper.Builder field : fields) {
+                    mainFieldBuilder.addMultiField(field);
+                }
+            } else if (pathType != null) {
+                mainFieldBuilder.multiFieldPathType(pathType);
+            }
+            return mainFieldBuilder;
+        }
+
+    };
+
+    public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
@@ -55,18 +147,22 @@ public class TypeParsers {
                 builder.precisionStep(nodeIntegerValue(propNode));
             } else if (propName.equals("ignore_malformed")) {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
+            } else if (propName.equals("coerce")) {
+                builder.coerce(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
+            } else {
+                parseMultiField(builder, name, numberNode, parserContext, propName, propNode);
             }
         }
     }
 
     public static void parseField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         for (Map.Entry<String, Object> entry : fieldNode.entrySet()) {
-            String propName = Strings.toUnderscoreCase(entry.getKey());
-            Object propNode = entry.getValue();
+            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final Object propNode = entry.getValue();
             if (propName.equals("index_name")) {
                 builder.indexName(propNode.toString());
             } else if (propName.equals("store")) {
@@ -75,6 +171,8 @@ public class TypeParsers {
                 parseIndex(name, propNode.toString(), builder);
             } else if (propName.equals("tokenized")) {
                 builder.tokenized(nodeBooleanValue(propNode));
+            } else if (propName.equals(DOC_VALUES)) {
+                builder.docValues(nodeBooleanValue(propNode));
             } else if (propName.equals("term_vector")) {
                 parseTermVector(name, propNode.toString(), builder);
             } else if (propName.equals("boost")) {
@@ -89,9 +187,24 @@ public class TypeParsers {
                 builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
+            } else if (propName.equals("norms")) {
+                final Map<String, Object> properties = nodeMapValue(propNode, "norms");
+                for (Map.Entry<String, Object> entry2 : properties.entrySet()) {
+                    final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
+                    final Object propNode2 = entry2.getValue();
+                    if (propName2.equals("enabled")) {
+                        builder.omitNorms(!nodeBooleanValue(propNode2));
+                    } else if (propName2.equals(Loading.KEY)) {
+                        builder.normsLoading(Loading.parse(nodeStringValue(propNode2, null), null));
+                    }
+                }
             } else if (propName.equals("omit_term_freq_and_positions")) {
+                final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_0_0_RC2)) {
+                    throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : '" + op.name() + "']  instead");
+                }
                 // deprecated option for BW compat
-                builder.indexOptions(nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+                builder.indexOptions(op);
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
             } else if (propName.equals("analyzer")) {
@@ -118,16 +231,47 @@ public class TypeParsers {
             } else if (propName.equals("postings_format")) {
                 String postingFormatName = propNode.toString();
                 builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+            } else if (propName.equals(DOC_VALUES_FORMAT)) {
+                String docValuesFormatName = propNode.toString();
+                builder.docValuesFormat(parserContext.docValuesFormatService().get(docValuesFormatName));
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             } else if (propName.equals("fielddata")) {
-                final Settings settings;
-                if (propNode instanceof Map){
-                    settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap((Map<String, Object>)propNode)).build();
-                } else {
-                    throw new ElasticSearchParseException("fielddata should be a hash but was of type: " + propNode.getClass());
-                }
+                final Settings settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(propNode, "fielddata"))).build();
                 builder.fieldDataSettings(settings);
+            } else if (propName.equals("copy_to")) {
+                parseCopyFields(propNode, builder);
+            }
+        }
+    }
+
+    public static void parseMultiField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+        if (propName.equals("path")) {
+            builder.multiFieldPathType(parsePathType(name, propNode.toString()));
+        } else if (propName.equals("fields")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> multiFieldsPropNodes = (Map<String, Object>) propNode;
+            for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
+                String multiFieldName = multiFieldEntry.getKey();
+                if (!(multiFieldEntry.getValue() instanceof Map)) {
+                    throw new MapperParsingException("Illegal field [" + multiFieldName + "], only fields can be specified inside fields");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> multiFieldNodes = (Map<String, Object>) multiFieldEntry.getValue();
+
+                String type;
+                Object typeNode = multiFieldNodes.get("type");
+                if (typeNode != null) {
+                    type = typeNode.toString();
+                } else {
+                    throw new MapperParsingException("No type specified for property [" + multiFieldName + "]");
+                }
+
+                Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                if (typeParser == null) {
+                    throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + multiFieldName + "]");
+                }
+                builder.addMultiField(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
             }
         }
     }
@@ -143,7 +287,7 @@ public class TypeParsers {
         } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_ONLY;
         } else {
-            throw new ElasticSearchParseException("Failed to parse index option [" + value + "]");
+            throw new ElasticsearchParseException("Failed to parse index option [" + value + "]");
         }
     }
 
@@ -191,6 +335,16 @@ public class TypeParsers {
         }
     }
 
+    public static boolean parseDocValues(String docValues) {
+        if ("no".equals(docValues)) {
+            return false;
+        } else if ("yes".equals(docValues)) {
+            return true;
+        } else {
+            return nodeBooleanValue(docValues);
+        }
+    }
+
     public static boolean parseStore(String fieldName, String store) throws MapperParsingException {
         if ("no".equals(store)) {
             return false;
@@ -210,6 +364,19 @@ public class TypeParsers {
         } else {
             throw new MapperParsingException("Wrong value for pathType [" + path + "] for object [" + name + "]");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void parseCopyFields(Object propNode, AbstractFieldMapper.Builder builder) {
+        AbstractFieldMapper.CopyTo.Builder copyToBuilder = new AbstractFieldMapper.CopyTo.Builder();
+        if (isArray(propNode)) {
+            for(Object node : (List<Object>) propNode) {
+                copyToBuilder.add(nodeStringValue(node, null));
+            }
+        } else {
+            copyToBuilder.add(nodeStringValue(propNode, null));
+        }
+        builder.copyTo(copyToBuilder.build());
     }
 
 }

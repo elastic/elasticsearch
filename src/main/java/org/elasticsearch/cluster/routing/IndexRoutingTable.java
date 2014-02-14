@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,19 +19,23 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.carrotsearch.hppc.cursors.IntCursor;
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -57,20 +61,20 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
     // shards with state set to UNASSIGNED
-    private final ImmutableMap<Integer, IndexShardRoutingTable> shards;
+    private final ImmutableOpenIntMap<IndexShardRoutingTable> shards;
 
     private final ImmutableList<ShardRouting> allShards;
     private final ImmutableList<ShardRouting> allActiveShards;
 
     private final AtomicInteger counter = new AtomicInteger();
 
-    IndexRoutingTable(String index, Map<Integer, IndexShardRoutingTable> shards) {
+    IndexRoutingTable(String index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
-        this.shards = ImmutableMap.copyOf(shards);
+        this.shards = shards;
         ImmutableList.Builder<ShardRouting> allShards = ImmutableList.builder();
         ImmutableList.Builder<ShardRouting> allActiveShards = ImmutableList.builder();
-        for (IndexShardRoutingTable indexShardRoutingTable : shards.values()) {
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
+        for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
+            for (ShardRouting shardRouting : cursor.value) {
                 allShards.add(shardRouting);
                 if (shardRouting.active()) {
                     allActiveShards.add(shardRouting);
@@ -107,8 +111,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      */
     public IndexRoutingTable normalizeVersions() {
         IndexRoutingTable.Builder builder = new Builder(this.index);
-        for (IndexShardRoutingTable shardTable : shards.values()) {
-            builder.addIndexShard(shardTable.normalizeVersions());
+        for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
+            builder.addIndexShard(cursor.value.normalizeVersions());
         }
         return builder.build();
     }
@@ -119,6 +123,18 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             return;
         }
         IndexMetaData indexMetaData = metaData.index(index());
+        for (String failure : validate(indexMetaData)) {
+            validation.addIndexFailure(index, failure);
+        }
+
+    }
+
+    /**
+     * validate based on a meta data, returning failures found
+     */
+    public List<String> validate(IndexMetaData indexMetaData) {
+        ArrayList<String> failures = new ArrayList<String>();
+
         // check the number of shards
         if (indexMetaData.numberOfShards() != shards().size()) {
             Set<Integer> expected = Sets.newHashSet();
@@ -128,26 +144,27 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
                 expected.remove(indexShardRoutingTable.shardId().id());
             }
-            validation.addIndexFailure(index(), "Wrong number of shards in routing table, missing: " + expected);
+            failures.add("Wrong number of shards in routing table, missing: " + expected);
         }
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
             if (routingNumberOfReplicas != indexMetaData.numberOfReplicas()) {
-                validation.addIndexFailure(index(), "Shard [" + indexShardRoutingTable.shardId().id()
+                failures.add("Shard [" + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index())) {
-                    validation.addIndexFailure(index(), "shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
+                    failures.add("shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
                 }
             }
         }
+        return failures;
     }
 
     @Override
     public UnmodifiableIterator<IndexShardRoutingTable> iterator() {
-        return shards.values().iterator();
+        return shards.valuesIt();
     }
 
     /**
@@ -182,11 +199,11 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return nodes.size();
     }
 
-    public ImmutableMap<Integer, IndexShardRoutingTable> shards() {
+    public ImmutableOpenIntMap<IndexShardRoutingTable> shards() {
         return shards;
     }
 
-    public ImmutableMap<Integer, IndexShardRoutingTable> getShards() {
+    public ImmutableOpenIntMap<IndexShardRoutingTable> getShards() {
         return shards();
     }
 
@@ -300,11 +317,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     public void validate() throws RoutingValidationException {
     }
 
+    public static Builder builder(String index) {
+        return new Builder(index);
+    }
+
     public static class Builder {
 
         private final String index;
-
-        private final Map<Integer, IndexShardRoutingTable> shards = new HashMap<Integer, IndexShardRoutingTable>();
+        private final ImmutableOpenIntMap.Builder<IndexShardRoutingTable> shards = ImmutableOpenIntMap.builder();
 
         public Builder(String index) {
             this.index = index;
@@ -359,11 +379,42 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         /**
+         * Initializes a new empty index, to be restored from a snapshot
+         */
+        public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            return initializeAsRestore(indexMetaData, restoreSource, true);
+        }
+
+        /**
+         * Initializes an existing index, to be restored from a snapshot
+         */
+        public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            return initializeAsRestore(indexMetaData, restoreSource, false);
+        }
+
+        /**
+         * Initializes an index, to be restored from snapshot
+         */
+        private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, boolean asNew) {
+            if (!shards.isEmpty()) {
+                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+            }
+            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
+                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+                    indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, i == 0 ? restoreSource : null, i == 0, ShardRoutingState.UNASSIGNED, 0));
+                }
+                shards.put(shardId, indexShardRoutingBuilder.build());
+            }
+            return this;
+        }
+
+        /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
         private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew) {
             if (!shards.isEmpty()) {
-                throw new ElasticSearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
@@ -376,7 +427,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         public Builder addReplica() {
-            for (int shardId : shards.keySet()) {
+            for (IntCursor cursor : shards.keys()) {
+                int shardId = cursor.value;
                 // version 0, will get updated when reroute will happen
                 ImmutableShardRouting shard = new ImmutableShardRouting(index, shardId, null, false, ShardRoutingState.UNASSIGNED, 0);
                 shards.put(shardId,
@@ -387,7 +439,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         public Builder removeReplica() {
-            for (int shardId : shards.keySet()) {
+            for (IntCursor cursor : shards.keys()) {
+                int shardId = cursor.value;
                 IndexShardRoutingTable indexShard = shards.get(shardId);
                 if (indexShard.replicaShards().isEmpty()) {
                     // nothing to do here!
@@ -452,7 +505,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         public IndexRoutingTable build() throws RoutingValidationException {
-            IndexRoutingTable indexRoutingTable = new IndexRoutingTable(index, ImmutableMap.copyOf(shards));
+            IndexRoutingTable indexRoutingTable = new IndexRoutingTable(index, shards.build());
             indexRoutingTable.validate();
             return indexRoutingTable;
         }

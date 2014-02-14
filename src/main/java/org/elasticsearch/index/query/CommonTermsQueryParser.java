@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,28 +19,25 @@
 
 package org.elasticsearch.index.query;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
-import java.io.IOException;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+
+import java.io.IOException;
+
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  *
@@ -84,6 +81,7 @@ public class CommonTermsQueryParser implements QueryParser {
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
         Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
         float maxTermFrequency = DEFAULT_MAX_TERM_DOC_FREQ;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -106,6 +104,8 @@ public class CommonTermsQueryParser implements QueryParser {
                                 }
                             }
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
@@ -144,6 +144,8 @@ public class CommonTermsQueryParser implements QueryParser {
                         lowFreqMinimumShouldMatch = parser.text();
                     } else if ("cutoff_frequency".equals(currentFieldName)) {
                         maxTermFrequency = parser.floatValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
                     }
@@ -164,9 +166,13 @@ public class CommonTermsQueryParser implements QueryParser {
         if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
-        ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
-        query.setBoost(boost);
-        return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
+        commonsQuery.setBoost(boost);
+        Query query = parseQueryString(commonsQuery, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 
 
@@ -197,21 +203,25 @@ public class CommonTermsQueryParser implements QueryParser {
         } else {
             analyzer = parseContext.mapperService().analysisService().analyzer(queryAnalyzer);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("No analyzer found for [" + queryAnalyzer + "]");
+                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + queryAnalyzer + "]");
             }
         }
 
         // Logic similar to QueryParser#getFieldQuery
-        TokenStream source = analyzer.tokenStream(field, new FastStringReader(queryString.toString()));
-        source.reset();
-        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+        TokenStream source = analyzer.tokenStream(field, queryString.toString());
         int count = 0;
-        while (source.incrementToken()) {
-            BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
-                                                               // UTF-8
-            UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
-            query.add(new Term(field, ref));
-            count++;
+        try {
+            source.reset();
+            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+            while (source.incrementToken()) {
+                BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
+                                                                   // UTF-8
+                UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
+                query.add(new Term(field, ref));
+                count++;
+            }
+        } finally {
+            source.close();
         }
 
         if (count == 0) {

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 
@@ -41,7 +41,7 @@ public class Modules {
             try {
                 return constructor.newInstance(settings);
             } catch (Exception e) {
-                throw new ElasticSearchException("Failed to create module [" + moduleClass + "]", e);
+                throw new ElasticsearchException("Failed to create module [" + moduleClass + "]", e);
             }
         } catch (NoSuchMethodException e) {
             try {
@@ -49,10 +49,10 @@ public class Modules {
                 try {
                     return constructor.newInstance();
                 } catch (Exception e1) {
-                    throw new ElasticSearchException("Failed to create module [" + moduleClass + "]", e);
+                    throw new ElasticsearchException("Failed to create module [" + moduleClass + "]", e);
                 }
             } catch (NoSuchMethodException e1) {
-                throw new ElasticSearchException("No constructor for [" + moduleClass + "]");
+                throw new ElasticsearchException("No constructor for [" + moduleClass + "]");
             }
         }
     }

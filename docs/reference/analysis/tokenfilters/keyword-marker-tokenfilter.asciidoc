@@ -1,0 +1,34 @@
+[[analysis-keyword-marker-tokenfilter]]
+=== Keyword Marker Token Filter
+
+Protects words from being modified by stemmers. Must be placed before
+any stemming filters.
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`keywords` |A list of words to use.
+
+|`keywords_path` |A path (either relative to `config` location, or
+absolute) to a list of words.
+
+|`ignore_case` |Set to `true` to lower case all words first. Defaults to
+`false`.
+|=======================================================================
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+index :
+    analysis :
+        analyzer :
+            myAnalyzer :
+                type : custom
+                tokenizer : standard
+                filter : [lowercase, protwods, porter_stem]    
+        filter :
+            protwods :
+                type : keyword_marker
+                keywords_path : analysis/protwords.txt
+--------------------------------------------------

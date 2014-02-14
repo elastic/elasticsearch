@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -40,6 +40,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     private boolean fs;
     private boolean transport;
     private boolean http;
+    private boolean breaker;
 
     protected NodesStatsRequest() {
     }
@@ -65,6 +66,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         this.fs = true;
         this.transport = true;
         this.http = true;
+        this.breaker = true;
         return this;
     }
 
@@ -81,6 +83,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         this.fs = false;
         this.transport = false;
         this.http = false;
+        this.breaker = false;
         return this;
     }
 
@@ -225,6 +228,18 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         return this;
     }
 
+    public boolean breaker() {
+        return this.breaker;
+    }
+
+    /**
+     * Should the node's circuit breaker stats be returned.
+     */
+    public NodesStatsRequest breaker(boolean breaker) {
+        this.breaker = breaker;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -237,6 +252,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         fs = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
+        breaker = in.readBoolean();
     }
 
     @Override
@@ -251,6 +267,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         out.writeBoolean(fs);
         out.writeBoolean(transport);
         out.writeBoolean(http);
+        out.writeBoolean(breaker);
     }
 
 }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 
 /**
  * Lifecycle state. Allows the following transitions:
@@ -105,7 +105,7 @@ public class Lifecycle {
         return state == State.STOPPED || state == State.CLOSED;
     }
 
-    public boolean canMoveToStarted() throws ElasticSearchIllegalStateException {
+    public boolean canMoveToStarted() throws ElasticsearchIllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {
             return true;
@@ -114,13 +114,13 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new ElasticSearchIllegalStateException("Can't move to started state when closed");
+            throw new ElasticsearchIllegalStateException("Can't move to started state when closed");
         }
-        throw new ElasticSearchIllegalStateException("Can't move to started with unknown state");
+        throw new ElasticsearchIllegalStateException("Can't move to started with unknown state");
     }
 
 
-    public boolean moveToStarted() throws ElasticSearchIllegalStateException {
+    public boolean moveToStarted() throws ElasticsearchIllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {
             state = State.STARTED;
@@ -130,12 +130,12 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new ElasticSearchIllegalStateException("Can't move to started state when closed");
+            throw new ElasticsearchIllegalStateException("Can't move to started state when closed");
         }
-        throw new ElasticSearchIllegalStateException("Can't move to started with unknown state");
+        throw new ElasticsearchIllegalStateException("Can't move to started with unknown state");
     }
 
-    public boolean canMoveToStopped() throws ElasticSearchIllegalStateException {
+    public boolean canMoveToStopped() throws ElasticsearchIllegalStateException {
         State localState = state;
         if (localState == State.STARTED) {
             return true;
@@ -144,12 +144,12 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new ElasticSearchIllegalStateException("Can't move to started state when closed");
+            throw new ElasticsearchIllegalStateException("Can't move to started state when closed");
         }
-        throw new ElasticSearchIllegalStateException("Can't move to started with unknown state");
+        throw new ElasticsearchIllegalStateException("Can't move to started with unknown state");
     }
 
-    public boolean moveToStopped() throws ElasticSearchIllegalStateException {
+    public boolean moveToStopped() throws ElasticsearchIllegalStateException {
         State localState = state;
         if (localState == State.STARTED) {
             state = State.STOPPED;
@@ -159,30 +159,30 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new ElasticSearchIllegalStateException("Can't move to started state when closed");
+            throw new ElasticsearchIllegalStateException("Can't move to started state when closed");
         }
-        throw new ElasticSearchIllegalStateException("Can't move to started with unknown state");
+        throw new ElasticsearchIllegalStateException("Can't move to started with unknown state");
     }
 
-    public boolean canMoveToClosed() throws ElasticSearchIllegalStateException {
+    public boolean canMoveToClosed() throws ElasticsearchIllegalStateException {
         State localState = state;
         if (localState == State.CLOSED) {
             return false;
         }
         if (localState == State.STARTED) {
-            throw new ElasticSearchIllegalStateException("Can't move to closed before moving to stopped mode");
+            throw new ElasticsearchIllegalStateException("Can't move to closed before moving to stopped mode");
         }
         return true;
     }
 
 
-    public boolean moveToClosed() throws ElasticSearchIllegalStateException {
+    public boolean moveToClosed() throws ElasticsearchIllegalStateException {
         State localState = state;
         if (localState == State.CLOSED) {
             return false;
         }
         if (localState == State.STARTED) {
-            throw new ElasticSearchIllegalStateException("Can't move to closed before moving to stopped mode");
+            throw new ElasticsearchIllegalStateException("Can't move to closed before moving to stopped mode");
         }
         state = State.CLOSED;
         return true;

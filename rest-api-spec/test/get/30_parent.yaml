@@ -1,0 +1,45 @@
+---
+setup:
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  中文
+          body:    { foo: bar }
+
+---
+"Parent":
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  中文
+          fields:  [_parent, _routing]
+
+ - match:   { _id:      "1"}
+ - match:   { fields._parent: 中文 }
+ - match:   { fields._routing: 中文}
+
+---
+"Parent omitted":
+ - do:
+      catch: request
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+

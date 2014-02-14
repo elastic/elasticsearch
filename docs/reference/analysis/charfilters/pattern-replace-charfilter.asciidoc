@@ -1,0 +1,37 @@
+[[analysis-pattern-replace-charfilter]]
+=== Pattern Replace Char Filter
+
+The `pattern_replace` char filter allows the use of a regex to
+manipulate the characters in a string before analysis. The regular
+expression is defined using the `pattern` parameter, and the replacement
+string can be provided using the `replacement` parameter (supporting
+referencing the original text, as explained
+http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here]).
+For more information check the
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/pattern/PatternReplaceCharFilter.html[lucene
+documentation]
+
+Here is a sample configuration:
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "char_filter" : {
+                "my_pattern":{
+                    "type":"pattern_replace",
+                    "pattern":"sample(.*)",
+                    "replacement":"replacedSample $1"
+                }
+            },
+            "analyzer" : {
+                "custom_with_char_filter" : {
+                    "tokenizer" : "standard",
+                    "char_filter" : ["my_pattern"]
+                },
+            }
+        }
+    }
+}
+--------------------------------------------------

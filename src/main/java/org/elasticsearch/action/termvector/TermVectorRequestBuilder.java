@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -43,7 +43,27 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         request.routing(routing);
         return this;
     }
+    
+    /**
+     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
+     * used for routing with delete requests.
+     */
+    public TermVectorRequestBuilder setParent(String parent) {
+        request.parent(parent);
+        return this;
+    }
 
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
+     * a custom value, which guarantees that the same order will be used across different requests.
+     */
+    
+    public TermVectorRequestBuilder setPreference(String preference) {
+        request.preference(preference);
+        return this;
+    }
+    
     public TermVectorRequestBuilder setOffsets(boolean offsets) {
         request.offsets(offsets);
         return this;

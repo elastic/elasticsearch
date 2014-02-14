@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -35,19 +35,30 @@ public interface IndicesWarmer {
             return ThreadPool.Names.WARMER;
         }
 
-        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
+        /** A handle on the execution of  warm-up action. */
+        public static interface TerminationHandle {
+
+            public static TerminationHandle NO_WAIT = new TerminationHandle() {
+                @Override
+                public void awaitTermination() {}
+            };
+
+            /** Wait until execution of the warm-up action completes. */
+            void awaitTermination() throws InterruptedException;
+        }
+
+        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
+        public abstract TerminationHandle warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {
 
         private final ShardId shardId;
 
-        private final Engine.Searcher fullSearcher;
         private final Engine.Searcher newSearcher;
 
-        public WarmerContext(ShardId shardId, Engine.Searcher fullSearcher, Engine.Searcher newSearcher) {
+        public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
             this.shardId = shardId;
-            this.fullSearcher = fullSearcher;
             this.newSearcher = newSearcher;
         }
 
@@ -55,10 +66,7 @@ public interface IndicesWarmer {
             return shardId;
         }
 
-        public Engine.Searcher fullSearcher() {
-            return fullSearcher;
-        }
-
+        /** Return a searcher instance that only wraps the segments to warm. */
         public Engine.Searcher newSearcher() {
             return newSearcher;
         }

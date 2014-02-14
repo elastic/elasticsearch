@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -37,7 +40,23 @@ public abstract class BaseFilterBuilder implements FilterBuilder {
             toXContent(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
-            throw new QueryBuilderException("Failed to build filter", e);
+            throw new ElasticsearchException("Failed to build filter", e);
+        }
+    }
+
+    @Override
+    public BytesReference buildAsBytes() throws ElasticsearchException {
+        return buildAsBytes(XContentType.JSON);
+    }
+
+    @Override
+    public BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.bytes();
+        } catch (Exception e) {
+            throw new ElasticsearchException("Failed to build filter", e);
         }
     }
 

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsIndexStoreModule;
-import org.elasticsearch.index.store.memory.MemoryIndexStoreModule;
 import org.elasticsearch.index.store.ram.RamIndexStoreModule;
 
 /**
@@ -48,7 +47,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
     public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
         // Same logic as FSDirectory#open ...
-        if ((Constants.WINDOWS || Constants.SUN_OS)
+        if ((Constants.WINDOWS || Constants.SUN_OS || Constants.LINUX)
                 && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             indexStoreModule = MmapFsIndexStoreModule.class;
         } else if (Constants.WINDOWS) {
@@ -58,7 +57,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
         if ("ram".equalsIgnoreCase(storeType)) {
             indexStoreModule = RamIndexStoreModule.class;
         } else if ("memory".equalsIgnoreCase(storeType)) {
-            indexStoreModule = MemoryIndexStoreModule.class;
+            indexStoreModule = RamIndexStoreModule.class;
         } else if ("fs".equalsIgnoreCase(storeType)) {
             // nothing to set here ... (we default to fs)
         } else if ("simplefs".equalsIgnoreCase(storeType) || "simple_fs".equals(storeType)) {

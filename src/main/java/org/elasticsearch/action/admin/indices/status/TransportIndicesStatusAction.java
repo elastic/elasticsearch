@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -85,11 +85,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return new IndicesStatusRequest();
     }
 
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
     /**
      * Status goes across *all* shards.
      */
@@ -148,7 +143,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
+    protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticsearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
@@ -162,7 +157,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 //            shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();
             shardStatus.translogId = indexShard.translog().currentId();
             shardStatus.translogOperations = indexShard.translog().estimatedNumberOfOperations();
-            Engine.Searcher searcher = indexShard.searcher();
+            Engine.Searcher searcher = indexShard.acquireSearcher("indices_status");
             try {
                 shardStatus.docs = new DocsStatus();
                 shardStatus.docs.numDocs = searcher.reader().numDocs();

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,23 +19,22 @@
 
 package org.elasticsearch.action.termvector;
 
-import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
-
+import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import com.google.common.collect.Sets;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a
  * document.
- * <p>
+ * <p/>
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
@@ -49,12 +48,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     protected String preference;
 
+    // TODO: change to String[]
     private Set<String> selectedFields;
 
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
-    TermVectorRequest() {
+    public TermVectorRequest() {
     }
 
     /**
@@ -68,8 +68,33 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         this.type = type;
     }
     
+    /**
+     * Constructs a new term vector request for a document that will be fetch
+     * from the provided index. Use {@link #type(String)} and
+     * {@link #id(String)} to specify the document to load.
+     */
+    public TermVectorRequest(TermVectorRequest other) {
+        super(other.index());
+        this.id = other.id();
+        this.type = other.type();
+        this.flagsEnum = other.getFlags().clone();
+        this.preference = other.preference();
+        this.routing = other.routing();
+        if (other.selectedFields != null) {
+            this.selectedFields = new HashSet<String>(other.selectedFields);
+        }
+    }
+
     public EnumSet<Flag> getFlags() {
         return flagsEnum;
+    }
+
+    /**
+     * Sets the type of document to get the term vector for.
+     */
+    public TermVectorRequest type(String type) {
+        this.type = type;
+        return this;
     }
 
     /**
@@ -85,6 +110,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public String id() {
         return id;
     }
+    
+    /**
+     * Sets the id of document the term vector is requested for.
+     */
+    public TermVectorRequest id(String id) {
+        this.id = id;
+        return this;
+    }
 
     /**
      * @return The routing for this request.
@@ -93,8 +126,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return routing;
     }
 
-    public void routing(String routing) {
+    public TermVectorRequest routing(String routing) {
         this.routing = routing;
+        return this;
     }
 
     /**
@@ -135,7 +169,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     /**
      * @returns <code>true</code> if term offsets should be returned. Otherwise
-     *          <code>false</code>
+     * <code>false</code>
      */
     public boolean offsets() {
         return flagsEnum.contains(Flag.Offsets);
@@ -159,7 +193,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     /**
      * @returns <code>true</code> if term payloads should be returned. Otherwise
-     *          <code>false</code>
+     * <code>false</code>
      */
     public boolean payloads() {
         return flagsEnum.contains(Flag.Payloads);
@@ -175,7 +209,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     /**
      * @returns <code>true</code> if term statistics should be returned.
-     *          Otherwise <code>false</code>
+     * Otherwise <code>false</code>
      */
     public boolean termStatistics() {
         return flagsEnum.contains(Flag.TermStatistics);
@@ -191,7 +225,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     /**
      * @returns <code>true</code> if field statistics should be returned.
-     *          Otherwise <code>false</code>
+     * Otherwise <code>false</code>
      */
     public boolean fieldStatistics() {
         return flagsEnum.contains(Flag.FieldStatistics);
@@ -246,6 +280,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return validationException;
     }
 
+    public static TermVectorRequest readTermVectorRequest(StreamInput in) throws IOException {
+        TermVectorRequest termVectorRequest = new TermVectorRequest();
+        termVectorRequest.readFrom(in);
+        return termVectorRequest;
+    }
+
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -299,5 +340,61 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
         Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
+    }
+
+    /**
+     * populates a request object (pre-populated with defaults) based on a parser.
+     *
+     * @param termVectorRequest
+     * @param parser
+     * @throws IOException
+     */
+    public static void parseRequest(TermVectorRequest termVectorRequest, XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        List<String> fields = new ArrayList<String>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (currentFieldName != null) {
+                if (currentFieldName.equals("fields")) {
+
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            fields.add(parser.text());
+                        }
+                    } else {
+                        throw new ElasticsearchParseException(
+                                "The parameter fields must be given as an array! Use syntax : \"fields\" : [\"field1\", \"field2\",...]");
+                    }
+                } else if (currentFieldName.equals("offsets")) {
+                    termVectorRequest.offsets(parser.booleanValue());
+                } else if (currentFieldName.equals("positions")) {
+                    termVectorRequest.positions(parser.booleanValue());
+                } else if (currentFieldName.equals("payloads")) {
+                    termVectorRequest.payloads(parser.booleanValue());
+                } else if (currentFieldName.equals("term_statistics") || currentFieldName.equals("termStatistics")) {
+                    termVectorRequest.termStatistics(parser.booleanValue());
+                } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
+                    termVectorRequest.fieldStatistics(parser.booleanValue());
+                } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
+                    termVectorRequest.index = parser.text();
+                } else if ("_type".equals(currentFieldName)) {
+                    termVectorRequest.type = parser.text();
+                } else if ("_id".equals(currentFieldName)) {
+                    termVectorRequest.id = parser.text();
+                } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                    termVectorRequest.routing = parser.text();
+                } else {
+                    throw new ElasticsearchParseException("The parameter " + currentFieldName
+                            + " is not valid for term vector request!");
+                }
+            }
+        }
+
+        if (fields.size() > 0) {
+            String[] fieldsAsArray = new String[fields.size()];
+            termVectorRequest.selectedFields(fields.toArray(fieldsAsArray));
+        }
     }
 }

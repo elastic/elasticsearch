@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.search.Query;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -38,7 +41,7 @@ public class SearchContextHighlight {
     }
 
     public static class Field {
-
+        // Fields that default to null or -1 are often set to their real default in HighlighterParseElement#parse
         private final String field;
 
         private int fragmentCharSize = -1;
@@ -61,12 +64,23 @@ public class SearchContextHighlight {
 
         private String highlighterType;
 
+        private Boolean forceSource;
+
         private String fragmenter;
 
         private int boundaryMaxScan = -1;
-        private char[] boundaryChars = null;
+
+        private Character[] boundaryChars = null;
+
+        private Query highlightQuery;
+
+        private int noMatchSize = -1;
+
+        private Set<String> matchedFields;
 
         private Map<String, Object> options;
+
+        private int phraseLimit = -1;
 
         public Field(String field) {
             this.field = field;
@@ -156,6 +170,14 @@ public class SearchContextHighlight {
             this.highlighterType = type;
         }
 
+        public Boolean forceSource() {
+            return forceSource;
+        }
+
+        public void forceSource(boolean forceSource) {
+            this.forceSource = forceSource;
+        }
+
         public String fragmenter() {
             return fragmenter;
         }
@@ -172,12 +194,44 @@ public class SearchContextHighlight {
             this.boundaryMaxScan = boundaryMaxScan;
         }
 
-        public char[] boundaryChars() {
+        public Character[] boundaryChars() {
             return boundaryChars;
         }
 
-        public void boundaryChars(char[] boundaryChars) {
+        public void boundaryChars(Character[] boundaryChars) {
             this.boundaryChars = boundaryChars;
+        }
+
+        public Query highlightQuery() {
+            return highlightQuery;
+        }
+
+        public void highlightQuery(Query highlightQuery) {
+            this.highlightQuery = highlightQuery;
+        }
+
+        public int noMatchSize() {
+            return noMatchSize;
+        }
+
+        public void noMatchSize(int noMatchSize) {
+            this.noMatchSize = noMatchSize;
+        }
+
+        public int phraseLimit() {
+            return phraseLimit;
+        }
+
+        public void phraseLimit(int phraseLimit) {
+            this.phraseLimit = phraseLimit;
+        }
+
+        public Set<String> matchedFields() {
+            return matchedFields;
+        }
+
+        public void matchedFields(Set<String> matchedFields) {
+            this.matchedFields = matchedFields;
         }
 
         public Map<String, Object> options() {

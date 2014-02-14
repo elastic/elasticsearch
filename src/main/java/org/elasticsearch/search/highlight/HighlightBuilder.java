@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +54,15 @@ public class HighlightBuilder implements ToXContent {
 
     private String fragmenter;
 
+    private QueryBuilder highlightQuery;
+
+    private Integer noMatchSize;
+
+    private Integer phraseLimit;
+
     private Map<String, Object> options;
+
+    private Boolean forceSource;
 
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
@@ -185,7 +194,7 @@ public class HighlightBuilder implements ToXContent {
 
     /**
      * Set type of highlighter to use. Supported types
-     * are <tt>highlighter</tt> and <tt>fast-vector-highlighter</tt>.
+     * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> and <tt>postings-highlighter</tt>.
      */
     public HighlightBuilder highlighterType(String highlighterType) {
         this.highlighterType = highlighterType;
@@ -202,10 +211,47 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * Allows to set custom options for custom highlighters
+     * Sets a query to be used for highlighting all fields instead of the search query.
+     */
+    public HighlightBuilder highlightQuery(QueryBuilder highlightQuery) {
+        this.highlightQuery = highlightQuery;
+        return this;
+    }
+
+    /**
+     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+     * highlight and the field doesn't also define noMatchSize.
+     * @param noMatchSize integer to set or null to leave out of request.  default is null.
+     * @return this for chaining
+     */
+    public HighlightBuilder noMatchSize(Integer noMatchSize) {
+        this.noMatchSize = noMatchSize;
+        return this;
+    }
+
+    /**
+     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
+     * @param phraseLimit maximum number of phrases the fvh will consider
+     * @return this for chaining
+     */
+    public HighlightBuilder phraseLimit(Integer phraseLimit) {
+        this.phraseLimit = phraseLimit;
+        return this;
+    }
+
+    /**
+     * Allows to set custom options for custom highlighters.
      */
     public HighlightBuilder options(Map<String, Object> options) {
         this.options = options;
+        return this;
+    }
+
+    /**
+     * Forces the highlighting to highlight fields based on the source even if fields are stored separately.
+     */
+    public HighlightBuilder forceSource(boolean forceSource) {
+        this.forceSource = forceSource;
         return this;
     }
 
@@ -236,13 +282,31 @@ public class HighlightBuilder implements ToXContent {
         if (fragmenter != null) {
             builder.field("fragmenter", fragmenter);
         }
+        if (highlightQuery != null) {
+            builder.field("highlight_query", highlightQuery);
+        }
+        if (noMatchSize != null) {
+            builder.field("no_match_size", noMatchSize);
+        }
+        if (phraseLimit != null) {
+            builder.field("phrase_limit", phraseLimit);
+        }
         if (options != null && options.size() > 0) {
             builder.field("options", options);
+        }
+        if (forceSource != null) {
+            builder.field("force_source", forceSource);
         }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
                 builder.startObject(field.name());
+                if (field.preTags != null) {
+                    builder.field("pre_tags", field.preTags);
+                }
+                if (field.postTags != null) {
+                    builder.field("post_tags", field.postTags);
+                }
                 if (field.fragmentSize != -1) {
                     builder.field("fragment_size", field.fragmentSize);
                 }
@@ -252,8 +316,20 @@ public class HighlightBuilder implements ToXContent {
                 if (field.fragmentOffset != -1) {
                     builder.field("fragment_offset", field.fragmentOffset);
                 }
+                if (field.highlightFilter != null) {
+                    builder.field("highlight_filter", field.highlightFilter);
+                }
+                if (field.order != null) {
+                    builder.field("order", field.order);
+                }
                 if (field.requireFieldMatch != null) {
                     builder.field("require_field_match", field.requireFieldMatch);
+                }
+                if (field.boundaryMaxScan != -1) {
+                    builder.field("boundary_max_scan", field.boundaryMaxScan);
+                }
+                if (field.boundaryChars != null) {
+                    builder.field("boundary_chars", field.boundaryChars);
                 }
                 if (field.highlighterType != null) {
                     builder.field("type", field.highlighterType);
@@ -261,8 +337,23 @@ public class HighlightBuilder implements ToXContent {
                 if (field.fragmenter != null) {
                     builder.field("fragmenter", field.fragmenter);
                 }
+                if (field.highlightQuery != null) {
+                    builder.field("highlight_query", field.highlightQuery);
+                }
+                if (field.noMatchSize != null) {
+                    builder.field("no_match_size", field.noMatchSize);
+                }
+                if (field.matchedFields != null) {
+                    builder.field("matched_fields", field.matchedFields);
+                }
+                if (field.phraseLimit != null) {
+                    builder.field("phrase_limit", field.phraseLimit);
+                }
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
+                }
+                if (field.forceSource != null) {
+                    builder.field("force_source", forceSource);
                 }
 
                 builder.endObject();
@@ -276,13 +367,24 @@ public class HighlightBuilder implements ToXContent {
 
     public static class Field {
         final String name;
+        String[] preTags;
+        String[] postTags;
         int fragmentSize = -1;
         int fragmentOffset = -1;
         int numOfFragments = -1;
+        Boolean highlightFilter;
+        String order;
         Boolean requireFieldMatch;
+        int boundaryMaxScan = -1;
+        char[] boundaryChars;
         String highlighterType;
         String fragmenter;
+        QueryBuilder highlightQuery;
+        Integer noMatchSize;
+        String[] matchedFields;
+        Integer phraseLimit;
         Map<String, Object> options;
+        Boolean forceSource;
 
         public Field(String name) {
             this.name = name;
@@ -290,6 +392,24 @@ public class HighlightBuilder implements ToXContent {
 
         public String name() {
             return name;
+        }
+
+        /**
+         * Explicitly set the pre tags for this field that will be used for highlighting.
+         * This overrides global settings set by {@link HighlightBuilder#preTags(String...)}.
+         */
+        public Field preTags(String... preTags) {
+            this.preTags = preTags;
+            return this;
+        }
+
+        /**
+         * Explicitly set the post tags for this field that will be used for highlighting.
+         * This overrides global settings set by {@link HighlightBuilder#postTags(String...)}.
+         */
+        public Field postTags(String... postTags) {
+            this.postTags = postTags;
+            return this;
         }
 
         public Field fragmentSize(int fragmentSize) {
@@ -307,24 +427,113 @@ public class HighlightBuilder implements ToXContent {
             return this;
         }
 
+        public Field highlightFilter(boolean highlightFilter) {
+            this.highlightFilter = highlightFilter;
+            return this;
+        }
+
+        /**
+         * The order of fragments per field. By default, ordered by the order in the
+         * highlighted text. Can be <tt>score</tt>, which then it will be ordered
+         * by score of the fragments.
+         * This overrides global settings set by {@link HighlightBuilder#order(String)}.
+         */
+        public Field order(String order) {
+            this.order = order;
+            return this;
+        }
+
         public Field requireFieldMatch(boolean requireFieldMatch) {
             this.requireFieldMatch = requireFieldMatch;
             return this;
         }
 
+        public Field boundaryMaxScan(int boundaryMaxScan) {
+            this.boundaryMaxScan = boundaryMaxScan;
+            return this;
+        }
+
+        public Field boundaryChars(char[] boundaryChars) {
+            this.boundaryChars = boundaryChars;
+            return this;
+        }
+
+        /**
+         * Set type of highlighter to use. Supported types
+         * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> nad <tt>postings-highlighter</tt>.
+         * This overrides global settings set by {@link HighlightBuilder#highlighterType(String)}.
+         */
         public Field highlighterType(String highlighterType) {
             this.highlighterType = highlighterType;
             return this;
         }
 
+        /**
+         * Sets what fragmenter to use to break up text that is eligible for highlighting.
+         * This option is only applicable when using plain / normal highlighter.
+         * This overrides global settings set by {@link HighlightBuilder#fragmenter(String)}.
+         */
         public Field fragmenter(String fragmenter) {
             this.fragmenter = fragmenter;
             return this;
         }
 
+        /**
+         * Sets a query to use for highlighting this field instead of the search query.
+         */
+        public Field highlightQuery(QueryBuilder highlightQuery) {
+            this.highlightQuery = highlightQuery;
+            return this;
+        }
+
+        /**
+         * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+         * highlight.
+         * @param noMatchSize integer to set or null to leave out of request.  default is null.
+         * @return this for chaining
+         */
+        public Field noMatchSize(Integer noMatchSize) {
+            this.noMatchSize = noMatchSize;
+            return this;
+        }
+
+        /**
+         * Allows to set custom options for custom highlighters.
+         * This overrides global settings set by {@link HighlightBuilder#options(Map<String, Object>)}.
+         */
         public Field options(Map<String, Object> options) {
             this.options = options;
             return this;
         }
+
+        /**
+         * Set the matched fields to highlight against this field data.  Default to null, meaning just
+         * the named field.  If you provide a list of fields here then don't forget to include name as
+         * it is not automatically included.
+         */
+        public Field matchedFields(String... matchedFields) {
+            this.matchedFields = matchedFields;
+            return this;
+        }
+
+        /**
+         * Sets the maximum number of phrases the fvh will consider.
+         * @param phraseLimit maximum number of phrases the fvh will consider
+         * @return this for chaining
+         */
+        public Field phraseLimit(Integer phraseLimit) {
+            this.phraseLimit = phraseLimit;
+            return this;
+        }
+
+
+        /**
+         * Forces the highlighting to highlight this field based on the source even if this field is stored separately.
+         */
+        public Field forceSource(boolean forceSource) {
+            this.forceSource = forceSource;
+            return this;
+        }
+
     }
 }

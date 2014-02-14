@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,18 +20,40 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
+ * A state-full lightweight per document set of <code>byte[]</code> values.
+ *
+ * To iterate over values in a document use the following pattern:
+ * <pre>
+ *   BytesValues values = ..;
+ *   final int numValues = values.setDocId(docId);
+ *   for (int i = 0; i < numValues; i++) {
+ *       BytesRef value = values.nextValue();
+ *       // process value
+ *   }
+ * </pre>
  */
 public abstract class BytesValues {
 
+    /**
+     * An empty {@link BytesValues instance}
+     */
     public static final BytesValues EMPTY = new Empty();
+
     private boolean multiValued;
+
     protected final BytesRef scratch = new BytesRef();
 
+    protected int docId = -1;
+
+    /**
+     * Creates a new {@link BytesValues} instance
+     * @param multiValued <code>true</code> iff this instance is multivalued. Otherwise <code>false</code>.
+     */
     protected BytesValues(boolean multiValued) {
         this.multiValued = multiValued;
     }
@@ -44,174 +66,60 @@ public abstract class BytesValues {
     }
 
     /**
-     * Is there a value for this doc?
-     */
-    public abstract boolean hasValue(int docId);
-
-    /**
-     * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed). Note,
+     * Converts the current shared {@link BytesRef} to a stable instance. Note,
      * this calls makes the bytes safe for *reads*, not writes (into the same BytesRef). For example,
      * it makes it safe to be placed in a map.
      */
-    public BytesRef makeSafe(BytesRef bytes) {
-        return BytesRef.deepCopyOf(bytes);
+    public BytesRef copyShared() {
+        return BytesRef.deepCopyOf(scratch);
     }
 
     /**
-     * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
+     * Sets iteration to the specified docID and returns the number of
+     * values for this document ID,
+     * @param docId document ID
+     *
+     * @see #nextValue()
      */
-    public BytesRef getValue(int docId) {
-        if (hasValue(docId)) {
-            return getValueScratch(docId, scratch);
-        }
-        return null;
-    }
+    public abstract int setDocument(int docId);
 
     /**
-     * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
-     * result which will also be returned. If there is no value for this docId, the length will be 0.
-     * Note, the bytes are not "safe".
+     * Returns the next value for the current docID set to {@link #setDocument(int)}.
+     * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
+     * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
+     * is undefined. This interface guarantees that the values are returned in order.
+     * <p>
+     * If this instance returns ordered values the <tt>Nth</tt> value is strictly less than the <tt>N+1</tt> value with
+     * respect to the {@link AtomicFieldData.Order} returned from {@link #getOrder()}. If this instance returns
+     * <i>unordered</i> values {@link #getOrder()} must return {@link AtomicFieldData.Order#NONE}
+     * Note: the values returned are de-duplicated, only unique values are returned.
+     * </p>
+     *
+     * Note: the returned {@link BytesRef} might be shared across invocations.
+     *
+     * @return the next value for the current docID set to {@link #setDocument(int)}.
      */
-    public abstract BytesRef getValueScratch(int docId, BytesRef ret);
-
+    public abstract BytesRef nextValue();
 
     /**
-     * Fills the given spare for the given doc ID and returns the hashcode of the reference as defined by
-     * {@link BytesRef#hashCode()}
+     * Returns the hash value of the previously returned shared {@link BytesRef} instances.
+     *
+     * @return the hash value of the previously returned shared {@link BytesRef} instances.
      */
-    public int getValueHashed(int docId, BytesRef spare) {
-        return getValueScratch(docId, spare).hashCode();
+    public int currentValueHash() {
+        return scratch.hashCode();
     }
 
     /**
-     * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
+     * Returns the order the values are returned from {@link #nextValue()}.
+     * <p> Note: {@link BytesValues} have {@link AtomicFieldData.Order#BYTES} by default.</p>
      */
-    public abstract Iter getIter(int docId); // TODO: maybe this should return null for no values so we can safe one call?
-
-
-    public static interface Iter {
-
-        boolean hasNext();
-
-        BytesRef next();
-
-        int hash();
-
-        public static class Empty implements Iter {
-
-            public static final Empty INSTANCE = new Empty();
-
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public BytesRef next() {
-                throw new ElasticSearchIllegalStateException();
-            }
-
-            @Override
-            public int hash() {
-                return 0;
-            }
-        }
-
-        public static class Single implements Iter {
-
-            protected BytesRef value;
-            protected int ord;
-            protected boolean done;
-
-            public Single reset(BytesRef value, int ord) {
-                this.value = value;
-                this.ord = ord;
-                this.done = false;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return !done;
-            }
-
-            @Override
-            public BytesRef next() {
-                assert !done;
-                done = true;
-                return value;
-            }
-
-            public int hash() {
-                return value.hashCode();
-            }
-        }
-
-        static class Multi implements Iter {
-
-            protected int innerOrd;
-            protected int ord;
-            protected BytesValues.WithOrdinals withOrds;
-            protected Ordinals.Docs.Iter ordsIter;
-            protected final BytesRef scratch = new BytesRef();
-
-            public Multi(WithOrdinals withOrds) {
-                this.withOrds = withOrds;
-                assert withOrds.isMultiValued();
-
-            }
-
-            public Multi reset(Ordinals.Docs.Iter ordsIter) {
-                this.ordsIter = ordsIter;
-                innerOrd = ord = ordsIter.next();
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return innerOrd != 0;
-            }
-
-            @Override
-            public BytesRef next() {
-                withOrds.getValueScratchByOrd(innerOrd, scratch);
-                ord = innerOrd;
-                innerOrd = ordsIter.next();
-                return scratch;
-            }
-
-            public int hash() {
-                return scratch.hashCode();
-            }
-        }
+    public AtomicFieldData.Order getOrder() {
+        return AtomicFieldData.Order.BYTES;
     }
-
-    public static class Empty extends BytesValues {
-
-        public Empty() {
-            super(false);
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return false;
-        }
-
-        @Override
-        public Iter getIter(int docId) {
-            return Iter.Empty.INSTANCE;
-        }
-
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            ret.length = 0;
-            return ret;
-        }
-    }
-
 
     /**
-     * Bytes values that are based on ordinals.
+     * Ordinal based {@link BytesValues}.
      */
     public static abstract class WithOrdinals extends BytesValues {
 
@@ -222,71 +130,60 @@ public abstract class BytesValues {
             this.ordinals = ordinals;
         }
 
+        /**
+         * Returns the associated ordinals instance.
+         * @return the associated ordinals instance.
+         */
         public Ordinals.Docs ordinals() {
             return ordinals;
         }
 
-        public BytesRef getValueByOrd(int ord) {
-            return getValueScratchByOrd(ord, scratch);
-        }
-
-        protected Iter.Multi newMultiIter() {
-            assert this.isMultiValued();
-            return new Iter.Multi(this);
-        }
-
-        protected Iter.Single newSingleIter() {
-            assert !this.isMultiValued();
-            return new Iter.Single();
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            final int ord = ordinals.getOrd(docId);
-            if (ord == 0) {
-                return null;
-            }
-            return getValueScratchByOrd(ord, scratch);
-        }
-
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            return getValueScratchByOrd(ordinals.getOrd(docId), ret);
-        }
-
-        public BytesRef getSafeValueByOrd(int ord) {
-            return getValueScratchByOrd(ord, new BytesRef());
-        }
-
         /**
-         * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
-         * result which will also be returned. If there is no value for this docId, the length will be 0.
-         * Note, the bytes are not "safe".
+         * Returns the value for the given ordinal.
+         * @param ord the ordinal to lookup.
+         * @return a shared {@link BytesRef} instance holding the value associated
+         *         with the given ordinal or <code>null</code> if ordinal is <tt>0</tt>
          */
-        public abstract BytesRef getValueScratchByOrd(int ord, BytesRef ret);
+        public abstract BytesRef getValueByOrd(long ord);
 
-        public static class Empty extends WithOrdinals {
-
-            public Empty(Ordinals.Docs ordinals) {
-                super(ordinals);
-            }
-
-            @Override
-            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
-                ret.length = 0;
-                return ret;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return Iter.Empty.INSTANCE;
-            }
-
+        @Override
+        public int setDocument(int docId) {
+            this.docId = docId;
+            int length = ordinals.setDocument(docId);
+            assert (ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL) == length > 0 : "Doc: [" + docId + "] hasValue: [" + (ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL) + "] but length is [" + length + "]";
+            return length;
         }
+
+        @Override
+        public BytesRef nextValue() {
+            assert docId != -1;
+            return getValueByOrd(ordinals.nextOrd());
+        }
+    }
+
+    /**
+     * An empty {@link BytesValues} implementation
+     */
+    private final static class Empty extends BytesValues {
+
+        Empty() {
+            super(false);
+        }
+
+        @Override
+        public int setDocument(int docId) {
+            return 0;
+        }
+
+        @Override
+        public BytesRef nextValue() {
+            throw new ElasticsearchIllegalStateException("Empty BytesValues has no next value");
+        }
+
+        @Override
+        public int currentValueHash() {
+            throw new ElasticsearchIllegalStateException("Empty BytesValues has no hash for the current Value");
+        }
+
     }
 }

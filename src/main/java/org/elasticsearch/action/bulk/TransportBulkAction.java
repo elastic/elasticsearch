@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -42,17 +43,16 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -151,7 +151,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
         MetaData metaData = clusterState.metaData();
-        for (ActionRequest request : bulkRequest.requests) {
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<BulkItemResponse>(bulkRequest.requests.size());
+
+        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+            ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
                 String aliasOrIndex = indexRequest.index();
@@ -161,7 +164,15 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 if (metaData.hasIndex(indexRequest.index())) {
                     mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
                 }
-                indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+                try {
+                    indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+                } catch (ElasticsearchParseException e) {
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
+                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
+                    responses.set(i, bulkItemResponse);
+                    // make sure the request gets never processed again
+                    bulkRequest.requests.set(i, null);
+                }
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
@@ -172,11 +183,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 updateRequest.index(clusterState.metaData().concreteIndex(updateRequest.index()));
             }
         }
-        final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
-
 
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = Maps.newHashMap();
+
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
@@ -228,7 +238,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         }
 
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
             return;
         }
 
@@ -239,13 +249,12 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId.index().name(), shardId.id(), bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
             bulkShardRequest.replicationType(bulkRequest.replicationType());
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
+            bulkShardRequest.timeout(bulkRequest.timeout());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
-                    synchronized (responses) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            responses[bulkItemResponse.getItemId()] = bulkItemResponse;
-                        }
+                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -256,21 +265,20 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
-                    synchronized (responses) {
-                        for (BulkItemRequest request : requests) {
-                            if (request.request() instanceof IndexRequest) {
-                                IndexRequest indexRequest = (IndexRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                        new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
-                            } else if (request.request() instanceof DeleteRequest) {
-                                DeleteRequest deleteRequest = (DeleteRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), "delete",
-                                        new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message));
-                            } else if (request.request() instanceof UpdateRequest) {
-                                UpdateRequest updateRequest = (UpdateRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), "update",
-                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message));
-                            }
+                    RestStatus status = ExceptionsHelper.status(e);
+                    for (BulkItemRequest request : requests) {
+                        if (request.request() instanceof IndexRequest) {
+                            IndexRequest indexRequest = (IndexRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
+                                    new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message, status)));
+                        } else if (request.request() instanceof DeleteRequest) {
+                            DeleteRequest deleteRequest = (DeleteRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), "delete",
+                                    new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message, status)));
+                        } else if (request.request() instanceof UpdateRequest) {
+                            UpdateRequest updateRequest = (UpdateRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), "update",
+                                    new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message, status)));
                         }
                     }
                     if (counter.decrementAndGet() == 0) {
@@ -279,7 +287,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
                 }
             });
         }

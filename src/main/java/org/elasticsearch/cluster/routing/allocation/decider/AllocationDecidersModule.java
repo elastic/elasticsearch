@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -29,6 +30,7 @@ import java.util.List;
 /**
  * This module configures several {@link AllocationDecider}s
  * that make configuration specific decisions if shards can be allocated on certain nodes.
+ *
  * @see Decision
  * @see AllocationDecider
  */
@@ -50,20 +52,29 @@ public class AllocationDecidersModule extends AbstractModule {
     @Override
     protected void configure() {
         Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
-        allocationMultibinder.addBinding().to(SameShardAllocationDecider.class);
-        allocationMultibinder.addBinding().to(FilterAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ThrottlingAllocationDecider.class);
-        allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ClusterRebalanceAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ConcurrentRebalanceAllocationDecider.class);
-        allocationMultibinder.addBinding().to(DisableAllocationDecider.class);
-        allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
-        allocationMultibinder.addBinding().to(ShardsLimitAllocationDecider.class);
+        for (Class<? extends AllocationDecider> deciderClass : DEFAULT_ALLOCATION_DECIDERS) {
+            allocationMultibinder.addBinding().to(deciderClass);
+        }
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }
 
         bind(AllocationDeciders.class).asEagerSingleton();
     }
+
+    public static final ImmutableSet<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS = ImmutableSet.<Class<? extends AllocationDecider>>builder().
+            add(SameShardAllocationDecider.class).
+            add(FilterAllocationDecider.class).
+            add(ReplicaAfterPrimaryActiveAllocationDecider.class).
+            add(ThrottlingAllocationDecider.class).
+            add(RebalanceOnlyWhenActiveAllocationDecider.class).
+            add(ClusterRebalanceAllocationDecider.class).
+            add(ConcurrentRebalanceAllocationDecider.class).
+            add(EnableAllocationDecider.class). // new enable allocation logic should proceed old disable allocation logic
+            add(DisableAllocationDecider.class).
+            add(AwarenessAllocationDecider.class).
+            add(ShardsLimitAllocationDecider.class).
+            add(NodeVersionAllocationDecider.class).
+            add(DiskThresholdDecider.class).
+            add(SnapshotInProgressAllocationDecider.class).build();
 }

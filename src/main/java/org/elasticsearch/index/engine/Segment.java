@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -38,6 +38,8 @@ public class Segment implements Streamable {
     public int delDocCount = -1;
     public String version = null;
     public Boolean compound = null;
+    public String mergeId;
+    public long memoryInBytes;
 
     Segment() {
     }
@@ -88,6 +90,22 @@ public class Segment implements Streamable {
         return compound;
     }
 
+    /**
+     * If set, a string representing that the segment is part of a merge, with the value representing the
+     * group of segments that represent this merge.
+     */
+    @Nullable
+    public String getMergeId() {
+        return this.mergeId;
+    }
+
+    /**
+     * Estimation of the memory usage used by a segment.
+     */
+    public long getMemoryInBytes() {
+        return this.memoryInBytes;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -122,6 +140,8 @@ public class Segment implements Streamable {
         sizeInBytes = in.readLong();
         version = in.readOptionalString();
         compound = in.readOptionalBoolean();
+        mergeId = in.readOptionalString();
+        memoryInBytes = in.readLong();
     }
 
     @Override
@@ -134,5 +154,7 @@ public class Segment implements Streamable {
         out.writeLong(sizeInBytes);
         out.writeOptionalString(version);
         out.writeOptionalBoolean(compound);
+        out.writeOptionalString(mergeId);
+        out.writeLong(memoryInBytes);
     }
 }

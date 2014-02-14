@@ -1,0 +1,269 @@
+[[api-conventions]]
+= API Conventions
+
+[partintro]
+--
+The *elasticsearch* REST APIs are exposed using:
+
+* <<modules-http,JSON over HTTP>>,
+* <<modules-thrift,thrift>>,
+* <<modules-memcached,memcached>>.
+
+The conventions listed in this chapter can be applied throughout the REST
+API, unless otherwise specified.
+
+* <<multi-index>>
+* <<common-options>>
+
+--
+
+[[multi-index]]
+== Multiple Indices
+
+Most APIs that refer to an `index` parameter support execution across multiple indices,
+using simple `test1,test2,test3` notation (or `_all` for all indices). It also
+support wildcards, for example: `test*`, and the ability to "add" (`+`)
+and "remove" (`-`), for example: `+test*,-test3`.
+
+All multi indices API support the following url query string parameters:
+
+`ignore_unavailable`::
+
+Controls whether to ignore if any specified indices are unavailable, this
+includes indices that don't exist or closed indices. Either `true` or `false`
+can be specified.
+
+`allow_no_indices`::
+
+Controls whether to fail if a wildcard indices expressions results into no
+concrete indices. Either `true` or `false` can be specified. For example if
+the wildcard expression `foo*` is specified and no indices are available that
+start with `foo` then depending on this setting the request will fail. This
+setting is also applicable when `_all`, `*` or no index has been specified.
+
+`expand_wildcards`::
+
+Controls to what kind of concrete indices wildcard indices expression expand
+to. If `open` is specified then the wildcard expression if expanded to only
+open indices and if `closed` is specified then the wildcard expression if
+expanded only to closed indices. Also both values (`open,closed`) can be
+specified to expand to all indices.
+
+The defaults settings for the above parameters depend on the api being used.
+
+NOTE: Single index APIs such as the <<docs>> and the
+<<indices-aliases,single-index `alias` APIs>> do not support multiple indices.
+
+[[common-options]]
+== Common options
+
+The following options can be applied to all of the REST APIs.
+
+[float]
+=== Pretty Results
+
+When appending `?pretty=true` to any request made, the JSON returned
+will be pretty formatted (use it for debugging only!). Another option is
+to set `format=yaml` which will cause the result to be returned in the
+(sometimes) more readable yaml format.
+
+
+[float]
+=== Human readable output
+
+Statistics are returned in a format suitable for humans
+(eg `"exists_time": "1h"` or `"size": "1kb"`) and for computers
+(eg `"exists_time_in_millis": 3600000`` or `"size_in_bytes": 1024`).
+The human readable values can be turned off by adding `?human=false`
+to the query string. This makes sense when the stats results are
+being consumed by a monitoring tool, rather than intended for human
+consumption.  The default for the `human` flag is
+`false`. added[1.00.Beta,Previously defaulted to `true`]
+
+[float]
+=== Flat Settings
+
+The `flat_settings` flag affects rendering of the lists of settings. When
+flat_settings` flag is `true` settings are returned in a flat format:
+
+[source,js]
+--------------------------------------------------
+{
+  "persistent" : { },
+  "transient" : {
+    "discovery.zen.minimum_master_nodes" : "1"
+  }
+}
+--------------------------------------------------
+
+When the `flat_settings` flag is `false` settings are returned in a more
+human readable structured format:
+
+[source,js]
+--------------------------------------------------
+{
+  "persistent" : { },
+  "transient" : {
+    "discovery" : {
+      "zen" : {
+        "minimum_master_nodes" : "1"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+By default the `flat_settings` is set to `false`.
+
+[float]
+=== Parameters
+
+Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
+convention of using underscore casing.
+
+[float]
+=== Boolean Values
+
+All REST APIs parameters (both request parameters and JSON body) support
+providing boolean "false" as the values: `false`, `0`, `no` and `off`.
+All other values are considered "true". Note, this is not related to
+fields within a document indexed treated as boolean fields.
+
+[float]
+=== Number Values
+
+All REST APIs support providing numbered parameters as `string` on top
+of supporting the native JSON number types.
+
+[[time-units]]
+[float]
+=== Time units
+
+Whenever durations need to be specified, eg for a `timeout` parameter, the duration
+can be specified as a whole number representing time in milliseconds, or as a time value like `2d` for 2 days.  The supported units are:
+
+[horizontal]
+`y`::   Year
+`M`::   Month
+`w`::   Week
+`h`::   Hour
+`m`::   Minute
+`s`::   Second
+
+[[distance-units]]
+[float]
+=== Distance Units
+
+Wherever distances need to be specified, such as the `distance` parameter in
+the <<query-dsl-geo-distance-filter>>) or the `precision` parameter in the
+<<query-dsl-geohash-cell-filter>>, the default unit if none is specified is
+the meter. Distances can be specified in other units, such as `"1km"` or
+`"2mi"` (2 miles).
+
+The full list of units is listed below:
+
+[horizontal]
+Mile::          `mi` or `miles`
+Yard::          `yd` or `yards`
+Feet::          `ft` or `feet`
+Inch::          `in` or `inch`
+Kilometer::     `km` or `kilometers`
+Meter::         `m` or `meters`
+Centimeter::    `cm` or `centimeters`
+Millimeter::    `mm` or `millimeters`
+
+
+[[fuzziness]]
+[float]
+=== Fuzziness
+
+Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
+using the `fuzziness` parameter. The `fuzziness` parameter is context
+sensitive which means that it depends on the type of the field being queried:
+
+[float]
+==== Numeric, date and IPv4 fields
+
+When querying numeric, date and IPv4 fields, `fuzziness` is interpreted as a
+`+/- margin. It behaves like a <<query-dsl-range-query>> where:
+
+    -fuzziness <= field value <= +fuzziness
+
+The `fuzziness` parameter should be set to a numeric value, eg `2` or `2.0`. A
+`date` field interprets a long as milliseconds, but also accepts a string
+containing a time value -- `"1h"` -- as explained in <<time-units>>. An `ip`
+field accepts a long or another IPv4 address (which will be converted into a
+long).
+
+[float]
+==== String fields
+
+When querying `string` fields, `fuzziness` is interpreted as a
+http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
+-- the number of one character changes that need to be made to one string to
+make it the same as another string.
+
+The `fuzziness` parameter can be specified as:
+
+`0`, `1`, `2`::
+
+the maximum allowed Levenshtein Edit Distance (or number of edits)
+
+`AUTO`::
++
+--
+generates an edit distance based on the length of the term. For lengths:
+
+`0..1`:: must match exactly
+`1..4`:: one edit allowed
+`>4`:: two edits allowed
+
+`AUTO` should generally be the preferred value for `fuzziness`.
+--
+
+`0.0..1.0`::
+
+converted into an edit distance using the formula: `length(term) * (1.0 -
+fuzziness)`, eg a `fuzziness` of `0.6` with a term of length 10 would result
+in an edit distance of `4`. Note: in all APIs except for the
+<<query-dsl-flt-query>>, the maximum allowed edit distance is `2`.
+
+
+
+[float]
+=== Result Casing
+
+All REST APIs accept the `case` parameter. When set to `camelCase`, all
+field names in the result will be returned in camel casing, otherwise,
+underscore casing will be used. Note, this does not apply to the source
+document indexed.
+
+[float]
+=== JSONP
+
+All REST APIs accept a `callback` parameter resulting in a
+http://en.wikipedia.org/wiki/JSONP[JSONP] result.
+
+[float]
+=== Request body in query string
+
+For libraries that don't accept a request body for non-POST requests,
+you can pass the request body as the `source` query string parameter
+instead.
+
+[[url-access-control]]
+== URL-based access control
+
+Many users use a proxy with URL-based access control to secure access to
+Elasticsearch indices. For <<search-multi-search,multi-search>>,
+<<docs-multi-get,multi-get>> and <<docs-bulk,bulk>> requests, the user has
+the choice of specifying an index in the URL and on each individual request
+within the request body. This can make URL-based access control challenging.
+
+To prevent the user from overriding the index which has been specified in the
+URL, add this setting to the `config.yml` file:
+
+    rest.action.multi.allow_explicit_index: false
+
+The default value is `true`, but when set to `false`, Elasticsearch will
+reject requests that have an explicit index specified in the request body.

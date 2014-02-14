@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,7 @@
 package org.apache.lucene.store;
 
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -42,7 +42,7 @@ public class StoreRateLimiting {
         MERGE,
         ALL;
 
-        public static Type fromString(String type) throws ElasticSearchIllegalArgumentException {
+        public static Type fromString(String type) throws ElasticsearchIllegalArgumentException {
             if ("none".equalsIgnoreCase(type)) {
                 return NONE;
             } else if ("merge".equalsIgnoreCase(type)) {
@@ -50,7 +50,7 @@ public class StoreRateLimiting {
             } else if ("all".equalsIgnoreCase(type)) {
                 return ALL;
             }
-            throw new ElasticSearchIllegalArgumentException("rate limiting type [" + type + "] not valid, can be one of [all|merge|none]");
+            throw new ElasticsearchIllegalArgumentException("rate limiting type [" + type + "] not valid, can be one of [all|merge|none]");
         }
     }
 
@@ -88,7 +88,7 @@ public class StoreRateLimiting {
         this.type = type;
     }
 
-    public void setType(String type) throws ElasticSearchIllegalArgumentException {
+    public void setType(String type) throws ElasticsearchIllegalArgumentException {
         this.type = Type.fromString(type);
     }
 }

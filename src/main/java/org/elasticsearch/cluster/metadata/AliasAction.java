@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticSearchGenerationException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +59,7 @@ public class AliasAction implements Streamable {
             } else if (value == 1) {
                 return REMOVE;
             } else {
-                throw new ElasticSearchIllegalArgumentException("No type for action [" + value + "]");
+                throw new ElasticsearchIllegalArgumentException("No type for action [" + value + "]");
             }
         }
     }
@@ -82,7 +82,20 @@ public class AliasAction implements Streamable {
     private AliasAction() {
 
     }
-
+    
+    public AliasAction(AliasAction other) {
+        this.actionType = other.actionType;
+        this.index = other.index;
+        this.alias = other.alias;
+        this.filter = other.filter;
+        this.indexRouting = other.indexRouting;
+        this.searchRouting = other.searchRouting;
+    }
+    
+    public AliasAction(Type actionType) {
+        this.actionType = actionType;
+    }
+    
     public AliasAction(Type actionType, String index, String alias) {
         this.actionType = actionType;
         this.index = index;
@@ -99,9 +112,19 @@ public class AliasAction implements Streamable {
     public Type actionType() {
         return actionType;
     }
+    
+    public AliasAction index(String index) {
+        this.index = index;
+        return this;
+    }
 
     public String index() {
         return index;
+    }
+    
+    public AliasAction alias(String alias) {
+        this.alias = alias;
+        return this;
     }
 
     public String alias() {
@@ -128,7 +151,7 @@ public class AliasAction implements Streamable {
             this.filter = builder.string();
             return this;
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + filter + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
         }
     }
 
@@ -144,7 +167,7 @@ public class AliasAction implements Streamable {
             this.filter = builder.string();
             return this;
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to build json for alias request", e);
+            throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
         }
     }
 
@@ -181,42 +204,21 @@ public class AliasAction implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         actionType = Type.fromValue(in.readByte());
-        index = in.readString();
-        alias = in.readString();
-        if (in.readBoolean()) {
-            filter = in.readString();
-        }
-        if (in.readBoolean()) {
-            indexRouting = in.readString();
-        }
-        if (in.readBoolean()) {
-            searchRouting = in.readString();
-        }
+        index = in.readOptionalString();
+        alias = in.readOptionalString();
+        filter = in.readOptionalString();
+        indexRouting = in.readOptionalString();
+        searchRouting = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
-        out.writeString(index);
-        out.writeString(alias);
-        if (filter == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(filter);
-        }
-        if (indexRouting == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(indexRouting);
-        }
-        if (searchRouting == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(searchRouting);
-        }
+        out.writeOptionalString(index);
+        out.writeOptionalString(alias);
+        out.writeOptionalString(filter);
+        out.writeOptionalString(indexRouting);
+        out.writeOptionalString(searchRouting);
     }
 
     public static AliasAction newAddAliasAction(String index, String alias) {

@@ -1,0 +1,25 @@
+---
+"Test indices.exists":
+  - do:
+      indices.exists:
+        index: test_index
+
+  - is_false: ''
+
+  - do:
+        indices.create:
+          index: test_index
+
+  - do:
+      indices.exists:
+        index: test_index
+
+  - is_true: ''
+---
+"Test indices.exists with local flag":
+  - do:
+      indices.exists:
+        index: test_index
+        local: true
+
+  - is_false: ''

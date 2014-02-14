@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,6 +53,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 public class GeoPolygonFilterParser implements FilterParser {
 
     public static final String NAME = "geo_polygon";
+    public static final String POINTS = "points"; 
 
     @Inject
     public GeoPolygonFilterParser() {
@@ -70,7 +71,8 @@ public class GeoPolygonFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        List<GeoPoint> points = Lists.newArrayList();
+
+        List<GeoPoint> shell = Lists.newArrayList();
 
         boolean normalizeLon = true;
         boolean normalizeLat = true;
@@ -89,38 +91,9 @@ public class GeoPolygonFilterParser implements FilterParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if ("points".equals(currentFieldName)) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token == XContentParser.Token.START_ARRAY) {
-                                    token = parser.nextToken();
-                                    double lon = parser.doubleValue();
-                                    token = parser.nextToken();
-                                    double lat = parser.doubleValue();
-                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                                    }
-                                    points.add(new GeoPoint(lat, lon));
-                                } else if (token == XContentParser.Token.START_OBJECT) {
-                                    GeoPoint point = new GeoPoint();
-                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                        if (token == XContentParser.Token.FIELD_NAME) {
-                                            currentFieldName = parser.currentName();
-                                        } else if (token.isValue()) {
-                                            if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                                point.resetLat(parser.doubleValue());
-                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                                point.resetLon(parser.doubleValue());
-                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                                GeoHashUtils.decode(parser.text(), point);
-                                            }
-                                        }
-                                    }
-                                    points.add(point);
-                                } else if (token.isValue()) {
-                                    points.add(new GeoPoint().resetFromString(parser.text()));
-                                }
+                        if(POINTS.equals(currentFieldName)) {
+                            while((token = parser.nextToken()) != Token.END_ARRAY) {
+                                shell.add(GeoPoint.parse(parser));
                             }
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
@@ -143,12 +116,23 @@ public class GeoPolygonFilterParser implements FilterParser {
             }
         }
 
-        if (points.isEmpty()) {
+        if (shell.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
+        } else {
+            if(shell.size() < 3) {
+                throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
+            }
+            GeoPoint start = shell.get(0);
+            if(!start.equals(shell.get(shell.size()-1))) {
+                shell.add(start);
+            }
+            if(shell.size() < 4) {
+                throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
+            }
         }
 
         if (normalizeLat || normalizeLon) {
-            for (GeoPoint point : points) {
+            for (GeoPoint point : shell) {
                 GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
             }
         }
@@ -157,13 +141,13 @@ public class GeoPolygonFilterParser implements FilterParser {
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper mapper = smartMappers.mapper();
-        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
+        FieldMapper<?> mapper = smartMappers.mapper();
+        if (!(mapper instanceof GeoPointFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
-        Filter filter = new GeoPolygonFilter(points.toArray(new GeoPoint[points.size()]), indexFieldData);
+        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
+        Filter filter = new GeoPolygonFilter(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

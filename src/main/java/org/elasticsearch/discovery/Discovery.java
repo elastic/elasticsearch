@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.RestStatus;
 
@@ -60,6 +60,14 @@ public interface Discovery extends LifecycleComponent<Discovery> {
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should not publish this state to the master as well! (the master is sending it...).
+     *
+     * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
+     * they updated their own cluster state or not.
      */
-    void publish(ClusterState clusterState);
+    void publish(ClusterState clusterState, AckListener ackListener);
+
+    public static interface AckListener {
+        void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+        void onTimeout();
+    }
 }

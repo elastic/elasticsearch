@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,18 +19,17 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
-import org.apache.lucene.util.CollectionUtil;
-
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.CacheRecycler;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -170,26 +169,28 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
+            InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facets.get(0);
             if (requiredSize == 0) {
                 // we need to sort it here!
-                InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<DoubleEntry> entries = tsFacet.mutableList();
                     CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
+            tsFacet.trimExcessEntries();
             return facets.get(0);
         }
         int missing = 0;
-        ExtTDoubleObjectHashMap<DoubleEntry> map = CacheRecycler.popDoubleObjectMap();
+        Recycler.V<DoubleObjectOpenHashMap<DoubleEntry>> map = context.cacheRecycler().doubleObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 DoubleEntry doubleEntry = (DoubleEntry) entry;
-                DoubleEntry current = map.get(doubleEntry.term);
+                DoubleEntry current = map.v().get(doubleEntry.term);
                 if (current != null) {
                     current.count += doubleEntry.count;
                     current.totalCount += doubleEntry.totalCount;
@@ -201,21 +202,21 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                         current.max = doubleEntry.max;
                     }
                 } else {
-                    map.put(doubleEntry.term, doubleEntry);
+                    map.v().put(doubleEntry.term, doubleEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            DoubleEntry[] entries1 = map.values(new DoubleEntry[map.size()]);
+            DoubleEntry[] entries1 = map.v().values().toArray(DoubleEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushDoubleObjectMap(map);
+            map.release();
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.size());
+            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 DoubleEntry value = (DoubleEntry) values[i];
                 if (value == null) {
@@ -223,8 +224,27 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushDoubleObjectMap(map);
+            map.release();
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, ordered, missing);
+        }
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize == 0 || requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<DoubleEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
         }
     }
 

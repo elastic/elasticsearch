@@ -257,8 +257,10 @@ public class SequenceLock implements Lock, java.io.Serializable {
 
     /**
      * Creates an instance of {@code SequenceLock} that will retry
-     * attempts to acquire the lock at least the given number times
+     * attempts to acquire the lock at least the given number of times
      * before blocking.
+     *
+     * @param spins the number of times before blocking
      */
     public SequenceLock(int spins) { sync = new Sync(spins); }
 
@@ -508,7 +510,7 @@ public class SequenceLock implements Lock, java.io.Serializable {
      * Throws UnsupportedOperationException. SequenceLocks
      * do not support Condition objects.
      *
-     * @throws UnsupportedOperationException
+     * @throws UnsupportedOperationException always
      */
     public Condition newCondition() {
         throw new UnsupportedOperationException();

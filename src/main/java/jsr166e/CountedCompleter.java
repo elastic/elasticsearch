@@ -686,7 +686,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     }
 
     /**
-     * Returns the result of the computation. By default
+     * Returns the result of the computation.  By default,
      * returns {@code null}, which is appropriate for {@code Void}
      * actions, but in other cases should be overridden, almost
      * always to return a field or function of a field that

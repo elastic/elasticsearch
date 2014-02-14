@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,9 +19,10 @@
 
 package org.elasticsearch.gateway.local;
 
-import com.google.common.collect.Sets;
-import gnu.trove.map.hash.TObjectIntHashMap;
-import org.elasticsearch.ElasticSearchException;
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -41,8 +42,6 @@ import org.elasticsearch.gateway.local.state.meta.LocalGatewayMetaState;
 import org.elasticsearch.gateway.local.state.meta.TransportNodesListGatewayMetaState;
 import org.elasticsearch.gateway.local.state.shards.LocalGatewayShardsState;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
-
-import java.util.Set;
 
 /**
  *
@@ -84,24 +83,23 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
         clusterService.remove(this);
     }
 
     @Override
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        Set<String> nodesIds = Sets.newHashSet();
-        nodesIds.addAll(clusterService.state().nodes().masterNodes().keySet());
+        ObjectOpenHashSet<String> nodesIds = ObjectOpenHashSet.from(clusterService.state().nodes().masterNodes().keys());
         logger.trace("performing state recovery from {}", nodesIds);
-        TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
+        TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
 
 
         int requiredAllocation = 1;
@@ -135,8 +133,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             }
         }
 
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        TObjectIntHashMap<String> indices = new TObjectIntHashMap<String>();
+        ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<String>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
@@ -149,8 +146,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             } else if (nodeState.metaData().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metaData();
             }
-            for (IndexMetaData indexMetaData : nodeState.metaData().indices().values()) {
-                indices.adjustOrPutValue(indexMetaData.index(), 1, 1);
+            for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
+                indices.addTo(cursor.value.index(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -158,30 +155,35 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             return;
         }
         // update the global state, and clean the indices, we elect them in the next phase
-        metaDataBuilder.metaData(electedGlobalState).removeAllIndices();
-        for (String index : indices.keySet()) {
-            IndexMetaData electedIndexMetaData = null;
-            int indexMetaDataCount = 0;
-            for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
-                if (nodeState.metaData() == null) {
-                    continue;
+        MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
+        final boolean[] states = indices.allocated;
+        final Object[] keys = indices.keys;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                String index = (String) keys[i];
+                IndexMetaData electedIndexMetaData = null;
+                int indexMetaDataCount = 0;
+                for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
+                    if (nodeState.metaData() == null) {
+                        continue;
+                    }
+                    IndexMetaData indexMetaData = nodeState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        continue;
+                    }
+                    if (electedIndexMetaData == null) {
+                        electedIndexMetaData = indexMetaData;
+                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                        electedIndexMetaData = indexMetaData;
+                    }
+                    indexMetaDataCount++;
                 }
-                IndexMetaData indexMetaData = nodeState.metaData().index(index);
-                if (indexMetaData == null) {
-                    continue;
+                if (electedIndexMetaData != null) {
+                    if (indexMetaDataCount < requiredAllocation) {
+                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    }
+                    metaDataBuilder.put(electedIndexMetaData, false);
                 }
-                if (electedIndexMetaData == null) {
-                    electedIndexMetaData = indexMetaData;
-                } else if (indexMetaData.version() > electedIndexMetaData.version()) {
-                    electedIndexMetaData = indexMetaData;
-                }
-                indexMetaDataCount++;
-            }
-            if (electedIndexMetaData != null) {
-                if (indexMetaDataCount < requiredAllocation) {
-                    logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
-                }
-                metaDataBuilder.put(electedIndexMetaData, false);
             }
         }
         ClusterState.Builder builder = ClusterState.builder();

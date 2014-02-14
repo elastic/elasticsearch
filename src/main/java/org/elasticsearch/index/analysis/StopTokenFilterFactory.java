@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,7 @@ import java.util.Set;
 /**
  *
  */
+@SuppressWarnings("deprecation")
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;
@@ -43,21 +46,30 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean ignoreCase;
 
     private final boolean enablePositionIncrements;
+    private final boolean removeTrailing;
 
     @Inject
     public StopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
+        this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
-        // LUCENE 4 UPGRADE: LUCENE_29 constant is no longer defined
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_30));
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
+        if (!enablePositionIncrements && version.onOrAfter(Version.LUCENE_44)) {
+            throw new ElasticsearchIllegalArgumentException("[enable_position_increments: false] is not supported anymore as of Lucene 4.4 as it can create broken token streams."
+                    + " Please fix your analysis chain or use an older compatibility version (<=4.3) but beware that it might cause unexpected behavior.");
+        }
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        StopFilter filter = new StopFilter(version, tokenStream, stopWords);
-        filter.setEnablePositionIncrements(enablePositionIncrements);
-        return filter;
+        if (removeTrailing) {
+            StopFilter filter = new StopFilter(version, tokenStream, stopWords);
+            filter.setEnablePositionIncrements(enablePositionIncrements);
+            return filter;
+        } else {
+            return new SuggestStopFilter(tokenStream, stopWords);
+        }
     }
 
     public Set<?> stopWords() {

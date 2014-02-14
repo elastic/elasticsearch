@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import gnu.trove.map.hash.TLongLongHashMap;
+import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.joda.TimeZoneRounding;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -41,14 +42,14 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     final DateHistogramFacet.ComparatorType comparatorType;
 
-    final TLongLongHashMap counts;
+    final Recycler.V<LongLongOpenHashMap> counts;
 
-    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType) {
+    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.tzRounding = tzRounding;
 
-        this.counts = CacheRecycler.popLongLongMap();
+        this.counts = cacheRecycler.longLongMap(-1);
     }
 
     @Override
@@ -58,7 +59,19 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalCountDateHistogramFacet(facetName, comparatorType, counts, true);
+        InternalCountDateHistogramFacet.CountEntry[] countEntries = new InternalCountDateHistogramFacet.CountEntry[counts.v().size()];
+        final boolean[] states = counts.v().allocated;
+        final long[] keys = counts.v().keys;
+        final long[] values = counts.v().values;
+
+        int entryIndex = 0;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                countEntries[entryIndex++] = new InternalCountDateHistogramFacet.CountEntry(keys[i], values[i]);
+            }
+        }
+        counts.release();
+        return new InternalCountDateHistogramFacet(facetName, comparatorType, countEntries);
     }
 
     class Collector extends FacetExecutor.Collector {
@@ -67,7 +80,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
         private final DateHistogramProc histoProc;
 
         public Collector() {
-            this.histoProc = new DateHistogramProc(counts, tzRounding);
+            this.histoProc = new DateHistogramProc(counts.v(), tzRounding);
         }
 
         @Override
@@ -87,20 +100,20 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     public static class DateHistogramProc extends LongFacetAggregatorBase {
 
-        private final TLongLongHashMap counts;
+        private final LongLongOpenHashMap counts;
         private final TimeZoneRounding tzRounding;
 
-        public DateHistogramProc(TLongLongHashMap counts, TimeZoneRounding tzRounding) {
+        public DateHistogramProc(LongLongOpenHashMap counts, TimeZoneRounding tzRounding) {
             this.counts = counts;
             this.tzRounding = tzRounding;
         }
 
         @Override
         public void onValue(int docId, long value) {
-            counts.adjustOrPutValue(tzRounding.calc(value), 1, 1);
+            counts.addTo(tzRounding.round(value), 1);
         }
 
-        public TLongLongHashMap counts() {
+        public LongLongOpenHashMap counts() {
             return counts;
         }
     }

@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,22 +19,21 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import com.spatial4j.core.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE; 
 
-    protected Coordinate northEast;
-    protected Coordinate southWest;
-    
-    public EnvelopeBuilder topLeft(Coordinate northEast) {
-        this.northEast = northEast;
+    protected Coordinate topLeft;
+    protected Coordinate bottomRight;
+
+    public EnvelopeBuilder topLeft(Coordinate topLeft) {
+        this.topLeft = topLeft;
         return this;
     }
 
@@ -42,8 +41,8 @@ public class EnvelopeBuilder extends ShapeBuilder {
         return topLeft(coordinate(longitude, latitude));
     }
 
-    public EnvelopeBuilder bottomRight(Coordinate southWest) {
-        this.southWest = southWest;
+    public EnvelopeBuilder bottomRight(Coordinate bottomRight) {
+        this.bottomRight = bottomRight;
         return this;
     }
 
@@ -56,17 +55,15 @@ public class EnvelopeBuilder extends ShapeBuilder {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapename);
         builder.startArray(FIELD_COORDINATES);
-        toXContent(builder, northEast);
-        toXContent(builder, southWest);
+        toXContent(builder, topLeft);
+        toXContent(builder, bottomRight);
         builder.endArray();
         return builder.endObject();
     }
 
     @Override
     public Rectangle build() {
-        return SPATIAL_CONTEXT.makeRectangle(
-                northEast.x, southWest.x,
-                southWest.y, northEast.y);
+        return SPATIAL_CONTEXT.makeRectangle(topLeft.x, bottomRight.x, bottomRight.y, topLeft.y);
     }
 
     @Override

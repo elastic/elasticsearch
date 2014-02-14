@@ -1,11 +1,11 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this 
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -34,8 +34,8 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
 
     protected String[] indices;
 
-    private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     protected BroadcastOperationRequest() {
 
@@ -83,13 +83,13 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     @SuppressWarnings("unchecked")
-    public final T ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public final T indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return (T) this;
     }
 
@@ -106,7 +106,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeByte(operationThreading.id());
-        out.writeByte(ignoreIndices.id());
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -114,6 +114,6 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         super.readFrom(in);
         indices = in.readStringArray();
         operationThreading = BroadcastOperationThreading.fromId(in.readByte());
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

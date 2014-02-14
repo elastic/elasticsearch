@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,8 +42,9 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
-    private final IndicesService indicesService;
+    public static boolean REFRESH_FORCE = false;
 
+    private final IndicesService indicesService;
     private final boolean realtime;
 
     @Inject
@@ -88,18 +90,24 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         // update the routing (request#index here is possibly an alias)
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
         request.index(state.metaData().concreteIndex(request.index()));
+
+        // Fail fast on the node that received the request.
+        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
+            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        }
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
+    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh(false));
+            indexShard.refresh(new Engine.Refresh("refresh_flag_get").force(REFRESH_FORCE));
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(), request.realtime());
+        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

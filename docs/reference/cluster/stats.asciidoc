@@ -1,0 +1,168 @@
+[[cluster-stats]]
+== Cluster Stats
+
+The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
+The API returns basic index metrics (shard numbers, store size, memory usage) and
+information about the current nodes that form the cluster (number, roles, os, jvm
+versions, memory usage, cpu and installed plugins).
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_cluster/stats?human'
+--------------------------------------------------
+
+Will return, for example:
+[source,js]
+--------------------------------------------------
+{
+   "cluster_name": "elasticsearch",
+   "status": "green",
+   "indices": {
+      "count": 3,
+      "shards": {
+         "total": 35,
+         "primaries": 15,
+         "replication": 1.333333333333333,
+         "index": {
+            "shards": {
+               "min": 10,
+               "max": 15,
+               "avg": 11.66666666666666
+            },
+            "primaries": {
+               "min": 5,
+               "max": 5,
+               "avg": 5
+            },
+            "replication": {
+               "min": 1,
+               "max": 2,
+               "avg": 1.3333333333333333
+            }
+         }
+      },
+      "docs": {
+         "count": 2,
+         "deleted": 0
+      },
+      "store": {
+         "size": "5.6kb",
+         "size_in_bytes": 5770,
+         "throttle_time": "0s",
+         "throttle_time_in_millis": 0
+      },
+      "fielddata": {
+         "memory_size": "0b",
+         "memory_size_in_bytes": 0,
+         "evictions": 0
+      },
+      "filter_cache": {
+         "memory_size": "0b",
+         "memory_size_in_bytes": 0,
+         "evictions": 0
+      },
+      "id_cache": {
+         "memory_size": "0b",
+         "memory_size_in_bytes": 0
+      },
+      "completion": {
+         "size": "0b",
+         "size_in_bytes": 0
+      },
+      "segments": {
+         "count": 2
+      }
+   },
+   "nodes": {
+      "count": {
+         "total": 2,
+         "master_only": 0,
+         "data_only": 0,
+         "master_data": 2,
+         "client": 0
+      },
+      "versions": [
+         "0.90.8"
+      ],
+      "os": {
+         "available_processors": 4,
+         "mem": {
+            "total": "8gb",
+            "total_in_bytes": 8589934592
+         },
+         "cpu": [
+            {
+               "vendor": "Intel",
+               "model": "MacBookAir5,2",
+               "mhz": 2000,
+               "total_cores": 4,
+               "total_sockets": 4,
+               "cores_per_socket": 16,
+               "cache_size": "256b",
+               "cache_size_in_bytes": 256,
+               "count": 1
+            }
+         ]
+      },
+      "process": {
+         "cpu": {
+            "percent": 3
+         },
+         "open_file_descriptors": {
+            "min": 200,
+            "max": 346,
+            "avg": 273
+         }
+      },
+      "jvm": {
+         "max_uptime": "24s",
+         "max_uptime_in_millis": 24054,
+         "version": [
+            {
+               "version": "1.6.0_45",
+               "vm_name": "Java HotSpot(TM) 64-Bit Server VM",
+               "vm_version": "20.45-b01-451",
+               "vm_vendor": "Apple Inc.",
+               "count": 2
+            }
+         ],
+         "mem": {
+            "heap_used": "38.3mb",
+            "heap_used_in_bytes": 40237120,
+            "heap_max": "1.9gb",
+            "heap_max_in_bytes": 2130051072
+         },
+         "threads": 89
+      },
+      "fs":
+         {
+            "total": "232.9gb",
+            "total_in_bytes": 250140434432,
+            "free": "31.3gb",
+            "free_in_bytes": 33705881600,
+            "available": "31.1gb",
+            "available_in_bytes": 33443737600,
+            "disk_reads": 21202753,
+            "disk_writes": 27028840,
+            "disk_io_op": 48231593,
+            "disk_read_size": "528gb",
+            "disk_read_size_in_bytes": 566980806656,
+            "disk_write_size": "617.9gb",
+            "disk_write_size_in_bytes": 663525366784,
+            "disk_io_size": "1145.9gb",
+            "disk_io_size_in_bytes": 1230506173440
+       },
+      "plugins": [
+         // all plugins installed on nodes
+         {
+            "name": "inquisitor",
+            "description": "",
+            "url": "/_plugin/inquisitor/",
+            "jvm": false,
+            "site": true
+         }
+      ]
+   }
+}
+--------------------------------------------------
+

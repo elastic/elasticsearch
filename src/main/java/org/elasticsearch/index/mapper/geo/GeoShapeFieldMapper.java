@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -27,13 +27,14 @@ import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -43,7 +44,11 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
+
 
 /**
  * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
@@ -144,13 +149,14 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             } else if (Names.TREE_QUADTREE.equals(tree)) {
                 prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
             } else {
-                throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, provider);
+            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider,
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
-    
+
     private static final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
         if (treeLevels > 0 || precisionInMeters >= 0) {
             return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
@@ -159,12 +165,12 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         return defaultLevels;
     }
 
-    
+
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name);
+            Builder builder = geoShapeField(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -174,7 +180,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 } else if (Names.TREE_LEVELS.equals(fieldName)) {
                     builder.treeLevels(Integer.parseInt(fieldNode.toString()));
                 } else if (Names.TREE_PRESISION.equals(fieldName)) {
-                    builder.treeLevelsByDistance(DistanceUnit.parse(fieldNode.toString(), DistanceUnit.METERS, DistanceUnit.METERS));
+                    builder.treeLevelsByDistance(DistanceUnit.parse(fieldNode.toString(), DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
                 } else if (Names.STRATEGY.equals(fieldName)) {
@@ -190,8 +196,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private final TermQueryPrefixTreeStrategy termStrategy;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               FieldType fieldType, PostingsFormatProvider provider) {
-        super(names, 1, fieldType, null, null, provider, null, null);
+                               FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                               MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
@@ -210,9 +217,17 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
+    public boolean hasDocValues() {
+        return false;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         try {
             ShapeBuilder shape = ShapeBuilder.parse(context.parser());
+            if (shape == null) {
+                return;
+            }
             Field[] fields = defaultStrategy.createIndexableFields(shape.build());
             if (fields == null || fields.length == 0) {
                 return;
@@ -231,29 +246,28 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
-        return null;
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
 
         // TODO: Come up with a better way to get the name, maybe pass it from builder
         if (defaultStrategy.getGrid() instanceof GeohashPrefixTree) {
             // Don't emit the tree name since GeohashPrefixTree is the default
             // Only emit the tree levels if it isn't the default value
-            if (defaultStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
+            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
                 builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
             }
         } else {
             builder.field(Names.TREE, Names.TREE_QUADTREE);
-            if (defaultStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
+            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
                 builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
             }
         }
 
-        if (defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
+        if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
             builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
         }
     }
@@ -287,7 +301,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
             return termStrategy;
         }
-        throw new ElasticSearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        throw new ElasticsearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
     }
 
 }

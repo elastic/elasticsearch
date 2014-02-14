@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -106,11 +106,11 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                 gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
             }
         }
-        if (!gcThresholds.containsKey("ParNew")) {
-            gcThresholds.put("ParNew", new GcThreshold("ParNew", 1000, 700, 400));
+        if (!gcThresholds.containsKey(GcNames.YOUNG)) {
+            gcThresholds.put(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
         }
-        if (!gcThresholds.containsKey("ConcurrentMarkSweep")) {
-            gcThresholds.put("ConcurrentMarkSweep", new GcThreshold("ConcurrentMarkSweep", 10000, 5000, 2000));
+        if (!gcThresholds.containsKey(GcNames.OLD)) {
+            gcThresholds.put(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
         }
         if (!gcThresholds.containsKey("default")) {
             gcThresholds.put("default", new GcThreshold("default", 10000, 5000, 2000));
@@ -122,7 +122,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStart() throws ElasticSearchException {
+    protected void doStart() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -130,7 +130,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStop() throws ElasticSearchException {
+    protected void doStop() throws ElasticsearchException {
         if (!enabled) {
             return;
         }
@@ -138,7 +138,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doClose() throws ElasticSearchException {
+    protected void doClose() throws ElasticsearchException {
     }
 
     private class JvmMonitor implements Runnable {
@@ -154,8 +154,12 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         @Override
         public void run() {
+            try {
 //            monitorDeadlock();
-            monitorLongGc();
+                monitorLongGc();
+            } catch (Throwable t) {
+                logger.debug("failed to monitor", t);
+            }
         }
 
         private synchronized void monitorLongGc() {

@@ -4,12 +4,18 @@ setup:
   - do:
       indices.create:
         index: test_index1
+
   - do:
       indices.create:
         index: test_index2
+
   - do:
       indices.create:
         index: foo
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
 
 ---
 "put warmer per index":

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete.index;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,8 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.List;
 
 /**
  *
@@ -50,19 +50,8 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     }
 
     @Override
-    protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, AtomicReferenceArray shardsResponses) {
-        int successfulShards = 0;
-        int failedShards = 0;
-        ArrayList<ShardDeleteResponse> responses = new ArrayList<ShardDeleteResponse>();
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            if (shardsResponses.get(i) == null) {
-                failedShards++;
-            } else {
-                responses.add((ShardDeleteResponse) shardsResponses.get(i));
-                successfulShards++;
-            }
-        }
-        return new IndexDeleteResponse(request.index(), successfulShards, failedShards, responses.toArray(new ShardDeleteResponse[responses.size()]));
+    protected IndexDeleteResponse newResponseInstance(IndexDeleteRequest request, List<ShardDeleteResponse> shardDeleteResponses, int failuresCount, List<ShardOperationFailedException> shardFailures) {
+        return new IndexDeleteResponse(request.index(), failuresCount, shardDeleteResponses.toArray(new ShardDeleteResponse[shardDeleteResponses.size()]));
     }
 
     @Override

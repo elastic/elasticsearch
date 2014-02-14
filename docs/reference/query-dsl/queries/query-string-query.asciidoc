@@ -71,6 +71,9 @@ both>>.
 
 |`lenient` |If set to `true` will cause format based failures (like
 providing text to a numeric field) to be ignored.
+
+|`locale` | coming[1.1.0] Locale that should be used for string conversions.
+Defaults to `ROOT`.
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets

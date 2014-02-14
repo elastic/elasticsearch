@@ -1980,6 +1980,30 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSimpleQueryStringLowercasing() {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("Professio*")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("Professio*").lowercaseExpandedTerms(false)).get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("Professionan~1")).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(
+                simpleQueryString("Professionan~1").lowercaseExpandedTerms(false)).get();
+        assertHitCount(searchResponse, 0l);
+    }
+
+    @Test
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
                 .addMapping("type1", jsonBuilder()

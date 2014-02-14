@@ -90,6 +90,7 @@ public class SimpleQueryStringParser implements QueryParser {
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
         Analyzer analyzer = null;
+        boolean lowercaseExpandedTerms = true;
         int flags = -1;
 
         XContentParser.Token token;
@@ -167,6 +168,8 @@ public class SimpleQueryStringParser implements QueryParser {
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
+                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
+                    lowercaseExpandedTerms = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
@@ -193,12 +196,10 @@ public class SimpleQueryStringParser implements QueryParser {
             analyzer = parseContext.mapperService().searchAnalyzer();
         }
 
-        XSimpleQueryParser sqp;
-        if (fieldsAndWeights != null) {
-            sqp = new XSimpleQueryParser(analyzer, fieldsAndWeights, flags);
-        } else {
-            sqp = new XSimpleQueryParser(analyzer, Collections.singletonMap(field, 1.0F), flags);
+        if (fieldsAndWeights == null) {
+            fieldsAndWeights = Collections.singletonMap(field, 1.0F);
         }
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, lowercaseExpandedTerms);
 
         if (defaultOperator != null) {
             sqp.setDefaultOperator(defaultOperator);

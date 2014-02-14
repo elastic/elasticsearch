@@ -36,6 +36,7 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private Operator operator;
     private final String queryText;
     private int flags = -1;
+    private Boolean lowercaseExpandedTerms;
 
     /**
      * Operators for the default_operator
@@ -101,6 +102,11 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public SimpleQueryStringBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
+        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SimpleQueryStringParser.NAME);
@@ -131,6 +137,10 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
 
         if (operator != null) {
             builder.field("default_operator", operator.name().toLowerCase(Locale.ROOT));
+        }
+
+        if (lowercaseExpandedTerms != null) {
+            builder.field("lowercase_expanded_terms", lowercaseExpandedTerms);
         }
 
         builder.endObject();

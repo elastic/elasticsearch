@@ -39,6 +39,10 @@ creating composite queries.
 
 |`flags` |Flags specifying which features of the `simple_query_string` to
 enable. Defaults to `ALL`.
+
+|`lowercase_expanded_terms` | Whether terms of prefix and fuzzy queries are to
+be automatically lower-cased or not (since they are not analyzed). Defaults to
+true.
 |=======================================================================
 
 [float]

@@ -81,5 +81,26 @@ public class SourceFetchingTests extends ElasticsearchIntegrationTest {
 
     }
 
+    /**
+     * Test Case for #5132: Source filtering with wildcards broken when given multiple patterns
+     * https://github.com/elasticsearch/elasticsearch/issues/5132
+     */
+    @Test
+    public void testSourceWithWildcardFiltering() {
+        createIndex("test");
+        ensureGreen();
 
+        client().prepareIndex("test", "type1", "1").setSource("field", "value").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test").setFetchSource(new String[]{"*.notexisting","field"}, null).get();
+        assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
+
+        response = client().prepareSearch("test").setFetchSource(new String[]{"field.notexisting.*","field"}, null).get();
+        assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
+    }
 }

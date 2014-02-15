@@ -172,24 +172,24 @@ public class XContentMapValues {
                     if (include.charAt(0) == '*') {
                         if (Regex.simpleMatch(include, path)) {
                             exactIncludeMatch = true;
-                            break;
+                            continue;
                         }
                         pathIsPrefixOfAnInclude = true;
-                        break;
+                        continue;
                     }
                     if (include.startsWith(path)) {
                         if (include.length() == path.length()) {
                             exactIncludeMatch = true;
-                            break;
+                            continue;
                         } else if (include.length() > path.length() && include.charAt(path.length()) == '.') {
                             // include might may match deeper paths. Dive deeper.
                             pathIsPrefixOfAnInclude = true;
-                            break;
+                            continue;
                         }
                     }
                     if (Regex.simpleMatch(include, path)) {
                         exactIncludeMatch = true;
-                        break;
+                        continue;
                     }
                 }
             }

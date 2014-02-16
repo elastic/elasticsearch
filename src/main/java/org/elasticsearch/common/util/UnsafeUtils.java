@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.nio.ByteOrder;
 
 /** Utility methods that use {@link Unsafe}. */
 public enum UnsafeUtils {
@@ -109,6 +110,28 @@ public enum UnsafeUtils {
             assert len == 0;
         }
         return true;
+    }
+
+    /**
+     * Read a long using little endian byte order.
+     */
+    public static long readLongLE(byte[] src, int offset) {
+        long value = readLong(src, offset);
+        if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
+            value = Long.reverseBytes(value);
+        }
+        return value;
+    }
+
+    /**
+     * Read an int using little endian byte order.
+     */
+    public static int readIntLE(byte[] src, int offset) {
+        int value = readInt(src, offset);
+        if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) {
+            value = Integer.reverseBytes(value);
+        }
+        return value;
     }
 
 }

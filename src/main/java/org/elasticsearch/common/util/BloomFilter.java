@@ -355,6 +355,7 @@ public class BloomFilter {
     }
 
     // START : MURMUR 3_128
+    // NOTE: don't replace this code with the o.e.common.hashing.MurmurHash3 method which returns a different hash
 
     protected static long getblock(byte[] key, int offset, int index) {
         int i_8 = index << 3;

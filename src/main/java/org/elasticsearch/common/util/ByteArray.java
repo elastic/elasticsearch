@@ -46,4 +46,9 @@ public interface ByteArray extends BigArray {
      */
     public abstract void set(long index, byte[] buf, int offset, int len);
 
+    /**
+     * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
+     */
+    public abstract void fill(long fromIndex, long toIndex, byte value);
+
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuilder;
@@ -125,5 +126,9 @@ public class AggregationBuilders {
 
     public static PercentilesBuilder percentiles(String name) {
         return new PercentilesBuilder(name);
+    }
+
+    public static CardinalityBuilder cardinality(String name) {
+        return new CardinalityBuilder(name);
     }
 }

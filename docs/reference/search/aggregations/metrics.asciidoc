@@ -15,3 +15,5 @@ include::metrics/extendedstats-aggregation.asciidoc[]
 include::metrics/valuecount-aggregation.asciidoc[]
 
 include::metrics/percentile-aggregation.asciidoc[]
+
+include::metrics/cardinality-aggregation.asciidoc[]

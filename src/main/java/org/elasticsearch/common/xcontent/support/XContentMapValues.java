@@ -172,7 +172,7 @@ public class XContentMapValues {
                     if (include.charAt(0) == '*') {
                         if (Regex.simpleMatch(include, path)) {
                             exactIncludeMatch = true;
-                            continue;
+                            break;
                         }
                         pathIsPrefixOfAnInclude = true;
                         continue;
@@ -180,7 +180,7 @@ public class XContentMapValues {
                     if (include.startsWith(path)) {
                         if (include.length() == path.length()) {
                             exactIncludeMatch = true;
-                            continue;
+                            break;
                         } else if (include.length() > path.length() && include.charAt(path.length()) == '.') {
                             // include might may match deeper paths. Dive deeper.
                             pathIsPrefixOfAnInclude = true;
@@ -189,7 +189,7 @@ public class XContentMapValues {
                     }
                     if (Regex.simpleMatch(include, path)) {
                         exactIncludeMatch = true;
-                        continue;
+                        break;
                     }
                 }
             }

@@ -98,5 +98,9 @@ public class SourceFetchingTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
 
+        response = client().prepareSearch("test").setFetchSource(new String[]{"field.notexisting.*","field"}, null).get();
+        assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
+        assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
     }
 }

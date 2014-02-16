@@ -140,6 +140,12 @@ public class BigArrays extends AbstractComponent {
             System.arraycopy(buf, offset, array, (int) index, len);
         }
 
+        @Override
+        public void fill(long fromIndex, long toIndex, byte value) {
+            assert indexIsInt(fromIndex);
+            assert indexIsInt(toIndex);
+            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
     }
 
     private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {

@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentiles;
@@ -60,6 +61,7 @@ public class TransportAggregationModule extends AbstractModule {
         InternalExtendedStats.registerStreams();
         InternalValueCount.registerStreams();
         InternalPercentiles.registerStreams();
+        InternalCardinality.registerStreams();
 
         // buckets
         InternalGlobal.registerStreams();

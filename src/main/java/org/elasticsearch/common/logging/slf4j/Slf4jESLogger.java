@@ -29,11 +29,17 @@ import org.slf4j.spi.LocationAwareLogger;
 public class Slf4jESLogger extends AbstractESLogger {
 
     private final Logger logger;
+    private final LocationAwareLogger lALogger;
     private final String FQCN = AbstractESLogger.class.getName();
 
     public Slf4jESLogger(String prefix, Logger logger) {
         super(prefix);
         this.logger = logger;
+        if (logger instanceof LocationAwareLogger) {
+            lALogger = (LocationAwareLogger) logger;
+        } else {
+            lALogger = null;
+        }
     }
 
     @Override
@@ -79,8 +85,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalTrace(String msg) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, null);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, null);
         } else {
             logger.trace(msg);
         }
@@ -88,8 +94,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalTrace(String msg, Throwable cause) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, cause);
         } else {
             logger.trace(msg);
         }
@@ -97,8 +103,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalDebug(String msg) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, null);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, null);
         } else {
             logger.debug(msg);
         }
@@ -106,8 +112,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalDebug(String msg, Throwable cause) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, cause);
         } else {
             logger.debug(msg);
         }
@@ -115,8 +121,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalInfo(String msg) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, null);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, null);
         } else {
             logger.info(msg);
         }
@@ -124,8 +130,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalInfo(String msg, Throwable cause) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, cause);
         } else {
             logger.info(msg, cause);
         }
@@ -133,8 +139,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalWarn(String msg) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, null);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, null);
         } else {
             logger.warn(msg);
         }
@@ -142,8 +148,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalWarn(String msg, Throwable cause) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, cause);
         } else {
             logger.warn(msg);
         }
@@ -151,8 +157,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalError(String msg) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, null);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, null);
         } else {
             logger.error(msg);
         }
@@ -160,8 +166,8 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalError(String msg, Throwable cause) {
-        if (logger instanceof LocationAwareLogger) {
-            ((LocationAwareLogger) logger).log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, cause);
         } else {
             logger.error(msg);
         }

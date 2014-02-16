@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -1109,6 +1110,38 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
+
+    @Test
+    public void testTermsQueryWithMultipleFields() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = XContentFactory.jsonBuilder().startObject()
+                .startObject("terms").array("foo", 123).array("bar", 456).endObject()
+                .endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException ex) {
+            assertThat(ex.getMessage(), equalTo("[test] [terms] query does not support multiple fields"));
+        }
+    }
+
+    @Test
+    public void testTermsFilterWithMultipleFields() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = XContentFactory.jsonBuilder().startObject()
+                .startObject("filtered")
+                .startObject("query").startObject("match_all").endObject().endObject()
+                .startObject("filter").startObject("terms").array("foo", 123).array("bar", 456).endObject().endObject()
+                .endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException ex) {
+            assertThat(ex.getMessage(), equalTo("[test] [terms] filter does not support multiple fields"));
+        }
+    }
+
+
 
     @Test
     public void testInQuery() throws IOException {

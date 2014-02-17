@@ -205,7 +205,7 @@ def remove_maven_snapshot(pom, release):
 
 # Moves the Version.java file from a snapshot to a release
 def remove_version_snapshot(version_file, release):
-  # 1.0.0.Beta1 -> 1_0_0_Beat1
+  # 1.0.0.Beta1 -> 1_0_0_Beta1
   release = release.replace('.', '_')
   pattern = 'new Version(V_%s_ID, true' % (release)
   replacement = 'new Version(V_%s_ID, false' % (release)

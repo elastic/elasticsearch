@@ -20,11 +20,14 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -50,4 +53,25 @@ public class SimplePolishIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(response, notNullValue());
         assertThat(response.getTokens().size(), is(1));
     }
+
+    @Test
+    public void testPolishAnalyzerInMapping() throws ExecutionException, InterruptedException, IOException {
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", "string")
+                        .field("analyzer", "polish")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject();
+
+        client().admin().indices().prepareCreate("test").addMapping("type", mapping).get();
+
+        index("test", "type", "1", "foo", "wirtualna polska");
+
+        ensureYellow();
+    }
+
 }

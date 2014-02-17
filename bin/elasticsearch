@@ -131,6 +131,13 @@ launch_service()
     props=$3
     es_parms="-Delasticsearch"
 
+    #Test Wether Elasticsearch is already UP
+    typeset PROCESS_ID=$(ps -efu $USER  | grep "\-Delasticsearch" | grep -v grep | awk '{print $2}')
+    if [[ -n "${PROCESS_ID}" ]]; then
+        echo "Process is already  UP"
+        exit 1
+    fi
+
     if [ "x$pidpath" != "x" ]; then
         es_parms="$es_parms -Des.pidfile=$pidpath"
     fi

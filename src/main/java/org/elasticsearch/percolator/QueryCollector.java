@@ -107,6 +107,7 @@ abstract class QueryCollector extends Collector {
             if (!aggregatorCollectors.isEmpty()) {
                 facetAggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
             }
+            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
         facetAndAggregatorCollector = facetAggCollectorBuilder.build();
     }

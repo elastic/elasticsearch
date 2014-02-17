@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -65,7 +66,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         @Override
         public IndexFieldData<AtomicNumericFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                            IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                                                            IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
             return new PackedArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, numericType, breakerService);
         }
     }

@@ -54,6 +54,13 @@ public abstract class BucketsAggregator extends Aggregator {
     }
 
     /**
+     * Return an upper bound of the maximum bucket ordinal seen so far.
+     */
+    protected final long maxBucketOrd() {
+        return docCounts.size();
+    }
+
+    /**
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
     protected final void collectBucket(int doc, long bucketOrd) throws IOException {
@@ -106,6 +113,17 @@ public abstract class BucketsAggregator extends Aggregator {
             aggregations[i] = bucketDocCount == 0L
                     ? subAggregators[i].buildEmptyAggregation()
                     : subAggregators[i].buildAggregation(bucketOrd);
+        }
+        return new InternalAggregations(Arrays.asList(aggregations));
+    }
+
+    /**
+     * Utility method to build empty aggregations of the sub aggregators.
+     */
+    protected final InternalAggregations bucketEmptyAggregations() {
+        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        for (int i = 0; i < subAggregators.length; i++) {
+            aggregations[i] = subAggregators[i].buildEmptyAggregation();
         }
         return new InternalAggregations(Arrays.asList(aggregations));
     }

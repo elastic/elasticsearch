@@ -20,16 +20,32 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 public class SortedSetDVBytesIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData.WithOrdinals<SortedSetDVBytesAtomicFieldData> {
 
-    public SortedSetDVBytesIndexFieldData(Index index, Names fieldNames) {
-        super(index, fieldNames);
+    private final Settings indexSettings;
+    private final IndexFieldDataCache cache;
+    private final GlobalOrdinalsBuilder globalOrdinalsBuilder;
+    private final CircuitBreakerService breakerService;
+
+    public SortedSetDVBytesIndexFieldData(Index index, IndexFieldDataCache cache, Settings indexSettings, Names fieldNames, GlobalOrdinalsBuilder globalOrdinalBuilder, CircuitBreakerService breakerService, FieldDataType fieldDataType) {
+        super(index, fieldNames, fieldDataType);
+        this.indexSettings = indexSettings;
+        this.cache = cache;
+        this.globalOrdinalsBuilder = globalOrdinalBuilder;
+        this.breakerService = breakerService;
     }
 
     @Override
@@ -49,5 +65,27 @@ public class SortedSetDVBytesIndexFieldData extends DocValuesIndexFieldData impl
     @Override
     public SortedSetDVBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         return load(context);
+    }
+
+    @Override
+    public WithOrdinals loadGlobal(IndexReader indexReader) {
+        if (indexReader.leaves().size() <= 1) {
+            // ordinals are already global
+            return this;
+        }
+        try {
+            return cache.load(indexReader, this);
+        } catch (Throwable e) {
+            if (e instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e;
+            } else {
+                throw new ElasticsearchException(e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
+        return globalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService);
     }
 }

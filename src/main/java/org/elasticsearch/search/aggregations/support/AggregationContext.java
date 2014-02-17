@@ -20,12 +20,14 @@ package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -47,6 +49,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     private ObjectObjectOpenHashMap<ConfigCacheKey, ValuesSource>[] perDepthFieldDataSources = new ObjectObjectOpenHashMap[4];
     private List<ReaderContextAware> readerAwares = new ArrayList<>();
+    private List<TopReaderContextAware> topReaderAwares = new ArrayList<TopReaderContextAware>();
     private List<ScorerAware> scorerAwares = new ArrayList<>();
 
     private AtomicReaderContext reader;
@@ -74,6 +77,12 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     public Scorer currentScorer() {
         return scorer;
+    }
+
+    public void setNextReader(IndexReaderContext reader) {
+        for (TopReaderContextAware topReaderAware : topReaderAwares) {
+            topReaderAware.setNextReader(reader);
+        }
     }
 
     public void setNextReader(AtomicReaderContext reader) {
@@ -177,6 +186,9 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             }
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
+            if (dataSource instanceof TopReaderContextAware) {
+                topReaderAwares.add((TopReaderContextAware) dataSource);
+            }
             fieldDataSources.put(cacheKey, dataSource);
         }
         if (config.script != null) {

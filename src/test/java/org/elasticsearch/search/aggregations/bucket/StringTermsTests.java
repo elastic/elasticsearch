@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
@@ -45,6 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -60,7 +60,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
 
     public static String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
     }
 
     @Override
@@ -141,6 +141,34 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    @Test
+    public void singleValueField_withGlobalOrdinals() throws Exception {
+        ExecutionMode[] executionModes = new ExecutionMode[] {
+                ExecutionMode.GLOBAL_ORDINALS,
+                ExecutionMode.GLOBAL_ORDINALS_HASH
+        };
+        for (ExecutionMode executionMode : executionModes) {
+            logger.info("Execution mode:" + executionMode);
+            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .executionHint(executionMode.toString())
+                            .field(SINGLE_VALUED_FIELD_NAME))
+                    .execute().actionGet();
+            assertSearchResponse(response);
+
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            assertThat(terms.getBuckets().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+                assertThat(bucket, notNullValue());
+                assertThat(key(bucket), equalTo("val" + i));
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            }
         }
     }
 

@@ -57,11 +57,19 @@ highlighting using the postings highlighter on it:
 }
 --------------------------------------------------
 
+[NOTE]
 Note that the postings highlighter is meant to perform simple query terms
 highlighting, regardless of their positions. That means that when used for
 instance in combination with a phrase query, it will highlight all the terms
 that the query is composed of, regardless of whether they are actually part of
 a query match, effectively ignoring their positions.
+
+[WARNING]
+The postings highlighter does support highlighting of multi term queries, like
+prefix queries, wildcard queries and so on. On the other hand, this requires
+the queries to be rewritten using a proper
+<<query-dsl-multi-term-rewrite,rewrite method>> that supports multi term
+extraction, which is a potentially expensive operation.
 
 
 ==== Fast vector highlighter

@@ -369,9 +369,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         newClusterState = builder.build();
                         logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
                     } else if (newClusterState.version() < previousClusterState.version()) {
-                        // we got this cluster state from the master, filter out based on versions (don't call listeners)
-                        logger.debug("got old cluster state [" + newClusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
-                        return;
+                        // we got a cluster state with older version, when we are *not* the master, let it in since it might be valid
+                        // we check on version where applicable, like at ZenDiscovery#handleNewClusterStateFromMaster
+                        logger.debug("got smaller cluster state when not master [" + newClusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "]");
                     }
                 }
 

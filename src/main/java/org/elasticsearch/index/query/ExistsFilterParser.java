@@ -77,6 +77,10 @@ public class ExistsFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]");
         }
 
+        return newFilter(parseContext, fieldPattern, filterName);
+    }
+
+    public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, String filterName) {
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
@@ -116,4 +120,5 @@ public class ExistsFilterParser implements FilterParser {
         }
         return filter;
     }
+
 }

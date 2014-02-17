@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.warmer;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +50,10 @@ public interface IndicesWarmer {
 
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
         public abstract TerminationHandle warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+
+        public TerminationHandle warmTop(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            return TerminationHandle.NO_WAIT;
+        }
     }
 
     public static class WarmerContext {
@@ -57,9 +62,18 @@ public interface IndicesWarmer {
 
         private final Engine.Searcher newSearcher;
 
+        private final IndexReader indexReader;
+
         public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
             this.shardId = shardId;
             this.newSearcher = newSearcher;
+            this.indexReader = null;
+        }
+
+        public WarmerContext(ShardId shardId, IndexReader indexReader) {
+            this.shardId = shardId;
+            this.newSearcher = null;
+            this.indexReader = indexReader;
         }
 
         public ShardId shardId() {
@@ -69,6 +83,10 @@ public interface IndicesWarmer {
         /** Return a searcher instance that only wraps the segments to warm. */
         public Engine.Searcher newSearcher() {
             return newSearcher;
+        }
+
+        public IndexReader indexReader() {
+            return indexReader;
         }
     }
 

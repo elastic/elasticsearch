@@ -90,6 +90,7 @@ public class AggregationPhase implements SearchPhase {
             if (!collectors.isEmpty()) {
                 context.searcher().addMainQueryCollector(new AggregationsCollector(collectors, aggregationContext));
             }
+            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
     }
 

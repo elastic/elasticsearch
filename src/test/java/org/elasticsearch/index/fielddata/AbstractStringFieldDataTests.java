@@ -24,8 +24,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
@@ -37,14 +39,20 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -413,5 +421,153 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             previous = cmpValue;
         }
         searcher.getIndexReader().close();
+    }
+
+    @Test
+    public void testGlobalOrdinals() throws Exception {
+        fillExtendedMvSet();
+        refreshReader();
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
+        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
+        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertThat(topLevelReader.leaves().size(), equalTo(3));
+
+        // First segment
+        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
+        AtomicFieldData.WithOrdinals afd = globalOrdinals.load(topLevelReader.leaves().get(0));
+        assertThat(afd.getNumDocs(), equalTo(3));
+        BytesValues.WithOrdinals values = afd.getBytesValues(randomBoolean());
+        Ordinals.Docs ordinals = values.ordinals().ordinals().ordinals();
+        assertThat(ordinals.setDocument(0), equalTo(2));
+        long ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(4l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("02"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(6l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
+        assertThat(ordinals.setDocument(1), equalTo(0));
+        assertThat(ordinals.setDocument(2), equalTo(1));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(5l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("03"));
+
+        // Second segment
+        afd = globalOrdinals.load(topLevelReader.leaves().get(1));
+        assertThat(afd.getNumDocs(), equalTo(4));
+        values = afd.getBytesValues(randomBoolean());
+        ordinals = values.ordinals().ordinals().ordinals();
+        assertThat(ordinals.setDocument(0), equalTo(3));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(6l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(7l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("05"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(8l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
+        assertThat(ordinals.setDocument(1), equalTo(3));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(8l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(9l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("07"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(10l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
+        assertThat(ordinals.setDocument(2), equalTo(0));
+        assertThat(ordinals.setDocument(3), equalTo(3));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(10l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(11l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("09"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(12l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("10"));
+
+        // Third segment
+        afd = globalOrdinals.load(topLevelReader.leaves().get(2));
+        values = afd.getBytesValues(randomBoolean());
+        ordinals = values.ordinals().ordinals().ordinals();
+        assertThat(afd.getNumDocs(), equalTo(1));
+        assertThat(ordinals.setDocument(0), equalTo(3));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(1l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!08"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(2l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!09"));
+        ord = ordinals.nextOrd();
+        assertThat(ord, equalTo(3l));
+        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!10"));
+    }
+
+    @Test
+    public void testTermsEnum() throws Exception {
+        fillExtendedMvSet();
+        AtomicReaderContext atomicReaderContext = refreshReader();
+
+        IndexFieldData.WithOrdinals ifd = getForField("value");
+        AtomicFieldData.WithOrdinals afd = ifd.load(atomicReaderContext);
+
+        TermsEnum termsEnum = afd.getTermsEnum();
+        int size = 0;
+        while (termsEnum.next() != null) {
+            size++;
+        }
+        assertThat(size, equalTo(12));
+
+        assertThat(termsEnum.seekExact(new BytesRef("10")), is(true));
+        assertThat(termsEnum.term().utf8ToString(), equalTo("10"));
+        assertThat(termsEnum.next(), nullValue());
+
+        assertThat(termsEnum.seekExact(new BytesRef("08")), is(true));
+        assertThat(termsEnum.term().utf8ToString(), equalTo("08"));
+        size = 0;
+        while (termsEnum.next() != null) {
+            size++;
+        }
+        assertThat(size, equalTo(2));
+
+        termsEnum.seekExact(9);
+        assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
+        size = 0;
+        while (termsEnum.next() != null) {
+            size++;
+        }
+        assertThat(size, equalTo(3));
+    }
+
+    @Test
+    public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
+        fillExtendedMvSet();
+        refreshReader();
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
+        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
+        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
+        // 3 b/c 1 segment level caches and 1 top level cache
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
+
+        IndexFieldData.WithOrdinals cachedInstace = null;
+        for (RamUsage ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
+            if (ramUsage instanceof IndexFieldData.WithOrdinals) {
+                cachedInstace = (IndexFieldData.WithOrdinals) ramUsage;
+                break;
+            }
+        }
+        assertThat(cachedInstace, sameInstance(globalOrdinals));
+        topLevelReader.close();
+        // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(3l));
+
+        refreshReader();
+        assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
+
+        ifdService.clear();
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(0l));
     }
 }

@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -768,7 +769,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != Loading.EAGER) {
+                    if (fieldDataType.getLoading() == Loading.LAZY) {
                         continue;
                     }
 
@@ -812,6 +813,55 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             };
         }
 
+        @Override
+        public TerminationHandle warmTop(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+            final MapperService mapperService = indexShard.mapperService();
+            final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
+            for (DocumentMapper docMapper : mapperService) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                    final FieldDataType fieldDataType = fieldMapper.fieldDataType();
+                    if (fieldDataType == null) {
+                        continue;
+                    }
+                    if (fieldDataType.getLoading() != Loading.EAGER_GLOBAL_ORDINALS) {
+                        continue;
+                    }
+                    final String indexName = fieldMapper.names().indexName();
+                    if (warmUpGlobalOrdinals.containsKey(indexName)) {
+                        continue;
+                    }
+                    warmUpGlobalOrdinals.put(indexName, fieldMapper);
+                }
+            }
+            final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
+            final Executor executor = threadPool.executor(executor());
+            final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
+            for (final FieldMapper<?> fieldMapper : warmUpGlobalOrdinals.values()) {
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            final long start = System.nanoTime();
+                            IndexFieldData ifd = indexFieldDataService.getForField(fieldMapper);
+                            ((IndexFieldData.WithOrdinals) ifd).loadGlobal(context.indexReader());
+                            if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.names().name(), TimeValue.timeValueNanos(System.nanoTime() - start));
+                            }
+                        } catch (Throwable t) {
+                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldMapper.names().name());
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                });
+            }
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
+        }
     }
 
     class SearchWarmer extends IndicesWarmer.Listener {

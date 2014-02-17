@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
@@ -143,21 +145,33 @@ public abstract class ValuesSource {
      */
     public void setNeedsHashes(boolean needsHashes) {}
 
+    public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {}
+
     public abstract MetaData metaData();
 
     public static abstract class Bytes extends ValuesSource {
 
-        public static abstract class WithOrdinals extends Bytes {
+        public static abstract class WithOrdinals extends Bytes implements TopReaderContextAware {
 
             public abstract BytesValues.WithOrdinals bytesValues();
+
+            public abstract void setNextReader(IndexReaderContext reader);
+
+            public abstract BytesValues.WithOrdinals globalBytesValues();
 
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
                 protected boolean needsHashes;
                 protected final IndexFieldData.WithOrdinals<?> indexFieldData;
                 protected final MetaData metaData;
+                private boolean needsGlobalOrdinals;
+
                 protected AtomicFieldData.WithOrdinals<?> atomicFieldData;
                 private BytesValues.WithOrdinals bytesValues;
+
+                protected IndexFieldData.WithOrdinals<?> globalFieldData;
+                protected AtomicFieldData.WithOrdinals<?> globalAtomicFieldData;
+                private BytesValues.WithOrdinals globalBytesValues;
 
                 public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
@@ -175,10 +189,21 @@ public abstract class ValuesSource {
                 }
 
                 @Override
+                public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {
+                    this.needsGlobalOrdinals = needsGlobalOrdinals;
+                }
+
+                @Override
                 public void setNextReader(AtomicReaderContext reader) {
                     atomicFieldData = indexFieldData.load(reader);
                     if (bytesValues != null) {
                         bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    }
+                    if (globalFieldData != null) {
+                        globalAtomicFieldData = globalFieldData.load(reader);
+                        if (globalBytesValues != null) {
+                            globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                        }
                     }
                 }
 
@@ -190,6 +215,20 @@ public abstract class ValuesSource {
                     return bytesValues;
                 }
 
+                @Override
+                public void setNextReader(IndexReaderContext reader) {
+                    if (needsGlobalOrdinals) {
+                        globalFieldData = indexFieldData.loadGlobal(reader.reader());
+                    }
+                }
+
+                @Override
+                public BytesValues.WithOrdinals globalBytesValues() {
+                    if (globalBytesValues == null) {
+                        globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                    }
+                    return globalBytesValues;
+                }
             }
 
         }

@@ -46,4 +46,5 @@ public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFiel
     public Strings getScriptValues() {
         return new ScriptDocValues.Strings(getBytesValues(false));
     }
+
 }

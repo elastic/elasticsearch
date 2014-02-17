@@ -18,20 +18,20 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.FilteredTermsEnum;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,14 +42,17 @@ public abstract class AbstractBytesIndexFieldData<FD extends AtomicFieldData.Wit
 
     protected Settings frequency;
     protected Settings regex;
+    protected final GlobalOrdinalsBuilder globalOrdinalsBuilder;
+    protected final CircuitBreakerService breakerService;
 
     protected AbstractBytesIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType,
-            IndexFieldDataCache cache) {
+                                          IndexFieldDataCache cache, GlobalOrdinalsBuilder globalOrdinalsBuilder, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
         frequency = groups.get("frequency");
         regex = groups.get("regex");
-       
+        this.globalOrdinalsBuilder = globalOrdinalsBuilder;
+        this.breakerService = breakerService;
     }
     
     @Override
@@ -61,7 +64,29 @@ public abstract class AbstractBytesIndexFieldData<FD extends AtomicFieldData.Wit
     public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
         return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
     }
-    
+
+    @Override
+    public WithOrdinals loadGlobal(IndexReader indexReader) {
+        if (indexReader.leaves().size() <= 1) {
+            // ordinals are already global
+            return this;
+        }
+        try {
+            return cache.load(indexReader, this);
+        } catch (Throwable e) {
+            if (e instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e;
+            } else {
+                throw new ElasticsearchException(e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
+        return globalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService);
+    }
+
     protected TermsEnum filter(Terms terms, AtomicReader reader) throws IOException {
         TermsEnum iterator = terms.iterator(null);
         if (iterator == null) {

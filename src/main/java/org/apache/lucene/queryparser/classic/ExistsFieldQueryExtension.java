@@ -19,14 +19,10 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.ExistsFilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  *
@@ -37,23 +33,6 @@ public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
-        String fieldName = queryText;
-        Filter filter = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
-            }
-        }
-        if (filter == null) {
-            filter = new TermRangeFilter(fieldName, null, null, true, true);
-        }
-
-        // we always cache this one, really does not change...
-        filter = parseContext.cacheFilter(filter, null);
-
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
-
-        return new XConstantScoreQuery(filter);
+        return new XConstantScoreQuery(ExistsFilterParser.newFilter(parseContext, queryText, null));
     }
 }

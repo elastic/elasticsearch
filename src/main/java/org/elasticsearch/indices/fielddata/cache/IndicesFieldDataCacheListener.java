@@ -19,11 +19,10 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.RamUsage;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
@@ -43,11 +42,11 @@ public class IndicesFieldDataCacheListener implements IndexFieldDataCache.Listen
     }
 
     @Override
-    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData) {
+    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, RamUsage fieldData) {
     }
 
     @Override
-    public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes, @Nullable AtomicFieldData fieldData) {
+    public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or equal to 0 and not [" + sizeInBytes + "]";
         circuitBreakerService.getBreaker().addWithoutBreaking(-sizeInBytes);
     }

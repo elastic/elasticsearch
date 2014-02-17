@@ -125,6 +125,41 @@ field data format.
     Computes and stores field data data-structures on disk at indexing time.
 
 [float]
+==== Global ordinals
+
+coming[1.2.0]
+
+Global ordinals is a data-structure on top of field data, that maintains an
+incremental numbering for all the terms in field data in a lexicographic order.
+Each term has a unique number and the number of term 'A' is lower than the number
+of term 'B'. Global ordinals are only supported on string fields.
+
+Field data on string also has ordinals, which is a unique numbering for all terms
+in a particular segment and field. Global ordinals just build on top of this,
+by providing a mapping between the segment ordinals and the global ordinals.
+The latter being unique across the entire shard.
+
+Global ordinals can be beneficial in search features that use segment ordinals already
+such as the terms aggregator to improve the execution time. Often these search features
+need to merge the segment ordinal results to a cross segment terms result. With
+global ordinals this mapping happens during field data load time instead of during each
+query execution. With global ordinals search features only need to resolve the actual
+term when building the (shard) response, but during the execution there is no need
+at all to use the actual terms and the unique numbering global ordinals provided is
+sufficient and improves the execution time.
+
+Global ordinals for a specified field are tied to all the segments of a shard (Lucene index),
+which is different than for field data for a specific field which is tied to a single segment.
+For this reason global ordinals need to be rebuilt in its entirety once new segments
+become visible. This one time cost would happen anyway without global ordinals, but
+then it would happen for each search execution instead!
+
+The loading time of global ordinals depends on the number of terms in a field, but in general
+it is low, since it source field data has already been loaded. The memory overhead of global
+ordinals is a small because it is very efficiently compressed. Eager loading of global ordinals
+can move the loading time from the first search request, to the refresh itself.
+
+[float]
 === Fielddata loading
 
 By default, field data is loaded lazily, ie. the first time that a query that
@@ -146,6 +181,23 @@ It is possible to force field data to be loaded and cached eagerly through the
     }
 }
 --------------------------------------------------
+
+Global ordinals can also be eagerly loaded:
+
+[source,js]
+--------------------------------------------------
+{
+    category: {
+        type:      "string",
+        fielddata: {
+            loading: "eager_global_ordinals"
+        }
+    }
+}
+--------------------------------------------------
+
+With the above setting both field data and global ordinals for a specific field
+are eagerly loaded.
 
 [float]
 ==== Disabling field data loading

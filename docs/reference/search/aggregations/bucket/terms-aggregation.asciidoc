@@ -310,12 +310,15 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES
 
 ==== Execution hint
 
-There are two mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
-data per-bucket (`map`), or by using ordinals of the field values instead of the values themselves (`ordinals`). Although the
-latter execution mode can be expected to be slightly faster, it is only available for use when the underlying data source exposes
-those terms ordinals. Moreover, it may actually be slower if most field values are unique. Elasticsearch tries to have sensible
-defaults when it comes to the execution mode that should be used, but in case you know that one execution mode may perform better
-than the other one, you have the ability to "hint" it to Elasticsearch:
+coming[1.2.0] The `global_ordinals` execution mode
+
+There are three mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
+data per-bucket (`map`), by using ordinals of the field values instead of the values themselves (`ordinals`) or by using global
+ordinals of the field (`global_ordinals`). The latter is faster, especially for fields with many unique
+values. However it can be slower if only a few documents match, when for example a terms aggregator is nested in another
+aggregator, this applies for both `ordinals` and `global_ordinals` execution modes. Elasticsearch tries to have sensible
+defaults when it comes to the execution mode that should be used, but  in case you know that one execution mode may
+perform better than the other one, you have the ability to "hint" it to Elasticsearch:
 
 [source,js]
 --------------------------------------------------
@@ -331,6 +334,6 @@ than the other one, you have the ability to "hint" it to Elasticsearch:
 }
 --------------------------------------------------
 
-<1> the possible values are `map` and `ordinals`
+<1> the possible values are `map`, `ordinals` and `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.

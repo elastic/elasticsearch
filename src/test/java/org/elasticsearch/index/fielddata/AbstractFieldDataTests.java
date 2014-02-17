@@ -27,7 +27,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.After;
@@ -39,6 +42,8 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;
     protected AtomicReaderContext readerContext;
+    protected IndexReader topLevelReader;
+    protected IndicesFieldDataCache indicesFieldDataCache;
 
     protected abstract FieldDataType getFieldDataType();
 
@@ -79,7 +84,12 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        CircuitBreakerService circuitBreakerService = new DummyCircuitBreakerService();
+        indicesFieldDataCache = new IndicesFieldDataCache(
+                ImmutableSettings.Builder.EMPTY_SETTINGS,
+                new IndicesFieldDataCacheListener(circuitBreakerService)
+        );
+        ifdService = new IndexFieldDataService(new Index("test"), circuitBreakerService, indicesFieldDataCache);
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
         // LogByteSizeMP to preserve doc ID order
@@ -90,7 +100,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(writer, true));
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
         readerContext = reader.getContext();
         return readerContext;
     }

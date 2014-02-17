@@ -27,8 +27,6 @@ import org.elasticsearch.index.mapper.FieldMapper.Loading;
  */
 public class FieldDataType {
 
-
-
     public static final String FORMAT_KEY = "format";
     public static final String DOC_VALUES_FORMAT_VALUE = "doc_values";
 

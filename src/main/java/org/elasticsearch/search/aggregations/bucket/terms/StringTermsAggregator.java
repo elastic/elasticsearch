@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -46,13 +45,9 @@ import java.util.*;
 /**
  * An aggregator of string values.
  */
-public class StringTermsAggregator extends BucketsAggregator {
+public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     private final ValuesSource valuesSource;
-    private final InternalOrder order;
-    protected final int requiredSize;
-    protected final int shardSize;
-    protected final long minDocCount;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
     private BytesValues values;
@@ -61,12 +56,8 @@ public class StringTermsAggregator extends BucketsAggregator {
                                  InternalOrder order, int requiredSize, int shardSize, long minDocCount,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
 
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
+        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
         this.valuesSource = valuesSource;
-        this.order = InternalOrder.validate(order, this);
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
     }

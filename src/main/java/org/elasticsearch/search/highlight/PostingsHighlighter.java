@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.highlight;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
@@ -33,6 +34,8 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -144,25 +147,17 @@ public class PostingsHighlighter implements Highlighter {
     }
 
     private static Query rewrite(HighlighterContext highlighterContext, IndexReader reader) throws IOException {
-        //rewrite is expensive: if the query was already rewritten we try not to rewrite
-        boolean mustRewrite = !highlighterContext.query.queryRewritten();
 
         Query original = highlighterContext.query.originalQuery();
 
-        MultiTermQuery originalMultiTermQuery = null;
-        MultiTermQuery.RewriteMethod originalRewriteMethod = null;
-        if (original instanceof MultiTermQuery) {
-            originalMultiTermQuery = (MultiTermQuery) original;
-            if (!allowsForTermExtraction(originalMultiTermQuery.getRewriteMethod())) {
-                originalRewriteMethod = originalMultiTermQuery.getRewriteMethod();
-                originalMultiTermQuery.setRewriteMethod(new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(50));
-                //we need to rewrite anyway if it is a multi term query which was rewritten with the wrong rewrite method
-                mustRewrite = true;
-            }
-        }
+        //we walk the query tree and when we encounter multi term queries we need to make sure the rewrite method
+        //supports multi term extraction. If not we temporarily override it (and restore it after the rewrite).
+        List<Tuple<MultiTermQuery, MultiTermQuery.RewriteMethod>> modifiedMultiTermQueries = Lists.newArrayList();
+        overrideMultiTermRewriteMethod(original, modifiedMultiTermQueries);
 
-        if (!mustRewrite) {
-            //return the rewritten query
+        //rewrite is expensive: if the query was already rewritten we try not to rewrite it again
+        if (highlighterContext.query.queryRewritten() && modifiedMultiTermQueries.size() == 0) {
+            //return the already rewritten query
             return highlighterContext.query.query();
         }
 
@@ -172,14 +167,44 @@ public class PostingsHighlighter implements Highlighter {
             query = rewrittenQuery;
         }
 
-        if (originalMultiTermQuery != null) {
-            if (originalRewriteMethod != null) {
-                //set back the original rewrite method after the rewrite is done
-                originalMultiTermQuery.setRewriteMethod(originalRewriteMethod);
-            }
+        //set back the original rewrite method after the rewrite is done
+        for (Tuple<MultiTermQuery, MultiTermQuery.RewriteMethod> modifiedMultiTermQuery : modifiedMultiTermQueries) {
+            modifiedMultiTermQuery.v1().setRewriteMethod(modifiedMultiTermQuery.v2());
         }
 
         return query;
+    }
+
+    private static void overrideMultiTermRewriteMethod(Query query, List<Tuple<MultiTermQuery, MultiTermQuery.RewriteMethod>> modifiedMultiTermQueries) {
+
+        if (query instanceof  MultiTermQuery) {
+            MultiTermQuery originalMultiTermQuery = (MultiTermQuery) query;
+            if (!allowsForTermExtraction(originalMultiTermQuery.getRewriteMethod())) {
+                MultiTermQuery.RewriteMethod originalRewriteMethod = originalMultiTermQuery.getRewriteMethod();
+                originalMultiTermQuery.setRewriteMethod(new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(50));
+                //we need to rewrite anyway if it is a multi term query which was rewritten with the wrong rewrite method
+                modifiedMultiTermQueries.add(Tuple.tuple(originalMultiTermQuery, originalRewriteMethod));
+            }
+        }
+
+        if (query instanceof BooleanQuery) {
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            for (BooleanClause booleanClause : booleanQuery) {
+                overrideMultiTermRewriteMethod(booleanClause.getQuery(), modifiedMultiTermQueries);
+            }
+        }
+
+        if (query instanceof XFilteredQuery) {
+            overrideMultiTermRewriteMethod(((XFilteredQuery) query).getQuery(), modifiedMultiTermQueries);
+        }
+
+        if (query instanceof FilteredQuery) {
+            overrideMultiTermRewriteMethod(((FilteredQuery) query).getQuery(), modifiedMultiTermQueries);
+        }
+
+        if (query instanceof ConstantScoreQuery) {
+            overrideMultiTermRewriteMethod(((ConstantScoreQuery) query).getQuery(), modifiedMultiTermQueries);
+        }
     }
 
     private static boolean allowsForTermExtraction(MultiTermQuery.RewriteMethod rewriteMethod) {

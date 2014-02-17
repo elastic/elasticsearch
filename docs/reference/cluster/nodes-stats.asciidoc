@@ -59,10 +59,6 @@ of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
 `breaker`::
 	Statistics about the field data circuit breaker
 
-`clear`:: 
-	Clears all the flags (first). Useful, if you only want to
-	retrieve specific stats.
-
 [source,js]
 --------------------------------------------------
 # return indices and os

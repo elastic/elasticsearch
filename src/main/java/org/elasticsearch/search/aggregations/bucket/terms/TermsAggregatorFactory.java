@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -38,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueParser;
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
+
         MAP(new ParseField("map")) {
 
             @Override
@@ -45,6 +44,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent) {
                 return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
             }
 
         },
@@ -60,6 +64,46 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
+            }
+
+        },
+        GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
+
+        },
+        GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
         };
 
         public static ExecutionMode fromString(String value) {
@@ -80,6 +124,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                 InternalOrder order, int requiredSize, int shardSize, long minDocCount,
                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent);
+
+        abstract boolean needsGlobalOrdinals();
 
         @Override
         public String toString() {
@@ -127,31 +173,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    private boolean shouldUseOrdinals(Aggregator parent, ValuesSource valuesSource, AggregationContext context) {
-        // if there is a parent bucket aggregator the number of instances of this aggregator is going to be unbounded and most instances
-        // may only aggregate few documents, so don't use ordinals
-        if (hasParentBucketAggregator(parent)) {
-            return false;
-        }
-
-        // be defensive: if the number of unique values is unknown, don't use ordinals
-        final long maxNumUniqueValues = valuesSource.metaData().maxAtomicUniqueValuesCount();
-        if (maxNumUniqueValues == -1) {
-            return false;
-        }
-
-        // if the number of unique values is high compared to the document count, then ordinals are only going to make things slower
-        int maxDoc = 0;
-        for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().reader().leaves()) {
-            maxDoc = Math.max(maxDoc, ctx.reader().maxDoc());
-        }
-        if (maxNumUniqueValues > (maxDoc >>> 4)) {
-            return false;
-        }
-
-        return true;
-    }
-
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
@@ -181,17 +202,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.MAP;
             }
 
+            // Let's try to use a good default
             if (execution == null) {
-                // Let's try to use a good default
-                if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
-                        && shouldUseOrdinals(parent, valuesSource, aggregationContext)) {
-                    execution = ExecutionMode.ORDINALS;
+                // if there is a parent bucket aggregator the number of instances of this aggregator is going
+                // to be unbounded and most instances may only aggregate few documents, so use hashed based
+                // global ordinals to keep the bucket ords dense.
+                if (hasParentBucketAggregator(parent)) {
+                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
-                    execution = ExecutionMode.MAP;
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
             }
             assert execution != null;
-
+            valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
             return execution.create(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
         }
 

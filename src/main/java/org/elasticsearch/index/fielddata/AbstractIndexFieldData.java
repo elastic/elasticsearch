@@ -53,6 +53,10 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         return this.fieldNames;
     }
 
+    public FieldDataType getFieldDataType() {
+        return fieldDataType;
+    }
+
     @Override
     public void clear() {
         cache.clear(fieldNames.indexName());

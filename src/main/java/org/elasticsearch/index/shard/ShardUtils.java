@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -50,6 +51,13 @@ public class ShardUtils {
             if (storeDir != null) {
                 return storeDir.shardId();
             }
+        }
+        return null;
+    }
+
+    public static ShardId extractShardId(IndexReader reader) {
+        if (!reader.leaves().isEmpty()) {
+            return extractShardId(reader.leaves().get(0).reader());
         }
         return null;
     }

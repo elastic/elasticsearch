@@ -68,6 +68,14 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
     }
 
     public void warm(final WarmerContext context) {
+        warmInternal(context, false);
+    }
+
+    public void warmTop(WarmerContext context) {
+        warmInternal(context, true);
+    }
+
+    private void warmInternal(final WarmerContext context, boolean topReader) {
         final IndexMetaData indexMetaData = clusterService.state().metaData().index(context.shardId().index().name());
         if (indexMetaData == null) {
             return;
@@ -84,14 +92,22 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
+            if (topReader) {
+                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
+            } else {
+                logger.trace("[{}][{}] top warming [{}]", context.shardId().index().name(), context.shardId().id(), context.indexReader());
+            }
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
         final List<IndicesWarmer.Listener.TerminationHandle> terminationHandles = Lists.newArrayList();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
+            if (topReader) {
+                terminationHandles.add(listener.warmTop(indexShard, indexMetaData, context, threadPool));
+            } else {
+                terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
+            }
         }
         // wait for termination
         for (IndicesWarmer.Listener.TerminationHandle terminationHandle : terminationHandles) {
@@ -99,14 +115,23 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
                 terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logger.warn("Warming has been interrupted", e);
+                if (topReader) {
+                    logger.warn("warming has been interrupted", e);
+                } else {
+                    logger.warn("top warming has been interrupted", e);
+                }
                 break;
             }
         }
         long took = System.nanoTime() - time;
         indexShard.warmerService().onPostWarm(took);
         if (indexShard.warmerService().logger().isTraceEnabled()) {
-            indexShard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
+            if (topReader) {
+                indexShard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
+            } else {
+                indexShard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
+            }
         }
     }
+
 }

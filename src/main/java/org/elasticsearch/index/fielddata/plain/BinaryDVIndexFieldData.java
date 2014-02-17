@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
@@ -28,8 +29,8 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 
 public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
 
-    public BinaryDVIndexFieldData(Index index, Names fieldNames) {
-        super(index, fieldNames);
+    public BinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
+        super(index, fieldNames, fieldDataType);
     }
 
     @Override

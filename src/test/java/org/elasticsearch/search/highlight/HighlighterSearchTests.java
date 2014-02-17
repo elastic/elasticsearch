@@ -48,6 +48,7 @@ import java.util.Map;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -1393,7 +1394,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setSource("field4", "a quick fast blue car").get();
         refresh();
 
-        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
@@ -1401,7 +1402,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
 
@@ -1409,7 +1410,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 1, "field4", 0, 1, equalTo("<x>The quick brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().postFilter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
+        source = searchSource().postFilter(typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
 
@@ -2416,6 +2417,85 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                     .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
 
             assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterRegexpQueryWithinConstantScoreQuery() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        refresh();
+
+        logger.info("--> highlighting and searching on field1");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(constantScoreQuery(regexpQuery("field1", "pho[a-z]+").rewrite(rewriteMethod)))
+                    .highlight(highlight().field("field1"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterMultiTermQueryMultipleLevels() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        refresh();
+
+        logger.info("--> highlighting and searching on field1");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(boolQuery()
+                    .should(constantScoreQuery(FilterBuilders.missingFilter("field1")))
+                    .should(matchQuery("field1", "test"))
+                    .should(filteredQuery(queryString("field1:photo*").rewrite(rewriteMethod), null)))
+                    .highlight(highlight().field("field1"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterPrefixQueryWithinBooleanQuery() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        refresh();
+
+        logger.info("--> highlighting and searching on field1");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(boolQuery().must(prefixQuery("field1", "photo").rewrite(rewriteMethod)).should(matchQuery("field1", "test").minimumShouldMatch("0")))
+                    .highlight(highlight().field("field1"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterQueryStringWithinFilteredQuery() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        refresh();
+
+        logger.info("--> highlighting and searching on field1");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(filteredQuery(queryString("field1:photo*").rewrite(rewriteMethod), missingFilter("field_null")))
+                    .highlight(highlight().field("field1"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
         }
     }
 

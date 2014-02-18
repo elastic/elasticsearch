@@ -34,7 +34,8 @@ case "$1" in
 	# configuration files should not be modifiable by elasticsearch user, as this can be a security issue
 	chown -Rh root:root /etc/elasticsearch/*
 	chmod 755 /etc/elasticsearch
-	chmod 644 /etc/elasticsearch/*
+	find /etc/elasticsearch -type f -exec chmod 644 {} ';'
+	find /etc/elasticsearch -type d -exec chmod 755 {} ';'
 	
 	# if $2 is set, this is an upgrade
 	if ( [ -n $2 ] && [ "$RESTART_ON_UPGRADE" = "true" ] ) ; then

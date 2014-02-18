@@ -34,6 +34,8 @@ import java.io.IOException;
  */
 public class StringScriptDataComparator extends FieldComparator<BytesRef> {
 
+    private BytesRef top;
+
     public static IndexFieldData.XFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
     }
@@ -110,12 +112,12 @@ public class StringScriptDataComparator extends FieldComparator<BytesRef> {
     }
 
     @Override
-    public int compareDocToValue(int doc, BytesRef val2) throws IOException {
+    public int compareTop(int doc) throws IOException {
         script.setNextDocId(doc);
         setSpare(doc);
-        return spare.compareTo(val2);
+        return top.compareTo(spare);
     }
-    
+
     private void setSpare(int doc) {
         if (spareDoc == doc) {
             return;
@@ -138,6 +140,11 @@ public class StringScriptDataComparator extends FieldComparator<BytesRef> {
     @Override
     public void setBottom(final int bottom) {
         this.bottom = values[bottom];
+    }
+
+    @Override
+    public void setTopValue(BytesRef top) {
+        this.top = top;
     }
 
     @Override

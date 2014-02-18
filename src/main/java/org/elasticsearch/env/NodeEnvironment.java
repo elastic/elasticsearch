@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -87,11 +88,7 @@ public class NodeEnvironment extends AbstractComponent {
                         // release all the ones that were obtained up until now
                         for (int i = 0; i < locks.length; i++) {
                             if (locks[i] != null) {
-                                try {
-                                    locks[i].release();
-                                } catch (Exception e1) {
-                                    // ignore
-                                }
+                                IOUtils.closeWhileHandlingException(locks[i]);
                             }
                             locks[i] = null;
                         }
@@ -102,13 +99,7 @@ public class NodeEnvironment extends AbstractComponent {
                     lastException = new IOException("failed to obtain lock on " + dir.getAbsolutePath(), e);
                     // release all the ones that were obtained up until now
                     for (int i = 0; i < locks.length; i++) {
-                        if (locks[i] != null) {
-                            try {
-                                locks[i].release();
-                            } catch (Exception e1) {
-                                // ignore
-                            }
-                        }
+                        IOUtils.closeWhileHandlingException(locks[i]);
                         locks[i] = null;
                     }
                     break;
@@ -235,7 +226,7 @@ public class NodeEnvironment extends AbstractComponent {
             for (Lock lock : locks) {
                 try {
                     logger.trace("releasing lock [{}]", lock);
-                    lock.release();
+                    lock.close();
                 } catch (IOException e) {
                     logger.trace("failed to release lock [{}]", e, lock);
                 }

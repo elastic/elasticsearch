@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -135,8 +136,13 @@ abstract class NestedFieldComparator extends FieldComparator {
     }
 
     @Override
-    public final int compareDocToValue(int rootDoc, Object value) throws IOException {
-        throw new UnsupportedOperationException("compareDocToValue() not used for sorting in ES");
+    public void setTopValue(Object top) {
+        throw new UnsupportedOperationException("setTopValue() not used for sorting in ES");
+    }
+
+    @Override
+    public int compareTop(int doc) throws IOException {
+        throw new UnsupportedOperationException("compareTop() not used for sorting in ES");
     }
 
     final static class Lowest extends NestedFieldComparator {

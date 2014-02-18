@@ -121,6 +121,11 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     }
 
     @Override
+    public int compareTop(int doc) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public int compareBottomMissing() {
         throw new UnsupportedOperationException();
     }
@@ -135,10 +140,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public int compareDocToValue(int doc, BytesRef value) {
-        throw new UnsupportedOperationException();
-    }
 
     class PerSegmentComparator extends NestedWrappableComparator<BytesRef> {
         final Ordinals.Docs readerOrds;
@@ -168,6 +169,11 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         }
 
         @Override
+        public void setTopValue(BytesRef value) {
+            BytesRefOrdValComparator.this.setTopValue(value);
+        }
+
+        @Override
         public BytesRef value(int slot) {
             return BytesRefOrdValComparator.this.value(slot);
         }
@@ -185,13 +191,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             return val1.compareTo(val2);
         }
 
-        @Override
-        public int compareDocToValue(int doc, BytesRef value) {
-            final long ord = getOrd(doc);
-            final BytesRef docValue = ord == Ordinals.MISSING_ORDINAL ? missingValue : termsIndex.getValueByOrd(ord);
-            return compareValues(docValue, value);
-        }
-
         protected long getOrd(int doc) {
             return readerOrds.getOrd(doc);
         }
@@ -202,6 +201,11 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             final long docOrd = getOrd(doc);
             final long comparableOrd = docOrd == Ordinals.MISSING_ORDINAL ? missingOrd : docOrd << 2;
             return LongValuesComparator.compare(bottomOrd, comparableOrd);
+        }
+
+        @Override
+        public int compareTop(int doc) throws IOException {
+            throw new UnsupportedOperationException("compareTop() not used for sorting in ES");
         }
 
         @Override
@@ -324,6 +328,11 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             assert consistentInsertedOrd(termsIndex, bottomOrd, bottomValue);
         }
         readerGen[bottomSlot] = currentReaderGen;
+    }
+
+    @Override
+    public void setTopValue(BytesRef value) {
+        throw new UnsupportedOperationException("setTopValue() not used for sorting in ES");
     }
 
     @Override

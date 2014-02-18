@@ -21,7 +21,6 @@ package org.elasticsearch.indices.warmer;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -43,8 +42,9 @@ import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 import org.junit.Test;
+
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.*;
 
@@ -267,13 +267,13 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
     }
 
     private long getSegmentsMemoryUsage(String idx) {
-        IndicesSegmentResponse response = client().admin().indices().segments(Requests.indicesSegmentsRequest("idx")).actionGet();
+        IndicesSegmentResponse response = client().admin().indices().segments(Requests.indicesSegmentsRequest(idx)).actionGet();
         IndexSegments indicesSegments = response.getIndices().get(idx);
         long total = 0;
         for (IndexShardSegments indexShardSegments : indicesSegments) {
             for (ShardSegments shardSegments : indexShardSegments) {
                 for (Segment segment : shardSegments) {
-                    System.out.println("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getIndex());
+                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getIndex());
                     total += segment.memoryInBytes;
                 }
             }
@@ -302,6 +302,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             @Override
             void createIndex(String indexName, String type, String fieldName) throws Exception {
                 client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
+                        .startObject()
                         .startObject(type)
                             .startObject("properties")
                                 .startObject(fieldName)
@@ -311,6 +312,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                                     .endObject()
                                 .endObject()
                             .endObject()
+                        .endObject()
                         .endObject()
                         ).execute().actionGet();
             }
@@ -325,27 +327,21 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             return true;
         }
     }
-
-    static {
-        assertTrue("remove me when LUCENE-5373 is fixed", Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_46);
-    }
-
-    @Ignore("enable me when LUCENE-5373 is fixed, see assertion above")
     public void testEagerLoading() throws Exception {
         for (LoadingMethod method : LoadingMethod.values()) {
-            System.out.println("METHOD " + method);
-            method.createIndex("idx", "t", "foo");
-            client().prepareIndex("idx", "t", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
-            long memoryUsage0 = getSegmentsMemoryUsage("idx");
+            logger.debug("METHOD " + method);
+            String indexName = method.name().toLowerCase(Locale.ROOT);
+            method.createIndex(indexName, "t", "foo");
+            client().prepareIndex(indexName, "t", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
+            long memoryUsage0 = getSegmentsMemoryUsage(indexName);
             // queries load norms if they were not loaded before
-            client().prepareSearch("idx").setQuery(QueryBuilders.matchQuery("foo", "bar")).execute().actionGet();
-            long memoryUsage1 = getSegmentsMemoryUsage("idx");
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("foo", "bar")).execute().actionGet();
+            long memoryUsage1 = getSegmentsMemoryUsage(indexName);
             if (method.isLazy()) {
                 assertThat(memoryUsage1, greaterThan(memoryUsage0));
             } else {
                 assertThat(memoryUsage1, equalTo(memoryUsage0));
             }
-            wipeIndices("idx");
         }
     }
 

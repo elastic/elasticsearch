@@ -25,6 +25,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 // This is right now only used for sorting number based fields inside nested objects
 public abstract class NumberComparatorBase<T> extends NestedWrappableComparator<T> {
 
+    protected T top;
     /**
      * Adds numeric value at the specified doc to the specified slot.
      *
@@ -40,5 +41,10 @@ public abstract class NumberComparatorBase<T> extends NestedWrappableComparator<
      * @param divisor   The specified divisor
      */
     public abstract void divide(int slot, int divisor);
+
+    @Override
+    public void setTopValue(T top) {
+        this.top = top;
+    }
 
 }

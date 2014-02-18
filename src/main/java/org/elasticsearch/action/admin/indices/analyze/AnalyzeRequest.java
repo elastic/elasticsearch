@@ -44,6 +44,8 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     private String[] tokenFilters;
 
+    private String[] charFilters;
+
     private String field;
 
     AnalyzeRequest() {
@@ -110,6 +112,15 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         return this.tokenFilters;
     }
 
+    public AnalyzeRequest charFilters(String... charFilters) {
+        this.charFilters = charFilters;
+        return this;
+    }
+
+    public String[] charFilters() {
+        return this.charFilters;
+    }
+
     public AnalyzeRequest field(String field) {
         this.field = field;
         return this;
@@ -142,6 +153,13 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
                 tokenFilters[i] = in.readString();
             }
         }
+        size = in.readVInt();
+        if (size > 0) {
+            charFilters = new String[size];
+            for (int i = 0; i < size; i++) {
+                charFilters[i] = in.readString();
+            }
+        }
         field = in.readOptionalString();
     }
 
@@ -158,6 +176,14 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
             out.writeVInt(tokenFilters.length);
             for (String tokenFilter : tokenFilters) {
                 out.writeString(tokenFilter);
+            }
+        }
+        if (charFilters == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(charFilters.length);
+            for (String charFilter : charFilters) {
+                out.writeString(charFilter);
             }
         }
         out.writeOptionalString(field);

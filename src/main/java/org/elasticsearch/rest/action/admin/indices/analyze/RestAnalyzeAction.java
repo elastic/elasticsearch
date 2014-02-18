@@ -71,6 +71,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.field(request.param("field"));
         analyzeRequest.tokenizer(request.param("tokenizer"));
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", null)));
+        analyzeRequest.charFilters(request.paramAsStringArray("char_filters", null));
         client.admin().indices().analyze(analyzeRequest, new ActionListener<AnalyzeResponse>() {
             @Override
             public void onResponse(AnalyzeResponse response) {

@@ -109,6 +109,17 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void analyzeWithCharFilter() throws Exception {
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(4));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A <b>TEST</b>").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("html_strip").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
+    }
+
+    @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
 
         createIndex("test");

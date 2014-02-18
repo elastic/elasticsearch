@@ -162,6 +162,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
             }
+
             TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
             if (request.tokenFilters() != null && request.tokenFilters().length > 0) {
                 tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().length];
@@ -184,7 +185,31 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     }
                 }
             }
-            analyzer = new CustomAnalyzer(tokenizerFactory, new CharFilterFactory[0], tokenFilterFactories);
+
+            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
+            if (request.charFilters() != null && request.charFilters().length > 0) {
+                charFilterFactories = new CharFilterFactory[request.charFilters().length];
+                for (int i = 0; i < request.charFilters().length; i++) {
+                    String charFilterName = request.charFilters()[i];
+                    if (indexService == null) {
+                        CharFilterFactoryFactory charFilterFactoryFactory = indicesAnalysisService.charFilterFactoryFactory(charFilterName);
+                        if (charFilterFactoryFactory == null) {
+                            throw new ElasticsearchIllegalArgumentException("failed to find global char filter under [" + request.tokenizer() + "]");
+                        }
+                        charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
+                    } else {
+                        charFilterFactories[i] = indexService.analysisService().charFilter(charFilterName);
+                        if (charFilterFactories[i] == null) {
+                            throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + request.tokenizer() + "]");
+                        }
+                    }
+                    if (charFilterFactories[i] == null) {
+                        throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + request.tokenizer() + "]");
+                    }
+                }
+            }
+
+            analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexService == null) {

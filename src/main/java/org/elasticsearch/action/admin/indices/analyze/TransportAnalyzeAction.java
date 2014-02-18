@@ -162,6 +162,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
             }
+
             TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
             if (request.tokenFilters() != null && request.tokenFilters().length > 0) {
                 tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().length];
@@ -170,21 +171,45 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     if (indexService == null) {
                         TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
                         if (tokenFilterFactoryFactory == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find global token filter under [" + request.tokenizer() + "]");
+                            throw new ElasticsearchIllegalArgumentException("failed to find global token filter under [" + tokenFilterName + "]");
                         }
                         tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
                     } else {
                         tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
                         if (tokenFilterFactories[i] == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                            throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
                         }
                     }
                     if (tokenFilterFactories[i] == null) {
-                        throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + request.tokenizer() + "]");
+                        throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
                     }
                 }
             }
-            analyzer = new CustomAnalyzer(tokenizerFactory, new CharFilterFactory[0], tokenFilterFactories);
+
+            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
+            if (request.charFilters() != null && request.charFilters().length > 0) {
+                charFilterFactories = new CharFilterFactory[request.charFilters().length];
+                for (int i = 0; i < request.charFilters().length; i++) {
+                    String charFilterName = request.charFilters()[i];
+                    if (indexService == null) {
+                        CharFilterFactoryFactory charFilterFactoryFactory = indicesAnalysisService.charFilterFactoryFactory(charFilterName);
+                        if (charFilterFactoryFactory == null) {
+                            throw new ElasticsearchIllegalArgumentException("failed to find global char filter under [" + charFilterName + "]");
+                        }
+                        charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
+                    } else {
+                        charFilterFactories[i] = indexService.analysisService().charFilter(charFilterName);
+                        if (charFilterFactories[i] == null) {
+                            throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                        }
+                    }
+                    if (charFilterFactories[i] == null) {
+                        throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                    }
+                }
+            }
+
+            analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexService == null) {

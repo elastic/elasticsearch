@@ -81,6 +81,14 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
         return this;
     }
 
+    /**
+     * Sets char filters that will be used before the tokenizer.
+     */
+    public AnalyzeRequestBuilder setCharFilters(String... charFilters) {
+        request.charFilters(charFilters);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
         ((IndicesAdminClient) client).analyze(request, listener);

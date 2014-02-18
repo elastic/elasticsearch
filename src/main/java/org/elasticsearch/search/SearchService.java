@@ -465,9 +465,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createContext(request);
-        activeContexts.put(context.id(), context);
-        context.indexShard().searchService().onNewContext(context);
-        return context;
+        boolean success = false;
+        try {
+            activeContexts.put(context.id(), context);
+            context.indexShard().searchService().onNewContext(context);
+            success = true;
+            return context;
+        } finally {
+            if (!success) {
+                freeContext(context);
+            }
+        }
     }
 
     SearchContext createContext(ShardSearchRequest request) throws ElasticsearchException {
@@ -838,10 +846,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public void run() {
             long time = threadPool.estimatedTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
-                if (context.lastAccessTime() == -1) { // its being processed or timeout is disabled
+                // Use the same value for both checks since lastAccessTime can
+                // be modified by another thread between checks!
+                long lastAccessTime = context.lastAccessTime();
+                if (lastAccessTime == -1l) { // its being processed or timeout is disabled
                     continue;
                 }
-                if ((time - context.lastAccessTime() > context.keepAlive())) {
+                if ((time - lastAccessTime > context.keepAlive())) {
+                    logger.debug("freeing search context [{}], time [{}], lastAccessTime [{}], keepAlive [{}]", context.id(), time, lastAccessTime, context.keepAlive());
                     freeContext(context);
                 }
             }

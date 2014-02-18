@@ -57,7 +57,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private final long minDocCount;
     private final IncludeExclude includeExclude;
     private final String executionHint;
-    private final String indexedFieldName;
+    private String indexedFieldName;
     private FieldMapper mapper;
 
       public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig,  int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
@@ -67,12 +67,10 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
         this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
-        this.indexedFieldName=valuesSourceConfig.fieldContext().field();
-        SearchContext context = SearchContext.current();
-        mapper = context.smartNameFieldMapper(indexedFieldName);
-        
-        
-
+        if (!valueSourceConfig.unmapped()) {
+            this.indexedFieldName = valuesSourceConfig.fieldContext().field();
+            mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
+        }
     }
 
     @Override

@@ -25,15 +25,14 @@ Example:
 [source,js]
 --------------------------------------------------
 {
-	"query" :
-	{
-		"query_string" : {"query":"British AND Transport AND Police"}
-	},
-	"aggregations" : {
-		"significantCrimeTypes" : {
-			"significant_terms" : { "field" : "crimeType" }
-		}
-	}
+    "query" : {
+        "terms" : {"force" : [ "British Transport Police" ]}
+    },
+    "aggregations" : {
+        "significantCrimeTypes" : {
+            "significant_terms" : { "field" : "crimeType" }
+        }
+    }
 }
 --------------------------------------------------
 
@@ -46,16 +45,16 @@ Response:
 
     "aggregations" : {
         "significantCrimeTypes" : {
-			"subset_size": 47347,
-			"superset_size": 5064554,
-			"buckets" : [
-				{
-					"key": "Bicycle theft",
-					"doc_count": 3640,
-					"significance_score": 0.371235374214817,
-					"superset_doc_freq": 66799
-				}
-				...
+            "subset_size": 47347,
+            "superset_size": 5064554,
+            "buckets" : [
+                {
+                    "key": "Bicycle theft",
+                    "doc_count": 3640,
+                    "significance_score": 0.371235374214817,
+                    "superset_doc_freq": 66799
+                }
+                ...
             ]
         }
     }
@@ -63,7 +62,7 @@ Response:
 --------------------------------------------------
 
 When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force 
-stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only one 1 in
+stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1 in
 every 100 crimes but for the British Transport Police, who handle crime on railways and stations, 7 in every 100 crimes is
 a bike theft. This is a significant seven-fold increase in frequency and so this anomaly was highlighted as the top crime type.
 
@@ -104,44 +103,44 @@ Response:
  ...
 
  "aggregations": {
-	"forces": {
-		"buckets": [
-			{
-				"key": "Metropolitan Police Service",
-				"doc_count": 894038,
-				"significantCrimeTypes": {
-					"subset_size": 894038,
-					"superset_size": 5064554,
-					"buckets": [
-						{
-							"key": "Robbery",
-							"doc_count": 27617,
-							"significance_score": 0.0599,
-							"superset_doc_freq": 53182
-						},
-						...
-					]
-				}
-			},
-			{
-				"key": "British Transport Police",
-				"doc_count": 47347,
-				"significantCrimeTypes": {
-					"subset_size": 47347,
-					"superset_size": 5064554,
-					"buckets": [						
-						{
-							"key": "Bicycle theft",
-							"doc_count": 3640,
-							"significance_score": 0.371,
-							"superset_doc_freq": 66799
-						},
-						...
-					]
-				}
-			}
-		]
-	}
+    "forces": {
+        "buckets": [
+            {
+                "key": "Metropolitan Police Service",
+                "doc_count": 894038,
+                "significantCrimeTypes": {
+                    "subset_size": 894038,
+                    "superset_size": 5064554,
+                    "buckets": [
+                        {
+                            "key": "Robbery",
+                            "doc_count": 27617,
+                            "significance_score": 0.0599,
+                            "superset_doc_freq": 53182
+                        },
+                        ...
+                    ]
+                }
+            },
+            {
+                "key": "British Transport Police",
+                "doc_count": 47347,
+                "significantCrimeTypes": {
+                    "subset_size": 47347,
+                    "superset_size": 5064554,
+                    "buckets": [                        
+                        {
+                            "key": "Bicycle theft",
+                            "doc_count": 3640,
+                            "significance_score": 0.371,
+                            "superset_doc_freq": 66799
+                        },
+                        ...
+                    ]
+                }
+            }
+        ]
+    }
 }
 
 --------------------------------------------------
@@ -213,8 +212,11 @@ to load only a sample of top-matching documents and use their contents to count 
 You can spot mis-categorized content by first searching a structured field e.g. `category:adultMovie` and use significant_terms on the
 free-text "movieDescription" field. Take the suggested words (I'll leave them to your imagination) and then search for all movies NOT marked as category:adultMovie but containing these keywords. 
 You now have a ranked list of badly-categorized movies that you should reclassify or at least remove from the "familyFriendly" category.
+
+The significance score from each term can also provide a useful `boost` setting to sort matches.
 Using the `minimum_should_match` setting of the `terms` query with the keywords will help control the balance of precision/recall in the result set i.e
 a high setting would have a small number of relevant results packed full of keywords and a setting of "1" would produce a more exhaustive results set with all documents containing _any_ keyword.
+
 **********************************
 
 .Hot tip: Show significant_terms in context
@@ -233,10 +235,11 @@ a _background_ set other than the index from which all results are ultimately dr
 background set as the basis for comparisons e.g. to first select the tweets for the TV show "XFactor" and then look
 for significant terms in a subset of that content which is from this week. 
 
-===== No scripts 
+===== Significant terms must be indexed values
 Unlike the terms aggregation it is currently not possible to use script-generated terms for counting purposes.
 Because of the way the significant_terms aggregation must consider both _foreground_ and _background_ frequencies
 it would be prohibitively expensive to use a script on the entire index to obtain background frequencies for comparisons.
+Also DocValues are not supported as sources of term data for similar reasons.
 
 ===== No analysis of floating point fields
 Floating point fields are currently not supported as the subject of significant_terms analysis.
@@ -313,9 +316,9 @@ It is possible to only return terms that match more than a configured number of 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to return terms that
-		 are typos or other bizarre curiosities. Finding more than one instance of a term helps
-		 reinforce that, while still rare, the term was not the result of a one-off accident. The
-		 default value of 3 is used to provide a minimum weight-of-evidence.
+         are typos or other bizarre curiosities. Finding more than one instance of a term helps
+         reinforce that, while still rare, the term was not the result of a one-off accident. The
+         default value of 3 is used to provide a minimum weight-of-evidence.
 
 
 ==== Filtering Values

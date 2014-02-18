@@ -37,6 +37,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
@@ -81,6 +82,9 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                     .endObject()
                     .endObject()
                     .endObject()));
+        
+            createIndex("idx_unmapped");
+
             ensureGreen();
             String data[]= {
                     "A\t1\tpaul weller was lead singer of the jam before the style council",
@@ -114,33 +118,6 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
             client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
-
-    @Test
-    public void textAnalysis() throws Exception {
-        SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
-                .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("Description")
-                           .minDocCount(2)
-                        )
-                .execute()
-                .actionGet();
-        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        HashMap<String,Bucket>topWords=new HashMap<String,Bucket>();
-        for (Bucket topTerm : topTerms ){
-            topWords.put(topTerm.getKey(),topTerm);
-        }
-        assertTrue( topWords.containsKey("haakonsen"));
-        assertTrue( topWords.containsKey("craig"));
-        assertTrue( topWords.containsKey("kelly"));
-        assertTrue( topWords.containsKey("burton"));
-        assertTrue( topWords.containsKey("snowboards"));
-        Bucket kellyTerm=topWords.get("kelly");
-        assertEquals(3, kellyTerm.getSubsetDf());
-        assertEquals(4, kellyTerm.getSupersetDf());
-    }
-
     @Test
     public void structuredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
@@ -156,6 +133,68 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         Number topCategory = topTerms.buckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
+    
+    @Test
+    public void unmapped() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("factCategory")
+                           .minDocCount(2)
+                        )
+                .execute()
+                .actionGet();
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");        
+        assertThat(topTerms.buckets().size(), equalTo(0));
+    }
+
+    @Test
+    public void textAnalysis() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("Description")
+                           .minDocCount(2)
+                        )
+                .execute()
+                .actionGet();
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        checkExpectedStringTermsFound(topTerms);
+    }    
+
+    @Test
+    public void partiallyUnmapped() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped","test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("Description")
+                           .minDocCount(2)
+                        )
+                .execute()
+                .actionGet();
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        checkExpectedStringTermsFound(topTerms);
+    }
+
+
+    private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
+        HashMap<String,Bucket>topWords=new HashMap<String,Bucket>();
+        for (Bucket topTerm : topTerms ){
+            topWords.put(topTerm.getKey(),topTerm);
+        }
+        assertTrue( topWords.containsKey("haakonsen"));
+        assertTrue( topWords.containsKey("craig"));
+        assertTrue( topWords.containsKey("kelly"));
+        assertTrue( topWords.containsKey("burton"));
+        assertTrue( topWords.containsKey("snowboards"));
+        Bucket kellyTerm=topWords.get("kelly");
+        assertEquals(3, kellyTerm.getSubsetDf());
+        assertEquals(4, kellyTerm.getSupersetDf());
+    }
+    
     
 
 }

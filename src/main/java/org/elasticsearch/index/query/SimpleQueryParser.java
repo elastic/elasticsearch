@@ -19,24 +19,16 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.queryparser.XSimpleQueryParser;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * Wrapper class for Lucene's SimpleQueryParser that allows us to redefine
  * different types of queries.
  */
-public class SimpleQueryParser extends XSimpleQueryParser {
+public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
 

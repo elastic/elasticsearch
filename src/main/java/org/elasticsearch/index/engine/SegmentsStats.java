@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,20 +41,9 @@ public class SegmentsStats implements Streamable, ToXContent {
 
     }
 
-    static {
-        assert Version.LUCENE_46.onOrAfter(Lucene.VERSION); // remove special -1 handling below
-    }
-
     public void add(long count, long memoryInBytes) {
         this.count += count;
-        // replace me with
-        // "this.memoryInBytes += memoryInBytes;"
-        // upon upgrade to Lucene 4.7
-        if (memoryInBytes == -1) {
-            this.memoryInBytes = -1;
-        } else if (this.memoryInBytes != -1) {
-            this.memoryInBytes += memoryInBytes;
-        }
+        this.memoryInBytes += memoryInBytes;
     }
 
     public void add(SegmentsStats mergeStats) {

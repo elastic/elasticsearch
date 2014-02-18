@@ -171,7 +171,10 @@ public class XAnalyzingSuggester extends Lookup {
   /** Whether position holes should appear in the automaton. */
   private boolean preservePositionIncrements;
 
-  /**
+  /** Number of entries the lookup was built with */
+  private long count = 0;
+
+    /**
    * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
@@ -419,6 +422,7 @@ public class XAnalyzingSuggester extends Lookup {
     TokenStreamToAutomaton ts2a = getTokenStreamToAutomaton();
 
     boolean success = false;
+    count = 0;
     byte buffer[] = new byte[8];
     try {
       ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
@@ -483,6 +487,7 @@ public class XAnalyzingSuggester extends Lookup {
 
           writer.write(buffer, 0, output.getPosition());
         }
+        count++;
       }
       writer.close();
 
@@ -614,7 +619,12 @@ public class XAnalyzingSuggester extends Lookup {
     return true;
   }
 
-  @Override
+    @Override
+    public long getCount() {
+        return count;
+    }
+
+    @Override
   public boolean load(InputStream input) throws IOException {
     DataInput dataIn = new InputStreamDataInput(input);
     try {
@@ -837,7 +847,29 @@ public class XAnalyzingSuggester extends Lookup {
     }
   }
 
-  /** Returns all completion paths to initialize the search. */
+  @Override
+  public boolean store(DataOutput output) throws IOException {
+    output.writeVLong(count);
+    if (fst == null) {
+      return false;
+    }
+
+    fst.save(output);
+    output.writeVInt(maxAnalyzedPathsForOneInput);
+    output.writeByte((byte) (hasPayloads ? 1 : 0));
+    return true;
+  }
+
+  @Override
+  public boolean load(DataInput input) throws IOException {
+    count = input.readVLong();
+    this.fst = new FST<Pair<Long,BytesRef>>(input, new PairOutputs<Long,BytesRef>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
+    maxAnalyzedPathsForOneInput = input.readVInt();
+    hasPayloads = input.readByte() == 1;
+    return true;
+  }
+
+    /** Returns all completion paths to initialize the search. */
   protected List<FSTUtil.Path<Pair<Long,BytesRef>>> getFullPrefixPaths(List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths,
                                                                        Automaton lookupAutomaton,
                                                                        FST<Pair<Long,BytesRef>> fst)

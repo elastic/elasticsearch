@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.queryparser.XSimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;

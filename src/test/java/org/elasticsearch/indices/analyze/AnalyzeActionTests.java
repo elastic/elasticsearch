@@ -23,12 +23,27 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -111,12 +126,25 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void analyzeWithCharFilter() throws Exception {
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put("index.analysis.char_filter.my_mapping.type", "mapping")
+                .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
+                .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping");
+
+        prepareCreate("test", 1, settings).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
         analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A <b>TEST</b>").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("html_strip").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("test", "jeff quit phish").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("my_mapping").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("jeff qit fish"));
     }
 
     @Test

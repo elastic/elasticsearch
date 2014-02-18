@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -153,11 +154,13 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
                 tokenFilters[i] = in.readString();
             }
         }
-        size = in.readVInt();
-        if (size > 0) {
-            charFilters = new String[size];
-            for (int i = 0; i < size; i++) {
-                charFilters[i] = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            size = in.readVInt();
+            if (size > 0) {
+                charFilters = new String[size];
+                for (int i = 0; i < size; i++) {
+                    charFilters[i] = in.readString();
+                }
             }
         }
         field = in.readOptionalString();
@@ -178,12 +181,14 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
                 out.writeString(tokenFilter);
             }
         }
-        if (charFilters == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(charFilters.length);
-            for (String charFilter : charFilters) {
-                out.writeString(charFilter);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            if (charFilters == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(charFilters.length);
+                for (String charFilter : charFilters) {
+                    out.writeString(charFilter);
+                }
             }
         }
         out.writeOptionalString(field);

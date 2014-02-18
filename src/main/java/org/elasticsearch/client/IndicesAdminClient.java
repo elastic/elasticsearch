@@ -276,7 +276,7 @@ public interface IndicesAdminClient {
     /**
      * Deletes an index based on the index name.
      *
-     * @param indices The indices to delete. Empty array to delete all indices.
+     * @param indices The indices to delete. Use "_all" to delete all indices.
      */
     DeleteIndexRequestBuilder prepareDelete(String... indices);
 

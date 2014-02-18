@@ -38,14 +38,31 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQu
  */
 public class SimpleQueryParser extends XSimpleQueryParser {
 
-    private final boolean lowercaseExpandedTerms;
-    private final Locale locale;
+    private final Settings settings;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Locale locale, boolean lowercaseExpandedTerms) {
+    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
         super(analyzer, weights, flags);
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        this.locale = locale;
+        this.settings = settings;
+    }
+
+    /**
+     * Rethrow the runtime exception, unless the lenient flag has been set, returns null
+     */
+    private Query rethrowUnlessLenient(RuntimeException e) {
+        if (settings.lenient()) {
+            return null;
+        }
+        throw e;
+    }
+
+    @Override
+    public Query newDefaultQuery(String text) {
+        try {
+            return super.newDefaultQuery(text);
+        } catch (RuntimeException e) {
+            return rethrowUnlessLenient(e);
+        }
     }
 
     /**
@@ -54,10 +71,23 @@ public class SimpleQueryParser extends XSimpleQueryParser {
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        if (lowercaseExpandedTerms) {
-            text = text.toLowerCase(locale);
+        if (settings.lowercaseExpandedTerms()) {
+            text = text.toLowerCase(settings.locale());
         }
-        return super.newFuzzyQuery(text, fuzziness);
+        try {
+            return super.newFuzzyQuery(text, fuzziness);
+        } catch (RuntimeException e) {
+            return rethrowUnlessLenient(e);
+        }
+    }
+
+    @Override
+    public Query newPhraseQuery(String text, int slop) {
+        try {
+            return super.newPhraseQuery(text, slop);
+        } catch (RuntimeException e) {
+            return rethrowUnlessLenient(e);
+        }
     }
 
     /**
@@ -66,9 +96,51 @@ public class SimpleQueryParser extends XSimpleQueryParser {
      */
     @Override
     public Query newPrefixQuery(String text) {
-        if (lowercaseExpandedTerms) {
-            text = text.toLowerCase(locale);
+        if (settings.lowercaseExpandedTerms()) {
+            text = text.toLowerCase(settings.locale());
         }
-        return super.newPrefixQuery(text);
+        try {
+            return super.newPrefixQuery(text);
+        } catch (RuntimeException e) {
+            return rethrowUnlessLenient(e);
+        }
+    }
+
+    /**
+     * Class encapsulating the settings for the SimpleQueryString query, with
+     * their default values
+     */
+    public static class Settings {
+        private Locale locale = Locale.ROOT;
+        private boolean lowercaseExpandedTerms = true;
+        private boolean lenient = false;
+
+        public Settings() {
+
+        }
+
+        public void locale(Locale locale) {
+            this.locale = locale;
+        }
+
+        public Locale locale() {
+            return this.locale;
+        }
+
+        public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
+            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
+        }
+
+        public boolean lowercaseExpandedTerms() {
+            return this.lowercaseExpandedTerms;
+        }
+
+        public void lenient(boolean lenient) {
+            this.lenient = lenient;
+        }
+
+        public boolean lenient() {
+            return this.lenient;
+        }
     }
 }

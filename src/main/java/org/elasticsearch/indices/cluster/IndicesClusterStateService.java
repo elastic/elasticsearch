@@ -61,6 +61,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
@@ -665,7 +666,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     final DiscoveryNode sourceNode = nodes.get(entry.currentNodeId());
                     try {
                         // we are recovering a backup from a primary, so no need to mark it as relocated
-                        final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
+                        final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
+                                false, indexShard.store().list(), RecoveryState.Type.REPLICA);
                         recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
                     } catch (Throwable e) {
                         handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
@@ -701,7 +703,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     // we don't mark this one as relocated at the end, requests in any case are routed to both when its relocating
                     // and that way we handle the edge case where its mark as relocated, and we might need to roll it back...
-                    final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
+                    final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
+                            false, indexShard.store().list(), RecoveryState.Type.RELOCATION);
                     recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
                 } catch (Throwable e) {
                     handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);

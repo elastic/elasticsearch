@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.gateway;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,7 +36,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
@@ -52,6 +53,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     private final ThreadPool threadPool;
 
     private final IndexSettingsService indexSettingsService;
+
+    private final ClusterService clusterService;
 
     private final InternalIndexShard indexShard;
 
@@ -72,7 +75,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private volatile ScheduledFuture snapshotScheduleFuture;
 
-    private RecoveryStatus recoveryStatus;
+    private RecoveryState recoveryState;
 
     private IndexShardGateway.SnapshotLock snapshotLock;
 
@@ -84,13 +87,15 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     @Inject
     public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
                                     ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway, IndexShardSnapshotAndRestoreService snapshotService,
-                                    RepositoriesService repositoriesService) {
+                                    ClusterService clusterService) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
+        this.recoveryState = new RecoveryState(shardId);
+        this.clusterService = clusterService;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -131,14 +136,11 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         void onRecoveryFailed(IndexShardGatewayRecoveryException e);
     }
 
-    public RecoveryStatus recoveryStatus() {
-        if (recoveryStatus == null) {
-            return recoveryStatus;
+    public RecoveryState recoveryState() {
+        if (recoveryState.getTimer().startTime() > 0 && recoveryState.getStage() != RecoveryState.Stage.DONE) {
+            recoveryState.getTimer().time(System.currentTimeMillis() - recoveryState.getTimer().startTime());
         }
-        if (recoveryStatus.startTime() > 0 && recoveryStatus.stage() != RecoveryStatus.Stage.DONE) {
-            recoveryStatus.time(System.currentTimeMillis() - recoveryStatus.startTime());
-        }
-        return recoveryStatus;
+        return recoveryState;
     }
 
     public SnapshotStatus snapshotStatus() {
@@ -177,22 +179,28 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                recoveryStatus = new RecoveryStatus();
-                recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
+                recoveryState.getTimer().startTime(System.currentTimeMillis());
+                recoveryState.setTargetNode(clusterService.localNode());
+                recoveryState.setStage(RecoveryState.Stage.INIT);
+                recoveryState.setPrimary(indexShard.routingEntry().primary());
 
                 try {
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
-                        snapshotService.restore(recoveryStatus);
+                        recoveryState.setType(RecoveryState.Type.SNAPSHOT);
+                        recoveryState.setRestoreSource(indexShard.routingEntry().restoreSource());
+                        snapshotService.restore(recoveryState);
                     } else {
                         logger.debug("starting recovery from {} ...", shardGateway);
-                        shardGateway.recover(indexShouldExists, recoveryStatus);
+                        recoveryState.setType(RecoveryState.Type.GATEWAY);
+                        recoveryState.setSourceNode(clusterService.localNode());
+                        shardGateway.recover(indexShouldExists, recoveryState);
                     }
 
-                    lastIndexVersion = recoveryStatus.index().version();
+                    lastIndexVersion = recoveryState.getIndex().version();
                     lastTranslogId = -1;
                     lastTranslogLength = 0;
-                    lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
+                    lastTotalTranslogOperations = recoveryState.getTranslog().currentTranslogOperations();
 
                     // start the shard if the gateway has not started it already. Note that if the gateway
                     // moved shard to POST_RECOVERY, it may have been started as well if:
@@ -206,20 +214,20 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     // refresh the shard
                     indexShard.refresh(new Engine.Refresh("post_gateway").force(true));
 
-                    recoveryStatus.time(System.currentTimeMillis() - recoveryStatus.startTime());
-                    recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
+                    recoveryState.getTimer().time(System.currentTimeMillis() - recoveryState.getTimer().startTime());
+                    recoveryState.setStage(RecoveryState.Stage.DONE);
 
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();
-                        sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryStatus.time())).append("]\n");
-                        sb.append("    index    : files           [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took[").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("]\n");
-                        sb.append("             : recovered_files [").append(recoveryStatus.index().numberOfRecoveredFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().recoveredTotalSize())).append("]\n");
-                        sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfReusedFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().reusedTotalSize())).append("]\n");
-                        sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryStatus.start().time())).append("], check_index [").append(timeValueMillis(recoveryStatus.start().checkIndexTime())).append("]\n");
-                        sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.translog().time())).append("]");
+                        sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryState.getTimer().time())).append("]\n");
+                        sb.append("    index    : files           [").append(recoveryState.getIndex().totalFileCount()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().totalByteCount())).append("], took[").append(TimeValue.timeValueMillis(recoveryState.getIndex().time())).append("]\n");
+                        sb.append("             : recovered_files [").append(recoveryState.getIndex().numberOfRecoveredFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().recoveredTotalSize())).append("]\n");
+                        sb.append("             : reusing_files   [").append(recoveryState.getIndex().reusedFileCount()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().reusedByteCount())).append("]\n");
+                        sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryState.getStart().time())).append("], check_index [").append(timeValueMillis(recoveryState.getStart().checkIndexTime())).append("]\n");
+                        sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
                         logger.trace(sb.toString());
                     } else if (logger.isDebugEnabled()) {
-                        logger.debug("recovery completed from [{}], took [{}]", shardGateway, timeValueMillis(recoveryStatus.time()));
+                        logger.debug("recovery completed from [{}], took [{}]", shardGateway, timeValueMillis(recoveryState.getTimer().time()));
                     }
                     listener.onRecoveryDone();
                     scheduleSnapshotIfNeeded();

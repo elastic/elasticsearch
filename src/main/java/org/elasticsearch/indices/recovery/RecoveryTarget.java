@@ -109,14 +109,14 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public RecoveryStatus peerRecoveryStatus(ShardId shardId) {
+    public RecoveryStatus recoveryStatus(ShardId shardId) {
         RecoveryStatus peerRecoveryStatus = findRecoveryByShardId(shardId);
         if (peerRecoveryStatus == null) {
             return null;
         }
         // update how long it takes if we are still recovering...
-        if (peerRecoveryStatus.startTime > 0 && peerRecoveryStatus.stage != RecoveryStatus.Stage.DONE) {
-            peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
+        if (peerRecoveryStatus.recoveryState().getTimer().startTime() > 0 && peerRecoveryStatus.stage() != RecoveryState.Stage.DONE) {
+            peerRecoveryStatus.recoveryState().getTimer().time(System.currentTimeMillis() - peerRecoveryStatus.recoveryState().getTimer().startTime());
         }
         return peerRecoveryStatus;
     }
@@ -167,6 +167,10 @@ public class RecoveryTarget extends AbstractComponent {
             public void run() {
                 // create a new recovery status, and process...
                 RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
+                recoveryStatus.recoveryState.setType(request.recoveryType());
+                recoveryStatus.recoveryState.setSourceNode(request.sourceNode());
+                recoveryStatus.recoveryState.setTargetNode(request.targetNode());
+                recoveryStatus.recoveryState.setPrimary(indexShard.routingEntry().primary());
                 onGoingRecoveries.put(recoveryStatus.recoveryId, recoveryStatus);
                 doRecovery(request, recoveryStatus, listener);
             }
@@ -384,9 +388,9 @@ public class RecoveryTarget extends AbstractComponent {
                 throw new IndexShardClosedException(request.shardId());
             }
 
-            onGoingRecovery.stage = RecoveryStatus.Stage.TRANSLOG;
-
             onGoingRecovery.indexShard.performRecoveryPrepareForTranslog();
+            onGoingRecovery.stage(RecoveryState.Stage.TRANSLOG);
+            onGoingRecovery.recoveryState.getStart().checkIndexTime(onGoingRecovery.indexShard.checkIndexTook());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -415,10 +419,10 @@ public class RecoveryTarget extends AbstractComponent {
                 throw new IndexShardClosedException(request.shardId());
             }
 
-            onGoingRecovery.stage = RecoveryStatus.Stage.FINALIZE;
+            onGoingRecovery.stage(RecoveryState.Stage.FINALIZE);
             onGoingRecovery.indexShard.performRecoveryFinalization(false, onGoingRecovery);
-            onGoingRecovery.time = System.currentTimeMillis() - onGoingRecovery.startTime;
-            onGoingRecovery.stage = RecoveryStatus.Stage.DONE;
+            onGoingRecovery.recoveryState().getTimer().time(System.currentTimeMillis() - onGoingRecovery.recoveryState().getTimer().startTime());
+            onGoingRecovery.stage(RecoveryState.Stage.DONE);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -455,7 +459,7 @@ public class RecoveryTarget extends AbstractComponent {
                     throw new IndexShardClosedException(request.shardId());
                 }
                 shard.performRecoveryOperation(operation);
-                onGoingRecovery.currentTranslogOperations++;
+                onGoingRecovery.recoveryState.getTranslog().incrementTranslogOperations();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -485,13 +489,12 @@ public class RecoveryTarget extends AbstractComponent {
                 throw new IndexShardClosedException(request.shardId());
             }
 
-            onGoingRecovery.phase1FileNames = request.phase1FileNames;
-            onGoingRecovery.phase1FileSizes = request.phase1FileSizes;
-            onGoingRecovery.phase1ExistingFileNames = request.phase1ExistingFileNames;
-            onGoingRecovery.phase1ExistingFileSizes = request.phase1ExistingFileSizes;
-            onGoingRecovery.phase1TotalSize = request.phase1TotalSize;
-            onGoingRecovery.phase1ExistingTotalSize = request.phase1ExistingTotalSize;
-            onGoingRecovery.stage = RecoveryStatus.Stage.INDEX;
+            onGoingRecovery.recoveryState().getIndex().addFileDetails(request.phase1FileNames, request.phase1FileSizes);
+            onGoingRecovery.recoveryState().getIndex().addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
+            onGoingRecovery.recoveryState().getIndex().totalByteCount(request.phase1TotalSize);
+            onGoingRecovery.recoveryState().getIndex().reusedByteCount(request.phase1ExistingTotalSize);
+            onGoingRecovery.recoveryState().getIndex().totalFileCount(request.phase1FileNames.size());
+            onGoingRecovery.stage(RecoveryState.Stage.INDEX);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -524,7 +527,7 @@ public class RecoveryTarget extends AbstractComponent {
             // first, we go and move files that were created with the recovery id suffix to
             // the actual names, its ok if we have a corrupted index here, since we have replicas
             // to recover from in case of a full cluster shutdown just when this code executes...
-            String prefix = "recovery." + onGoingRecovery.startTime + ".";
+            String prefix = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + ".";
             Set<String> filesToRename = Sets.newHashSet();
             for (String existingFile : store.directory().listAll()) {
                 if (existingFile.startsWith(prefix)) {
@@ -566,7 +569,6 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
 
-
         @Override
         public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
@@ -607,7 +609,7 @@ public class RecoveryTarget extends AbstractComponent {
 
                 String fileName = request.name();
                 if (store.directory().fileExists(fileName)) {
-                    fileName = "recovery." + onGoingRecovery.startTime + "." + fileName;
+                    fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
                 }
                 indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, store);
             } else {
@@ -628,7 +630,11 @@ public class RecoveryTarget extends AbstractComponent {
                         content = content.toBytesArray();
                     }
                     indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                    onGoingRecovery.currentFilesSize.addAndGet(request.length());
+                    onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(request.length());
+                    RecoveryState.File file = onGoingRecovery.recoveryState.getIndex().file(request.name());
+                    if (file != null) {
+                        file.updateRecovered(request.length());
+                    }
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();
@@ -638,8 +644,8 @@ public class RecoveryTarget extends AbstractComponent {
                         }
                         store.directory().sync(Collections.singleton(request.name()));
                         IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                        onGoingRecovery.recoveryState.getIndex().addRecoveredFileCount(1);
                         assert remove == indexOutput;
-
                     }
                     success = true;
                 } finally {

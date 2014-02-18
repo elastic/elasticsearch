@@ -50,7 +50,7 @@ public class RestCatAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         try {
-            boolean helpWanted = request.paramAsBoolean("h", false);
+            boolean helpWanted = request.paramAsBoolean("h", request.paramAsBoolean("help", false));
             if (helpWanted) {
                 channel.sendResponse(new StringRestResponse(RestStatus.OK, HELP));
             } else {

@@ -37,6 +37,7 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private final String queryText;
     private int flags = -1;
     private Boolean lowercaseExpandedTerms;
+    private Boolean lenient;
     private Locale locale;
 
     /**
@@ -113,6 +114,11 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public SimpleQueryStringBuilder lenient(boolean lenient) {
+        this.lenient = lenient;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SimpleQueryStringParser.NAME);
@@ -147,6 +153,10 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
 
         if (lowercaseExpandedTerms != null) {
             builder.field("lowercase_expanded_terms", lowercaseExpandedTerms);
+        }
+
+        if (lenient != null) {
+            builder.field("lenient", lenient);
         }
 
         if (locale != null) {

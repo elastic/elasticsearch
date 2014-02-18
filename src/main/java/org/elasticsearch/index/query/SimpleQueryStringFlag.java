@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queryparser.XSimpleQueryParser;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
@@ -30,18 +29,18 @@ import java.util.Locale;
 public enum SimpleQueryStringFlag {
     ALL(-1),
     NONE(0),
-    AND(XSimpleQueryParser.AND_OPERATOR),
-    NOT(XSimpleQueryParser.NOT_OPERATOR),
-    OR(XSimpleQueryParser.OR_OPERATOR),
-    PREFIX(XSimpleQueryParser.PREFIX_OPERATOR),
-    PHRASE(XSimpleQueryParser.PHRASE_OPERATOR),
-    PRECEDENCE(XSimpleQueryParser.PRECEDENCE_OPERATORS),
-    ESCAPE(XSimpleQueryParser.ESCAPE_OPERATOR),
-    WHITESPACE(XSimpleQueryParser.WHITESPACE_OPERATOR),
-    FUZZY(XSimpleQueryParser.FUZZY_OPERATOR),
+    AND(SimpleQueryParser.AND_OPERATOR),
+    NOT(SimpleQueryParser.NOT_OPERATOR),
+    OR(SimpleQueryParser.OR_OPERATOR),
+    PREFIX(SimpleQueryParser.PREFIX_OPERATOR),
+    PHRASE(SimpleQueryParser.PHRASE_OPERATOR),
+    PRECEDENCE(SimpleQueryParser.PRECEDENCE_OPERATORS),
+    ESCAPE(SimpleQueryParser.ESCAPE_OPERATOR),
+    WHITESPACE(SimpleQueryParser.WHITESPACE_OPERATOR),
+    FUZZY(SimpleQueryParser.FUZZY_OPERATOR),
     // NEAR and SLOP are synonymous, since "slop" is a more familiar term than "near"
-    NEAR(XSimpleQueryParser.NEAR_OPERATOR),
-    SLOP(XSimpleQueryParser.NEAR_OPERATOR);
+    NEAR(SimpleQueryParser.NEAR_OPERATOR),
+    SLOP(SimpleQueryParser.NEAR_OPERATOR);
 
     final int value;
 

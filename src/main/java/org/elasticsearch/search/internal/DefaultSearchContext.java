@@ -168,7 +168,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile long keepAlive;
 
-    private volatile long lastAccessTime;
+    private volatile long lastAccessTime = -1;
 
     private List<Releasable> clearables = null;
 

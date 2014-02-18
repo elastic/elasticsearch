@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.SnapshotFailedEngineException;
-import org.elasticsearch.index.gateway.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -106,7 +106,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
      *
      * @param recoveryStatus recovery status
      */
-    public void restore(final RecoveryStatus recoveryStatus) {
+    public void restore(final RecoveryState recoveryStatus) {
         RestoreSource restoreSource = indexShard.routingEntry().restoreSource();
         if (restoreSource == null) {
             throw new IndexShardRestoreFailedException(shardId, "empty restore source");

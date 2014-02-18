@@ -26,33 +26,26 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
  */
 public class RecoveryStatus {
 
-    public static enum Stage {
-        INIT,
-        INDEX,
-        TRANSLOG,
-        FINALIZE,
-        DONE
-    }
-
     final ShardId shardId;
     final long recoveryId;
     final InternalIndexShard indexShard;
+    final RecoveryState recoveryState;
 
     public RecoveryStatus(long recoveryId, InternalIndexShard indexShard) {
         this.recoveryId = recoveryId;
         this.indexShard = indexShard;
         this.shardId = indexShard.shardId();
+        this.recoveryState = new RecoveryState(shardId);
+        recoveryState.getTimer().startTime(System.currentTimeMillis());
     }
 
     volatile Thread recoveryThread;
@@ -62,47 +55,18 @@ public class RecoveryStatus {
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
 
-    final long startTime = System.currentTimeMillis();
-    long time;
-    List<String> phase1FileNames;
-    List<Long> phase1FileSizes;
-    List<String> phase1ExistingFileNames;
-    List<Long> phase1ExistingFileSizes;
-    long phase1TotalSize;
-    long phase1ExistingTotalSize;
-
-    volatile Stage stage = Stage.INIT;
-    volatile long currentTranslogOperations = 0;
-    AtomicLong currentFilesSize = new AtomicLong();
-
-    public long startTime() {
-        return startTime;
+    public RecoveryState recoveryState() {
+        return recoveryState;
     }
 
-    public long time() {
-        return this.time;
+    public void stage(RecoveryState.Stage stage) {
+        recoveryState.setStage(stage);
     }
 
-    public long phase1TotalSize() {
-        return phase1TotalSize;
+    public RecoveryState.Stage stage() {
+        return recoveryState.getStage();
     }
 
-    public long phase1ExistingTotalSize() {
-        return phase1ExistingTotalSize;
-    }
-
-    public Stage stage() {
-        return stage;
-    }
-
-    public long currentTranslogOperations() {
-        return currentTranslogOperations;
-    }
-
-    public long currentFilesSize() {
-        return currentFilesSize.get();
-    }
-    
     public boolean isCanceled() {
         return canceled;
     }

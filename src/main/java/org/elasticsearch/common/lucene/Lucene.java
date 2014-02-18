@@ -44,7 +44,7 @@ import java.io.IOException;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_46;
+    public static final Version VERSION = Version.LUCENE_47;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -59,6 +59,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.7".equals(version)) {
+            return VERSION.LUCENE_47;
         }
         if ("4.6".equals(version)) {
             return VERSION.LUCENE_46;

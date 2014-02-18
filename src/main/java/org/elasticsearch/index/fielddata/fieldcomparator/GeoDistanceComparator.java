@@ -82,9 +82,9 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
     }
 
     @Override
-    public int compareDocToValue(int doc, Double distance2) throws IOException {
-        double distance1 = geoDistanceValues.computeDistance(doc);
-        return Double.compare(distance1, distance2);
+    public int compareTop(int doc) throws IOException {
+        double docValue = geoDistanceValues.computeDistance(doc);
+        return Double.compare(top, docValue);
     }
 
     @Override

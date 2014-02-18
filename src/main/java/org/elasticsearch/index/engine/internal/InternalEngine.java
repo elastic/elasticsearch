@@ -20,18 +20,16 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.codecs.lucene3x.Lucene3xCodec;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.XSearcherManager;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -122,7 +120,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile IndexWriter indexWriter;
 
     private final SearcherFactory searcherFactory = new SearchFactory();
-    private volatile XSearcherManager searcherManager;
+    private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
 
@@ -682,7 +680,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
-        XSearcherManager manager = this.searcherManager;
+        SearcherManager manager = this.searcherManager;
         if (manager == null) {
             throw new EngineClosedException(shardId);
         }
@@ -695,7 +693,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
         return new EngineSearcher(source, searcher, manager);
     }
 
@@ -799,7 +797,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.newTranslog(translogId);
                         }
 
-                        XSearcherManager current = this.searcherManager;
+                        SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
                         try {
                             IOUtils.close(current);
@@ -1120,17 +1118,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    static {
-        assert Version.LUCENE_46.onOrAfter(Lucene.VERSION); // Lucene 4.7 fixed Lucene 3.X RAM usage estimations, see LUCENE-5462
-    }
-
-    private long getReaderRamBytesUsed(AtomicReaderContext reader) {
+    private static long getReaderRamBytesUsed(AtomicReaderContext reader) {
         final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
-        if (segmentReader.getSegmentInfo().info.getCodec() instanceof Lucene3xCodec) {
-            // https://issues.apache.org/jira/browse/LUCENE-5462
-            // RAM usage estimation is very costly on Lucene 3.x segments
-            return -1;
-        }
         return segmentReader.ramBytesUsed();
     }
 
@@ -1469,18 +1458,18 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private XSearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
-        return new XSearcherManager(indexWriter, true, searcherFactory);
+    private SearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
+        return new SearcherManager(indexWriter, true, searcherFactory);
     }
 
     class EngineSearcher implements Searcher {
 
         private final String source;
         private final IndexSearcher searcher;
-        private final XSearcherManager manager;
+        private final SearcherManager manager;
         private final AtomicBoolean released;
 
-        private EngineSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
+        private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;

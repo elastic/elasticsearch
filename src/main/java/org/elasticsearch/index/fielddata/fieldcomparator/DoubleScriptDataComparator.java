@@ -105,10 +105,10 @@ public class DoubleScriptDataComparator extends NumberComparatorBase<Double> {
     }
 
     @Override
-    public int compareDocToValue(int doc, Double val2) throws IOException {
+    public int compareTop(int doc) throws IOException {
         script.setNextDocId(doc);
-        double val1 = script.runAsDouble();
-        return Double.compare(val1, val2);
+        double docValue = script.runAsDouble();
+        return Double.compare(top, docValue);
     }
 
     @Override

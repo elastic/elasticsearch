@@ -135,7 +135,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile ScheduledFuture mergeScheduleFuture;
     private volatile ShardRouting shardRouting;
 
-    private RecoveryStatus peerRecoveryStatus;
+    private RecoveryStatus recoveryStatus;
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
@@ -702,13 +702,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     /**
      * The peer recovery status if this shard recovered from a peer shard.
      */
-    public RecoveryStatus peerRecoveryStatus() {
-        return this.peerRecoveryStatus;
+    public RecoveryStatus recoveryStatus() {
+        return this.recoveryStatus;
     }
 
-    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus peerRecoveryStatus) throws ElasticsearchException {
+    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus recoveryStatus) throws ElasticsearchException {
         performRecoveryFinalization(withFlush);
-        this.peerRecoveryStatus = peerRecoveryStatus;
+        this.recoveryStatus = recoveryStatus;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {

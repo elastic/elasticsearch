@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.gateway.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -145,13 +145,13 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public void restore(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryStatus recoveryStatus) {
-        RestoreContext snapshotContext = new RestoreContext(snapshotId, shardId, snapshotShardId, recoveryStatus);
+    public void restore(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        RestoreContext snapshotContext = new RestoreContext(snapshotId, shardId, snapshotShardId, recoveryState);
 
         try {
-            recoveryStatus.index().startTime(System.currentTimeMillis());
+            recoveryState.getIndex().startTime(System.currentTimeMillis());
             snapshotContext.restore();
-            recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+            recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
         } catch (Throwable e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
         }
@@ -638,7 +638,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         private final Store store;
 
-        private final RecoveryStatus recoveryStatus;
+        private final RecoveryState recoveryState;
 
         /**
          * Constructs new restore context
@@ -646,12 +646,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param snapshotId      snapshot id
          * @param shardId         shard to be restored
          * @param snapshotShardId shard in the snapshot that data should be restored from
-         * @param recoveryStatus  recovery status to report progress
+         * @param recoveryState   recovery state to report progress
          */
-        public RestoreContext(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryStatus recoveryStatus) {
+        public RestoreContext(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, shardId, snapshotShardId);
             store = indicesService.indexServiceSafe(shardId.getIndex()).shardInjectorSafe(shardId.id()).getInstance(Store.class);
-            this.recoveryStatus = recoveryStatus;
+            this.recoveryState = recoveryState;
         }
 
         /**
@@ -661,7 +661,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
             BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
 
-            recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
+            recoveryState.setStage(RecoveryState.Stage.INDEX);
             int numberOfFiles = 0;
             long totalSize = 0;
             int numberOfReusedFiles = 0;
@@ -682,12 +682,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     totalSize += md.length();
                     numberOfReusedFiles++;
                     reusedTotalSize += md.length();
+                    recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
                     if (logger.isTraceEnabled()) {
                         logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
                     }
                 } else {
                     totalSize += fileInfo.length();
                     filesToRecover.add(fileInfo);
+                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
                     if (logger.isTraceEnabled()) {
                         if (md == null) {
                             logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
@@ -698,7 +700,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
             }
 
-            recoveryStatus.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
+            recoveryState.getIndex().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
             if (filesToRecover.isEmpty()) {
                 logger.trace("no files to recover, all exists within the local store");
             }
@@ -734,7 +736,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             } catch (IOException e) {
                 throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
             }
-            recoveryStatus.index().updateVersion(version);
+            recoveryState.getIndex().updateVersion(version);
 
             /// now, go over and clean files that are in the store, but were not in the snapshot
             try {
@@ -779,7 +781,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             blobContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
                 @Override
                 public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
-                    recoveryStatus.index().addCurrentFilesSize(size);
+                    recoveryState.getIndex().addRecoveredByteCount(size);
+                    RecoveryState.File file = recoveryState.getIndex().file(fileInfo.name());
+                    if (file != null) {
+                        file.updateRecovered(size);
+                    }
                     indexOutput.writeBytes(data, offset, size);
                     if (restoreRateLimiter != null) {
                         rateLimiterListener.onRestorePause(restoreRateLimiter.pause(size));
@@ -803,6 +809,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                                 store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
                             }
                             store.directory().sync(Collections.singleton(fileInfo.physicalName()));
+                            recoveryState.getIndex().addRecoveredFileCount(1);
                         } catch (IOException e) {
                             onFailure(e);
                             return;

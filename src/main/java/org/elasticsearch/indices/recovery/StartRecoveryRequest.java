@@ -50,6 +50,8 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private Map<String, StoreFileMetaData> existingFiles;
 
+    private RecoveryState.Type recoveryType;
+
     StartRecoveryRequest() {
     }
 
@@ -62,13 +64,15 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param markAsRelocated
      * @param existingFiles
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Map<String, StoreFileMetaData> existingFiles) {
+    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Map<String,
+                                StoreFileMetaData> existingFiles, RecoveryState.Type recoveryType) {
         this.recoveryId = recoveryIdGenerator.incrementAndGet();
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.markAsRelocated = markAsRelocated;
         this.existingFiles = existingFiles;
+        this.recoveryType = recoveryType;
     }
 
     public long recoveryId() {
@@ -93,6 +97,10 @@ public class StartRecoveryRequest extends TransportRequest {
 
     public Map<String, StoreFileMetaData> existingFiles() {
         return existingFiles;
+    }
+
+    public RecoveryState.Type recoveryType() {
+        return recoveryType;
     }
 
     @Override

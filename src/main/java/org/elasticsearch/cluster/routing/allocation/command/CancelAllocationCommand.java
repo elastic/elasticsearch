@@ -226,16 +226,18 @@ public class CancelAllocationCommand implements AllocationCommand {
     @Override
     public RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
+        boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
             MutableShardRouting shardRouting = it.next();
             if (!shardRouting.shardId().equals(shardId)) {
                 continue;
             }
+            found = true;
             if (shardRouting.relocatingNodeId() != null) {
                 if (shardRouting.initializing()) {
+                    // success
                     return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
                             "shard " + shardId + " on node " + discoNode + " can be cancelled"));
-                    // success
                 } else if (shardRouting.relocating()) {
                     // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
                     if (!allowPrimary && shardRouting.primary()) {
@@ -250,7 +252,12 @@ public class CancelAllocationCommand implements AllocationCommand {
                         "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started"));
             }
         }
-        return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
-                "can't cancel " + shardId + ", failed to find it on node " + discoNode));
+        if (!found) {
+            return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
+                    "can't cancel " + shardId + ", failed to find it on node " + discoNode));
+        }
+        return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
+                "shard " + shardId + " on node " + discoNode + " can be cancelled"));
+
     }
 }

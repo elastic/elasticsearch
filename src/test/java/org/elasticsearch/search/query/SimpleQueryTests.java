@@ -2121,6 +2121,25 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSimpleQueryStringLenient() {
+        assertAcked(client().admin().indices().prepareCreate("test1").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(client().admin().indices().prepareCreate("test2").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        client().prepareIndex("test1", "type1", "1").setSource("field", "foo").get();
+        client().prepareIndex("test2", "type1", "10").setSource("field", 5).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field")).get();
+        assertFailures(searchResponse);
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+
+        searchResponse = client().prepareSearch().setQuery(simpleQueryString("foo").field("field").lenient(true)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "1");
+    }
+
+    @Test
     public void testRangeFilterNoCacheWithNow() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)

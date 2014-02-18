@@ -92,9 +92,8 @@ public class SimpleQueryStringParser implements QueryParser {
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
         Analyzer analyzer = null;
-        boolean lowercaseExpandedTerms = true;
-        Locale locale = Locale.ROOT;
         int flags = -1;
+        SimpleQueryParser.Settings sqsSettings = new SimpleQueryParser.Settings();
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -173,9 +172,12 @@ public class SimpleQueryStringParser implements QueryParser {
                     }
                 } else if ("locale".equals(currentFieldName)) {
                     String localeStr = parser.text();
-                    locale = LocaleUtils.parse(localeStr);
+                    Locale locale = LocaleUtils.parse(localeStr);
+                    sqsSettings.locale(locale);
                 } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
-                    lowercaseExpandedTerms = parser.booleanValue();
+                    sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
+                } else if ("lenient".equals(currentFieldName)) {
+                    sqsSettings.lenient(parser.booleanValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
@@ -205,7 +207,7 @@ public class SimpleQueryStringParser implements QueryParser {
         if (fieldsAndWeights == null) {
             fieldsAndWeights = Collections.singletonMap(field, 1.0F);
         }
-        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, locale, lowercaseExpandedTerms);
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, sqsSettings);
 
         if (defaultOperator != null) {
             sqp.setDefaultOperator(defaultOperator);

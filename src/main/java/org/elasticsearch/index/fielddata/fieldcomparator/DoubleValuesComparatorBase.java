@@ -46,10 +46,8 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
     }
 
     @Override
-    public final int compareDocToValue(int doc, T valueObj) throws IOException {
-        final double value = valueObj.doubleValue();
-        final double docValue = sortMode.getRelevantValue(readerValues, doc, missingValue);
-        return compare(docValue, value);
+    public int compareTop(int doc) throws IOException {
+        return compare(top.doubleValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
     }
 
     @Override

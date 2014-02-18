@@ -47,10 +47,8 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
     }
 
     @Override
-    public final int compareDocToValue(int doc, T valueObj) throws IOException {
-        final long value = valueObj.longValue();
-        long docValue = sortMode.getRelevantValue(readerValues, doc, missingValue);
-        return compare(docValue, value);
+    public int compareTop(int doc) throws IOException {
+        return compare(top.longValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
     }
 
     static final int compare(long left, long right) {

@@ -80,7 +80,7 @@ public class FsIndexShardGateway extends BlobStoreIndexShardGateway {
         @Override
         public void release() {
             try {
-                lock.release();
+                lock.close();
             } catch (IOException e) {
                 logger.warn("failed to release snapshot lock [{}]", e, lock);
             }

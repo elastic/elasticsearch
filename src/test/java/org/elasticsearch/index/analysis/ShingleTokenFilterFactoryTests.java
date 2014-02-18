@@ -21,7 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
@@ -65,6 +67,16 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         String source = "the quick";
         String[] expected = new String[]{"the", "quick"};
         Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+    }
+
+    @Test
+    public void testFillerToken() throws IOException {
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_filler");
+        String source = "simon the sorcerer";
+        String[] expected = new String[]{"simon FILLER sorcerer"};
+        TokenStream tokenizer = new StopFilter(TEST_VERSION_CURRENT, new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source)), StopFilter.makeStopSet(TEST_VERSION_CURRENT, "the"));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 

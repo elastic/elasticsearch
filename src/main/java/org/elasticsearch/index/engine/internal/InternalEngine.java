@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
-import org.apache.lucene.search.XSearcherManager;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -120,7 +120,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile IndexWriter indexWriter;
 
     private final SearcherFactory searcherFactory = new SearchFactory();
-    private volatile XSearcherManager searcherManager;
+    private volatile SearcherManager searcherManager;
 
     private volatile boolean closed = false;
 
@@ -680,7 +680,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
-        XSearcherManager manager = this.searcherManager;
+        SearcherManager manager = this.searcherManager;
         if (manager == null) {
             throw new EngineClosedException(shardId);
         }
@@ -693,7 +693,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
         return new EngineSearcher(source, searcher, manager);
     }
 
@@ -797,7 +797,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.newTranslog(translogId);
                         }
 
-                        XSearcherManager current = this.searcherManager;
+                        SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
                         try {
                             IOUtils.close(current);
@@ -1458,18 +1458,18 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private XSearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
-        return new XSearcherManager(indexWriter, true, searcherFactory);
+    private SearcherManager buildSearchManager(IndexWriter indexWriter) throws IOException {
+        return new SearcherManager(indexWriter, true, searcherFactory);
     }
 
     class EngineSearcher implements Searcher {
 
         private final String source;
         private final IndexSearcher searcher;
-        private final XSearcherManager manager;
+        private final SearcherManager manager;
         private final AtomicBoolean released;
 
-        private EngineSearcher(String source, IndexSearcher searcher, XSearcherManager manager) {
+        private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;

@@ -1081,40 +1081,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <version>2.5</version>
-                <configuration>
-                    <header>dev-tools/elasticsearch_license_header.txt</header>
-                    <headerDefinitions>
-                        <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                    </headerDefinitions>
-                    <includes>
-                        <include>src/main/java/org/elasticsearch/**/*.java</include>
-                        <include>src/test/java/org/elasticsearch/**/*.java</include>
-                    </includes>
-                    <excludes>
-                        <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                        <!-- Guice -->
-                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
-                        <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
-                        <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                    </excludes>
-                </configuration>
-                <!--  We can't run by default since the package is broken with java 1.6
-                      see https://github.com/mycila/license-maven-plugin/issues/35
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                -->
-            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
@@ -1214,8 +1180,53 @@
                 <argLine>${tests.jvm.argline}</argLine>
               </configuration>
             </plugin>
+            <plugin>
+              <groupId>com.mycila</groupId>
+              <artifactId>license-maven-plugin</artifactId>
+              <version>2.5</version>
+              <configuration>
+                <header>dev-tools/elasticsearch_license_header.txt</header>
+                <headerDefinitions>
+                  <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                </headerDefinitions>
+                <includes>
+                  <include>src/main/java/org/elasticsearch/**/*.java</include>
+                  <include>src/test/java/org/elasticsearch/**/*.java</include>
+                </includes>
+                <excludes>
+                  <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                  <!-- Guice -->
+                  <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                  <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
+                  <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
+                  <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
+                  <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                </excludes>
+              </configuration>
+              <!--  We can't run by default since the package is broken with java 1.6
+                   see https://github.com/mycila/license-maven-plugin/issues/35
+                   <executions>
+                   <execution>
+                   <goals>
+                   <goal>check</goal>
+                   </goals>
+                   </execution>
+                   </executions>
+              -->
+            </plugin>
           </plugins>
         </build>
+      </profile>
+      <!-- license profile, to generate third party license file -->
+      <profile>
+        <id>license</id>
+        <activation>
+          <property>
+            <name>license.generation</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <!-- not including license-maven-plugin is sufficent to expose default license -->
       </profile>
       <!-- jacoco coverage profile.  This will insert -jagent -->
       <profile>

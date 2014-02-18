@@ -93,6 +93,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -281,6 +283,7 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
+        registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

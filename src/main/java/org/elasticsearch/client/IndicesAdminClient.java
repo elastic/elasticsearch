@@ -87,6 +87,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -183,6 +186,21 @@ public interface IndicesAdminClient {
      * Indices stats.
      */
     IndicesStatsRequestBuilder prepareStats(String... indices);
+
+    /**
+     * Indices recoveries
+     */
+    ActionFuture<RecoveryResponse> recoveries(RecoveryRequest request);
+
+    /**
+     *Indices recoveries
+     */
+    void recoveries(RecoveryRequest request, ActionListener<RecoveryResponse> listener);
+
+    /**
+     * Indices recoveries
+     */
+    RecoveryRequestBuilder prepareRecoveries(String... indices);
 
     /**
      * The status of one or more indices.

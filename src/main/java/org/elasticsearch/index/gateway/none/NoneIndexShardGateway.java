@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.gateway.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -41,7 +41,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     private final InternalIndexShard indexShard;
 
-    private final RecoveryStatus recoveryStatus = new RecoveryStatus();
+    private final RecoveryState recoveryState = new RecoveryState();
 
     @Inject
     public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
@@ -55,13 +55,13 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override
-    public RecoveryStatus recoveryStatus() {
-        return recoveryStatus;
+    public RecoveryState recoveryState() {
+        return recoveryState;
     }
 
     @Override
-    public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
-        recoveryStatus.index().startTime(System.currentTimeMillis());
+    public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
+        recoveryState.getIndex().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
@@ -71,9 +71,9 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             logger.warn("failed to clean store before starting shard", e);
         }
         indexShard.postRecovery("post recovery from gateway");
-        recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
-        recoveryStatus.translog().startTime(System.currentTimeMillis());
-        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+        recoveryState.getTranslog().startTime(System.currentTimeMillis());
+        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
     }
 
     @Override

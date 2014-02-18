@@ -46,6 +46,7 @@ and warmers.
 * <<indices-status>>
 * <<indices-stats>>
 * <<indices-segments>>
+* <<indices-recovery>>
 
 [float]
 [[status-management]]
@@ -93,6 +94,8 @@ include::indices/status.asciidoc[]
 include::indices/stats.asciidoc[]
 
 include::indices/segments.asciidoc[]
+
+include::indices/recovery.asciidoc[]
 
 include::indices/clearcache.asciidoc[]
 

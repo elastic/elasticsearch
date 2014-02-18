@@ -24,6 +24,7 @@ import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 /**
  *
@@ -35,7 +36,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
     /**
      * The last / on going recovery status.
      */
-    RecoveryStatus recoveryStatus();
+    RecoveryState recoveryState();
 
     /**
      * The last snapshot status performed. Can be <tt>null</tt>.
@@ -51,7 +52,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
     /**
      * Recovers the state of the shard from the gateway.
      */
-    void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException;
+    void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException;
 
     /**
      * Snapshots the given shard into the gateway.

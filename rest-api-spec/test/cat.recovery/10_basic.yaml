@@ -1,0 +1,26 @@
+---
+"Test cat recovery output":
+
+  - do:
+      cat.recovery: {}
+
+  - match:
+      $body: >
+               /^$/
+
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     1
+        body:   { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: yellow
+  - do:
+      cat.recovery: {}
+  - match:
+      $body: >
+              /^(index1\s+\d+\s+\d+\s+(gateway|replica|snapshot|relocating)\s+(init|index|start|translog|finalize|done)\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+\d+\s+\d+\.\d+\%\s+\d+\s+\d+\.\d+\%\s+\n?){1,}$/
+

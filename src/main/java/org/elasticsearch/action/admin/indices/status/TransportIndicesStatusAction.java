@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -174,9 +175,9 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
         if (request.recovery) {
             // check on going recovery (from peer or gateway)
-            RecoveryStatus peerRecoveryStatus = indexShard.peerRecoveryStatus();
+            RecoveryStatus peerRecoveryStatus = indexShard.recoveryStatus();
             if (peerRecoveryStatus == null) {
-                peerRecoveryStatus = peerRecoveryTarget.peerRecoveryStatus(indexShard.shardId());
+                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard.shardId());
             }
             if (peerRecoveryStatus != null) {
                 PeerRecoveryStatus.Stage stage;
@@ -199,16 +200,18 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     default:
                         stage = PeerRecoveryStatus.Stage.INIT;
                 }
-                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.time(),
-                        peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
-                        peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
+                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryStatus.recoveryState().getTimer().startTime(),
+                        peerRecoveryStatus.recoveryState().getTimer().time(),
+                        peerRecoveryStatus.recoveryState().getIndex().totalByteCount(),
+                        peerRecoveryStatus.recoveryState().getIndex().reusedByteCount(),
+                        peerRecoveryStatus.recoveryState().getIndex().recoveredByteCount(), peerRecoveryStatus.recoveryState().getTranslog().currentTranslogOperations());
             }
 
             IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
-            org.elasticsearch.index.gateway.RecoveryStatus gatewayRecoveryStatus = gatewayService.recoveryStatus();
-            if (gatewayRecoveryStatus != null) {
+            RecoveryState gatewayRecoveryState = gatewayService.recoveryState();
+            if (gatewayRecoveryState != null) {
                 GatewayRecoveryStatus.Stage stage;
-                switch (gatewayRecoveryStatus.stage()) {
+                switch (gatewayRecoveryState.getStage()) {
                     case INIT:
                         stage = GatewayRecoveryStatus.Stage.INIT;
                         break;
@@ -224,8 +227,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     default:
                         stage = GatewayRecoveryStatus.Stage.INIT;
                 }
-                shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(),
-                        gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().reusedTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
+                shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryState.getTimer().startTime(), gatewayRecoveryState.getTimer().time(),
+                        gatewayRecoveryState.getIndex().totalByteCount(), gatewayRecoveryState.getIndex().reusedByteCount(), gatewayRecoveryState.getIndex().recoveredByteCount(), gatewayRecoveryState.getTranslog().currentTranslogOperations());
             }
         }
 

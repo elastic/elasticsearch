@@ -15,8 +15,7 @@ setup:
 "Explain API with empty command list":
 
   - do:
-      cluster.reroute:
-        explain: true
+      cluster.reroute.explain:
         body:
           commands: []
 
@@ -26,8 +25,7 @@ setup:
 "Explain API for non-existant node & shard":
 
   - do:
-      cluster.reroute:
-        explain: true
+      cluster.reroute.explain:
         body:
           commands:
             - cancel:

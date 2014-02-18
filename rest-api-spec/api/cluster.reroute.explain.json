@@ -1,0 +1,17 @@
+{
+  "cluster.reroute.explain": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-reroute.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_cluster/reroute/explain",
+      "paths": ["/_cluster/reroute/explain"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": {
+      "description" : "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+    }
+  }
+}

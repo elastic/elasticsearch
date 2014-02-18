@@ -44,10 +44,6 @@ the request body). This will cause the commands to apply to the current
 cluster state, and return the resulting cluster after the commands (and
 re-balancing) has been applied.
 
-Similar but different than the `dry_run` flag is the `explain` parameter, which
-returns an explanation for why the commands can or cannot be applied without
-actually applying them.
-
 The commands supported are:
 
 `move`::
@@ -61,7 +57,9 @@ The commands supported are:
     and `shard` for index name and shard number, and `node` for the node to
     cancel the shard allocation on. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to cancel allocation for a primary
-    shard.
+    shard.  This can be used to force resynchronization of existing replicas
+    from the primary shard by cancelling them and allowing them to be
+    reinitialized through the standard reallocation process.
 
 `allocate`::
     Allocate an unassigned shard to a node. Accepts the
@@ -69,3 +67,56 @@ The commands supported are:
     allocate the shard to. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to explicitly allocate a primary
     shard (might result in data loss).
+
+[[cluster-reroute-explain]]
+=== Cluster Reroute explanation
+
+Instead of executing the cluster reroute commands, you can get a human-readable
+explanation of the reason commands can or cannot be executed by using the
+reroute explain API:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/_cluster/reroute/explain' -d '{
+    "commands" : [ {
+        "move" :
+            {
+              "index" : "test", "shard" : 0,
+              "from_node" : "node1", "to_node" : "node2"
+            }
+        }
+    ]
+}'
+--------------------------------------------------
+
+Which will return an explanation similar to:
+
+[source,js]
+--------------------------------------------------
+{
+  "explanations" : [ {
+    "command" : "move",
+    "parameters" : {
+      "index" : "test",
+      "shard" : 0,
+      "from_node" : "node1",
+      "to_node" : "node2"
+    },
+    "decisions" : [ {
+      "decider" : "filter",
+      "decision" : "YES",
+      "explanation" : "node passes include/exclude/require filters"
+    }, {
+      "decider" : "replica_after_primary_active",
+      "decision" : "YES",
+      "explanation" : "shard is primary"
+    }, {
+      "decider" : "throttling",
+      "decision" : "YES",
+      "explanation" : "below shard recovery limit of [2]"
+    },
+    ...
+    ]
+  } ]
+}
+--------------------------------------------------

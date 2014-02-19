@@ -47,11 +47,18 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     /**
      * Constructs a new delete index request for the specified index.
+     *
+     * @param index The index to delete. Use "_all" to delete all indices.
      */
     public DeleteIndexRequest(String index) {
         this.indices = new String[]{index};
     }
 
+    /**
+     * Constructs a new delete index request for the specified indices.
+     *
+     * @param indices The indices to delete. Use "_all" to delete all indices.
+     */
     public DeleteIndexRequest(String... indices) {
         this.indices = indices;
     }

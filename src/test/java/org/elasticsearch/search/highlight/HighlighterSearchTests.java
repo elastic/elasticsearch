@@ -37,12 +37,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -2590,7 +2590,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
     private <P extends QueryBuilder & BoostableQueryBuilder> void
             phraseBoostTestCaseForClauses(String highlighterType, float boost, QueryBuilder terms, P phrase) {
-        Matcher<String> highlightedMatcher = Matchers.<String>either(containsString("<em>highlight words together</em>")).or(
+        Matcher<String> highlightedMatcher = either(containsString("<em>highlight words together</em>")).or(
                 containsString("<em>highlight</em> <em>words</em> <em>together</em>"));
         SearchRequestBuilder search = client().prepareSearch("test").setHighlighterRequireFieldMatch(true)
                 .setHighlighterOrder("score").setHighlighterType(highlighterType)
@@ -2607,5 +2607,44 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         // Try with a boosting query using a negative boost
         response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(1).negativeBoost(1/boost)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+    }
+    
+    @Test
+    public void testFVHSomeFieldTermVectors() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("test", "text", "type=string" +
+                        ",term_vector_over_20=with_positions_offsets" +
+                        ",store=" + (randomBoolean() ? "yes" : "no"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1, 5))));
+        ensureYellow();
+        
+        // Try just two fields, some with term vectors and some not
+        indexRandom(true,
+                client().prepareIndex("test", "test", "no_vectors").setSource("text", "small string"),
+                client().prepareIndex("test", "test", "with_vectors").setSource("text", "larger string has vectors"));
+
+        SearchRequestBuilder search = client().prepareSearch().setQuery(matchQuery("text", "string"))
+                .addHighlightedField("text").setHighlighterType("fvh");
+        SearchResponse response = search.get();
+        assertHighlight(response, 0, "text", 0, equalTo("small <em>string</em>"));
+        assertHighlight(response, 1, "text", 0, equalTo("larger <em>string</em> has vectors"));
+
+        // Now try with a bunch of documents
+        int documents = between(20, 100);
+        IndexRequestBuilder[] toIndex = new IndexRequestBuilder[documents];
+        for(int i = 0; i < documents; i++) {
+            if (i % 2 == 0) {
+                toIndex[i] = client().prepareIndex("test", "test", "no_vectors_" + i).setSource("text", "small string");   
+            } else {
+                toIndex[i] = client().prepareIndex("test", "test", "with_vectors_" + i).setSource("text", "larger string has vectors");
+            }
+        }
+        indexRandom(true, toIndex);
+        
+        response = search.setSize(documents + 100).get();
+        for(int i = 0; i < documents + 2; i++) {
+            assertHighlight(response, i, "text", 0, either(equalTo("small <em>string</em>")).or(
+                    equalTo("larger <em>string</em> has vectors")));
+        }
     }
 }

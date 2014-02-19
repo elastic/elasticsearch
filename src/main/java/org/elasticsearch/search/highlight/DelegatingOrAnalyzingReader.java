@@ -60,6 +60,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
 
     @Override
     public Fields getTermVectors(int docId) throws IOException {
+        // TODO I wonder if we can push this call until we have the field so we can make an educated guess
+        // (using the mapper) as to whether there might be term vectors for the field.
         Fields real = super.getTermVectors(docId);
         if (real == null) {
             return new AnalyzingFields(docId);
@@ -135,6 +137,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
 
         @Override
         public Terms terms(String field) throws IOException {
+            // This call is very low cost even if there aren't term vectors in the field.
             Terms real = super.terms(field);
             if (real == null) {
                 return analyzeField(docId, field);

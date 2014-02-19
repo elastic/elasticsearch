@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -81,6 +82,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         protected NamedAnalyzer searchQuotedAnalyzer;
 
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
+        
+        @Nullable
+        protected SizeValue termVectorOverSize;
+        
+        protected String termVectorOverSizeConfig;
 
         public Builder(String name) {
             super(name, new FieldType(Defaults.FIELD_TYPE));
@@ -140,10 +146,24 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 }
             }
             defaultFieldType.freeze();
+            
+            FieldType termVectorOverSizeField = null;
+            if (termVectorOverSize != null) {
+                termVectorOverSizeField = new FieldType(builder.fieldType);
+                TypeParsers.parseTermVector(builder.name, termVectorOverSizeConfig, 
+                        new AbstractFieldMapper.Builder("ignored", termVectorOverSizeField) {
+                            @Override
+                            public Mapper build(BuilderContext context) {
+                                throw new IllegalStateException(); // TODO remove horrible hack
+                            }
+                });
+            }
+            
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, defaultFieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
                     positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, 
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo,
+                    termVectorOverSize, termVectorOverSizeField);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -180,6 +200,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     }
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
+                } else if (propName.startsWith("term_vector_over_")) {
+                    builder.termVectorOverSize = SizeValue.parseSizeValue(
+                            propName.substring("term_vector_over_".length()));
+                    builder.termVectorOverSizeConfig = propNode.toString();
                 } else {
                     parseMultiField(builder, name, node, parserContext, propName, propNode);
                 }
@@ -194,13 +218,16 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     private NamedAnalyzer searchQuotedAnalyzer;
     private int ignoreAbove;
     private final FieldType defaultFieldType;
+    private SizeValue termVectorOverSize;
+    private FieldType termVectorOverSizeFieldType;
 
     protected StringFieldMapper(Names names, float boost, FieldType fieldType,FieldType defaultFieldType, Boolean docValues,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
                                 PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                                SizeValue termVectorOverSize, FieldType termVectorOverSizeFieldType) {
         super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
@@ -211,6 +238,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
         this.ignoreAbove = ignoreAbove;
+        this.termVectorOverSize = termVectorOverSize;
+        if (termVectorOverSizeFieldType != null) {
+            this.termVectorOverSizeFieldType = termVectorOverSizeFieldType;
+            termVectorOverSizeFieldType.freeze();
+        }
     }
 
     @Override
@@ -286,7 +318,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new StringField(names.indexName(), valueAndBoost.value(), fieldType);
+            FieldType thisFieldType = fieldType;
+            // TODO use a real way to get the size or switch to characters
+            if (termVectorOverSize != null && termVectorOverSize.singles() < valueAndBoost.value().length()) {
+                thisFieldType = termVectorOverSizeFieldType;
+            }
+            Field field = new StringField(names.indexName(), valueAndBoost.value(), thisFieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
@@ -349,9 +386,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             return;
         }
         if (!mergeContext.mergeFlags().simulate()) {
-            this.includeInAll = ((StringFieldMapper) mergeWith).includeInAll;
-            this.nullValue = ((StringFieldMapper) mergeWith).nullValue;
-            this.ignoreAbove = ((StringFieldMapper) mergeWith).ignoreAbove;
+            StringFieldMapper mw = (StringFieldMapper) mergeWith;
+            this.includeInAll = mw.includeInAll;
+            this.nullValue = mw.nullValue;
+            this.ignoreAbove = mw.ignoreAbove;
+            this.termVectorOverSize = mw.termVectorOverSize;
+            this.termVectorOverSizeFieldType = mw.termVectorOverSizeFieldType;  // TODO is this safe?
         }
     }
 
@@ -379,6 +419,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             } else {
                 builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
             }
+        }
+        if (termVectorOverSizeFieldType != null) {
+            builder.field("term_vector_over_" + termVectorOverSize.toString(),
+                    termVectorOptionsToString(termVectorOverSizeFieldType));
         }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);

@@ -2197,6 +2197,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
                 .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
         assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,index_analyzer=my_ngram_analyzer"));
+        // we only have ngrams as the index analyzer so searches will get standard analyzer
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("origin", "C.A1234.5678")
@@ -2206,6 +2207,31 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("meta", "1234"))
                 .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(matchQuery("meta", "1234.56"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("meta", "A1234"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("meta", "a1234"))
+                .get();
+        assertHitCount(searchResponse, 0l); // it's upper case
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(matchQuery("meta", "A1234").analyzer("my_ngram_analyzer"))
+                .get(); // force ngram analyzer
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(matchQuery("meta", "a1234").analyzer("my_ngram_analyzer"))
+                .get(); // this one returns a hit since it's default operator is OR
         assertHitCount(searchResponse, 1l);
     }
 

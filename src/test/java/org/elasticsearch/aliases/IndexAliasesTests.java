@@ -22,8 +22,10 @@ package org.elasticsearch.aliases;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,12 +102,22 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         ensureGreen();
 
+        //invalid filter, invalid json
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = admin().indices().prepareAliases().addAlias("test", "alias1", "abcde");
         try {
-            logger.info("--> aliasing index [test] with [alias1] and filter [t]");
-            admin().indices().prepareAliases().addAlias("test", "alias1", "{ t }").get();
-            fail();
-        } catch (Exception e) {
-            // all is well
+            indicesAliasesRequestBuilder.get();
+            fail("put alias should have been failed due to invalid filter");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
+        }
+
+        //valid json , invalid filter
+        indicesAliasesRequestBuilder = admin().indices().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }");
+        try {
+            indicesAliasesRequestBuilder.get();
+            fail("put alias should have been failed due to invalid filter");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
     }
 
@@ -855,11 +867,27 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         checkAliases();
     }
 
-    @Test (expected = ElasticsearchIllegalArgumentException.class)
+    @Test
     public void testCreateIndexWithAliasesFilterNotValid() {
-        prepareCreate("test").addAlias(new Alias("alias1"))
-                .addAlias(new Alias("alias2").filter("f"))
-                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")).get();
+        //non valid filter, invalid json
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test").addAlias(new Alias("alias2").filter("f"));
+
+        try {
+            createIndexRequestBuilder.get();
+            fail("create index should have failed due to invalid alias filter");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
+        }
+
+        //valid json but non valid filter
+        createIndexRequestBuilder = prepareCreate("test").addAlias(new Alias("alias2").filter("{ \"test\": {} }"));
+
+        try {
+            createIndexRequestBuilder.get();
+            fail("create index should have failed due to invalid alias filter");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
+        }
     }
 
     private void checkAliases() {

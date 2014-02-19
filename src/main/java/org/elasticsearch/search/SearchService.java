@@ -88,6 +88,11 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
+    private static final String DEFAUTL_KEEPALIVE_COMPONENENT_KEY ="default_keep_alive";
+    public static final String DEFAUTL_KEEPALIVE_KEY ="search."+DEFAUTL_KEEPALIVE_COMPONENENT_KEY;
+    private static final String KEEPALIVE_INTERVAL_COMPONENENT_KEY ="keep_alive_interval";
+    public static final String KEEPALIVE_INTERVAL_KEY ="search."+KEEPALIVE_INTERVAL_COMPONENENT_KEY;
+
 
     private final ThreadPool threadPool;
 
@@ -134,9 +139,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
 
-        TimeValue keepAliveInterval = componentSettings.getAsTime("keep_alive_interval", timeValueMinutes(1));
+        TimeValue keepAliveInterval = componentSettings.getAsTime(KEEPALIVE_INTERVAL_COMPONENENT_KEY, timeValueMinutes(1));
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(5)).millis();
+        this.defaultKeepAlive = componentSettings.getAsTime(DEFAUTL_KEEPALIVE_COMPONENENT_KEY, timeValueMinutes(5)).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
         elementParsers.putAll(dfsPhase.parseElements());
@@ -463,8 +468,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticsearchException {
-        SearchContext context = createContext(request);
+    final SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticsearchException {
+        SearchContext context = createContext(request, null);
         boolean success = false;
         try {
             activeContexts.put(context.id(), context);
@@ -478,11 +483,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    SearchContext createContext(ShardSearchRequest request) throws ElasticsearchException {
-        return createContext(request, null);
-    }
-
-    SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticsearchException {
+    final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 
@@ -844,11 +845,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class Reaper implements Runnable {
         @Override
         public void run() {
-            long time = threadPool.estimatedTimeInMillis();
+            final long time = threadPool.estimatedTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
                 // Use the same value for both checks since lastAccessTime can
                 // be modified by another thread between checks!
-                long lastAccessTime = context.lastAccessTime();
+                final long lastAccessTime = context.lastAccessTime();
                 if (lastAccessTime == -1l) { // its being processed or timeout is disabled
                     continue;
                 }

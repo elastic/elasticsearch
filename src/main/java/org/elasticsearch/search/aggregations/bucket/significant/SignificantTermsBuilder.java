@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import java.io.IOException;
 
 /**
- * Creates an aggregation based on bucketing points into GeoHashes
+ * Creates an aggregation that finds interesting or unusual occurrences of terms in a result set
  *
  */
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
@@ -37,7 +37,6 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int minDocCount=SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
 
     public SignificantTermsBuilder(String name) {
-        //TODO what if chosen field type is long not string? would this work?
         super(name, SignificantStringTerms.TYPE.name());
     }
 

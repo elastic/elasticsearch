@@ -18,14 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.LongHash;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -37,55 +33,22 @@ import java.util.Collections;
 /**
  *
  */
-public class SignificantLongTermsAggregator extends BucketsAggregator {
+public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
-    private final NumericValuesSource valuesSource;
-    private final LongHash bucketOrds;
-    private LongValues values;
+    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
+            long estimatedBucketCount,  int requiredSize, int shardSize, long minDocCount,
+            AggregationContext aggregationContext, Aggregator parent,SignificantTermsAggregatorFactory termsAggFactory) {
+        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+        this.termsAggFactory = termsAggFactory;
+    }
+
     protected int numCollectedDocs;
     private SignificantTermsAggregatorFactory termsAggFactory;
 
-
-
-    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource, SignificantTermsAggregatorFactory termsAggFactory, 
-            long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
-        this.valuesSource = valuesSource;
-        this.termsAggFactory = termsAggFactory;
-        this.requiredSize = requiredSize;        
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
-        bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
-    }
-
-    @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.longValues();
-    }
-
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+        super.collect(doc,owningBucketOrdinal);
         numCollectedDocs++;
-        
-        final int valuesCount = values.setDocument(doc);
-
-        for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.nextValue();
-            long bucketOrdinal = bucketOrds.add(val);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-            }
-            collectBucket(doc, bucketOrdinal);
-        }
     }
 
     @Override
@@ -147,9 +110,5 @@ public class SignificantLongTermsAggregator extends BucketsAggregator {
         return new SignificantLongTerms(0, supersetSize, name,  valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
-    @Override
-    public void doRelease() {
-        Releasables.release(bucketOrds);
-    }
 
 }

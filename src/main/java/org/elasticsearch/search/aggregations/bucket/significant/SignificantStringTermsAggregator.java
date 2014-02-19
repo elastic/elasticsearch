@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
@@ -29,11 +28,7 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
-//import org.elasticsearch.search.aggregations.bucket.significant.StringTerms.Bucket;
-//import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-//import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -43,115 +38,29 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 
 /**
  * An aggregator of significant string values.
  */
-public class SignificantStringTermsAggregator extends BucketsAggregator {
+public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
-    private final ValuesSource valuesSource;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
-    protected final BytesRefHash bucketOrds;
-    private final IncludeExclude includeExclude;
-    private BytesValues values;
     protected int numCollectedDocs;
     private SignificantTermsAggregatorFactory termsAggFactory;
-
-    public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, SignificantTermsAggregatorFactory termsAggFactory, long estimatedBucketCount,
-                                 int requiredSize, int shardSize, long minDocCount,
-                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
-
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
-        this.valuesSource = valuesSource;
-        this.termsAggFactory = termsAggFactory;
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
-        this.includeExclude = includeExclude;
-        bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
-    }
-
-    @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.bytesValues();
+    
+    public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
+            long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
+            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext,
+                parent);
+        this.termsAggFactory=termsAggFactory;
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
+        super.collect(doc,owningBucketOrdinal);
         numCollectedDocs++;
-        assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
-
-        for (int i = 0; i < valuesCount; ++i) {
-            final BytesRef bytes = values.nextValue();
-            if (includeExclude != null && !includeExclude.accept(bytes)) {
-                continue;
-            }
-            final int hash = values.currentValueHash();
-            assert hash == bytes.hashCode();
-            long bucketOrdinal = bucketOrds.add(bytes, hash);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-            }
-            //TODO this system of counting is only based on doc volumes.
-            // There are scenarios where count distinct of *entities* is 
-            // required e.g. see https://docs.google.com/a/elasticsearch.com/presentation/d/17jkxrsmSq6Gpd2mKAIO4949jSCgkSIM3j2KIOQ8oEEI/edit?usp=sharing
-            // and the section on credit card fraud which involves counting
-            // unique payee references not volumes of docs
-            collectBucket(doc, bucketOrdinal);
-        }
     }
-
-    /** Returns an iterator over the field data terms. */
-    private static Iterator<BytesRef> terms(final BytesValues.WithOrdinals bytesValues, boolean reverse) {
-        final Ordinals.Docs ordinals = bytesValues.ordinals();
-        if (reverse) {
-            return new UnmodifiableIterator<BytesRef>() {
-
-                long i = ordinals.getMaxOrd() - 1;
-
-                @Override
-                public boolean hasNext() {
-                    return i >= Ordinals.MIN_ORDINAL;
-                }
-
-                @Override
-                public BytesRef next() {
-                    bytesValues.getValueByOrd(i--);
-                    return bytesValues.copyShared();
-                }
-
-            };
-        } else {
-            return new UnmodifiableIterator<BytesRef>() {
-
-                long i = Ordinals.MIN_ORDINAL;
-
-                @Override
-                public boolean hasNext() {
-                    return i < ordinals.getMaxOrd();
-                }
-
-                @Override
-                public BytesRef next() {
-                    bytesValues.getValueByOrd(i++);
-                    return bytesValues.copyShared();
-                }
-
-            };
-        }
-    }
-    
-    
-
+  
     @Override
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
@@ -221,9 +130,9 @@ public class SignificantStringTermsAggregator extends BucketsAggregator {
         private Ordinals.Docs ordinals;
         private LongArray ordinalToBucket;
 
-        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource, SignificantTermsAggregatorFactory indexedFieldName, 
-                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, indexedFieldName, esitmatedBucketCount, requiredSize, shardSize, minDocCount, null, aggregationContext, parent);
+        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource,  
+                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent,SignificantTermsAggregatorFactory termsAggFactory) {
+            super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, null, aggregationContext, parent, termsAggFactory);
             this.valuesSource = valuesSource;
         }
 

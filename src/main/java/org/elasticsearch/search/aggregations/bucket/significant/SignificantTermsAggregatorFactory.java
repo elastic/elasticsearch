@@ -126,9 +126,9 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, this, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this );
             } else {
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, this, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
             }
         }
 
@@ -142,7 +142,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
               throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, this, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            return new SignificantLongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent,this);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +

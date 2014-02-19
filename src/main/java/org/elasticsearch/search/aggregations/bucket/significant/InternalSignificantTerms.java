@@ -253,7 +253,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         for (Map.Entry<String, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
             final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
-            if((b.score>0)&& (b.subsetDf >= minDocCount)) {
+            if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
                 ordered.insertWithOverflow(b);
             }
         }
@@ -268,7 +268,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     }
 
     final void trimExcessEntries() {
-        //TODO is this sorted in the desired order?
         final List<Bucket> newBuckets = Lists.newArrayList();
         for (Bucket b : buckets) {
             if (newBuckets.size() >= requiredSize) {

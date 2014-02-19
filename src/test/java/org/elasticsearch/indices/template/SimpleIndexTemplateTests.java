@@ -20,10 +20,13 @@
 package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -41,7 +44,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
-
 
     @Test
     public void simpleIndexTemplateTests() throws Exception {
@@ -269,4 +271,56 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 "get template with " + Arrays.toString(names));
     }
 
+    @Test
+    public void testBrokenMapping() throws Exception {
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .addMapping("type1", "abcde")
+                .get();
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(response.getIndexTemplates().get(0).getMappings().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getMappings().get("type1").string(), equalTo("abcde"));
+
+        try {
+            createIndex("test");
+            fail("create index should have failed due to broken index templates mapping");
+        } catch(ElasticSearchParseException e) {
+            //everything fine
+        }
+    }
+
+    @Test
+    public void testInvalidSettings() throws Exception {
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setSettings(ImmutableSettings.builder().put("does_not_exist", "test"))
+                .get();
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(response.getIndexTemplates().get(0).getSettings().getAsMap().size(), equalTo(1));
+        assertThat(response.getIndexTemplates().get(0).getSettings().get("index.does_not_exist"), equalTo("test"));
+
+        createIndex("test");
+
+        //the wrong setting has no effect but does get stored among the index settings
+        Settings settings = client().admin().cluster().prepareState().get().getState().metaData().index("test").settings();
+        assertThat(settings.getAsMap().get("index.does_not_exist"), equalTo("test"));
+    }
 }

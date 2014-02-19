@@ -69,6 +69,16 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     }
 
     @Test
+    public void testNoTokenChars() throws IOException {
+        final Index index = new Index("test");
+        final String name = "ngr";
+        final Settings indexSettings = ImmutableSettings.EMPTY;
+        final Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 4).putArray("token_chars", new String[0]).build();
+        Tokenizer tokenizer = new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("1.34"));
+        assertTokenStreamContents(tokenizer, new String[] {"1.", "1.3", "1.34", ".3", ".34", "34"});
+    }
+
+    @Test
     public void testPreTokenization() throws IOException {
         // Make sure that pretokenization works well and that it can be used even with token chars which are supplementary characters
         final Index index = new Index("test");

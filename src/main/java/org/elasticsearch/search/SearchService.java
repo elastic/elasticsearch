@@ -445,6 +445,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onFetchPhase(context, System.nanoTime() - time);
             return context.fetchResult();
         } catch (Throwable e) {
+            e.printStackTrace();
             context.indexShard().searchService().onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
             freeContext(context); // we just try to make sure this is freed - rethrow orig exception.

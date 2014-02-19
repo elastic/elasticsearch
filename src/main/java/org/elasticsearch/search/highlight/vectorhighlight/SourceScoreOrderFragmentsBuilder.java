@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.search.highlight.vectorhighlight;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.ngram.NGramTokenizerFactory;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -32,13 +25,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
-import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -60,7 +54,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
         SearchLookup lookup = searchContext.lookup();
-        lookup.setNextReader((AtomicReaderContext) reader.getContext());
+        lookup.setNextReader((AtomicReaderContext) ((DelegatingOrAnalyzingReader)reader).getDelegate().getContext());    
         lookup.setNextDocId(docId);
 
         List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());

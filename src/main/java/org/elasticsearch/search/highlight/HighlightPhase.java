@@ -132,7 +132,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         hitContext.hit().highlightFields(highlightFields);
     }
 
-    private FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
+    public static FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
         DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().type());
         FieldMapper<?> mapper = documentMapper.mappers().smartNameFieldMapper(fieldName);
         if (mapper == null) {

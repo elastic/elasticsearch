@@ -42,20 +42,21 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         Boolean outputUnigrams = settings.getAsBoolean("output_unigrams", true);
         Boolean outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
-        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator);
+        String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
+        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
     }
-    
+
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-       return factory.create(tokenStream);
+        return factory.create(tokenStream);
     }
-    
-    
+
+
     public Factory getInnerFactory() {
         return this.factory;
     }
-    
+
     public static final class Factory implements TokenFilterFactory {
         private final int maxShingleSize;
 
@@ -64,44 +65,47 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         private final boolean outputUnigramsIfNoShingles;
 
         private final String tokenSeparator;
+        private final String fillerToken;
 
         private int minShingleSize;
 
         private final String name;
-        
+
         public Factory(String name) {
-            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
+            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
         }
-        
-        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator) {
+
+        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
             this.maxShingleSize = maxShingleSize;
             this.outputUnigrams = outputUnigrams;
             this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;
             this.tokenSeparator = tokenSeparator;
             this.minShingleSize = minShingleSize;
+            this.fillerToken = fillerToken;
             this.name = name;
         }
-        
+
         public TokenStream create(TokenStream tokenStream) {
             ShingleFilter filter = new ShingleFilter(tokenStream, minShingleSize, maxShingleSize);
             filter.setOutputUnigrams(outputUnigrams);
             filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
             filter.setTokenSeparator(tokenSeparator);
+            filter.setFillerToken(fillerToken);
             return filter;
         }
 
         public int getMaxShingleSize() {
             return maxShingleSize;
         }
-        
+
         public int getMinShingleSize() {
             return minShingleSize;
         }
-        
+
         public boolean getOutputUnigrams() {
             return outputUnigrams;
         }
-        
+
         public boolean getOutputUnigramsIfNoShingles() {
             return outputUnigramsIfNoShingles;
         }

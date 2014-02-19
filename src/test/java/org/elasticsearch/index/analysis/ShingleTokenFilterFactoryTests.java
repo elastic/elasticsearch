@@ -75,9 +75,8 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_filler");
         String source = "simon the sorcerer";
-        String[] expected = new String[]{"simon FILLER sorcerer"};
+        String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};
         TokenStream tokenizer = new StopFilter(TEST_VERSION_CURRENT, new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source)), StopFilter.makeStopSet(TEST_VERSION_CURRENT, "the"));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-
 }

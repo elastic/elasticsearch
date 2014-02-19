@@ -52,7 +52,8 @@ $ curl -XPUT 'http://localhost:9200/twitter/' -d '{
 }'
 --------------------------------------------------
 
-_Note you do not have to explicitly specify `index` section inside
+[NOTE]
+You do not have to explicitly specify `index` section inside the
 `settings` section.
 
 For more information regarding all the different index level settings

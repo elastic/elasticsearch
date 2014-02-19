@@ -32,5 +32,9 @@ no effect. Defaults to `false`.
 
 |`token_separator` |The string to use when joining adjacent tokens to
 form a shingle. Defaults to `" "`.
+|`filler_token` | The string to use as a replacement for each position 
+at which there is no actual token in the stream. For instance this string is
+used if the position increment is greater than one when a `stop` filter is used
+together with the `shingle` filter. Defaults to `"_"`
 |=======================================================================
 

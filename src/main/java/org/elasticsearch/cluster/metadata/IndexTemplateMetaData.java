@@ -284,21 +284,6 @@ public class IndexTemplateMetaData {
             builder.endObject();
         }
 
-        public static IndexTemplateMetaData fromXContentStandalone(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                throw new IOException("no data");
-            }
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new IOException("should start object");
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME) {
-                throw new IOException("the first field should be the template name");
-            }
-            return fromXContent(parser);
-        }
-
         public static IndexTemplateMetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder(parser.currentName());
 

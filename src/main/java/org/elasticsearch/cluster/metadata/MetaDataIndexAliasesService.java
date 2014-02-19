@@ -126,7 +126,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 if (indexService == null) {
                                     indexService = indicesService.indexService(indexMetaData.index());
                                     if (indexService == null) {
-                                        // temporarily create the index and add mappings so we have can parse the filter
+                                        // temporarily create the index and add mappings so we can parse the filter
                                         try {
                                             indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
                                             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -165,7 +165,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 // This alias doesn't exist - ignore
                                 continue;
                             }
-                            indexMetaDataBuilder.removerAlias(aliasAction.alias());
+                            indexMetaDataBuilder.removeAlias(aliasAction.alias());
                         }
                         changed = true;
                         builder.put(indexMetaDataBuilder);

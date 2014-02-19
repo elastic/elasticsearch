@@ -335,6 +335,7 @@ public class IndexMetaData {
         return this.customs;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
@@ -505,7 +506,7 @@ public class IndexMetaData {
             return this;
         }
 
-        public Builder removerAlias(String alias) {
+        public Builder removeAlias(String alias) {
             aliases.remove(alias);
             return this;
         }

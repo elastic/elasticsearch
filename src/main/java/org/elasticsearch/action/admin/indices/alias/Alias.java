@@ -55,11 +55,6 @@ public class Alias implements Streamable {
         this.name = name;
     }
 
-    public Alias(String name, String filter) {
-        this.name = name;
-        this.filter = filter;
-    }
-
     /**
      * Returns the alias name
      */

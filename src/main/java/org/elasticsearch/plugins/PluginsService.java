@@ -437,12 +437,7 @@ public class PluginsService extends AbstractComponent {
         for (File pluginFile : pluginsFile.listFiles()) {
             if (!loadedJvmPlugins.contains(pluginFile.getName())) {
                 File sitePluginDir = new File(pluginFile, "_site");
-                if (sitePluginDir.exists()) {
-                    // Check if _site is readable
-                    if (!isAccessibleDirectory(sitePluginDir, logger)) {
-                        continue;
-                    }
-
+                if (isAccessibleDirectory(sitePluginDir, logger)) {
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
                     String version = PluginInfo.VERSION_NOT_AVAILABLE;

@@ -394,7 +394,7 @@ public class PluginsService extends AbstractComponent {
 
                     // Is it a site plugin as well? Does it have also an embedded _site structure
                     File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
-                    boolean isSite = siteFile.exists() && siteFile.isDirectory();
+                    boolean isSite = isAccessibleDirectory(siteFile, logger);
                     if (logger.isTraceEnabled()) {
                         logger.trace("found a jvm plugin [{}], [{}]{}",
                                 plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
@@ -438,6 +438,11 @@ public class PluginsService extends AbstractComponent {
             if (!loadedJvmPlugins.contains(pluginFile.getName())) {
                 File sitePluginDir = new File(pluginFile, "_site");
                 if (sitePluginDir.exists()) {
+                    // Check if _site is readable
+                    if (!isAccessibleDirectory(sitePluginDir, logger)) {
+                        continue;
+                    }
+
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
                     String version = PluginInfo.VERSION_NOT_AVAILABLE;
@@ -487,7 +492,7 @@ public class PluginsService extends AbstractComponent {
         }
 
         File sitePluginDir = new File(pluginsFile, name + "/_site");
-        return sitePluginDir.exists();
+        return isAccessibleDirectory(sitePluginDir, logger);
     }
 
     private Plugin loadPlugin(String className, Settings settings) {

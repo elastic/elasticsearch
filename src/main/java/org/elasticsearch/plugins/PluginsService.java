@@ -342,9 +342,8 @@ public class PluginsService extends AbstractComponent {
             return;
         }
 
-        File[] pluginsFiles = pluginsFile.listFiles();
         if (pluginsFile != null) {
-            for (File pluginFile : pluginsFiles) {
+            for (File pluginFile : pluginsFile.listFiles()) {
                 if (pluginFile.isDirectory()) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");

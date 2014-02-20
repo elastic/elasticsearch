@@ -1425,7 +1425,9 @@ public class Strings {
                     }
                     changed = true;
                 }
-                sb.append(Character.toUpperCase(value.charAt(++i)));
+                if (i < value.length() - 1) {
+                    sb.append(Character.toUpperCase(value.charAt(++i)));
+                }
             } else {
                 if (changed) {
                     sb.append(c);

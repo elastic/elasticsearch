@@ -50,6 +50,37 @@ anything set using either `JAVA_OPTS` or `ES_JAVA_OPTS`. For example:
 $ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-node
 --------------------------------------------------
 *************************************************************************
+
+== Upgrading from earlier versions
+
+If you are upgrading from a previous version of Elasticsearch (from 0.90.x or earlier to 1.x), you must perform a full cluster restart (i.e. not a rolling restart). To perform this:
+
+* Install the new version of Elasticsearch on all nodes. DO NOT RESTART YET!
+
+* Disable shard allocation (optional).
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+  "persistent" : {
+    "cluster.routing.allocation.disable_allocation" : true
+  }
+}'
+--------------------------------------------------
+
+* Stop Elasticsearch running on ALL nodes.
+
+* Restart any master-eligible nodes, one at a time. Verify successful election of new master after a quorum has come online.
+
+* Restart data/client nodes, one at a time. Verify each node has successfully joined the cluster.
+
+* Re-enable allocation (optional)
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "persistent" : {
+        "cluster.routing.allocation.enable" : "all"
+    }
+}'
+--------------------------------------------------
+
 --
 
 include::setup/configuration.asciidoc[]

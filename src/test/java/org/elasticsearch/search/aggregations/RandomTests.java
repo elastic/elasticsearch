@@ -42,7 +42,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/** Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like the growth of dynamic arrays is tested. */
+/**
+ * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
+ * the growth of dynamic arrays is tested.
+ */
 public class RandomTests extends ElasticsearchIntegrationTest {
 
     @Override

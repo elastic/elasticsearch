@@ -48,7 +48,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     private final SearchContext searchContext;
 
-    private ObjectObjectOpenHashMap<String, FieldDataSource>[] perDepthFieldDataSources = new ObjectObjectOpenHashMap[4];
+    private ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource>[] perDepthFieldDataSources = new ObjectObjectOpenHashMap[4];
     private List<ReaderContextAware> readerAwares = new ArrayList<ReaderContextAware>();
     private List<ScorerAware> scorerAwares = new ArrayList<ScorerAware>();
 
@@ -102,9 +102,9 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             perDepthFieldDataSources = Arrays.copyOf(perDepthFieldDataSources, ArrayUtil.oversize(1 + depth, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         if (perDepthFieldDataSources[depth] == null) {
-            perDepthFieldDataSources[depth] = new ObjectObjectOpenHashMap<String, FieldDataSource>();
+            perDepthFieldDataSources[depth] = new ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource>();
         }
-        final ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources = perDepthFieldDataSources[depth];
+        final ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource> fieldDataSources = perDepthFieldDataSources[depth];
 
         if (config.fieldContext == null) {
             if (NumericValuesSource.class.isAssignableFrom(config.valueSourceType)) {
@@ -139,14 +139,15 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return new NumericValuesSource(source, config.formatter(), config.parser());
     }
 
-    private NumericValuesSource numericField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
-        FieldDataSource.Numeric dataSource = (FieldDataSource.Numeric) fieldDataSources.get(config.fieldContext.field());
+    private NumericValuesSource numericField(ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
+        final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
+        FieldDataSource.Numeric dataSource = (FieldDataSource.Numeric) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
             FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
             dataSource = new FieldDataSource.Numeric.FieldData((IndexNumericFieldData<?>) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
-            fieldDataSources.put(config.fieldContext.field(), dataSource);
+            fieldDataSources.put(cacheKey, dataSource);
         }
         if (config.script != null) {
             setScorerIfNeeded(config.script);
@@ -166,8 +167,9 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return new NumericValuesSource(dataSource, config.formatter(), config.parser());
     }
 
-    private ValuesSource bytesField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
-        FieldDataSource dataSource = fieldDataSources.get(config.fieldContext.field());
+    private ValuesSource bytesField(ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
+        final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
+        FieldDataSource dataSource = fieldDataSources.get(cacheKey);
         if (dataSource == null) {
             final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
             FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
@@ -178,7 +180,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             }
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
-            fieldDataSources.put(config.fieldContext.field(), dataSource);
+            fieldDataSources.put(cacheKey, dataSource);
         }
         if (config.script != null) {
             setScorerIfNeeded(config.script);
@@ -218,14 +220,15 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return new BytesValuesSource(source);
     }
 
-    private GeoPointValuesSource geoPointField(ObjectObjectOpenHashMap<String, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
-        FieldDataSource.GeoPoint dataSource = (FieldDataSource.GeoPoint) fieldDataSources.get(config.fieldContext.field());
+    private GeoPointValuesSource geoPointField(ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource> fieldDataSources, ValuesSourceConfig<?> config) {
+        final ConfigCacheKey cacheKey = new ConfigCacheKey(config);
+        FieldDataSource.GeoPoint dataSource = (FieldDataSource.GeoPoint) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
             FieldDataSource.MetaData metaData = FieldDataSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
             dataSource = new FieldDataSource.GeoPoint((IndexGeoPointFieldData<?>) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded(dataSource);
             readerAwares.add(dataSource);
-            fieldDataSources.put(config.fieldContext.field(), dataSource);
+            fieldDataSources.put(cacheKey, dataSource);
         }
         if (config.needsHashes) {
             dataSource.setNeedsHashes(true);
@@ -252,6 +255,37 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
     private void setScorerIfNeeded(ScorerAware scorerAware) {
         if (scorer != null) {
             scorerAware.setScorer(scorer);
+        }
+    }
+
+    private static class ConfigCacheKey {
+
+        private final String field;
+        private final Class<? extends ValuesSource> valueSourceType;
+
+        private ConfigCacheKey(ValuesSourceConfig config) {
+            this.field = config.fieldContext.field();
+            this.valueSourceType = config.valueSourceType;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ConfigCacheKey that = (ConfigCacheKey) o;
+
+            if (!field.equals(that.field)) return false;
+            if (!valueSourceType.equals(that.valueSourceType)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = field.hashCode();
+            result = 31 * result + valueSourceType.hashCode();
+            return result;
         }
     }
 }

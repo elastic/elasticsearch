@@ -115,7 +115,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .size(0))
                 .execute().actionGet();
 
-        assertSearchResponse(response);System.out.println(response);
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

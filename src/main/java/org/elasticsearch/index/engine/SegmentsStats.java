@@ -43,15 +43,18 @@ public class SegmentsStats implements Streamable, ToXContent {
 
     public void add(long count, long memoryInBytes) {
         this.count += count;
-        this.memoryInBytes += memoryInBytes;
+        if (memoryInBytes == -1) {
+            this.memoryInBytes = -1;
+        } else if (this.memoryInBytes != -1) {
+            this.memoryInBytes += memoryInBytes;
+        }
     }
 
     public void add(SegmentsStats mergeStats) {
         if (mergeStats == null) {
             return;
         }
-        this.count += mergeStats.count;
-        this.memoryInBytes += mergeStats.memoryInBytes;
+        add(mergeStats.count, mergeStats.memoryInBytes);
     }
 
     /**

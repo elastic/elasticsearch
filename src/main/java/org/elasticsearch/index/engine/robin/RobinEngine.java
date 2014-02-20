@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.codecs.lucene3x.Lucene3xCodec;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -1173,10 +1174,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-
     private long getReaderRamBytesUsed(AtomicReaderContext reader) {
         assert reader.reader() instanceof SegmentReader;
-        return ((SegmentReader) reader.reader()).ramBytesUsed();
+        final SegmentReader segmentReader = (SegmentReader) reader.reader();
+        if (segmentReader.getSegmentInfo().info.getCodec() instanceof Lucene3xCodec) {
+            // https://issues.apache.org/jira/browse/LUCENE-5462
+            // RAM usage estimation is very costly on Lucene 3.x segments
+            return -1;
+        }
+        return segmentReader.ramBytesUsed();
     }
 
     @Override
@@ -1418,7 +1424,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setMaxThreadStates(indexConcurrency);
             config.setCodec(codecService.codec(codecName));
             /* We set this timeout to a highish value to work around
-             * the default poll interval in the Lucene lock that is 
+             * the default poll interval in the Lucene lock that is
              * 1000ms by default. We might need to poll multiple times
              * here but with 1s poll this is only executed twice at most
              * in combination with the default writelock timeout*/

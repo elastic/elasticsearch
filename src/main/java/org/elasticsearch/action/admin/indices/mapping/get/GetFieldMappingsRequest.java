@@ -19,20 +19,84 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ClusterInfoRequest<GetFieldMappingsRequest> {
+public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> {
+
+    protected boolean local = false;
 
     private String[] fields = Strings.EMPTY_ARRAY;
 
     private boolean includeDefaults = false;
+
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private String[] types = Strings.EMPTY_ARRAY;
+
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
+
+    public GetFieldMappingsRequest() {
+
+    }
+
+    public GetFieldMappingsRequest(GetFieldMappingsRequest other) {
+        this.local = other.local;
+        this.includeDefaults = other.includeDefaults;
+        this.indices = other.indices;
+        this.types = other.types;
+        this.indicesOptions = other.indicesOptions;
+        this.fields = other.fields;
+    }
+
+    /**
+     * Indicate whether the receiving node should operate based on local index information or forward requests,
+     * where needed, to other nodes. If running locally, request will not raise errors if running locally & missing indices.
+     */
+    public GetFieldMappingsRequest local(boolean local) {
+        this.local = local;
+        return this;
+    }
+
+    public boolean local() {
+        return local;
+    }
+
+    public GetFieldMappingsRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    public GetFieldMappingsRequest types(String... types) {
+        this.types = types;
+        return this;
+    }
+
+    public GetFieldMappingsRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    public String[] indices() {
+        return indices;
+    }
+
+    public String[] types() {
+        return types;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
 
     /** @param fields a list of fields to retrieve the mapping for */
     public GetFieldMappingsRequest fields(String... fields) {
@@ -62,6 +126,14 @@ public class GetFieldMappingsRequest extends ClusterInfoRequest<GetFieldMappings
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrBefore(Version.V_1_0_0)) {
+            // This request used to inherit from MasterNodeOperationRequest
+            MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT.writeTo(out);
+        }
+        out.writeStringArray(indices);
+        out.writeStringArray(types);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeBoolean(local);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
     }
@@ -69,6 +141,14 @@ public class GetFieldMappingsRequest extends ClusterInfoRequest<GetFieldMappings
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.getVersion().onOrBefore(Version.V_1_0_0)) {
+            // This request used to inherit from MasterNodeOperationRequest
+            TimeValue.readTimeValue(in);
+        }
+        indices = in.readStringArray();
+        types = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        local = in.readBoolean();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
     }

@@ -25,24 +25,24 @@ import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader.TermSetSource;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
  */
 // LUCENE MONITOR
-public class CustomFieldQuery extends FieldQuery {
+public class CustomFieldQuery extends FieldQuery implements TermSetSource {
 
     private static Field multiTermQueryWrapperFilterQueryField;
 
@@ -157,5 +157,10 @@ public class CustomFieldQuery extends FieldQuery {
                 }
             }
         }
+    }
+
+    @Override
+    public Set<String> termSet(String field) {
+        return getTermSet(field);
     }
 }

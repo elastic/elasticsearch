@@ -41,7 +41,7 @@ public final class HighlightUtils {
 
     }
 
-    static List<Object> loadFieldValues(FieldMapper<?> mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource) throws IOException {
+    public static List<Object> loadFieldValues(FieldMapper<?> mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource) throws IOException {
         List<Object> textsToHighlight;
         if (!forceSource && mapper.fieldType().stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);

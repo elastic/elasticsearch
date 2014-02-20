@@ -64,9 +64,6 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper<?> mapper = highlighterContext.mapper;
 
-        // The reader we highlight against.
-        IndexReader reader = new DelegatingOrAnalyzingReader(context, hitContext, field.forceSource());
-
         Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
@@ -75,7 +72,7 @@ public class FastVectorHighlighter implements Highlighter {
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
 
         try {
-            FieldQuery fieldQuery;
+            CustomFieldQuery fieldQuery;
             if (field.requireFieldMatch()) {
                 if (cache.fieldMatchFieldQuery == null) {
                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
@@ -144,7 +141,8 @@ public class FastVectorHighlighter implements Highlighter {
             // a HACK to make highlighter do highlighting, even though its using the single frag list builder
             int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
             int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
-            // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
+            // The reader we highlight against.
+            IndexReader reader = new DelegatingOrAnalyzingReader(context, hitContext, field.forceSource(), fieldQuery);
             // Only send matched fields if they were requested to save time.
             if (field.matchedFields() != null && !field.matchedFields().isEmpty()) {
                 fragments = cache.fvh.getBestFragments(fieldQuery, reader, hitContext.docId(), mapper.names().indexName(), field.matchedFields(), fragmentCharSize,
@@ -186,8 +184,8 @@ public class FastVectorHighlighter implements Highlighter {
 
     private class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public FieldQuery noFieldMatchFieldQuery;
-        public FieldQuery fieldMatchFieldQuery;
+        public CustomFieldQuery noFieldMatchFieldQuery;
+        public CustomFieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
     }
 }

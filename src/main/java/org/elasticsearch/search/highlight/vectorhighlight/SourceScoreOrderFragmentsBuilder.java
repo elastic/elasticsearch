@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.highlight.vectorhighlight;
 
+import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
@@ -26,7 +28,6 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
 
 import java.io.IOException;
 import java.util.List;

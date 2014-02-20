@@ -43,6 +43,14 @@ public class RerouteExplanation implements ToXContent {
         this.decisions = decisions;
     }
 
+    public AllocationCommand command() {
+        return this.command;
+    }
+
+    public Decision decisions() {
+        return this.decisions;
+    }
+
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
         String commandName = in.readString();
         AllocationCommand command = AllocationCommands.lookupFactorySafe(commandName).readFrom(in);

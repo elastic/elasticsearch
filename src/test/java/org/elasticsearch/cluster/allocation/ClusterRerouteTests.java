@@ -24,9 +24,12 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
@@ -250,20 +253,16 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> try to move the shard from node1 to node2");
-        ClusterRerouteResponse resp = client().admin().cluster().prepareReroute()
-                .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
-                .setExplain(true)
-                .execute().actionGet();
+        MoveAllocationCommand cmd = new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2);
+        ClusterRerouteResponse resp = client().admin().cluster().prepareReroute().add(cmd).setExplain(true).execute().actionGet();
         RoutingExplanations e = resp.getExplanations();
         assertThat(e.explanations().size(), equalTo(1));
-
-        try {
-            BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/cluster/allocation/reroute-explanation.json"));
-            assertThat(e.toXContent(XContentFactory.jsonBuilder().prettyPrint(), null).string(), equalTo(json.toUtf8()));
-        } catch (IOException ex) {
-            fail("Exception: " + ex);
-        }
-
+        RerouteExplanation explanation = e.explanations().get(0);
+        assertThat(explanation.command().name(), equalTo(cmd.name()));
+        assertThat(((MoveAllocationCommand)explanation.command()).shardId(), equalTo(cmd.shardId()));
+        assertThat(((MoveAllocationCommand)explanation.command()).fromNode(), equalTo(cmd.fromNode()));
+        assertThat(((MoveAllocationCommand)explanation.command()).toNode(), equalTo(cmd.toNode()));
+        assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
 }

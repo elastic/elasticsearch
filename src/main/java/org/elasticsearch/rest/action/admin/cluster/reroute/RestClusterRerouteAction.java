@@ -29,11 +29,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
@@ -84,10 +81,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                     request.params().put("filter_metadata", "true");
                 }
                 response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                builder.endObject();
                 if (clusterRerouteRequest.explain()) {
                     response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 }
-                builder.endObject();
             }
 
             @Override

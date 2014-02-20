@@ -34,7 +34,7 @@ setup:
       percolate:
         index: nestedindex
         type:  company
-        body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia stark"} , { "name": "tony potts"} ] } }
+        body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] } }
 
   - match: {'total': 0}
 
@@ -42,7 +42,7 @@ setup:
       percolate:
           index: nestedindex
           type:  company
-          body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia potts"} , { "name": "tony stark"} ] } }
+          body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] } }
 
   - match: {'total': 1}
 
@@ -53,7 +53,7 @@ setup:
           index: nestedindex
           type:  company
           id:    notmatching
-          body: { "companyname": "stark", "employee": [ { "name": "virginia stark"} , { "name": "tony potts"} ] }
+          body: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
 
 
   - do:
@@ -61,7 +61,7 @@ setup:
           index: nestedindex
           type:  company
           id:    matching
-          body: { "companyname": "stark", "employee": [ { "name": "virginia potts"} , { "name": "tony stark"} ] }
+          body: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] }
 
   - do:
       indices.refresh: {}
@@ -90,9 +90,9 @@ setup:
       mpercolate:
          body:
             - percolate: {"index": "nestedindex", "type": "company"}
-            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"} , { "name": "tony potts"} ] }
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
             - percolate: {"index": "nestedindex", "type": "company"}
-            - doc: { "companyname": "stark", "employee": [ { "name": "virginia potts"} , { "name": "tony stark"} ] }
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] }
 
   - match: {'responses.0.total': 0}
   - match: {'responses.1.total': 1}
@@ -103,7 +103,7 @@ setup:
             - percolate: {"index": "nestedindex", "type": "company"}
             - doc: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, {"name": "tony stark"} ] }
             - percolate: {"index": "nestedindex", "type": "company"}
-            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"} , { "name": "tony potts"} ] }
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
 
 
   - match: {'responses.0.total': 1}

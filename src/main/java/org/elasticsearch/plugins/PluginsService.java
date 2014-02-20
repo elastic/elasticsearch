@@ -353,6 +353,11 @@ public class PluginsService extends AbstractComponent {
                 if (logger.isTraceEnabled()) {
                     logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
                 }
+                if (!pluginFile.canRead()) {
+                    logger.debug("plugin directory is not readable [{}].", pluginFile.getAbsolutePath());
+                    continue;
+                }
+
                 try {
                     // add the root
                     addURL.invoke(classLoader, pluginFile.toURI().toURL());

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.codecs.lucene3x.Lucene3xCodec;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -30,6 +31,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -1118,9 +1120,18 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
+    static {
+        assert Version.LUCENE_46.onOrAfter(Lucene.VERSION); // Lucene 4.7 fixed Lucene 3.X RAM usage estimations, see LUCENE-5462
+    }
 
     private long getReaderRamBytesUsed(AtomicReaderContext reader) {
-        return SegmentReaderUtils.segmentReader(reader.reader()).ramBytesUsed();
+        final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
+        if (segmentReader.getSegmentInfo().info.getCodec() instanceof Lucene3xCodec) {
+            // https://issues.apache.org/jira/browse/LUCENE-5462
+            // RAM usage estimation is very costly on Lucene 3.x segments
+            return -1;
+        }
+        return segmentReader.ramBytesUsed();
     }
 
     @Override
@@ -1357,7 +1368,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             config.setMaxThreadStates(indexConcurrency);
             config.setCodec(codecService.codec(codecName));
             /* We set this timeout to a highish value to work around
-             * the default poll interval in the Lucene lock that is 
+             * the default poll interval in the Lucene lock that is
              * 1000ms by default. We might need to poll multiple times
              * here but with 1s poll this is only executed twice at most
              * in combination with the default writelock timeout*/

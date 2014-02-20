@@ -30,7 +30,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,6 +43,8 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
+
+import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 /**
  *
@@ -318,7 +319,7 @@ public class PluginsService extends AbstractComponent {
 
     private void loadPluginsIntoClassLoader() {
         File pluginsDirectory = environment.pluginsFile();
-        if (!FileSystemUtils.isAccessibleDirectory(pluginsDirectory, logger)) {
+        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return;
         }
 
@@ -342,7 +343,7 @@ public class PluginsService extends AbstractComponent {
 
         for (File plugin : pluginsDirectory.listFiles()) {
             // We check that subdirs are directories and readable
-            if (!FileSystemUtils.isAccessibleDirectory(plugin, logger)) {
+            if (!isAccessibleDirectory(plugin, logger)) {
                 continue;
             }
 

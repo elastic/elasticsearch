@@ -236,15 +236,15 @@ public class FileSystemUtils {
         assert directory != null && logger != null;
 
         if (!directory.exists()) {
-            logger.debug("plugins directory does not exist [{}].", directory.getAbsolutePath());
+            logger.debug("[{}] directory does not exist.", directory.getAbsolutePath());
             return false;
         }
         if (!directory.isDirectory()) {
-            logger.debug("plugins directory is not a directory [{}].", directory.getAbsolutePath());
+            logger.debug("[{}] should be a directory but is not.", directory.getAbsolutePath());
             return false;
         }
         if (!directory.canRead()) {
-            logger.debug("plugins directory is not readable [{}].", directory.getAbsolutePath());
+            logger.debug("[{}] directory is not readable.", directory.getAbsolutePath());
             return false;
         }
         return true;

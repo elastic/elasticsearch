@@ -81,10 +81,12 @@ public enum GeoDistance {
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
             double x1 = sourceLatitude * Math.PI / 180D;
             double x2 = targetLatitude * Math.PI / 180D;
-            double h1 = (1D - Math.cos(x1 - x2)) / 2D;
-            double h2 = (1D - Math.cos((sourceLongitude - targetLongitude) * Math.PI / 180D)) / 2D;
-            double h = h1 + Math.cos(x1) * Math.cos(x2) * h2;
-            return unit.fromMeters(GeoUtils.EARTH_MEAN_RADIUS * 2D * Math.asin(Math.min(1, Math.sqrt(h))));
+            double h1 = 1D - Math.cos(x1 - x2);
+            double h2 = 1D - Math.cos((sourceLongitude - targetLongitude) * Math.PI / 180D);
+            double h = (h1 + Math.cos(x1) * Math.cos(x2) * h2) / 2;
+            double averageLatitude = (x1 + x2) / 2;
+            double diameter = GeoUtils.earthDiameter(averageLatitude);
+            return unit.fromMeters(diameter * Math.asin(Math.min(1, Math.sqrt(h))));
         }
 
         @Override

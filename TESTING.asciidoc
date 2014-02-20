@@ -67,7 +67,8 @@ mvn test -Dtests.seed=DEADBEEF
 
 === Repeats _all_ tests of ClassName N times.
 
-Every test repetition will have a different seed.
+Every test repetition will have a different method seed 
+(derived from a single random master seed).
 
 --------------------------------------------------
 mvn test -Dtests.iters=N -Dtests.class=*.ClassName
@@ -75,11 +76,11 @@ mvn test -Dtests.iters=N -Dtests.class=*.ClassName
 
 === Repeats _all_ tests of ClassName N times.
 
-Every test repetition will have exactly the same master (dead) and
-method-level (beef) seed.
+Every test repetition will have exactly the same master (0xdead) and
+method-level (0xbeef) seed.
 
 ------------------------------------------------------------------------
-mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEADBEEF
+mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEAD:BEEF
 ------------------------------------------------------------------------
 
 === Repeats a given test N times

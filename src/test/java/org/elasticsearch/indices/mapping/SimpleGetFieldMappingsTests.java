@@ -22,6 +22,8 @@ package org.elasticsearch.indices.mapping;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -41,8 +43,10 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     @Test
     public void getMappingsWhereThereAreNone() {
         createIndex("index");
+        ensureYellow();
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().get();
-        assertThat(response.mappings().size(), equalTo(0));
+        assertThat(response.mappings().size(), equalTo(1));
+        assertThat(response.mappings().get("index").size(), equalTo(0));
 
         assertThat(response.fieldMappings("index", "type", "field"), Matchers.nullValue());
     }
@@ -57,15 +61,21 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleGetFieldMappings() throws Exception {
 
-
+        Settings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put("number_of_shards", randomIntBetween(1, 3), "number_of_replicas", randomIntBetween(0, 1));
+        
         assertTrue(client().admin().indices().prepareCreate("indexa")
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
+                .setSettings(settings)
                 .get().isAcknowledged());
         assertTrue(client().admin().indices().prepareCreate("indexb")
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
+                .setSettings(settings)
                 .get().isAcknowledged());
+
+        ensureYellow();
 
         // Get mappings by full name
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("indexa").setTypes("typeA").setFields("field1", "obj.subfield").get();

@@ -491,7 +491,6 @@ public class PluginManager {
 
         private static void addUrl(List<URL> urls, String url) {
             try {
-                URL _url = new URL(url);
                 urls.add(new URL(url));
             } catch (MalformedURLException e) {
                 // We simply ignore malformed URL

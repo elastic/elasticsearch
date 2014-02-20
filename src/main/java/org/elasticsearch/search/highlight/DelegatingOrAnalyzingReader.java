@@ -38,9 +38,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This reader is a pile of hacks designed to allow on the fly re-analyzing for
@@ -200,31 +197,10 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         private final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new DirectAllocator()), 
                 BytesRefHash.DEFAULT_CAPACITY, extra);
         private final IntBlockPool postings = new IntBlockPool();
-
-        private static long totalTime = 0;
-        private static long overheadTime = 0;
-        
-        static {
-            final ScheduledExecutorService e = Executors.newScheduledThreadPool(1);
-            final Runnable r = new Runnable() {
-                @Override
-                public void run() {
-                    System.err.println(totalTime + " " + overheadTime);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException();
-                    }
-                }
-            };
-            e.scheduleAtFixedRate(r, 5, 5, TimeUnit.SECONDS);
-        }
         
         public AnalyzedTerms(String field, Analyzer analyzer, int positionOffsetGap, List<Object> values, Set<String> termSet)
                 throws IOException {
             SliceWriter postingsWriter = new SliceWriter(postings);
-            
-            long start = System.currentTimeMillis();
             int position = -1;
             int offsetBase = 0;
             for (Object value : values) {
@@ -236,7 +212,6 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
                     OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
                     stream.reset();
                     while (stream.incrementToken()) {
-                        long startOverhead = System.currentTimeMillis();
                         position += posIncrAttribute.getPositionIncrement();
                         if (termSet != null && !termSet.contains(charTermAtt.toString())) {
                             continue;
@@ -261,7 +236,6 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
                         // Now update the location of the last posting and keep track of the term frequency
                         extra.end[ord] = postingsWriter.getCurrentOffset();
                         extra.freq[ord]++;
-                        overheadTime += System.currentTimeMillis() - startOverhead;
                     }
                     stream.end();
                 } finally {
@@ -272,7 +246,6 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
                 // Another to account for space between fields
                 offsetBase += valueString.length() + 1;
             }
-            totalTime += System.currentTimeMillis() - start;
         }
         
         /**

@@ -191,7 +191,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                             "] shard from snapshot with [" + snapshotIndexMetaData.getNumberOfShards() + "] shards");
                                 }
                                 // Index exists and it's closed - open it in metadata and start recovery
-                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(currentIndexMetaData).state(IndexMetaData.State.OPEN);
+                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
+                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.version(), currentIndexMetaData.version() + 1));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.removeIndexBlock(index, INDEX_CLOSED_BLOCK);

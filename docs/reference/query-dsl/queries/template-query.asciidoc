@@ -96,6 +96,6 @@ GET _search
 
 
 For more information on how Mustache templating and what kind of templating you
-can do with it check out the [online
-documentation](http://mustache.github.io/mustache.5.html) of the mustache project.
+can do with it check out the
+http://mustache.github.io/mustache.5.html[online documentation] of the mustache project.
 

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugin;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -44,8 +45,11 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
@@ -72,10 +76,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URL url = PluginManagerTests.class.getResource("plugin_single_folder.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        String nodeName = cluster().startNode(SETTINGS);
+        cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(nodeName, pluginName);
+        assertPluginAvailable(pluginName);
     }
 
     @Test
@@ -89,7 +93,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(nodeName, pluginName);
+        assertPluginAvailable(pluginName);
     }
 
     @Test
@@ -99,10 +103,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URL url = PluginManagerTests.class.getResource("plugin_without_folders.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        String nodeName = cluster().startNode(SETTINGS);
+        cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(nodeName, pluginName);
+        assertPluginAvailable(pluginName);
     }
 
     @Test
@@ -112,10 +116,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URL url = PluginManagerTests.class.getResource("plugin_folder_file.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        String nodeName = cluster().startNode(SETTINGS);
+        cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(nodeName, pluginName);
+        assertPluginAvailable(pluginName);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -151,27 +155,31 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().get(0).isSite(), equalTo(true));
     }
 
-    private void assertPluginAvailable(String nodeName, String pluginName) {
+    private void assertPluginAvailable(String pluginName) throws InterruptedException {
         HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
-        HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
+        final HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
         logger.info("--> tested http address [{}]", httpServerTransport.info().getAddress());
-        //checking that the http connector is working properly
-        HttpClientResponse response = checkHttpResponseOK(httpClient, nodeName, "");
-        assertThat(response.response(), containsString(nodeName));
-        //checking now that the plugin is available
-        checkHttpResponseOK(httpClient, nodeName, "_plugin/" + pluginName + "/");
-    }
 
-    private HttpClientResponse checkHttpResponseOK(HttpClient httpClient, String nodeName, String url) {
-        logger.info("--> trying node [{}], url [/{}]", nodeName, url);
-        HttpClientResponse response = httpClient.request(url);
-        if (response.errorCode() != RestStatus.OK.getStatus()) {
-            // We want to trace what's going on here before failing the test
-            logger.info("--> error caught [{}], headers [{}]", response.errorCode(), response.getHeaders());
-            logger.info("--> cluster state [{}]", cluster().clusterService().state());
-        }
+        //checking that the http connector is working properly
+        // We will try it for some seconds as it could happen that the REST interface is not yet fully started
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                HttpClientResponse response = httpClient.request("");
+                if (response.errorCode() != RestStatus.OK.getStatus()) {
+                    // We want to trace what's going on here before failing the test
+                    logger.info("--> error caught [{}], headers [{}]", response.errorCode(), response.getHeaders());
+                    logger.info("--> cluster state [{}]", cluster().clusterService().state());
+                    return false;
+                }
+                return true;
+            }
+        }, 5, TimeUnit.SECONDS), equalTo(true));
+
+
+        //checking now that the plugin is available
+        HttpClientResponse response = httpClient.request("_plugin/" + pluginName + "/");
+        assertThat(response, notNullValue());
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
-        return response;
     }
 
     @Test

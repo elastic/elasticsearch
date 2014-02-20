@@ -195,7 +195,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.version(), currentIndexMetaData.version() + 1));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
-                                blocks.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
+                                blocks.removeIndexBlock(renamedIndex, INDEX_CLOSED_BLOCK);
                                 mdBuilder.put(updatedIndexMetaData, true);
                             }
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {

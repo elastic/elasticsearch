@@ -228,6 +228,28 @@ public class FileSystemUtils {
         }
     }
 
+    /**
+     * Check that a directory exists, is a directory and is readable
+     * by the current user
+     */
+    public static boolean isAccessibleDirectory(File directory, ESLogger logger) {
+        assert directory != null && logger != null;
+
+        if (!directory.exists()) {
+            logger.debug("[{}] directory does not exist.", directory.getAbsolutePath());
+            return false;
+        }
+        if (!directory.isDirectory()) {
+            logger.debug("[{}] should be a directory but is not.", directory.getAbsolutePath());
+            return false;
+        }
+        if (!directory.canRead()) {
+            logger.debug("[{}] directory is not readable.", directory.getAbsolutePath());
+            return false;
+        }
+        return true;
+    }
+
     private FileSystemUtils() {
 
     }

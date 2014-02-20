@@ -124,7 +124,8 @@ public class AllocationService extends AbstractComponent {
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
-        allocation.debugDecision(explain);
+        // don't short circuit deciders, we want a full explanation
+        allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
         RoutingExplanations explanations = commands.execute(allocation, explain);

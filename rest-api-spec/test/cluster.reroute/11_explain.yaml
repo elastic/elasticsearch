@@ -21,7 +21,7 @@ setup:
         body:
           commands: []
 
-  - match: { explanations: []}
+  - match: {explanations: []}
 
 ---
 "Explain API for non-existant node & shard":

@@ -1,14 +1,11 @@
 [[misc]]
 == Misc
 
-* https://github.com/electrical/puppet-elasticsearch[Puppet]:
+* https://github.com/elasticsearch/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 
 * http://github.com/elasticsearch/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
-
-* https://github.com/tavisto/elasticsearch-rpms[elasticsearch-rpms]:
-  RPMs for elasticsearch.
 
 * http://www.github.com/neogenix/daikon[daikon]:
   Daikon Elasticsearch CLI

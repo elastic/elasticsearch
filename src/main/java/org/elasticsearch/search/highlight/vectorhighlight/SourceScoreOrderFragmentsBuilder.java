@@ -20,7 +20,6 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
@@ -28,8 +27,6 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,26 +35,17 @@ import java.util.List;
  *
  */
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
-
     private final FieldMapper<?> mapper;
 
-    private final SearchContext searchContext;
-
-    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
+    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper,
                                             String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
-        this.searchContext = searchContext;
     }
 
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
-        // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        SearchLookup lookup = searchContext.lookup();
-        lookup.setNextReader((AtomicReaderContext) ((DelegatingOrAnalyzingReader)reader).getDelegate().getContext());    
-        lookup.setNextDocId(docId);
-
-        List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
+        List<Object> values = ((DelegatingOrAnalyzingReader)reader).getValues(mapper);
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

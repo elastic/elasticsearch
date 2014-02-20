@@ -106,7 +106,7 @@ public class FastVectorHighlighter implements Highlighter {
                     if (!field.forceSource() && mapper.fieldType().stored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                     }
                 } else {
                     fragListBuilder = field.fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fragmentOffset());
@@ -114,13 +114,13 @@ public class FastVectorHighlighter implements Highlighter {
                         if (!field.forceSource() && mapper.fieldType().stored()) {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                         }
                     } else {
                         if (!field.forceSource() && mapper.fieldType().stored()) {
                             fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                         }
                     }
                 }

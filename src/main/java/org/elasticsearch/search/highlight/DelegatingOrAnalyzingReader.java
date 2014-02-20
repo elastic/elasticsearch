@@ -23,7 +23,6 @@ import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterAtomicReader;
 import org.apache.lucene.index.Terms;
@@ -33,8 +32,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * This reader is a pile of hacks designed to allow on the fly re-analyzing for documents for highlighters that
@@ -44,7 +42,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     private final SearchContext searchContext;
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
-
+    private Map<String, List<Object>> valuesCache;
+    
     public DelegatingOrAnalyzingReader(SearchContext searchContext, FetchSubPhase.HitContext hitContext,
             boolean forceSource) {
         // Delegate to a low level reader containing the document.
@@ -53,9 +52,12 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         this.hitContext = hitContext;
         this.forceSource = forceSource;
     }
-    
-    public AtomicReader getDelegate() {
-        return in;
+
+    /**
+     * Load the field values.
+     */
+    public List<Object> getValues(FieldMapper<?> mapper) throws IOException {
+        return getValues(mapper, false);
     }
 
     @Override
@@ -70,14 +72,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     }
 
     private Terms analyzeField(int docId, String field) throws IOException {
-        // Note that we have to look the mapper up again because we might not be analyzing the field for
-        // which the highlighter already has the mapper.
-        FieldMapper<?> mapper = HighlightPhase.getMapperForField(field, searchContext, hitContext);
-        if (mapper == null) {
-            // No mapper means the field doesn't exist so there can't be term vectors.
-            return null;
-        }
-        List<Object> values = HighlightUtils.loadFieldValues(mapper, searchContext, hitContext, forceSource);
+        FieldMapper<?> mapper = getMapperForField(field);
+        List<Object> values = getValues(mapper, true);
         if (values.isEmpty()) {
             // No values means there can't be term vectors either.
             return null;
@@ -96,7 +92,34 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         assert t != null: "If this is null them something is wrong with this method.";
         return t;
     }
+    
+    private FieldMapper<?> getMapperForField(String field) {
+        return HighlightPhase.getMapperForField(field, searchContext, hitContext);
+    }
 
+    private List<Object> getValues(FieldMapper<?> mapper, boolean addToCache) throws IOException {
+        if (mapper == null) {
+            // No mapper means the field doesn't exist so there isn't anything to fetch.
+            return Collections.emptyList();
+        }
+        List<Object> values;
+        if (valuesCache != null) {
+            // Use the source path as the key so we don't have to load things with the same source twice.
+            values = valuesCache.get(mapper.names().sourcePath());
+            if (values != null) {
+                return values;
+            }
+        }
+        // Will never return null so caches well
+        values = HighlightUtils.loadFieldValues(mapper, searchContext, hitContext, forceSource);
+        if (addToCache) {
+            if (valuesCache == null) {
+                valuesCache = new HashMap<String, List<Object>>();
+            }
+            valuesCache.put(mapper.names().sourcePath(), values);
+        }
+        return values;
+    }
     /**
      * Really hacky Fields implementation mostly useful for the FVH.
      */

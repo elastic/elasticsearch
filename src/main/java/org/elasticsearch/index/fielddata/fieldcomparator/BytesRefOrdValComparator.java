@@ -170,7 +170,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
         @Override
         public void setTopValue(BytesRef value) {
-            // NOCOMMIT -- implement
+            BytesRefOrdValComparator.this.setTopValue(value);
         }
 
         @Override
@@ -191,14 +191,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             return val1.compareTo(val2);
         }
 
-        // NOCOMMIT - remove
-//        @Override
-//        public int compareDocToValue(int doc, BytesRef value) {
-//            final long ord = getOrd(doc);
-//            final BytesRef docValue = ord == Ordinals.MISSING_ORDINAL ? missingValue : termsIndex.getValueByOrd(ord);
-//            return compareValues(docValue, value);
-//        }
-
         protected long getOrd(int doc) {
             return readerOrds.getOrd(doc);
         }
@@ -213,8 +205,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
         @Override
         public int compareTop(int doc) throws IOException {
-            // NOCOMMIT - implement
-            return 0;
+            throw new UnsupportedOperationException("compareTop() not used for sorting in ES");
         }
 
         @Override
@@ -341,7 +332,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     @Override
     public void setTopValue(BytesRef value) {
-        // NOCOMMIT
+        throw new UnsupportedOperationException("setTopValue() not used for sorting in ES");
     }
 
     @Override

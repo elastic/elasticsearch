@@ -44,6 +44,8 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
 
+import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
+
 /**
  *
  */
@@ -316,11 +318,8 @@ public class PluginsService extends AbstractComponent {
     }
 
     private void loadPluginsIntoClassLoader() {
-        File pluginsFile = environment.pluginsFile();
-        if (!pluginsFile.exists()) {
-            return;
-        }
-        if (!pluginsFile.isDirectory()) {
+        File pluginsDirectory = environment.pluginsFile();
+        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return;
         }
 
@@ -342,40 +341,37 @@ public class PluginsService extends AbstractComponent {
             return;
         }
 
-        File[] pluginsFiles = pluginsFile.listFiles();
-        if (pluginsFile != null) {
-            for (File pluginFile : pluginsFiles) {
-                if (pluginFile.isDirectory()) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
-                    }
-                    try {
-                        // add the root
-                        addURL.invoke(classLoader, pluginFile.toURI().toURL());
-                        // gather files to add
-                        List<File> libFiles = Lists.newArrayList();
-                        if (pluginFile.listFiles() != null) {
-                            libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
-                        }
-                        File libLocation = new File(pluginFile, "lib");
-                        if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
-                            libFiles.addAll(Arrays.asList(libLocation.listFiles()));
-                        }
-
-                        // if there are jars in it, add it as well
-                        for (File libFile : libFiles) {
-                            if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
-                                continue;
-                            }
-                            addURL.invoke(classLoader, libFile.toURI().toURL());
-                        }
-                    } catch (Throwable e) {
-                        logger.warn("failed to add plugin [" + pluginFile + "]", e);
-                    }
-                }
+        for (File plugin : pluginsDirectory.listFiles()) {
+            // We check that subdirs are directories and readable
+            if (!isAccessibleDirectory(plugin, logger)) {
+                continue;
             }
-        } else {
-            logger.debug("failed to list plugins from {}. Check your right access.", pluginsFile.getAbsolutePath());
+
+            logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
+
+            try {
+                // add the root
+                addURL.invoke(classLoader, plugin.toURI().toURL());
+                // gather files to add
+                List<File> libFiles = Lists.newArrayList();
+                if (plugin.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(plugin.listFiles()));
+                }
+                File libLocation = new File(plugin, "lib");
+                if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+                }
+
+                // if there are jars in it, add it as well
+                for (File libFile : libFiles) {
+                    if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
+                        continue;
+                    }
+                    addURL.invoke(classLoader, libFile.toURI().toURL());
+                }
+            } catch (Throwable e) {
+                logger.warn("failed to add plugin [" + plugin + "]", e);
+            }
         }
     }
 
@@ -398,7 +394,7 @@ public class PluginsService extends AbstractComponent {
 
                     // Is it a site plugin as well? Does it have also an embedded _site structure
                     File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
-                    boolean isSite = siteFile.exists() && siteFile.isDirectory();
+                    boolean isSite = isAccessibleDirectory(siteFile, logger);
                     if (logger.isTraceEnabled()) {
                         logger.trace("found a jvm plugin [{}], [{}]{}",
                                 plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
@@ -441,7 +437,7 @@ public class PluginsService extends AbstractComponent {
         for (File pluginFile : pluginsFile.listFiles()) {
             if (!loadedJvmPlugins.contains(pluginFile.getName())) {
                 File sitePluginDir = new File(pluginFile, "_site");
-                if (sitePluginDir.exists()) {
+                if (isAccessibleDirectory(sitePluginDir, logger)) {
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
                     String version = PluginInfo.VERSION_NOT_AVAILABLE;
@@ -491,7 +487,7 @@ public class PluginsService extends AbstractComponent {
         }
 
         File sitePluginDir = new File(pluginsFile, name + "/_site");
-        return sitePluginDir.exists();
+        return isAccessibleDirectory(sitePluginDir, logger);
     }
 
     private Plugin loadPlugin(String className, Settings settings) {

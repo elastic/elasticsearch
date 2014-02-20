@@ -316,17 +316,17 @@ public class PluginsService extends AbstractComponent {
     }
 
     private void loadPluginsIntoClassLoader() {
-        File pluginsFile = environment.pluginsFile();
-        if (!pluginsFile.exists()) {
-            logger.debug("plugins directory does not exist [{}].", pluginsFile.getAbsolutePath());
+        File pluginsDirectory = environment.pluginsFile();
+        if (!pluginsDirectory.exists()) {
+            logger.debug("plugins directory does not exist [{}].", pluginsDirectory.getAbsolutePath());
             return;
         }
-        if (!pluginsFile.isDirectory()) {
-            logger.debug("plugins directory is not a directory [{}].", pluginsFile.getAbsolutePath());
+        if (!pluginsDirectory.isDirectory()) {
+            logger.debug("plugins directory is not a directory [{}].", pluginsDirectory.getAbsolutePath());
             return;
         }
-        if (!pluginsFile.canRead()) {
-            logger.debug("plugins directory is not readable [{}].", pluginsFile.getAbsolutePath());
+        if (!pluginsDirectory.canRead()) {
+            logger.debug("plugins directory is not readable [{}].", pluginsDirectory.getAbsolutePath());
             return;
         }
 
@@ -348,39 +348,43 @@ public class PluginsService extends AbstractComponent {
             return;
         }
 
-        for (File pluginFile : pluginsFile.listFiles()) {
-            if (pluginFile.isDirectory()) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
+        for (File plugin : pluginsDirectory.listFiles()) {
+            // We check that subdirs are directories and readable
+            if (!plugin.isDirectory()) {
+                logger.debug("plugins directory is not a directory [{}].", pluginsDirectory.getAbsolutePath());
+                continue;
+            }
+            if (!plugin.canRead()) {
+                logger.debug("plugin directory is not readable [{}].", plugin.getAbsolutePath());
+                continue;
+            }
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
+            }
+
+            try {
+                // add the root
+                addURL.invoke(classLoader, plugin.toURI().toURL());
+                // gather files to add
+                List<File> libFiles = Lists.newArrayList();
+                if (plugin.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(plugin.listFiles()));
                 }
-                if (!pluginFile.canRead()) {
-                    logger.debug("plugin directory is not readable [{}].", pluginFile.getAbsolutePath());
-                    continue;
+                File libLocation = new File(plugin, "lib");
+                if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(libLocation.listFiles()));
                 }
 
-                try {
-                    // add the root
-                    addURL.invoke(classLoader, pluginFile.toURI().toURL());
-                    // gather files to add
-                    List<File> libFiles = Lists.newArrayList();
-                    if (pluginFile.listFiles() != null) {
-                        libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
+                // if there are jars in it, add it as well
+                for (File libFile : libFiles) {
+                    if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
+                        continue;
                     }
-                    File libLocation = new File(pluginFile, "lib");
-                    if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
-                        libFiles.addAll(Arrays.asList(libLocation.listFiles()));
-                    }
-
-                    // if there are jars in it, add it as well
-                    for (File libFile : libFiles) {
-                        if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
-                            continue;
-                        }
-                        addURL.invoke(classLoader, libFile.toURI().toURL());
-                    }
-                } catch (Throwable e) {
-                    logger.warn("failed to add plugin [" + pluginFile + "]", e);
+                    addURL.invoke(classLoader, libFile.toURI().toURL());
                 }
+            } catch (Throwable e) {
+                logger.warn("failed to add plugin [" + plugin + "]", e);
             }
         }
     }

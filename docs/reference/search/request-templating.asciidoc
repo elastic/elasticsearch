@@ -1,0 +1,66 @@
+[[search-request-templating]]
+== Search Request Templating
+
+coming[1.1.0]
+
+A search request component that is treated as a template, parameters are filled
+from a map of key/value pairs.
+
+[source,js]
+--------------------------------------
+GET _search
+{
+    "template" : {
+        "content" : {
+            "query": {
+                "match_{{te_1}}": {}
+            },
+            "fac{{te_2}}": {
+            "list-id": {
+                "terms": {
+                    "field": "list-{{te_3}}",
+                    "size": 10
+                }
+            }
+            }, 
+            "fields": ["subject", "from"]
+        },
+        "params" : {
+            "te_1" : "all",
+            "te_2" : "ets",
+            "te_3" : "id"
+        }
+    }
+}
+----------------------------------------
+
+The query resulting from the above template and substitution
+parameters would look like the following:
+
+[source,js]
+-----------------------------------------
+GET _search
+{
+    "query": {
+        "match_all": {}
+    },
+    "facets": {
+        "list-id": {
+            "terms": {
+                "field": "list-id",
+                "size": 10
+            }
+        }
+    }, 
+    "fields": ["subject", "from"]
+}
+-----------------------------------------
+
+
+TBDone: Referencing templates stored in the configuration directory
+from the search url parameters.
+
+
+
+Templating itself is based on Mustache.
+

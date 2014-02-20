@@ -113,21 +113,10 @@ public class AllocationCommands {
      * @param allocation {@link RoutingAllocation} to apply this command to
      * @throws org.elasticsearch.ElasticsearchException if something happens during execution
      */
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
-        for (AllocationCommand command : commands) {
-            command.execute(allocation);
-        }
-    }
-
-    /**
-     * Explains all wrapped commands on a given {@link RoutingAllocation}. No
-     * commands are actually executed and the allocation is not changed
-     * @param allocation {@link RoutingAllocation} to apply the commands to
-     */
-    public RoutingExplanations explain(RoutingAllocation allocation) {
+    public RoutingExplanations execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
         RoutingExplanations explanations = new RoutingExplanations();
         for (AllocationCommand command : commands) {
-            explanations.add(command.explain(allocation));
+            explanations.add(command.execute(allocation, explain));
         }
         return explanations;
     }

@@ -74,13 +74,11 @@ public class RoutingExplanations implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.startArray("explanations");
         for (RerouteExplanation explanation : explanations) {
             explanation.toXContent(builder, params);
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 }

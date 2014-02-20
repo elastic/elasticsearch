@@ -165,7 +165,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
@@ -193,7 +193,12 @@ public class CancelAllocationCommand implements AllocationCommand {
                     // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
                     if (!allowPrimary && shardRouting.primary()) {
                         // can't cancel a primary shard being initialized
-                        throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state");
+                        if (explain) {
+                            return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
+                                    "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state"));
+                        }
+                        throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
+                                discoNode + ", shard is primary and initializing its state");
                     }
                     it.moveToUnassigned();
                     // now, go and find the shard that is initializing on the target node, and cancel it as well...
@@ -211,7 +216,12 @@ public class CancelAllocationCommand implements AllocationCommand {
                 // the shard is not relocating, its either started, or initializing, just cancel it and move on...
                 if (!allowPrimary && shardRouting.primary()) {
                     // can't cancel a primary shard being initialized
-                    throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started");
+                    if (explain) {
+                        return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
+                                "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started"));
+                    }
+                    throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
+                            discoNode + ", shard is primary and started");
                 }
                 it.remove();
                 allocation.routingNodes().unassigned().add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
@@ -219,45 +229,13 @@ public class CancelAllocationCommand implements AllocationCommand {
             }
         }
         if (!found) {
-            throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
-        }
-    }
-
-    @Override
-    public RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException {
-        DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
-        boolean found = false;
-        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
-            MutableShardRouting shardRouting = it.next();
-            if (!shardRouting.shardId().equals(shardId)) {
-                continue;
-            }
-            found = true;
-            if (shardRouting.relocatingNodeId() != null) {
-                if (shardRouting.initializing()) {
-                    // success
-                    return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
-                            "shard " + shardId + " on node " + discoNode + " can be cancelled"));
-                } else if (shardRouting.relocating()) {
-                    // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
-                    if (!allowPrimary && shardRouting.primary()) {
-                        // can't cancel a primary shard being initialized
-                        return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
-                                "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state"));
-                    }
-                }
-            } else if (!allowPrimary && shardRouting.primary()) {
-                // can't cancel a primary shard being initialized
+            if (explain) {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
-                        "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started"));
+                        "can't cancel " + shardId + ", failed to find it on node " + discoNode));
             }
-        }
-        if (!found) {
-            return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
-                    "can't cancel " + shardId + ", failed to find it on node " + discoNode));
+            throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
         }
         return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
                 "shard " + shardId + " on node " + discoNode + " can be cancelled"));
-
     }
 }

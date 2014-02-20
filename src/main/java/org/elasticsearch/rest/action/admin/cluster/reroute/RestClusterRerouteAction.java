@@ -47,7 +47,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         super(settings, client);
         this.settingsFilter = settingsFilter;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute/explain", new RestClusterRerouteExplainAction());
     }
 
     @Override
@@ -55,6 +54,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
@@ -84,6 +84,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                     request.params().put("filter_metadata", "true");
                 }
                 response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                if (clusterRerouteRequest.explain()) {
+                    response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                }
                 builder.endObject();
             }
 
@@ -95,52 +98,5 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                 super.onFailure(e);
             }
         });
-    }
-
-    final class RestClusterRerouteExplainAction implements RestHandler {
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
-            final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
-            clusterRerouteRequest.listenerThreaded(false);
-            clusterRerouteRequest.explain(true);
-            if (request.hasContent()) {
-                try {
-                    clusterRerouteRequest.source(request.content());
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                    } catch (IOException e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                    return;
-                }
-            }
-
-            client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestResponseActionListener<ClusterRerouteResponse>(request, channel, logger) {
-                @Override
-                public void onResponse(ClusterRerouteResponse response) {
-                    try {
-                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                        response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                    } catch (IOException ex) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("failed to handle cluster reroute explain", ex);
-                        }
-                        super.onFailure(ex);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("failed to handle cluster reroute", e);
-                    }
-                    super.onFailure(e);
-                }
-            });
-        }
-
     }
 }

@@ -167,7 +167,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
         MutableShardRouting shardRouting = null;
@@ -181,24 +181,43 @@ public class AllocateAllocationCommand implements AllocationCommand {
         }
 
         if (shardRouting == null) {
+            if (explain) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                        "failed to find " + shardId + " on the list of unassigned shards"));
+            }
             throw new ElasticsearchIllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
         }
 
         if (shardRouting.primary() && !allowPrimary) {
+            if (explain) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                        "trying to allocate a primary shard " + shardId + ", which is disabled"));
+            }
             throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + "], which is disabled");
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
         if (routingNode == null) {
             if (!discoNode.dataNode()) {
+                if (explain) {
+                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                            "Allocation can only be done on data nodes, not " + node));
+                }
                 throw new ElasticsearchIllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
             } else {
+                if (explain) {
+                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
+                            "Could not find " + node + " among the routing nodes"));
+                }
                 throw new ElasticsearchIllegalStateException("Could not find [" + node + "] among the routing nodes");
             }
         }
 
         Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
         if (decision.type() == Decision.Type.NO) {
+            if (explain) {
+                return new RerouteExplanation(this, decision);
+            }
             throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
@@ -215,44 +234,6 @@ public class AllocateAllocationCommand implements AllocationCommand {
             }
             break;
         }
-    }
-
-    @Override
-    public RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException {
-        DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
-
-        MutableShardRouting shardRouting = null;
-        for (MutableShardRouting routing : allocation.routingNodes().unassigned()) {
-            if (routing.shardId().equals(shardId)) {
-                // prefer primaries first to allocate
-                if (shardRouting == null || routing.primary()) {
-                    shardRouting = routing;
-                }
-            }
-        }
-
-        if (shardRouting == null) {
-            return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                    "failed to find " + shardId + " on the list of unassigned shards"));
-        }
-
-        if (shardRouting.primary() && !allowPrimary) {
-            return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                    "trying to allocate a primary shard " + shardId + ", which is disabled"));
-        }
-
-        RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
-        if (routingNode == null) {
-            if (!discoNode.dataNode()) {
-                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                        "Allocation can only be done on data nodes, not " + node));
-            } else {
-                return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                        "Could not find " + node + " among the routing nodes"));
-            }
-        }
-
-        Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
         return new RerouteExplanation(this, decision);
     }
 }

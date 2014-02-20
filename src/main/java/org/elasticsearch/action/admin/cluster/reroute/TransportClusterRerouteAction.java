@@ -73,15 +73,10 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
-        if (request.explain()) {
-            RoutingExplanations explanations = allocationService.explain(state, request.commands);
-            listener.onResponse(new ClusterRerouteResponse(true, state, explanations));
-            return;
-        }
         clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             private volatile ClusterState clusterStateToSend;
-            private final RoutingExplanations emptyExplanations = new RoutingExplanations();
+            private volatile RoutingExplanations explanations;
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -90,12 +85,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
             @Override
             public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend, emptyExplanations));
+                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend, explanations));
             }
 
             @Override
             public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteResponse(false, state, emptyExplanations));
+                listener.onResponse(new ClusterRerouteResponse(false, state, new RoutingExplanations()));
             }
 
             @Override
@@ -119,6 +114,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
                 RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands, true);
                 ClusterState newState = ClusterState.builder(currentState).routingResult(routingResult).build();
                 clusterStateToSend = newState;
+                explanations = routingResult.explanations();
                 if (request.dryRun) {
                     return currentState;
                 }

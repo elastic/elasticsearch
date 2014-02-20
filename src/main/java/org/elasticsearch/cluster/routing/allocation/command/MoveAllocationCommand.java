@@ -147,9 +147,10 @@ public class MoveAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public void execute(RoutingAllocation allocation) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
         DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
         DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
+        Decision decision = null;
 
         boolean found = false;
         for (MutableShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
@@ -160,12 +161,20 @@ public class MoveAllocationCommand implements AllocationCommand {
 
             // TODO we can possibly support also relocating cases, where we cancel relocation and move...
             if (!shardRouting.started()) {
-                throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", shard is not started (state = " + shardRouting.state() + "]");
+                if (explain) {
+                    return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
+                            "shard " + shardId + " has not been started"));
+                }
+                throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId +
+                        ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
             RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
-            Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
+            decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
             if (decision.type() == Decision.Type.NO) {
+                if (explain) {
+                    return new RerouteExplanation(this, decision);
+                }
                 throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
             }
             if (decision.type() == Decision.Type.THROTTLE) {
@@ -180,31 +189,12 @@ public class MoveAllocationCommand implements AllocationCommand {
         }
 
         if (!found) {
+            if (explain) {
+                return new RerouteExplanation(this, allocation.decision(Decision.NO,
+                        "move_allocation_command", "shard " + shardId + " not found"));
+            }
             throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
         }
-    }
-
-    @Override
-    public RerouteExplanation explain(RoutingAllocation allocation) throws ElasticsearchException {
-        DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
-        DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
-
-        for (MutableShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
-            if (!shardRouting.shardId().equals(shardId)) {
-                continue;
-            }
-
-            if (!shardRouting.started()) {
-                return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
-                        "shard " + shardId + " has not been started"));
-            }
-
-            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
-            Decision decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
-            return new RerouteExplanation(this, decision);
-        }
-
-        return new RerouteExplanation(this, allocation.decision(Decision.NO,
-                "MoveAllocationCommand", "shard " + shardId + " not found"));
+        return new RerouteExplanation(this, decision);
     }
 }

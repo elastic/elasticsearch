@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -317,16 +318,7 @@ public class PluginsService extends AbstractComponent {
 
     private void loadPluginsIntoClassLoader() {
         File pluginsDirectory = environment.pluginsFile();
-        if (!pluginsDirectory.exists()) {
-            logger.debug("plugins directory does not exist [{}].", pluginsDirectory.getAbsolutePath());
-            return;
-        }
-        if (!pluginsDirectory.isDirectory()) {
-            logger.debug("plugins directory is not a directory [{}].", pluginsDirectory.getAbsolutePath());
-            return;
-        }
-        if (!pluginsDirectory.canRead()) {
-            logger.debug("plugins directory is not readable [{}].", pluginsDirectory.getAbsolutePath());
+        if (!FileSystemUtils.isAccessibleDirectory(pluginsDirectory, logger)) {
             return;
         }
 
@@ -350,12 +342,7 @@ public class PluginsService extends AbstractComponent {
 
         for (File plugin : pluginsDirectory.listFiles()) {
             // We check that subdirs are directories and readable
-            if (!plugin.isDirectory()) {
-                logger.debug("plugins directory is not a directory [{}].", pluginsDirectory.getAbsolutePath());
-                continue;
-            }
-            if (!plugin.canRead()) {
-                logger.debug("plugin directory is not readable [{}].", plugin.getAbsolutePath());
+            if (!FileSystemUtils.isAccessibleDirectory(plugin, logger)) {
                 continue;
             }
 

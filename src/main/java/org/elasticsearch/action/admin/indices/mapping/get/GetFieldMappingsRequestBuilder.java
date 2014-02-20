@@ -19,32 +19,53 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalGenericClient;
 
-/**
- * A helper class to build {@link GetFieldMappingsRequest} objects
- */
-public class GetFieldMappingsRequestBuilder extends ClusterInfoRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
+/** A helper class to build {@link GetFieldMappingsRequest} objects */
+public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
 
     public GetFieldMappingsRequestBuilder(InternalGenericClient client, String... indices) {
         super(client, new GetFieldMappingsRequest().indices(indices));
     }
 
+    public GetFieldMappingsRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
 
-    /**
-     * Sets the fields to retrieve.
-     */
+    public GetFieldMappingsRequestBuilder addIndices(String... indices) {
+        request.indices(ObjectArrays.concat(request.indices(), indices, String.class));
+        return this;
+    }
+
+    public GetFieldMappingsRequestBuilder setTypes(String... types) {
+        request.types(types);
+        return this;
+    }
+
+    public GetFieldMappingsRequestBuilder addTypes(String... types) {
+        request.types(ObjectArrays.concat(request.types(), types, String.class));
+        return this;
+    }
+
+    public GetFieldMappingsRequestBuilder setIndicesOptions(IgnoreIndices indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
+    }
+
+
+    /** Sets the fields to retrieve. */
     public GetFieldMappingsRequestBuilder setFields(String... fields) {
         request.fields(fields);
         return this;
     }
 
-    /**
-     * Indicates whether default mapping settings should be returned
-     */
+    /** Indicates whether default mapping settings should be returned */
     public GetFieldMappingsRequestBuilder includeDefaults(boolean includeDefaults) {
         request.includeDefaults(includeDefaults);
         return this;

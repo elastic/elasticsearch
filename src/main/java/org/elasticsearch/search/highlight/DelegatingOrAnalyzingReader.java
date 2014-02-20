@@ -41,19 +41,27 @@ import java.util.*;
 
 /**
  * This reader is a pile of hacks designed to allow on the fly re-analyzing for
- * documents for highlighters that aren't the plain highlighter.
+ * documents for highlighters that need extra data.  Right now it only works with
+ * the FVH.
  */
 public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     private final SearchContext searchContext;
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
     /**
-     * Optional source of terms to ananlyze.  If left null then all terms in the field will be analyzed.
+     * Optional source of terms to analyze.  If null then all terms will be analyzed which has more overhead.
      */
     @Nullable
     private final TermSetSource termSetSource;
     private Map<String, List<Object>> valuesCache;
 
+    /**
+     * Build one.
+     * @param searchContext used to lookup mappers
+     * @param hitContext used to find a reader and to load the field values
+     * @param forceSource when loading the field values should we force a load from source?
+     * @param termSetSource optional souce of terms to analyze.  If null then all terms will be analyzed which has more overhead.
+     */
     public DelegatingOrAnalyzingReader(SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource,
             TermSetSource termSetSource) {
         // Delegate to a low level reader containing the document.
@@ -73,18 +81,21 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
 
     @Override
     public Fields getTermVectors(int docId) throws IOException {
-        // TODO I wonder if we can push this call until we have the field so we
-        // can make an educated guess
-        // (using the mapper) as to whether there might be term vectors for the
-        // field.
+        // If we can push this call until we have the field so we an make an educated guess
+        // (using the mapper) as to whether there might be term vectors for the field.
         Fields real = super.getTermVectors(docId);
         if (real == null) {
-            return new AnalyzingFields(docId);
+            return new AnalyzingFields();
         }
-        return new DelegatingOrAnalyzingFields(real, docId);
+        return new DelegatingOrAnalyzingFields(real);
     }
 
-    Terms analyzeField(int docId, String field) throws IOException {
+    /**
+     * Analyze the contents of a field into a Terms instance.
+     * @param field field to analyze
+     * @return a terms instance usable by the FVH
+     */
+    Terms analyzeField(String field) throws IOException {
         FieldMapper<?> mapper = getMapperForField(field);
         List<Object> values = getValues(mapper, true);
         if (values.isEmpty()) {
@@ -138,18 +149,12 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     }
 
     /**
-     * Really hacky Fields implementation mostly useful for the FVH.
+     * Really hacky Fields implementation only really safe for the FHV.
      */
     private class AnalyzingFields extends Fields {
-        private final int docId;
-
-        public AnalyzingFields(int docId) {
-            this.docId = docId;
-        }
-
         @Override
         public Terms terms(String field) throws IOException {
-            return analyzeField(docId, field);
+            return analyzeField(field);
         }
 
         @Override
@@ -165,14 +170,12 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
 
     /**
      * Hacky Fields implementation that delegates to stored term vectors if they
-     * exist, otherwise reanalyzes the field on the fly.
+     * exist, otherwise reanalyzes the field on the fly.  Less hacky then
+     * AnalyzingFields but still not safe.
      */
     private class DelegatingOrAnalyzingFields extends FilterFields {
-        private final int docId;
-
-        public DelegatingOrAnalyzingFields(Fields in, int docId) {
+        public DelegatingOrAnalyzingFields(Fields in) {
             super(in);
-            this.docId = docId;
         }
 
         @Override
@@ -181,7 +184,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
             // the field.
             Terms real = super.terms(field);
             if (real == null) {
-                return analyzeField(docId, field);
+                return analyzeField(field);
             }
             return real;
         }
@@ -190,7 +193,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     /**
      * Store for position and offset data that works very similarly to the
      * MemoryIndex but skips a great deal of things not required here like multi
-     * term support.
+     * term support and sorting the terms.  Also supports limiting terms to
+     * a set.
      */
     private static class AnalyzedTerms {
         private final ExtraArraysByteStartArray extra = new ExtraArraysByteStartArray(BytesRefHash.DEFAULT_CAPACITY);
@@ -299,7 +303,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     }
     
     /**
-     * Filthy lying implementation of Terms designed to only work with the FVH.
+     * Filthy lying implementation of Terms that exposes AnalyzedTerms in a way
+     * that the FHV can handle.
      */
     private static class AnalyzedTermsTermVector extends Terms {
         private final AnalyzedTerms terms;
@@ -360,7 +365,8 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     }
 
     /**
-     * Terms enum that doesn't spit out the terms in any particular order.
+     * Terms enum that doesn't spit out the terms in any particular order.  Horrible
+     * for anything but the FVH.
      */
     private static class AnalyzedTermsEnum extends TermsEnum {
         private final BytesRef ref = new BytesRef();
@@ -426,7 +432,10 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
             throw new UnsupportedOperationException();
         }
     }
-    
+
+    /**
+     * DocsAndPositionsEnum that reads from AnalyzedTerms.
+     */
     private static class AnalyzedTermsDocsAndPositionsEnum extends DocsAndPositionsEnum {
         private final SliceReader postingsReader;
         private final int freq;
@@ -488,6 +497,9 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         }
     }
 
+    /**
+     * Called to fetch a set of fields to analyze per term.
+     */
     public interface TermSetSource {
         /**
          * Get the terms that should be highlighted for field.

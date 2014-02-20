@@ -1882,7 +1882,6 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         MatchQueryBuilder queryBuilder = QueryBuilders.matchQuery("text", "third fifth");
         field.highlighterType("plain");
         response = client().prepareSearch("test").setQuery(queryBuilder).addHighlightedField(field).get();
-        // TODO this fails because we don't build the terms enum quite right
         assertHighlight(response, 0, "text", 0, 2, equalTo("This is the <em>third</em> sentence. This is the fourth sentence."));
         assertHighlight(response, 0, "text", 1, 2, equalTo("This is the <em>fifth</em> sentence"));
 
@@ -2608,7 +2607,10 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         response = search.setQuery(boostingQuery().positive(phrase).negative(terms).boost(1).negativeBoost(1/boost)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
     }
-    
+
+    /**
+     * Test for the FVH when some of the documents have vectors and some do not.
+     */
     @Test
     public void testFVHSomeFieldTermVectors() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test")

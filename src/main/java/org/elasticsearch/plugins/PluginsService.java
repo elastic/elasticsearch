@@ -347,9 +347,7 @@ public class PluginsService extends AbstractComponent {
                 continue;
             }
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
-            }
+            logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
 
             try {
                 // add the root

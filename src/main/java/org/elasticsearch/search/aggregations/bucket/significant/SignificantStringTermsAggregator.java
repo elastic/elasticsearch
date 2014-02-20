@@ -175,10 +175,6 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             }
         }
 
-        @Override
-        public void doRelease() {
-            Releasables.release(bucketOrds, ordinalToBucket);
-        }
     }
 
 }

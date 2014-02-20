@@ -140,8 +140,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("subset_size", subsetSize);
-        builder.field("superset_size", supersetSize);
+        builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
@@ -149,10 +148,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             if(bucket.subsetDf>=minDocCount){
                 builder.startObject();
                 builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
-                //TODO change reference to "doc" count/freq etc - we may be used to count freq of entities that are not docs
                 builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-                builder.field("significance_score", bucket.score);
-                builder.field("superset_doc_freq", bucket.supersetDf);
+                builder.field("score", bucket.score);
+                builder.field("bg_count", bucket.supersetDf);
                 ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
                 builder.endObject();
             }

@@ -45,14 +45,13 @@ Response:
 
     "aggregations" : {
         "significantCrimeTypes" : {
-            "subset_size": 47347,
-            "superset_size": 5064554,
+            "doc_count": 47347,
             "buckets" : [
                 {
                     "key": "Bicycle theft",
                     "doc_count": 3640,
-                    "significance_score": 0.371235374214817,
-                    "superset_doc_freq": 66799
+                    "score": 0.371235374214817,
+                    "bg_count": 66799
                 }
                 ...
             ]
@@ -109,14 +108,13 @@ Response:
                 "key": "Metropolitan Police Service",
                 "doc_count": 894038,
                 "significantCrimeTypes": {
-                    "subset_size": 894038,
-                    "superset_size": 5064554,
+                    "doc_count": 894038,
                     "buckets": [
                         {
                             "key": "Robbery",
                             "doc_count": 27617,
-                            "significance_score": 0.0599,
-                            "superset_doc_freq": 53182
+                            "score": 0.0599,
+                            "bg_count": 53182
                         },
                         ...
                     ]
@@ -126,14 +124,13 @@ Response:
                 "key": "British Transport Police",
                 "doc_count": 47347,
                 "significantCrimeTypes": {
-                    "subset_size": 47347,
-                    "superset_size": 5064554,
+                    "doc_count": 47347,
                     "buckets": [                        
                         {
                             "key": "Bicycle theft",
                             "doc_count": 3640,
-                            "significance_score": 0.371,
-                            "superset_doc_freq": 66799
+                            "score": 0.371,
+                            "bg_count": 66799
                         },
                         ...
                     ]
@@ -185,7 +182,7 @@ where a simple `terms` aggregation would typically show the very popular "consta
 
 
 
-.What are the significance_scores?
+.How are the scores calculated?
 **********************************
 The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users. 
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favour 
@@ -218,12 +215,14 @@ a high setting would have a small number of relevant results packed full of keyw
 
 **********************************
 
-.Hot tip: Show significant_terms in context
-**********************************
+[TIP] 
+============
+.Show significant_terms in context
+
 Free-text significant_terms are much more easily understood when viewed in context. Take the results of `significant_terms` suggestions from a 
 free-text field and use them in a `terms` query on the same field with a `highlight` clause to present users with example snippets of documents. When the terms
 are presented unstemmed, highlighted, with the right case, in the right order and with some context, their significance/meaning is more readily apparent.
-**********************************
+============
 
 
 === Limitations
@@ -253,7 +252,7 @@ so there is no difference in document frequencies to observe and from which to m
 
 Another consideration is that  the significant_terms aggregation produces many candidate results at shard level 
 that are only later pruned on the reducing node once all statistics from all shards are merged. As a result,
-it can be inefficient and costly in terms of RAM to embed large child aggregations under a signigicant_terms 
+it can be inefficient and costly in terms of RAM to embed large child aggregations under a significant_terms 
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
 significant_terms and then add this shortlist of terms to a second query to go back and fetch the required child aggregations.  
  
@@ -265,7 +264,7 @@ as such may be:
 * high when considering the background frequency as it may count occurrences found in deleted documents
 
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
-However, the "size" and "shard size" settings covered in the next section provide tools to help control the accuracy levels. 
+However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels. 
 
 
 === Parameters
@@ -274,17 +273,16 @@ However, the "size" and "shard size" settings covered in the next section provid
 ==== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
-default, the node coordinating the search process will request each shard to provide its own top `size` term buckets
+default, the node coordinating the search process will request each shard to provide its own top term buckets
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
-This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
+If the number of unique terms is greater than `size`, the returned list can be slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
 
-The higher the requested `size` is, the more accurate the results will be, but also, the more expensive it will be to
-compute the final results (both due to bigger priority queues that are managed on a shard level and due to bigger data
-transfers between the nodes and the client).
+To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
+using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter 
+can be  used to control the volumes of candidate terms produced by each shard.
 
-The `shard_size` parameter can be  used to control the volumes of candidate terms produced by each shard.
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given

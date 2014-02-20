@@ -143,8 +143,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("subset_size", subsetSize);
-        builder.field("superset_size", supersetSize);        
+        builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             builder.startObject();
@@ -153,8 +152,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
                 builder.field(CommonFields.KEY_AS_STRING, valueFormatter.format(((Bucket) bucket).term));
             }
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            builder.field("significance_score", bucket.score);
-            builder.field("superset_doc_freq", bucket.supersetDf);
+            builder.field("score", bucket.score);
+            builder.field("bg_count", bucket.supersetDf);
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
             builder.endObject();
         }

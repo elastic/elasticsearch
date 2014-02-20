@@ -680,6 +680,19 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(client.prepareCount("test-idx-1-copy").get().getCount(), equalTo(100L));
         assertThat(client.prepareCount("test-idx-2-copy").get().getCount(), equalTo(100L));
 
+        logger.info("--> close just restored indices");
+        client.admin().indices().prepareClose("test-idx-1-copy", "test-idx-2-copy").get();
+
+        logger.info("--> and try to restore these indices again");
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        ensureGreen();
+        assertThat(client.prepareCount("test-idx-1-copy").get().getCount(), equalTo(100L));
+        assertThat(client.prepareCount("test-idx-2-copy").get().getCount(), equalTo(100L));
+
+
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2-copy").get();
 

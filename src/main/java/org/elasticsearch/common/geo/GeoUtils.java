@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.common.unit.DistanceUnit;
 
 /**
@@ -44,6 +45,14 @@ public class GeoUtils {
 
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
+
+    /**
+     * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).
+     */
+    public static double earthDiameter(double latitude) {
+        // SloppyMath impl returns a result in kilometers
+        return SloppyMath.earthDiameter(latitude) * 1000;
+    }
 
     /**
      * Calculate the width (in meters) of geohash cells at a specific level 

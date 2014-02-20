@@ -44,12 +44,6 @@ public class SloppyMathTests extends ElasticsearchTestCase {
 
     @Test
     public void testSloppyMath() {
-        assertThat(GeoDistance.SLOPPY_ARC.calculate(-46.645, -171.057, -46.644, -171.058, DistanceUnit.METERS), closeTo(134.87709, maxError(134.87709)));
-        assertThat(GeoDistance.SLOPPY_ARC.calculate(-77.912, -81.173, -77.912, -81.171, DistanceUnit.METERS), closeTo(46.57161, maxError(46.57161)));
-        assertThat(GeoDistance.SLOPPY_ARC.calculate(65.75, -20.708, 65.75, -20.709, DistanceUnit.METERS), closeTo(45.66996, maxError(45.66996)));
-        assertThat(GeoDistance.SLOPPY_ARC.calculate(-86.9, 53.738, -86.9, 53.741, DistanceUnit.METERS), closeTo(18.03998, maxError(18.03998)));
-        assertThat(GeoDistance.SLOPPY_ARC.calculate(89.041, 115.93, 89.04, 115.946, DistanceUnit.METERS), closeTo(115.11711, maxError(115.11711)));
-
         testSloppyMath(DistanceUnit.METERS, 0.01, 5, 45, 90);
         testSloppyMath(DistanceUnit.KILOMETERS, 0.01, 5, 45, 90);
         testSloppyMath(DistanceUnit.INCH, 0.01, 5, 45, 90);

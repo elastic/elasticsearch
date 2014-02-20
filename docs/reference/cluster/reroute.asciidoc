@@ -44,6 +44,9 @@ the request body). This will cause the commands to apply to the current
 cluster state, and return the resulting cluster after the commands (and
 re-balancing) has been applied.
 
+If the `explain` parameter is specified, a detailed explanation of why the
+commands could or could not be executed is returned.
+
 The commands supported are:
 
 `move`::
@@ -67,56 +70,3 @@ The commands supported are:
     allocate the shard to. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to explicitly allocate a primary
     shard (might result in data loss).
-
-[[cluster-reroute-explain]]
-=== Cluster Reroute explanation
-
-Instead of executing the cluster reroute commands, you can get a human-readable
-explanation of the reason commands can or cannot be executed by using the
-reroute explain API:
-
-[source,js]
---------------------------------------------------
-curl -XPOST 'localhost:9200/_cluster/reroute/explain' -d '{
-    "commands" : [ {
-        "move" :
-            {
-              "index" : "test", "shard" : 0,
-              "from_node" : "node1", "to_node" : "node2"
-            }
-        }
-    ]
-}'
---------------------------------------------------
-
-Which will return an explanation similar to:
-
-[source,js]
---------------------------------------------------
-{
-  "explanations" : [ {
-    "command" : "move",
-    "parameters" : {
-      "index" : "test",
-      "shard" : 0,
-      "from_node" : "node1",
-      "to_node" : "node2"
-    },
-    "decisions" : [ {
-      "decider" : "filter",
-      "decision" : "YES",
-      "explanation" : "node passes include/exclude/require filters"
-    }, {
-      "decider" : "replica_after_primary_active",
-      "decision" : "YES",
-      "explanation" : "shard is primary"
-    }, {
-      "decider" : "throttling",
-      "decision" : "YES",
-      "explanation" : "below shard recovery limit of [2]"
-    },
-    ...
-    ]
-  } ]
-}
---------------------------------------------------

@@ -362,3 +362,15 @@ in the query string.
 
 * The `custom_score` and `custom_boost_score` is no longer supported. You can
   use <<query-dsl-function-score-query,`function_score`>> instead.
+
+== Percolator
+
+The percolator has been redesigned and because of this the dedicated `_percolator` index is no longer used by the percolator,
+but instead the percolator works with a dedicated `.percolator` type. Read the http://www.elasticsearch.org/blog/percolator-redesign-blog-post/[redesigned percolator]
+blog post for the reasons why the percolator has been redesigned.
+
+Elasticsearch will *not* delete the `_percolator` index when upgrading, only the percolate api will not use the queries
+stored in the `_percolator` index. In order to use the already stored queries, you can just re-index the queries from the
+`_percolator` index into any index under the reserved `.percolator` type. The format in which the percolate queries
+were stored has *not* been changed. So a simple script that does a scan search to retrieve all the percolator queries
+and then does a bulk request into another index should be sufficient.

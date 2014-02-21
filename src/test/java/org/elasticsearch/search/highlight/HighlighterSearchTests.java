@@ -24,6 +24,7 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -509,19 +510,27 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPlainHighlighterForceSource() throws Exception {
-        prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,store=yes,term_vector=with_positions_offsets,index_options=offsets")
-                .get();
+    public void testForceSourceWithSourceDisabled() throws Exception {
+
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
+                        //just to make sure that we hit the stored fields rather than the _source
+                        .startObject("_source").field("enabled", false).endObject()
+                        .startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets").endObject()
+                        .endObject().endObject().endObject()));
+
         ensureGreen();
 
         client().prepareIndex("test", "type1")
                 .setSource("field1", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
+        //works using stored field
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(termQuery("field1", "quick"))
-                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("fvh").forceSource(true))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>"))
                 .get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
 
@@ -529,31 +538,32 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(termQuery("field1", "quick"))
                 .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").forceSource(true))
                 .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        assertThat(searchResponse.getFailedShards(), equalTo(1));
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(termQuery("field1", "quick"))
+                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("fvh").forceSource(true))
+                .get();
+        assertThat(searchResponse.getFailedShards(), equalTo(1));
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(termQuery("field1", "quick"))
                 .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("postings").forceSource(true))
                 .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        assertThat(searchResponse.getFailedShards(), equalTo(1));
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
 
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("field1", "quick"))
-                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("fvh").forceSource(false))
-                .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("field1", "quick"))
-                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").forceSource(false))
-                .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("field1", "quick"))
-                .addHighlightedField(new Field("field1").preTags("<xxx>").postTags("</xxx>").highlighterType("postings").forceSource(false))
-                .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
+                .highlight(highlight().forceSource(true).field("field1"));
+        searchResponse = client().search(Requests.searchRequest("test").source(searchSource)).get();
+        assertThat(searchResponse.getFailedShards(), equalTo(1));
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
     }
 
     @Test

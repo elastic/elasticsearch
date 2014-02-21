@@ -283,7 +283,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.error("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                    logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob: " + e.getMessage());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("NodeStatsAction failure", e);
+                    }
                 }
             });
 
@@ -308,7 +311,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.error("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                    logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob: " + e.getMessage());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("IndicesStatsAction failure", e);
+                    }
                 }
             });
 

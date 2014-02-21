@@ -65,7 +65,7 @@ public class FastVectorHighlighter implements Highlighter {
         FieldMapper<?> mapper = highlighterContext.mapper;
 
         if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
-            throw new ElasticsearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
+            throw new ElasticsearchIllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
         Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
@@ -156,7 +156,7 @@ public class FastVectorHighlighter implements Highlighter {
             }
 
             if (fragments != null && fragments.length > 0) {
-                return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
+                return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
             }
 
             int noMatchSize = highlighterContext.field.noMatchSize();
@@ -167,7 +167,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.names().indexName(),
                         fieldFragList, 1, field.preTags(), field.postTags(), encoder);
                 if (fragments != null && fragments.length > 0) {
-                    return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
+                    return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
                 }
             }
 

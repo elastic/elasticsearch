@@ -55,7 +55,7 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
 
     /**
      * Sets the explain flag (defaults to <tt>false</tt>). If true, the
-     * request will be explained instead of being executed
+     * request will include an explanation in addition to the cluster state.
      */
     public ClusterRerouteRequestBuilder setExplain(boolean explain) {
         request.explain(explain);

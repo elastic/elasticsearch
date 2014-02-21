@@ -15,3 +15,62 @@ curl -XGET 'http://localhost:9200/test/_segments'
 curl -XGET 'http://localhost:9200/test1,test2/_segments'
 curl -XGET 'http://localhost:9200/_segments'
 --------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+        "_3": {
+            "generation": 3,
+            "num_docs": 1121,
+            "deleted_docs": 53,
+            "size_in_bytes": 228288,
+            "memory_in_bytes": 3211,
+            "committed": true,
+            "search": true,
+            "version": "4.6",
+            "compound": true
+        }
+    ...
+}
+--------------------------------------------------
+
+_0::         The key of the JSON document is the name of the segment. This name
+             is used to generate file names: all files starting with this
+             segment name in the directory of the shard belong to this segment.
+
+generation:: A generation number that is basically incremented when needing to
+             write a new segment. The segment name is derived from this
+             generation number.
+
+num_docs::   The number of non-deleted documents that are stored in this segment.
+
+deleted_docs:: The number of deleted documents that are stored in this segment.
+             It is perfectly fine if this number is greater than 0, space is
+             going to be reclaimed when this segment gets merged.
+
+size_in_bytes:: The amount of disk space that this segment uses, in bytes.
+
+memory_in_bytes:: Segments need to store some data into memory in order to be
+             searchable efficiently. This number returns the number of bytes
+             that are used for that purpose. A value of -1 indicates that
+             Elasticsearch was not able to compute this number.
+
+committed::  Whether the segment has been sync'ed on disk. Segments that are
+             committed would survive a hard reboot. No need to worry in case
+             of false, the data from uncommitted segments is also stored in
+             the transaction log so that Elasticsearch is able to replay
+             changes on the next start.
+
+search::     Whether the segment is searchable. A value of false would most
+             likely mean that the segment has been written to disk but no
+             refresh occurred since then to make it searchable.
+
+version::    The version of Lucene that has been used to write this segment.
+
+compound::   Whether the segment is stored in a compound file. When true, this
+             means that Lucene merged all files from the segment in a single
+             one in order to save file descriptors.
+

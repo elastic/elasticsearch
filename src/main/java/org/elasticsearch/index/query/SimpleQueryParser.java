@@ -46,15 +46,22 @@ public class SimpleQueryParser extends XSimpleQueryParser {
         this.settings = settings;
     }
 
+    /**
+     * Rethrow the runtime exception, unless the lenient flag has been set, returns null
+     */
+    private Query rethrowUnlessLenient(RuntimeException e) {
+        if (settings.lenient()) {
+            return null;
+        }
+        throw e;
+    }
+
     @Override
     public Query newDefaultQuery(String text) {
         try {
             return super.newDefaultQuery(text);
         } catch (RuntimeException e) {
-            if (settings.lenient()) {
-                return null;
-            }
-            throw e;
+            return rethrowUnlessLenient(e);
         }
     }
 
@@ -70,10 +77,7 @@ public class SimpleQueryParser extends XSimpleQueryParser {
         try {
             return super.newFuzzyQuery(text, fuzziness);
         } catch (RuntimeException e) {
-            if (settings.lenient()) {
-                return null;
-            }
-            throw e;
+            return rethrowUnlessLenient(e);
         }
     }
 
@@ -82,10 +86,7 @@ public class SimpleQueryParser extends XSimpleQueryParser {
         try {
             return super.newPhraseQuery(text, slop);
         } catch (RuntimeException e) {
-            if (settings.lenient()) {
-                return null;
-            }
-            throw e;
+            return rethrowUnlessLenient(e);
         }
     }
 
@@ -101,10 +102,7 @@ public class SimpleQueryParser extends XSimpleQueryParser {
         try {
             return super.newPrefixQuery(text);
         } catch (RuntimeException e) {
-            if (settings.lenient()) {
-                return null;
-            }
-            throw e;
+            return rethrowUnlessLenient(e);
         }
     }
 

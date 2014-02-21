@@ -121,30 +121,50 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").setTokenFilters("lowercase", "reverse").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(4));
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        assertThat(token.getTerm(), equalTo("siht"));
+        token = analyzeResponse.getTokens().get(1);
+        assertThat(token.getTerm(), equalTo("si"));
+        token = analyzeResponse.getTokens().get(2);
+        assertThat(token.getTerm(), equalTo("a"));
+        token = analyzeResponse.getTokens().get(3);
+        assertThat(token.getTerm(), equalTo("tset"));
     }
 
     @Test
-    public void analyzeWithCharFilter() throws Exception {
+    public void analyzeWithCharFilters() throws Exception {
 
         ImmutableSettings.Builder settings = settingsBuilder()
-                .put("index.analysis.char_filter.my_mapping.type", "mapping")
-                .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
+                .put("index.analysis.char_filter.custom_mapping.type", "mapping")
+                .putArray("index.analysis.char_filter.custom_mapping.mappings", "ph=>f", "qu=>q")
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping");
+                .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "custom_mapping");
 
         prepareCreate("test", 1, settings).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
         analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A <b>TEST</b>").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("html_strip").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("test", "jeff quit phish").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("my_mapping").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze("test", "jeff quit phish").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("custom_mapping").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("jeff qit fish"));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("test", "<a href=\"#\">jeff quit fish</a>").setTokenizer("standard").setCharFilters("html_strip", "custom_mapping").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(3));
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        assertThat(token.getTerm(), equalTo("jeff"));
+        token = analyzeResponse.getTokens().get(1);
+        assertThat(token.getTerm(), equalTo("qit"));
+        token = analyzeResponse.getTokens().get(2);
+        assertThat(token.getTerm(), equalTo("fish"));
     }
 
     @Test

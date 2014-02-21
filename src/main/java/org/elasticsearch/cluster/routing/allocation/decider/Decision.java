@@ -214,7 +214,8 @@ public abstract class Decision implements ToXContent {
             builder.startObject();
             builder.field("decider", label);
             builder.field("decision", type);
-            builder.field("explanation", getExplanation());
+            String explanation = getExplanation();
+            builder.field("explanation", explanation != null ? explanation : "none");
             builder.endObject();
             return builder;
         }

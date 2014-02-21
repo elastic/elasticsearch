@@ -69,11 +69,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestResponseActionListener<ClusterRerouteResponse>(request, channel, logger) {
             @Override
-            public void onResponse(ClusterRerouteResponse response) {
-                super.onResponse(response);
-            }
-
-            @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");
                 // by default, filter metadata

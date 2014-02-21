@@ -45,10 +45,10 @@ import java.util.concurrent.TimeUnit;
  *  A ProfileQuery maintains it's own timing independent of the rest of the query.
  *  It must be later aggregated together using Profile.collapse
  */
-public class ProfileQuery extends Query {
+public class ProfileQuery extends Query implements ProfileComponent {
 
     Query subQuery;
-    private long time;
+    private long time = 0;
 
     public ProfileQuery(Query subQuery) {
         this.subQuery = subQuery;

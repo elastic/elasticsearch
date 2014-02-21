@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -529,7 +530,10 @@ public class ClusterState implements ToXContent {
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
             ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
-            AllocationExplanation.EMPTY.writeTo(out);
+            if (out.getVersion().before(Version.V_2_0_0)) {
+                // Versions before 2.0.0 are expecting AllocationExplanation
+                AllocationExplanation.EMPTY.writeTo(out);
+            }
             out.writeVInt(state.customs().size());
             for (ObjectObjectCursor<String, Custom> cursor : state.customs()) {
                 out.writeString(cursor.key);
@@ -544,8 +548,10 @@ public class ClusterState implements ToXContent {
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
-            // Ignore the explanation read, since it is always empty
-            AllocationExplanation.readAllocationExplanation(in);
+            if (in.getVersion().before(Version.V_2_0_0)) {
+                // Ignore the explanation read, since after 2.0.0 it's not part of the cluster state
+                AllocationExplanation.readAllocationExplanation(in);
+            }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();

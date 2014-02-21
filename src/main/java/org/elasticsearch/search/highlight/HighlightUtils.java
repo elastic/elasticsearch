@@ -41,7 +41,9 @@ public final class HighlightUtils {
 
     }
 
-    static List<Object> loadFieldValues(FieldMapper<?> mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource) throws IOException {
+    static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext) throws IOException {
+        //percolator needs to always load from source, thus it sets the global force source to true
+        boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
         if (!forceSource && mapper.fieldType().stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);

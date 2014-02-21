@@ -490,25 +490,31 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("this is another <field2>test</field2>"));
     }
 
-    @Test
+    @Test //https://github.com/elasticsearch/elasticsearch/issues/5175
     public void testHighlightingOnWildcardFields() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1",
+                        "field-postings", "type=string,index_options=offsets",
+                        "field-fvh", "type=string,term_vector=with_positions_offsets",
+                        "field-plain", "type=string"));
         ensureGreen();
 
         client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "this is another test").get();
+                .setSource("field-postings", "This is the first test sentence. Here is the second one.",
+                        "field-fvh", "This is the test with term_vectors",
+                        "field-plain", "This is the test for the plain highlighter").get();
         refresh();
 
         logger.info("--> highlighting and searching on field*");
         SearchSourceBuilder source = searchSource()
-                .query(termQuery("field1", "test"))
-                .from(0).size(60).explain(true)
-                .highlight(highlight().field("field*").order("score").preTags("<xxx>").postTags("</xxx>"));
+                .query(termQuery("field-plain", "test"))
+                .highlight(highlight().field("field*").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("this is another <xxx>test</xxx>"));
+        assertHighlight(searchResponse, 0, "field-postings", 0, 1, equalTo("This is the first <xxx>test</xxx> sentence."));
+        assertHighlight(searchResponse, 0, "field-fvh", 0, 1, equalTo("This is the <xxx>test</xxx> with term_vectors"));
+        assertHighlight(searchResponse, 0, "field-plain", 0, 1, equalTo("This is the <xxx>test</xxx> for the plain highlighter"));
     }
 
     @Test

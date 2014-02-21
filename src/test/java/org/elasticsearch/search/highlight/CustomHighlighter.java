@@ -42,8 +42,8 @@ public class CustomHighlighter implements Highlighter {
         List<Text> responses = Lists.newArrayList();
         responses.add(new StringText("standard response"));
 
-        if (field.options() != null) {
-            for (Map.Entry<String, Object> entry : field.options().entrySet()) {
+        if (field.fieldOptions().options() != null) {
+            for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet()) {
                 responses.add(new StringText("field:" + entry.getKey() + ":" + entry.getValue()));
             }
         }

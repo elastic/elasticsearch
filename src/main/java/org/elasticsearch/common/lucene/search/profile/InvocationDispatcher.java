@@ -56,6 +56,7 @@ public class InvocationDispatcher<P, R> {
             for (Method method : classType.getDeclaredMethods()) {
                 if (isDispatchableMethod(method, methodName, parameterType, returnType)) {
                     dispatchableMethods.add(method);
+                    methodByType.put(method.getParameterTypes()[0], method);
                 }
             }
         }
@@ -88,8 +89,7 @@ public class InvocationDispatcher<P, R> {
         if (method == null) {
             List<Method> possibleMethods = new ArrayList<Method>();
             for (Method dispatchableMethod : dispatchableMethods) {
-                if (isSuperType(dispatchableMethod.getParameterTypes()[0], parameterType) &&
-                        !isSuperType(dispatchableMethod, possibleMethods)) {
+                if (isSuperType(dispatchableMethod.getParameterTypes()[0], parameterType) && !isSuperType(dispatchableMethod, possibleMethods)) {
                     possibleMethods.add(dispatchableMethod);
                 }
             }

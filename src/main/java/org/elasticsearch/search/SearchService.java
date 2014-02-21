@@ -670,7 +670,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         // TODO generalize this to other profiling parameters/methods, not just URI
         if (context.request().profile()) {
             ProfileQueryVisitor walker = new ProfileQueryVisitor();
-            ProfileQuery pQuery = walker.apply(context.query());
+            ProfileQuery pQuery = (ProfileQuery) walker.apply(context.query());
             context.parsedQuery(new ParsedQuery(pQuery, context.parsedQuery().namedFilters()));
             context.profiledQuery(context.request().profile());
         }

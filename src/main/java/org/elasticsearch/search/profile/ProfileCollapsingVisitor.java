@@ -2,70 +2,98 @@ package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.lucene.search.profile.ProfileFilter;
 import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
 import org.elasticsearch.common.lucene.search.profile.Visitor;
+import sun.net.www.content.text.plain;
+
+import java.util.ArrayList;
 
 
 /**
  * This Visitor will take an input Query (presumably one that contains one or more ProfileQuery)
  * and return a single Profile Object.
  */
-public class ProfileCollapsingVisitor extends Visitor<Query, Profile> {
+public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
 
     public ProfileCollapsingVisitor() {
-        super(ProfileCollapsingVisitor.class, Query.class, Profile.class);
+        super(ProfileCollapsingVisitor.class, Object.class, ArrayList.class);
     }
 
-    public Profile visit(BooleanQuery booleanQuery) {
+    public ArrayList<Profile> visit(BooleanQuery booleanQuery) {
 
         Profile p = new Profile();
         p.setClassName(booleanQuery.getClass().getSimpleName());
         p.setDetails(booleanQuery.toString());
 
         long time = 0;
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
 
         for (BooleanClause clause : booleanQuery.clauses()) {
-            Profile component = apply(clause.getQuery());
-            time += component.time();
-            p.addComponent(component);
+            ArrayList<Profile> tProfiles = apply(clause.getQuery());
+            if (tProfiles != null && tProfiles.size() > 0) {
+                profiles.addAll(tProfiles);
+            }
         }
-        p.setTime(time);
 
-        return p;
+        return profiles;
     }
 
-    public Profile visit(ProfileQuery pQuery) {
+    public ArrayList<Profile> visit(ProfileQuery pQuery) {
         Profile p =  new Profile();
         p.setClassName(pQuery.subQuery().getClass().getSimpleName());
         p.setDetails(pQuery.subQuery().toString());
 
-        Profile component = apply(pQuery.subQuery());
-        if (component != null) {
+        return this.compileResults(p, apply(pQuery.subQuery()), pQuery.time());
+    }
 
-            // TODO this is a hack to make the output nicer...needs to be fixed!
-            // Basically circumvents the visitor pattern because Bools (and other compound)
-            // will show twice in output
-            if (pQuery.subQuery() instanceof BooleanQuery) {
-                p = component;
-            } else {
-                p.setTime(pQuery.time() + component.time());
-                p.addComponent(component);
-            }
+    public ArrayList<Profile> visit(ProfileFilter pFilter) {
+        Profile p =  new Profile();
+        p.setClassName(pFilter.subFilter().getClass().getSimpleName());
+        p.setDetails(pFilter.subFilter().toString());
 
-        } else {
-            p.setTime(pQuery.time());
+        return this.compileResults(p, apply(pFilter.subFilter()), pFilter.time());
+    }
+
+    public ArrayList<Profile> visit(XFilteredQuery query) {
+        ArrayList<Profile> profiles = apply(query.getQuery());
+        ArrayList<Profile> pFilters = apply(query.getFilter());
+
+        if (pFilters != null) {
+            profiles.addAll(pFilters);
         }
 
-        return p;
+       return profiles;
     }
 
-    public Profile visit(XFilteredQuery query) {
-        return apply(query.getQuery());
-    }
-
-    public Profile visit(Query query) {
+    public ArrayList<Profile> visit(Query query) {
         return null;
     }
+
+    public ArrayList<Profile> visit(Filter filter) {
+        return null;
+    }
+
+    private ArrayList<Profile> compileResults(Profile p, ArrayList<Profile> components, long extraTime) {
+        long time = 0;
+
+
+        if (components != null && components.size() != 0) {
+            for (Profile component : components) {
+                time += component.time();
+                p.addComponent(component);
+            }
+        }
+        time += extraTime;
+        p.setTime(time);
+
+        ArrayList<Profile> pList = new ArrayList<Profile>(1);
+        pList.add(p);
+
+        return pList;
+    }
+
 }

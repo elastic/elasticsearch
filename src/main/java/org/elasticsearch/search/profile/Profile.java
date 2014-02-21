@@ -61,6 +61,14 @@ public class Profile implements Streamable, ToXContent {
         this.components.add(child);
     }
 
+    public void addComponents(ArrayList<Profile> children) {
+        if (this.components == null) {
+            this.components = children;
+        } else {
+            this.components.addAll(children);
+        }
+    }
+
     public long time() {
         return time;
     }
@@ -98,7 +106,7 @@ public class Profile implements Streamable, ToXContent {
      */
     public static Profile collapse(Query pQuery) {
         ProfileCollapsingVisitor walker = new ProfileCollapsingVisitor();
-        return walker.apply(pQuery);
+        return (Profile) walker.apply(pQuery).get(0);
     }
 
     /**

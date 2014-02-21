@@ -52,6 +52,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -524,7 +525,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("test", "type1")
-                .setSource("field1", "The quick brown fox jumps over the lazy dog").get();
+                .setSource("field1", "The quick brown fox jumps over the lazy dog", "field2", "second field content").get();
         refresh();
 
         //works using stored field
@@ -540,7 +541,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertThat(searchResponse.getFailedShards(), equalTo(1));
         assertThat(searchResponse.getShardFailures().length, equalTo(1));
-        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(termQuery("field1", "quick"))
@@ -548,7 +549,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertThat(searchResponse.getFailedShards(), equalTo(1));
         assertThat(searchResponse.getShardFailures().length, equalTo(1));
-        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(termQuery("field1", "quick"))
@@ -556,14 +557,21 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertThat(searchResponse.getFailedShards(), equalTo(1));
         assertThat(searchResponse.getShardFailures().length, equalTo(1));
-        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
                 .highlight(highlight().forceSource(true).field("field1"));
         searchResponse = client().search(Requests.searchRequest("test").source(searchSource)).get();
         assertThat(searchResponse.getFailedShards(), equalTo(1));
         assertThat(searchResponse.getShardFailures().length, equalTo(1));
-        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for field [field1] but type [type1] has disabled _source"));
+        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
+
+        searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
+                .highlight(highlight().forceSource(true).field("field*"));
+        searchResponse = client().search(Requests.searchRequest("test").source(searchSource)).get();
+        assertThat(searchResponse.getFailedShards(), equalTo(1));
+        assertThat(searchResponse.getShardFailures().length, equalTo(1));
+        assertThat(searchResponse.getShardFailures()[0].reason(), matches("source is forced for fields \\[field\\d, field\\d\\] but type \\[type1\\] has disabled _source"));
     }
 
     @Test
@@ -1179,6 +1187,19 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setHighlighterType("fast-vector-highlighter")
                 .execute().actionGet();
         assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
+        }
+
+        search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .addHighlightedField("tit*", 50, 1, 10)
+                .setHighlighterType("fast-vector-highlighter")
+                .execute().actionGet();
+        assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
+        }
     }
 
     @Test
@@ -2220,6 +2241,17 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         search = client().prepareSearch()
                 .setQuery(matchQuery("title", "this is a test"))
                 .addHighlightedField("title")
+                .setHighlighterType("postings")
+                .get();
+
+        assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with positions and offsets in the postings list to be used with postings highlighter"));
+        }
+
+        search = client().prepareSearch()
+                .setQuery(matchQuery("title", "this is a test"))
+                .addHighlightedField("tit*")
                 .setHighlighterType("postings")
                 .get();
 

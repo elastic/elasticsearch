@@ -21,15 +21,14 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -68,25 +67,14 @@ public class HighlighterParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
         String topLevelFieldName = null;
-        List<SearchContextHighlight.Field> fields = newArrayList();
+        List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = newArrayList();
 
-        String[] globalPreTags = DEFAULT_PRE_TAGS;
-        String[] globalPostTags = DEFAULT_POST_TAGS;
-        boolean globalScoreOrdered = false;
-        boolean globalHighlightFilter = false;
-        boolean globalRequireFieldMatch = false;
-        boolean globalForceSource = false;
-        int globalFragmentSize = 100;
-        int globalNumOfFragments = 5;
-        String globalEncoder = "default";
-        int globalBoundaryMaxScan = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
-        Character[] globalBoundaryChars = SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
-        String globalHighlighterType = null;
-        String globalFragmenter = null;
-        Map<String, Object> globalOptions = null;
-        Query globalHighlightQuery = null;
-        int globalNoMatchSize = 0;
-        int globalPhraseLimit = 256;
+        SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
+                .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
+                .requireFieldMatch(false).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
+                .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
+                .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
+                .noMatchSize(0).phraseLimit(256);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -97,54 +85,55 @@ public class HighlighterParseElement implements SearchParseElement {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         preTagsList.add(parser.text());
                     }
-                    globalPreTags = preTagsList.toArray(new String[preTagsList.size()]);
+                    globalOptionsBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
                 } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
                     List<String> postTagsList = Lists.newArrayList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         postTagsList.add(parser.text());
                     }
-                    globalPostTags = postTagsList.toArray(new String[postTagsList.size()]);
+                    globalOptionsBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
                 }
             } else if (token.isValue()) {
                 if ("order".equals(topLevelFieldName)) {
-                    globalScoreOrdered = "score".equals(parser.text());
+                    globalOptionsBuilder.scoreOrdered("score".equals(parser.text()));
                 } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
                     String schema = parser.text();
                     if ("styled".equals(schema)) {
-                        globalPreTags = STYLED_PRE_TAG;
-                        globalPostTags = STYLED_POST_TAGS;
+                        globalOptionsBuilder.preTags(STYLED_PRE_TAG);
+                        globalOptionsBuilder.postTags(STYLED_POST_TAGS);
                     }
                 } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
-                    globalHighlightFilter = parser.booleanValue();
+                    globalOptionsBuilder.highlightFilter(parser.booleanValue());
                 } else if ("fragment_size".equals(topLevelFieldName) || "fragmentSize".equals(topLevelFieldName)) {
-                    globalFragmentSize = parser.intValue();
+                    globalOptionsBuilder.fragmentCharSize(parser.intValue());
                 } else if ("number_of_fragments".equals(topLevelFieldName) || "numberOfFragments".equals(topLevelFieldName)) {
-                    globalNumOfFragments = parser.intValue();
+                    globalOptionsBuilder.numberOfFragments(parser.intValue());
                 } else if ("encoder".equals(topLevelFieldName)) {
-                    globalEncoder = parser.text();
+                    globalOptionsBuilder.encoder(parser.text());
                 } else if ("require_field_match".equals(topLevelFieldName) || "requireFieldMatch".equals(topLevelFieldName)) {
-                    globalRequireFieldMatch = parser.booleanValue();
+                    globalOptionsBuilder.requireFieldMatch(parser.booleanValue());
                 } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
-                    globalBoundaryMaxScan = parser.intValue();
+                    globalOptionsBuilder.boundaryMaxScan(parser.intValue());
                 } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
                     char[] charsArr = parser.text().toCharArray();
-                    globalBoundaryChars = new Character[charsArr.length];
+                    Character[] globalBoundaryChars = new Character[charsArr.length];
                     for (int i = 0; i < charsArr.length; i++) {
                         globalBoundaryChars[i] = charsArr[i];
                     }
+                    globalOptionsBuilder.boundaryChars(globalBoundaryChars);
                 } else if ("type".equals(topLevelFieldName)) {
-                    globalHighlighterType = parser.text();
+                    globalOptionsBuilder.highlighterType(parser.text());
                 } else if ("fragmenter".equals(topLevelFieldName)) {
-                    globalFragmenter = parser.text();
+                    globalOptionsBuilder.fragmenter(parser.text());
                 } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
-                    globalNoMatchSize = parser.intValue();
+                    globalOptionsBuilder.noMatchSize(parser.intValue());
                 } else if ("force_source".equals(topLevelFieldName) || "forceSource".equals(topLevelFieldName)) {
-                    globalForceSource = parser.booleanValue();
+                    globalOptionsBuilder.forceSource(parser.booleanValue());
                 } else if ("phrase_limit".equals(topLevelFieldName) || "phraseLimit".equals(topLevelFieldName)) {
-                    globalPhraseLimit = parser.intValue();
+                    globalOptionsBuilder.phraseLimit(parser.intValue());
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
-                globalOptions = parser.map();
+                globalOptionsBuilder.options(parser.map());
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
                     String highlightFieldName = null;
@@ -152,7 +141,7 @@ public class HighlighterParseElement implements SearchParseElement {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             highlightFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            SearchContextHighlight.Field field = new SearchContextHighlight.Field(highlightFieldName);
+                            SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
                             String fieldName = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -163,126 +152,79 @@ public class HighlighterParseElement implements SearchParseElement {
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             preTagsList.add(parser.text());
                                         }
-                                        field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                                        fieldOptionsBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
                                     } else if ("post_tags".equals(fieldName) || "postTags".equals(fieldName)) {
                                         List<String> postTagsList = Lists.newArrayList();
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             postTagsList.add(parser.text());
                                         }
-                                        field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                                        fieldOptionsBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
                                     } else if ("matched_fields".equals(fieldName) || "matchedFields".equals(fieldName)) {
                                         Set<String> matchedFields = Sets.newHashSet();
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             matchedFields.add(parser.text());
                                         }
-                                        field.matchedFields(matchedFields);
+                                        fieldOptionsBuilder.matchedFields(matchedFields);
                                     }
                                 } else if (token.isValue()) {
                                     if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
-                                        field.fragmentCharSize(parser.intValue());
+                                        fieldOptionsBuilder.fragmentCharSize(parser.intValue());
                                     } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
-                                        field.numberOfFragments(parser.intValue());
+                                        fieldOptionsBuilder.numberOfFragments(parser.intValue());
                                     } else if ("fragment_offset".equals(fieldName) || "fragmentOffset".equals(fieldName)) {
-                                        field.fragmentOffset(parser.intValue());
+                                        fieldOptionsBuilder.fragmentOffset(parser.intValue());
                                     } else if ("highlight_filter".equals(fieldName) || "highlightFilter".equals(fieldName)) {
-                                        field.highlightFilter(parser.booleanValue());
+                                        fieldOptionsBuilder.highlightFilter(parser.booleanValue());
                                     } else if ("order".equals(fieldName)) {
-                                        field.scoreOrdered("score".equals(parser.text()));
+                                        fieldOptionsBuilder.scoreOrdered("score".equals(parser.text()));
                                     } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
-                                        field.requireFieldMatch(parser.booleanValue());
+                                        fieldOptionsBuilder.requireFieldMatch(parser.booleanValue());
                                     } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
-                                        field.boundaryMaxScan(parser.intValue());
+                                        fieldOptionsBuilder.boundaryMaxScan(parser.intValue());
                                     } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
                                         char[] charsArr = parser.text().toCharArray();
                                         Character[] boundaryChars = new Character[charsArr.length];
                                         for (int i = 0; i < charsArr.length; i++) {
                                             boundaryChars[i] = charsArr[i];
                                         }
-                                        field.boundaryChars(boundaryChars);
+                                        fieldOptionsBuilder.boundaryChars(boundaryChars);
                                     } else if ("type".equals(fieldName)) {
-                                        field.highlighterType(parser.text());
+                                        fieldOptionsBuilder.highlighterType(parser.text());
                                     } else if ("fragmenter".equals(fieldName)) {
-                                        field.fragmenter(parser.text());
+                                        fieldOptionsBuilder.fragmenter(parser.text());
                                     } else if ("no_match_size".equals(fieldName) || "noMatchSize".equals(fieldName)) {
-                                        field.noMatchSize(parser.intValue());
+                                        fieldOptionsBuilder.noMatchSize(parser.intValue());
                                     } else if ("force_source".equals(fieldName) || "forceSource".equals(fieldName)) {
-                                        field.forceSource(parser.booleanValue());
+                                        fieldOptionsBuilder.forceSource(parser.booleanValue());
                                     } else if ("phrase_limit".equals(fieldName) || "phraseLimit".equals(fieldName)) {
-                                        field.phraseLimit(parser.intValue());
+                                        fieldOptionsBuilder.phraseLimit(parser.intValue());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
-                                        field.highlightQuery(context.queryParserService().parse(parser).query());
-                                    } else if (fieldName.equals("options")) {
-                                        field.options(parser.map());
+                                        fieldOptionsBuilder.highlightQuery(context.queryParserService().parse(parser).query());
+                                    } else if ("options".equals(fieldName)) {
+                                        fieldOptionsBuilder.options(parser.map());
                                     }
                                 }
                             }
-                            fields.add(field);
+                            fieldsOptions.add(Tuple.tuple(highlightFieldName, fieldOptionsBuilder));
                         }
                     }
                 } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
-                    globalHighlightQuery = context.queryParserService().parse(parser).query();
+                    globalOptionsBuilder.highlightQuery(context.queryParserService().parse(parser).query());
                 }
             }
         }
-        if (globalPreTags != null && globalPostTags == null) {
+
+        SearchContextHighlight.FieldOptions globalOptions = globalOptionsBuilder.build();
+        if (globalOptions.preTags() != null && globalOptions.postTags() == null) {
             throw new SearchParseException(context, "Highlighter global preTags are set, but global postTags are not set");
         }
 
-        // now, go over and fill all fields with default values from the global state
-        for (SearchContextHighlight.Field field : fields) {
-            if (field.preTags() == null) {
-                field.preTags(globalPreTags);
-            }
-            if (field.postTags() == null) {
-                field.postTags(globalPostTags);
-            }
-            if (field.highlightFilter() == null) {
-                field.highlightFilter(globalHighlightFilter);
-            }
-            if (field.scoreOrdered() == null) {
-                field.scoreOrdered(globalScoreOrdered);
-            }
-            if (field.fragmentCharSize() == -1) {
-                field.fragmentCharSize(globalFragmentSize);
-            }
-            if (field.numberOfFragments() == -1) {
-                field.numberOfFragments(globalNumOfFragments);
-            }
-            if (field.encoder() == null) {
-                field.encoder(globalEncoder);
-            }
-            if (field.requireFieldMatch() == null) {
-                field.requireFieldMatch(globalRequireFieldMatch);
-            }
-            if (field.boundaryMaxScan() == -1) {
-                field.boundaryMaxScan(globalBoundaryMaxScan);
-            }
-            if (field.boundaryChars() == null) {
-                field.boundaryChars(globalBoundaryChars);
-            }
-            if (field.highlighterType() == null) {
-                field.highlighterType(globalHighlighterType);
-            }
-            if (field.fragmenter() == null) {
-                field.fragmenter(globalFragmenter);
-            }
-            if (field.options() == null || field.options().size() == 0) {
-                field.options(globalOptions);
-            }
-            if (field.highlightQuery() == null && globalHighlightQuery != null) {
-                field.highlightQuery(globalHighlightQuery);
-            }
-            if (field.noMatchSize() == -1) {
-                field.noMatchSize(globalNoMatchSize);
-            }
-            if (field.forceSource() == null) {
-                field.forceSource(globalForceSource);
-            }
-            if (field.phraseLimit() == -1) {
-                field.phraseLimit(globalPhraseLimit);
-            }
+        List<SearchContextHighlight.Field> fields = Lists.newArrayList();
+        // now, go over and fill all fieldsOptions with default values from the global state
+        for (Tuple<String, SearchContextHighlight.FieldOptions.Builder> tuple : fieldsOptions) {
+            fields.add(new SearchContextHighlight.Field(tuple.v1(), tuple.v2().merge(globalOptions).build()));
         }
 
         context.highlight(new SearchContextHighlight(fields));

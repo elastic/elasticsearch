@@ -66,11 +66,11 @@ a query match, effectively ignoring their positions.
 
 ==== Fast vector highlighter
 
-If `term_vector` information is provided by setting `term_vector` to
-`with_positions_offsets` in the mapping then the fast vector highlighter
-will be used instead of the plain highlighter.  The fast vector highlighter:
+If positiong and offsets are stored in term vectors on the field then the
+fast vector highlighter will be used instead of the plain highlighter.  The
+fast vector highlighter:
 
-* Is faster especially for large fields (> `1MB`)
+* Is faster for large fields (> `1MB`) but slower for small fields
 * Can be customized with `boundary_chars`, `boundary_max_scan`, and
  `fragment_offset` (see <<boundary-characters,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
@@ -81,9 +81,25 @@ will be used instead of the plain highlighter.  The fast vector highlighter:
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
+coming[1.1.0]
 Here is an example of setting the `content` field to allow for
-highlighting using the fast vector highlighter on it (this will cause
-the index to be bigger):
+highlighting using the fast vector highlighter on it.  Each field over
+one thousand characters will store term vectors and each field under
+a thousand characters will be reanalyzed when it is highlighted.
+
+[source,js]
+--------------------------------------------------
+{
+    "type_name" : {
+        "content" : {"term_vector_over_1k" : "with_positions_offsets"}
+    }
+}
+--------------------------------------------------
+
+deprecated[1.1.0]
+Here is an example of setting the `content` field to allow for
+highlighting using the fast vector highlighter on it.  This will store
+term vectors for all fields regardless of length.
 
 [source,js]
 --------------------------------------------------
@@ -93,6 +109,15 @@ the index to be bigger):
     }
 }
 --------------------------------------------------
+
+[NOTE]
+Liberal storage of term vector information has been known to increase
+the index size from between 20% and 50% and loading term vectors for
+short fields is actually slower then just re-analyzing them.  Thus
+using `term_vector_over_X` both limits term vectors to fields that would
+benefit from it and and provides a way to trade hit time for disk space
+and index time.
+
 
 ==== Force highlighter type
 
@@ -112,6 +137,15 @@ The following is an example that forces the use of the plain highlighter:
     }
 }
 --------------------------------------------------
+
+
+Forcing a highlighter for which requires extra data will fail if the extra
+data is saved.  For example, forcing the `postings` highlighter without
+`index_options` set to `offsets` will cause an error.
+
+coming[1.1.0]
+You can force any highlighter regardless of the extra data stored at the
+at the cost of extra CPU time per field.
 
 ==== Force highlighting on source
 

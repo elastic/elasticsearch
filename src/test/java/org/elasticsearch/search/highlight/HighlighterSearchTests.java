@@ -2044,8 +2044,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("field1", "fox"))
                 .highlight(highlight()
-                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
-                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>")));
+                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>").highlighterType("postings"))
+                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>").highlighterType("postings")));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
@@ -2059,8 +2059,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         source = searchSource()
                 .query(termQuery("field1", "fox"))
                 .highlight(highlight()
-                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(false).preTags("<field1>").postTags("</field1>"))
-                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(false).preTags("<field2>").postTags("</field2>")));
+                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(false).preTags("<field1>").postTags("</field1>").highlighterType("postings"))
+                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(false).preTags("<field2>").postTags("</field2>").highlighterType("postings")));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
@@ -2077,8 +2077,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         source = searchSource()
                 .query(multiMatchQuery("fox", "field1", "field2"))
                 .highlight(highlight()
-                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
-                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>")));
+                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>").highlighterType("postings"))
+                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>").highlighterType("postings")));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
@@ -2106,7 +2106,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("field1", "sentence"))
-                .highlight(highlight().field("field1").order("score"));
+                .highlight(highlight().field("field1").order("score").highlighterType("postings"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
@@ -2123,7 +2123,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         //lets use now number_of_fragments = 0, so that we highlight per value without breaking them into snippets, but we sort the values by score
         source = searchSource()
                 .query(termQuery("field1", "sentence"))
-                .highlight(highlight().field("field1", -1, 0).order("score"));
+                .highlight(highlight().field("field1", -1, 0).order("score").highlighterType("postings"));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHighlight(searchResponse, 0, "field1", 0, equalTo("This is the second value's first <em>sentence</em>. This one contains no matches. This <em>sentence</em> contains three <em>sentence</em> occurrences (<em>sentence</em>)."));

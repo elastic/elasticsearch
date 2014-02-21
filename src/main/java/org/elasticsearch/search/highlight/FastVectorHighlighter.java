@@ -20,7 +20,6 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
@@ -73,6 +72,8 @@ public class FastVectorHighlighter implements Highlighter {
             hitContext.cache().put(CACHE_KEY, new HighlighterEntry());
         }
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
+        // The reader we highlight against.
+        DelegatingOrAnalyzingReaderForFVH reader = null;
 
         try {
             CustomFieldQuery fieldQuery;
@@ -144,8 +145,7 @@ public class FastVectorHighlighter implements Highlighter {
             // a HACK to make highlighter do highlighting, even though its using the single frag list builder
             int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
             int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
-            // The reader we highlight against.
-            IndexReader reader = new DelegatingOrAnalyzingReaderForFVH(context, hitContext, field.forceSource(), fieldQuery);
+            reader = new DelegatingOrAnalyzingReaderForFVH(context, hitContext, field.forceSource(), fieldQuery);
             // Only send matched fields if they were requested to save time.
             if (field.matchedFields() != null && !field.matchedFields().isEmpty()) {
                 fragments = cache.fvh.getBestFragments(fieldQuery, reader, hitContext.docId(), mapper.names().indexName(), field.matchedFields(), fragmentCharSize,
@@ -175,6 +175,10 @@ public class FastVectorHighlighter implements Highlighter {
 
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+        } finally {
+            if (reader != null) {
+                reader.release();
+            }
         }
     }
 

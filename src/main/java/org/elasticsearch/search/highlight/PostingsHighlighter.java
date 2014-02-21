@@ -92,6 +92,8 @@ public class PostingsHighlighter implements Highlighter {
         List<Snippet> snippets = new ArrayList<Snippet>();
         int numberOfFragments;
 
+        DelegatingOrAnalyzingReaderForPostingsHighlighter reader = null;
+        
         try {
             //we manually load the field values (from source if needed)
             List<Object> textsToHighlight = HighlightUtils.loadFieldValues(fieldMapper, context, hitContext, field.forceSource());
@@ -106,7 +108,7 @@ public class PostingsHighlighter implements Highlighter {
 
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
-            IndexReader reader = new DelegatingOrAnalyzingReaderForPostingsHighlighter(context, hitContext, field.forceSource(),
+            reader = new DelegatingOrAnalyzingReaderForPostingsHighlighter(context, hitContext, field.forceSource(),
                     new PostingsHighlighterTermSetSource(highlighterEntry.queryTerms, field.requireFieldMatch()));
             for (int i = 0; i < values; i++) {
                 Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms,
@@ -122,6 +124,10 @@ public class PostingsHighlighter implements Highlighter {
 
         } catch(IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+        } finally {
+            if (reader != null) {
+                reader.release();
+            }
         }
 
         snippets = filterSnippets(snippets, field.numberOfFragments());

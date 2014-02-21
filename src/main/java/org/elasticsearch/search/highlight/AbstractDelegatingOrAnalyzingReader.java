@@ -28,9 +28,14 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
 import org.apache.lucene.util.BytesRefHash.DirectBytesStartArray;
-import org.apache.lucene.util.IntBlockPool.SliceReader;
-import org.apache.lucene.util.IntBlockPool.SliceWriter;
+import org.apache.lucene.util.XIntBlockPool.SliceReader;
+import org.apache.lucene.util.XIntBlockPool.SliceWriter;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -44,7 +49,8 @@ import java.util.*;
  * fields for highlighters that need extra data.  It has to be extended to
  * be useful but should work for the FHV and Postings highlighter.
  */
-public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicReader {
+public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicReader implements Releasable {
+    private final List<Releasable> releasables = new ArrayList<Releasable>();
     private final SearchContext searchContext;
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
@@ -103,7 +109,9 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
         if (termSetSource != null) {
             termSet = termSetSource.termSet(field);
         }
-        AnalyzedTerms terms = new AnalyzedTerms(field, analyzer, positionOffsetGap, values, termSet);
+        AnalyzedTerms terms = new AnalyzedTerms(searchContext.pageCacheRecycler());
+        releasables.add(terms); // Make sure to register the terms before the analysis in case it fails
+        terms.analyze(field, analyzer, positionOffsetGap, values, termSet);
         return new AnalyzedTermsTermVector(terms);
     }
 
@@ -135,6 +143,12 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
             valuesCache.put(mapper.names().sourcePath(), values);
         }
         return values;
+    }
+
+    @Override
+    public boolean release() {
+        Releasables.release(releasables);
+        return true;
     }
 
     /**
@@ -185,13 +199,17 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
      * term support and sorting the terms.  Also supports limiting terms to
      * a set.
      */
-    private static class AnalyzedTerms {
+    private static class AnalyzedTerms implements Releasable {
         private final ExtraArraysByteStartArray extra = new ExtraArraysByteStartArray(BytesRefHash.DEFAULT_CAPACITY);
         private final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new DirectAllocator()), 
                 BytesRefHash.DEFAULT_CAPACITY, extra);
-        private final IntBlockPool postings = new IntBlockPool();
+        private final XIntBlockPool postings;
         
-        public AnalyzedTerms(String field, Analyzer analyzer, int positionOffsetGap, List<Object> values, Set<String> termSet)
+        public AnalyzedTerms(PageCacheRecycler recycler) {
+            postings = new XIntBlockPool(recycler);
+        }
+        
+        public void analyze(String field, Analyzer analyzer, int positionOffsetGap, List<Object> values, Set<String> termSet)
                 throws IOException {
             SliceWriter postingsWriter = new SliceWriter(postings);
             int position = -1;
@@ -215,6 +233,8 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
                         if (ord < 0) {
                             // Term already exists so read the location of the postings from the header
                             ord = (-ord) - 1;
+                            // Note that resetting the reader is very low cost so it isn't a big deal to do it even
+                            // if the ord hasn't changed.
                             postingsWriter.reset(extra.end[ord]);
                         } else {
                             // Term doesn't exist so start a new slice for it
@@ -289,6 +309,12 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
             }
             
           }
+
+        @Override
+        public boolean release() throws ElasticsearchException {
+            postings.release();
+            return true;
+        }
     }
     
     /**
@@ -517,5 +543,39 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
          * @return set of terms to highlight
          */
         Set<String> termSet(String field);
+    }
+
+    
+    private static final class IntBlockPoolCachedAllocator extends IntBlockPool.Allocator implements Releasable {
+        private final PageCacheRecycler recycler;
+        private Recycler.V<?>[] pages = new Recycler.V<?>[16];
+        private int size;
+
+        public IntBlockPoolCachedAllocator(PageCacheRecycler recycler) {
+            super(IntBlockPool.INT_BLOCK_SIZE);
+            this.recycler = recycler;
+        }
+
+        public int[] getIntBlock() {
+            size++;
+            if (pages.length < size) {
+                pages = Arrays.copyOf(pages, ArrayUtil.oversize(size, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+            }
+            Recycler.V<int[]> page = recycler.intPage(true);
+            pages[size] = page;
+            return page.v();
+        }
+
+        @Override
+        public void recycleIntBlocks(int[][] blocks, int start, int end){
+            // We never recycle the block in the pool so there is nothing to do here.
+        }
+
+        @Override
+        public boolean release() throws ElasticsearchException {
+            Releasables.release(pages);
+            pages = null;
+            return true;
+        }
     }
 }

@@ -353,7 +353,7 @@ public class HighlightBuilder implements ToXContent {
                     builder.field("options", field.options);
                 }
                 if (field.forceSource != null) {
-                    builder.field("force_source", forceSource);
+                    builder.field("force_source", field.forceSource);
                 }
 
                 builder.endObject();

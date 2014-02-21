@@ -26,18 +26,17 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
-import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
-import org.apache.lucene.util.BytesRefHash.DirectBytesStartArray;
 import org.apache.lucene.util.XIntBlockPool.SliceReader;
 import org.apache.lucene.util.XIntBlockPool.SliceWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -54,10 +53,6 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
     private final SearchContext searchContext;
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
-    /**
-     * Optional source of terms to analyze.  If null then all terms will be analyzed which has more overhead.
-     */
-    @Nullable
     private final TermSetSource termSetSource;
     private Map<String, List<Object>> valuesCache;
 
@@ -66,7 +61,7 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
      * @param searchContext used to lookup mappers
      * @param hitContext used to find a reader and to load the field values
      * @param forceSource when loading the field values should we force a load from source?
-     * @param termSetSource optional souce of terms to analyze.  If null then all terms will be analyzed which has more overhead.
+     * @param termSetSource set of valid terms to analyze
      */
     public AbstractDelegatingOrAnalyzingReader(SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource,
             TermSetSource termSetSource) {
@@ -105,11 +100,8 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
         if (mapper instanceof StringFieldMapper) {
             positionOffsetGap = ((StringFieldMapper)mapper).getPositionOffsetGap();
         }
-        Set<String> termSet = null;
-        if (termSetSource != null) {
-            termSet = termSetSource.termSet(field);
-        }
-        AnalyzedTerms terms = new AnalyzedTerms(searchContext.pageCacheRecycler());
+        Set<String> termSet = termSetSource.termSet(field);
+        AnalyzedTerms terms = new AnalyzedTerms(searchContext.pageCacheRecycler(), termSet.size());
         releasables.add(terms); // Make sure to register the terms before the analysis in case it fails
         terms.analyze(field, analyzer, positionOffsetGap, values, termSet);
         return new AnalyzedTermsTermVector(terms);
@@ -200,15 +192,19 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
      * a set.
      */
     private static class AnalyzedTerms implements Releasable {
-        private final ExtraArraysByteStartArray extra = new ExtraArraysByteStartArray(BytesRefHash.DEFAULT_CAPACITY);
-        private final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new DirectAllocator()), 
-                BytesRefHash.DEFAULT_CAPACITY, extra);
+        private final BytesRefHash terms;
         private final XIntBlockPool postings;
-        
-        public AnalyzedTerms(PageCacheRecycler recycler) {
+        /**
+         * Term frequency and start and end offset into the postings.
+         */
+        private final IntArray extra;
+
+        public AnalyzedTerms(PageCacheRecycler recycler, long capacity) {
+            terms = new BytesRefHash(capacity, recycler);
             postings = new XIntBlockPool(recycler);
+            extra = BigArrays.newIntArray(terms.capacity() * 3, recycler, false);
         }
-        
+
         public void analyze(String field, Analyzer analyzer, int positionOffsetGap, List<Object> values, Set<String> termSet)
                 throws IOException {
             SliceWriter postingsWriter = new SliceWriter(postings);
@@ -229,16 +225,20 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
                         }
 
                         // Queue the right place to write the posting
-                        int ord = terms.add(new BytesRef(charTermAtt));
+                        long ord = terms.add(new BytesRef(charTermAtt));
+                        long extraIndex;
                         if (ord < 0) {
                             // Term already exists so read the location of the postings from the header
                             ord = (-ord) - 1;
+                            extraIndex = ord * 3;
                             // Note that resetting the reader is very low cost so it isn't a big deal to do it even
                             // if the ord hasn't changed.
-                            postingsWriter.reset(extra.end[ord]);
+                            postingsWriter.reset(extra.get(extraIndex + 2));
                         } else {
+                            extraIndex = ord * 3;
                             // Term doesn't exist so start a new slice for it
-                            extra.start[ord] = postingsWriter.startNewSlice();
+                            extra.set(extraIndex, 0);
+                            extra.set(extraIndex + 1, postingsWriter.startNewSlice());
                         }
                         
                         // Now write the posting
@@ -247,8 +247,8 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
                         postingsWriter.writeInt(offsetBase + offsetAtt.endOffset());
                         
                         // Now update the location of the last posting and keep track of the term frequency
-                        extra.end[ord] = postingsWriter.getCurrentOffset();
-                        extra.freq[ord]++;
+                        extra.increment(extraIndex, 1);
+                        extra.set(extraIndex + 2, postingsWriter.getCurrentOffset());
                     }
                     stream.end();
                 } finally {
@@ -260,59 +260,12 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
                 offsetBase += valueString.length() + 1;
             }
         }
-        
-        /**
-         * Piggybacks on the array size management logic from DirectBytesStartArray to trigger management of more useful arrays for
-         * storing the postings.  This is quite nearly a copy of {@link MemoryIndex$SliceByteStartArray} but it really is the right
-         * way to do it.
-         */
-        private static class ExtraArraysByteStartArray extends DirectBytesStartArray {
-            private int[] start;
-            private int[] end;
-            private int[] freq;
-            
-            public ExtraArraysByteStartArray(int initSize) {
-              super(initSize);
-            }
-            
-            @Override
-            public int[] init() {
-              final int[] ord = super.init();
-              int oversize = ArrayUtil.oversize(ord.length, RamUsageEstimator.NUM_BYTES_INT);
-              start = new int[oversize];
-              end = new int[oversize];
-              freq = new int[oversize];
-              assert start.length >= ord.length;
-              assert end.length >= ord.length;
-              assert freq.length >= ord.length;
-              return ord;
-            }
-
-            @Override
-            public int[] grow() {
-              final int[] ord = super.grow();
-              if (start.length < ord.length) {
-                start = ArrayUtil.grow(start, ord.length);
-                end = ArrayUtil.grow(end, ord.length);
-                freq = ArrayUtil.grow(freq, ord.length);
-              }      
-              assert start.length >= ord.length;
-              assert end.length >= ord.length;
-              assert freq.length >= ord.length;
-              return ord;
-            }
-
-            @Override
-            public int[] clear() {
-             start = end = freq = null;
-             return super.clear();
-            }
-            
-          }
 
         @Override
         public boolean release() throws ElasticsearchException {
             postings.release();
+            terms.release();
+            extra.release();
             return true;
         }
     }
@@ -386,7 +339,7 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
     private static class AnalyzedTermsEnum extends TermsEnum {
         private final BytesRef ref = new BytesRef();
         private final AnalyzedTerms terms;
-        private int current = -1;
+        private long current = -1;
         
         public AnalyzedTermsEnum(AnalyzedTerms terms) {
             this.terms = terms;
@@ -469,10 +422,11 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
         private int startOffset;
         private int endOffset;
         
-        public AnalyzedTermsDocsAndPositionsEnum(AnalyzedTerms terms, int currentTerm) {
+        public AnalyzedTermsDocsAndPositionsEnum(AnalyzedTerms terms, long currentTerm) {
             postingsReader = new SliceReader(terms.postings);
-            postingsReader.reset(terms.extra.start[currentTerm], terms.extra.end[currentTerm]);
-            freq = terms.extra.freq[currentTerm];
+            long extraIndex = currentTerm * 3;
+            postingsReader.reset(terms.extra.get(extraIndex + 1), terms.extra.get(extraIndex + 2));
+            freq = terms.extra.get(extraIndex);
         }
 
         @Override
@@ -543,39 +497,5 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
          * @return set of terms to highlight
          */
         Set<String> termSet(String field);
-    }
-
-    
-    private static final class IntBlockPoolCachedAllocator extends IntBlockPool.Allocator implements Releasable {
-        private final PageCacheRecycler recycler;
-        private Recycler.V<?>[] pages = new Recycler.V<?>[16];
-        private int size;
-
-        public IntBlockPoolCachedAllocator(PageCacheRecycler recycler) {
-            super(IntBlockPool.INT_BLOCK_SIZE);
-            this.recycler = recycler;
-        }
-
-        public int[] getIntBlock() {
-            size++;
-            if (pages.length < size) {
-                pages = Arrays.copyOf(pages, ArrayUtil.oversize(size, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-            }
-            Recycler.V<int[]> page = recycler.intPage(true);
-            pages[size] = page;
-            return page.v();
-        }
-
-        @Override
-        public void recycleIntBlocks(int[][] blocks, int start, int end){
-            // We never recycle the block in the pool so there is nothing to do here.
-        }
-
-        @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(pages);
-            pages = null;
-            return true;
-        }
     }
 }

@@ -32,21 +32,37 @@ import java.util.Arrays;
 /**
  * Copy of Lucene's IntBlockPool modified to work with Elasticsearch's PageCacheRecycler.
  */
-//start Elasticsearch modification
 public final class XIntBlockPool implements Releasable {
-  public final static int INT_BLOCK_SHIFT = 12;
-  //end Elasticserach modification
+  public final static int INT_BLOCK_SHIFT = 12; // Elasticsearch modification
   public final static int INT_BLOCK_SIZE = 1 << INT_BLOCK_SHIFT;
+  public final static int INT_BLOCK_MASK = INT_BLOCK_SIZE - 1;
   //start Elasticsearch modification
   static {
     //These expressions better stay identical!
     assert INT_BLOCK_SIZE == BigArrays.INT_PAGE_SIZE: "These sizes must line up or we can't use the PageCacheRecycler.";
   }
-  //end Elasticserach modification
-  public final static int INT_BLOCK_MASK = INT_BLOCK_SIZE - 1;
-  
-  // start Elasticsearch modifications
-  // we remove all allocators
+
+  /**
+   * Default allocator implementation that uses the PageCacheRecycler.
+   */
+  public static class Allocator {
+    private final PageCacheRecycler recycler;
+    
+    public Allocator(PageCacheRecycler recycler) {
+      this.recycler = recycler;
+    }
+
+    public void recycleIntBlocks(Recycler.V<int[]>[] blocks, int start, int end) {
+      for (int i = start; i < end; i++) {
+        blocks[i].release();
+        blocks[i] = null;
+      }
+    }
+
+    public Recycler.V<int[]> getIntBlock() {
+      return recycler.intPage(true);
+    }
+  }
   
   /** array of buffers currently used in the pool. Buffers are allocated if needed don't modify this outside of this class */
   @SuppressWarnings("unchecked")
@@ -63,14 +79,18 @@ public final class XIntBlockPool implements Releasable {
   public int intOffset = -INT_BLOCK_SIZE;
 
   // start Elasticsearch modifications
-  private final PageCacheRecycler pageCacheRecycler;
+  private final Allocator allocator;
 
   /**
-   * Creates a new {@link IntBlockPool} with a default {@link Allocator}.
-   * @see IntBlockPool#nextBuffer()
+   * Creates a new {@link XIntBlockPool} with a default {@link Allocator}.
+   * @see XIntBlockPool#nextBuffer()
    */
   public XIntBlockPool(PageCacheRecycler pageCacheRecycler) {
-    this.pageCacheRecycler = pageCacheRecycler;
+    this(new Allocator(pageCacheRecycler));
+  }
+  
+  public XIntBlockPool(Allocator allocator) {
+    this.allocator = allocator;
   }
   // end Elasticsearch modifications
   
@@ -95,6 +115,7 @@ public final class XIntBlockPool implements Releasable {
     if (bufferUpto != -1) {
       // We allocated at least one buffer
 
+      // TODO why bother zero filling them before returning them?
       if (zeroFillBuffers) {
         for(int i=0;i<bufferUpto;i++) {
           // Fully zero fill buffers that we fully used
@@ -107,8 +128,7 @@ public final class XIntBlockPool implements Releasable {
       if (bufferUpto > 0 || !reuseFirst) {
         final int offset = reuseFirst ? 1 : 0;  
         // Recycle all but the first buffer
-        // TODO Elasticsearch modification needed below but not sure what
-//        allocator.recycleIntBlocks(buffers, offset, 1+bufferUpto);  
+        allocator.recycleIntBlocks(buffers, offset, 1+bufferUpto);  
         Arrays.fill(buffers, offset, bufferUpto+1, null);
       }
       if (reuseFirst) {
@@ -140,7 +160,7 @@ public final class XIntBlockPool implements Releasable {
       System.arraycopy(buffers, 0, newBuffers, 0, buffers.length);
       buffers = newBuffers;
     }
-    buffer = (buffers[1+bufferUpto] = pageCacheRecycler.intPage(true)).v();
+    buffer = (buffers[1+bufferUpto] = allocator.getIntBlock()).v();
     // end Elasticsearch modification
     bufferUpto++;
 
@@ -260,7 +280,7 @@ public final class XIntBlockPool implements Releasable {
         offset = relativeOffset + pool.intOffset;
       }
       ints[relativeOffset] = value;
-      offset++; 
+      offset++;
     }
     
     /**

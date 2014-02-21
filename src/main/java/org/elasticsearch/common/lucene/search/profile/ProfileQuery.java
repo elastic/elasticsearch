@@ -77,9 +77,9 @@ public class ProfileQuery extends Query {
         if (rewrittenQuery == subQuery) {
             return this;
         }
-        ProfileQuery newProfile = (ProfileQuery) this.clone();      // @TODO why not just set subQuery and return this?
-        newProfile.subQuery = rewrittenQuery;
-        return newProfile;
+        //ProfileQuery newProfile = (ProfileQuery) this.clone();      // @TODO why not just set subQuery and return this?
+        this.subQuery = rewrittenQuery;
+        return this;
     }
 
     @Override

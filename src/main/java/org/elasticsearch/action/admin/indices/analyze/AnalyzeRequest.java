@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -43,9 +44,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     private String tokenizer;
 
-    private String[] tokenFilters;
+    private String[] tokenFilters = Strings.EMPTY_ARRAY;
 
-    private String[] charFilters;
+    private String[] charFilters = Strings.EMPTY_ARRAY;
 
     private String field;
 
@@ -137,6 +138,12 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         if (text == null) {
             validationException = addValidationError("text is missing", validationException);
         }
+        if (tokenFilters == null) {
+            validationException = addValidationError("tokenFilters is null", validationException);
+        }
+        if (charFilters == null) {
+            validationException = addValidationError("charFilters is null", validationException);
+        }
         return validationException;
     }
 
@@ -147,21 +154,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         text = in.readString();
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
-        int size = in.readVInt();
-        if (size > 0) {
-            tokenFilters = new String[size];
-            for (int i = 0; i < size; i++) {
-                tokenFilters[i] = in.readString();
-            }
-        }
+        tokenFilters = in.readStringArray();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            size = in.readVInt();
-            if (size > 0) {
-                charFilters = new String[size];
-                for (int i = 0; i < size; i++) {
-                    charFilters[i] = in.readString();
-                }
-            }
+            charFilters = in.readStringArray();
         }
         field = in.readOptionalString();
     }
@@ -173,23 +168,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         out.writeString(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);
-        if (tokenFilters == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(tokenFilters.length);
-            for (String tokenFilter : tokenFilters) {
-                out.writeString(tokenFilter);
-            }
-        }
+        out.writeStringArrayNullable(tokenFilters);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            if (charFilters == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(charFilters.length);
-                for (String charFilter : charFilters) {
-                    out.writeString(charFilter);
-                }
-            }
+            out.writeStringArrayNullable(charFilters);
         }
         out.writeOptionalString(field);
     }

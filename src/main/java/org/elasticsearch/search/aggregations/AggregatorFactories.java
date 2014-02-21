@@ -73,9 +73,13 @@ public class AggregatorFactories {
                 ObjectArray<Aggregator> aggregators;
 
                 {
-                    aggregators = BigArrays.newObjectArray(estimatedBucketsCount, context.pageCacheRecycler());
+                    // if estimated count is zero, we at least create a single aggregator.
+                    // The estimated count is just an estimation and we can't rely on how it's estimated (that is, an
+                    // estimation of 0 should not imply that we'll end up without any buckets)
+                    long arraySize = estimatedBucketsCount > 0 ?  estimatedBucketsCount : 1;
+                    aggregators = BigArrays.newObjectArray(arraySize , context.pageCacheRecycler());
                     aggregators.set(0, first);
-                    for (long i = 1; i < estimatedBucketsCount; ++i) {
+                    for (long i = 1; i < arraySize; ++i) {
                         aggregators.set(i, createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount));
                     }
                 }

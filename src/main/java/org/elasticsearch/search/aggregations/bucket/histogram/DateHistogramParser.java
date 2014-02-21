@@ -223,7 +223,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
-            throw new SearchParseException(context, "date histogram can only be aggregated on date fields but  [" + field + "] is not a date field");
+            throw new SearchParseException(context, "date histogram can only be aggregated on date fields but [" + field + "] is not a date field");
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);

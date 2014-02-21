@@ -88,6 +88,11 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
     protected void doExecute(final GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState state = clusterService.state();
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        if (concreteIndices.length == 0) {
+            listener.onResponse(new GetFieldMappingsResponse());
+            return;
+        }
+
         request.indices(concreteIndices);
         if (request.local) {
             logger.trace("executing request locally");

@@ -41,7 +41,7 @@ import java.util.*;
 
 /**
  * This reader is a pile of hacks designed to allow on the fly re-analyzing for
- * documents for highlighters that need extra data.  It has to be extended to
+ * fields for highlighters that need extra data.  It has to be extended to
  * be useful but should work for the FHV and Postings highlighter.
  */
 public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicReader {

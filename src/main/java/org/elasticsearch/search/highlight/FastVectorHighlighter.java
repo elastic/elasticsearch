@@ -191,7 +191,11 @@ public class FastVectorHighlighter implements Highlighter {
         public CustomFieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
     }
-    
+
+    /**
+     * This reader will re-analyze fields needed by the FVH if there aren't term vectors with positions and offsets.
+     * Don't use it for anything other than the FHV because it lies.
+     */
     private static class DelegatingOrAnalyzingReaderForFVH extends AbstractDelegatingOrAnalyzingReader {
         public DelegatingOrAnalyzingReaderForFVH(SearchContext searchContext, HitContext hitContext, boolean forceSource,
                 TermSetSource termSetSource) {

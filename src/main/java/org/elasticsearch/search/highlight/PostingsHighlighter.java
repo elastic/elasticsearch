@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.highlight.AbstractDelegatingOrAnalyzingReader.TermSetSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -105,7 +106,8 @@ public class PostingsHighlighter implements Highlighter {
 
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
-            IndexReader reader = new DelegatingOrAnalyzingReaderForPostingsHighlighter(context, hitContext, field.forceSource(), null);
+            IndexReader reader = new DelegatingOrAnalyzingReaderForPostingsHighlighter(context, hitContext, field.forceSource(),
+                    new PostingsHighlighterTermSetSource(highlighterEntry.queryTerms, field.requireFieldMatch()));
             for (int i = 0; i < values; i++) {
                 Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms,
                         reader, hitContext.docId(), numberOfFragments);
@@ -267,7 +269,11 @@ public class PostingsHighlighter implements Highlighter {
             this.filteredQueryTerms = filteredQueryTerms;
         }
     }
-    
+
+    /**
+     * This reader will re-analyze fields that the postings highlighter needs if their postings don't contain offsets.
+     * Don't use it for anything but the postings highlighter because it lies.
+     */
     private static class DelegatingOrAnalyzingReaderForPostingsHighlighter extends AbstractDelegatingOrAnalyzingReader {
         public DelegatingOrAnalyzingReaderForPostingsHighlighter(SearchContext searchContext, HitContext hitContext, boolean forceSource,
                 TermSetSource termSetSource) {
@@ -277,6 +283,25 @@ public class PostingsHighlighter implements Highlighter {
         @Override
         public Fields fields() throws IOException {
             return new DelegatingOrAnalyzingFields(super.fields());
+        }
+    }
+
+    private static class PostingsHighlighterTermSetSource implements TermSetSource {
+        private final SortedSet<Term> queryTerms;
+        private final boolean requireFieldMatch;
+        
+        public PostingsHighlighterTermSetSource(SortedSet<Term> queryTerms, boolean requireFieldMatch) {
+            this.queryTerms = queryTerms;
+            this.requireFieldMatch = requireFieldMatch;
+        }
+
+        @Override
+        public Set<String> termSet(String field) {
+            Set<String> termSet = new HashSet<String>();
+            for( BytesRef bytes: filterTerms(queryTerms, field, requireFieldMatch)) {
+                termSet.add(bytes.utf8ToString());
+            }
+            return termSet;
         }
     }
 }

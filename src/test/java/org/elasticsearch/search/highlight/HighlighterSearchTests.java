@@ -52,6 +52,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -1122,6 +1123,19 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setHighlighterType("fast-vector-highlighter")
                 .execute().actionGet();
         assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
+        }
+
+        search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .addHighlightedField("tit*", 50, 1, 10)
+                .setHighlighterType("fast-vector-highlighter")
+                .execute().actionGet();
+        assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"));
+        }
     }
 
     @Test
@@ -2163,6 +2177,17 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         search = client().prepareSearch()
                 .setQuery(matchQuery("title", "this is a test"))
                 .addHighlightedField("title")
+                .setHighlighterType("postings")
+                .get();
+
+        assertThat(search.getFailedShards(), equalTo(2));
+        for (ShardSearchFailure shardSearchFailure : search.getShardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("the field [title] should be indexed with positions and offsets in the postings list to be used with postings highlighter"));
+        }
+
+        search = client().prepareSearch()
+                .setQuery(matchQuery("title", "this is a test"))
+                .addHighlightedField("tit*")
                 .setHighlighterType("postings")
                 .get();
 

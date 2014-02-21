@@ -64,10 +64,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.Count;
-import org.elasticsearch.percolator.QueryCollector.Match;
-import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
-import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
+import org.elasticsearch.percolator.QueryCollector.*;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -79,7 +76,6 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
@@ -307,11 +303,6 @@ public class PercolatorService extends AbstractComponent {
             // We need to get the actual source from the request body for highlighting, so parse the request body again
             // and only get the doc source.
             if (context.highlight() != null) {
-                // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-                for (SearchContextHighlight.Field field : context.highlight().fields()) {
-                    field.forceSource(true);
-                }
-
                 parser.close();
                 currentFieldName = null;
                 parser = XContentFactory.xContent(source).createParser(source);
@@ -370,10 +361,6 @@ public class PercolatorService extends AbstractComponent {
             doc = docMapper.parse(source(parser).type(type).flyweight(true));
 
             if (context.highlight() != null) {
-                // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-                for (SearchContextHighlight.Field field : context.highlight().fields()) {
-                    field.forceSource(true);
-                }
                 doc.setSource(fetchedDoc);
             }
         } catch (Throwable e) {

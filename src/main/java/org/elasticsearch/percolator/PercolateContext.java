@@ -189,6 +189,10 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void highlight(SearchContextHighlight highlight) {
+        if (highlight != null) {
+            // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
+            highlight.globalForceSource(true);
+        }
         this.highlight = highlight;
     }
 

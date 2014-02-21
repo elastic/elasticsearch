@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -126,10 +125,8 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrBefore(Version.V_1_0_0)) {
-            // This request used to inherit from MasterNodeOperationRequest
-            MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT.writeTo(out);
-        }
+        // This request used to inherit from MasterNodeOperationRequest, so for bwc we need to keep serializing it.
+        MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
@@ -141,10 +138,8 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrBefore(Version.V_1_0_0)) {
-            // This request used to inherit from MasterNodeOperationRequest
-            TimeValue.readTimeValue(in);
-        }
+        // This request used to inherit from MasterNodeOperationRequest, so for bwc we need to keep serializing it.
+        TimeValue.readTimeValue(in);
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
